@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* small app-level tweaks */
+body { @apply bg-slate-50 text-slate-900; }
+.app-container { @apply min-h-screen p-4 md:p-8; }
+.header { @apply flex items-center justify-between mb-6; }
+.logo { @apply w-12 h-12 bg-white rounded-md shadow flex items-center justify-center font-bold; }
+.title { @apply text-2xl font-extrabold text-center flex-1; }
+.tabs { @apply flex gap-4 justify-center mb-6; }
+.tab { @apply px-4 py-3 rounded-lg text-white font-semibold shadow cursor-pointer transform transition; }
+.tab-active { @apply ring-4 ring-white/30 scale-105; }
+.card { @apply bg-white rounded-lg shadow p-4; }
+.footer { @apply text-sm text-slate-500 text-center mt-8; }
