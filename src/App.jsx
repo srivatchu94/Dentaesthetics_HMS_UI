@@ -3,30 +3,44 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header";
 import Home from "./pages/Home";
 import Clinics from "./pages/Clinics";
+import CreateClinic from "./pages/CreateClinic";
+import ViewClinics from "./pages/ViewClinics";
 import Patients from "./pages/Patients";
+import ViewPatients from "./pages/ViewPatients";
+import EditPatients from "./pages/EditPatients";
 import Services from "./pages/Services";
 import Staff from "./pages/Staff";
+import Doctors from "./pages/Doctors";
+import DeletePatients from "./pages/DeletePatients";
 import CrudPage from "./pages/CrudPage";
 import Footer from "./components/Footer";
+import WhatsAppChatbot from "./components/WhatsAppChatbot";
 
 export default function App(){
   return (
-    <div className="app-container">
+    <div className="app-container min-h-screen">
       <Header />
-      <main className="max-w-6xl mx-auto">
+      <main>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/clinics" element={<Clinics />} />
-          <Route path="/clinics/:operation" element={<CrudPage resource="Clinics" />} />
-          <Route path="/patients" element={<Patients />} />
-          <Route path="/patients/:operation" element={<CrudPage resource="Patients" />} />
-          <Route path="/services" element={<Services />} />
-          <Route path="/services/:operation" element={<CrudPage resource="Services" />} />
-          <Route path="/staff" element={<Staff />} />
-          <Route path="/staff/:operation" element={<CrudPage resource="Staff" />} />
+          <Route path="/" element={<div className="max-w-6xl mx-auto"><Home /></div>} />
+          <Route path="/clinics" element={<div className="max-w-6xl mx-auto"><Clinics /></div>} />
+          <Route path="/clinics/create" element={<div className="max-w-6xl mx-auto"><CreateClinic /></div>} />
+          <Route path="/clinics/view" element={<div className="max-w-6xl mx-auto"><ViewClinics /></div>} />
+          <Route path="/clinics/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Clinics" /></div>} />
+          <Route path="/patients" element={<div className="max-w-6xl mx-auto"><Patients /></div>} />
+          <Route path="/patients/view" element={<div className="max-w-6xl mx-auto"><ViewPatients /></div>} />
+          <Route path="/patients/edit" element={<div className="max-w-6xl mx-auto"><EditPatients /></div>} />
+          <Route path="/patients/delete" element={<div className="max-w-6xl mx-auto"><DeletePatients /></div>} />
+          <Route path="/patients/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resourceType="patients" /></div>} />
+          <Route path="/services" element={<div className="max-w-6xl mx-auto"><Services /></div>} />
+          <Route path="/services/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Services" /></div>} />
+          <Route path="/staff" element={<div className="max-w-6xl mx-auto"><Staff /></div>} />
+          <Route path="/staff/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Staff" /></div>} />
+          <Route path="/doctors" element={<Doctors />} />
         </Routes>
       </main>
       <Footer />
+      <WhatsAppChatbot />
     </div>
   );
 }

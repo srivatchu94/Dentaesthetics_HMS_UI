@@ -1,11 +1,15 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import TabCard from "../components/TabCard";
 
 const CRUD = ["Add Clinic", "List Clinics", "Update Clinic", "Delete Clinic"];
 
 export default function Clinics(){
   const [log, setLog] = useState([]);
+  const navigate = useNavigate();
   const onAction = (a) => {
+    if (a === "Add Clinic") { navigate("/clinics/create"); return; }
+    if (a === "List Clinics") { navigate("/clinics/view"); return; }
     setLog((s) => [a, ...s].slice(0, 10));
     alert(`${a} (sample)`);
   };

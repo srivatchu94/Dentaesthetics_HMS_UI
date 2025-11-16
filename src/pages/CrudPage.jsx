@@ -8,9 +8,9 @@ const OPERATION_DETAILS = {
     color: "from-green-400 to-green-600",
     description: "Add a new entry"
   },
-  read: {
+  view: {
     title: "View",
-    icon: "👁️",
+    icon: "📋",
     color: "from-blue-400 to-blue-600",
     description: "View all entries"
   },
@@ -62,7 +62,7 @@ export default function CrudPage({ resource }) {
 
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="bg-white rounded-lg shadow-lg p-8">
-          {operation === "read" && (
+          {operation === "view" && (
             <div>
               <h2 className="text-2xl font-bold mb-6 text-slate-900">All {resource}</h2>
             <div className="overflow-x-auto">

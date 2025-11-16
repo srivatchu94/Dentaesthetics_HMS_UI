@@ -12,10 +12,10 @@ const TABS = [
 
 const CRUD_OPERATIONS = {
   home: [],
-  clinics: ["create", "read", "update", "delete"],
-  patients: ["create", "read", "update", "delete"],
-  services: ["create", "read", "update", "delete"],
-  staff: ["create", "read", "update", "delete"],
+  clinics: ["create", "view", "update", "delete"],
+  patients: ["create", "view", "update", "delete"],
+  services: ["create", "view", "update", "delete"],
+  staff: ["create", "view", "update", "delete"],
 };
 
 export default function Header(){
@@ -23,45 +23,91 @@ export default function Header(){
   const navigate = useNavigate();
 
   const handleCrudClick = (tabKey, operation) => {
-    navigate(`/${tabKey}/${operation}`);
+    // Direct link to patient registration form for "create" operation
+    if (tabKey === "patients" && operation === "create") {
+      navigate("/patients?view=register");
+    } else if (tabKey === "patients" && operation === "view") {
+      // Navigate to separate ViewPatients page
+      navigate("/patients/view");
+    } else if (tabKey === "patients" && operation === "update") {
+      // Navigate to separate EditPatients page
+      navigate("/patients/edit");
+    } else if (tabKey === "clinics" && operation === "create") {
+      // Navigate to bespoke CreateClinic page
+      navigate("/clinics/create");
+    } else if (tabKey === "clinics" && operation === "view") {
+      navigate("/clinics/view");
+    } else if (tabKey === "patients" && operation === "delete") {
+      navigate("/patients/delete");
+    } else {
+      navigate(`/${tabKey}/${operation}`);
+    }
   };
 
   return (
     <>
-      <header className="w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] mb-0">
-        <div className="bg-gradient-to-r from-blue-200 via-indigo-200 to-purple-200 shadow-lg py-8 px-6 md:px-12 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-4 hover:opacity-80 transition-opacity">
-            <div className="w-16 h-16 bg-white rounded-lg shadow-lg flex items-center justify-center font-bold text-2xl text-indigo-700">DV</div>
-            <h1 className="text-4xl font-extrabold text-indigo-900">Dentaesthetics — VitalsVille</h1>
-          </Link>
+      <header className="w-full fixed top-0 left-0 right-0 z-40">
+        <div className="bg-gradient-to-r from-amber-100 via-rose-100 to-orange-100 shadow-lg">
+          <div className="bg-gradient-to-br from-amber-50/90 via-rose-50/80 to-orange-50/90 backdrop-blur-sm">
+            <div className="max-w-7xl mx-auto px-6 md:px-12 py-4">
+              <div className="grid grid-cols-3 items-center">
+            {/* Logo - Left */}
+                <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                  <motion.div 
+                    whileHover={{ scale: 1.1, rotate: 5 }}
+                    className="w-12 h-12 bg-gradient-to-br from-amber-400 via-rose-400 to-orange-400 rounded-xl shadow-lg flex items-center justify-center"
+                  >
+                    <span className="text-2xl">🦷</span>
+                  </motion.div>
+                </Link>
 
-          <button className="px-8 py-3 bg-indigo-700 text-white rounded-lg hover:bg-indigo-800 transition-all font-bold shadow-lg hover:shadow-xl">
-            Login
-          </button>
+            {/* Title - Center */}
+                <div className="text-center">
+                  <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-amber-700 via-rose-700 to-orange-700 bg-clip-text text-transparent">
+                    Dentaesthetics VitalsVille
+                  </h1>
+                </div>
+
+            {/* Login Button - Right */}
+                <div className="flex justify-end">
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="px-6 py-2 bg-gradient-to-r from-amber-500 via-rose-500 to-orange-500 text-white rounded-lg hover:from-amber-600 hover:via-rose-600 hover:to-orange-600 transition-all font-semibold shadow-lg hover:shadow-xl text-sm"
+                  >
+                    Login
+                  </motion.button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
-      <nav className="w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] bg-gradient-to-r from-indigo-50 to-purple-50 border-b-2 border-indigo-200 shadow-md">
-        <div className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex gap-6 justify-center relative flex-wrap">
-          {TABS.map((t) => (
-            <div
-              key={t.key}
-              className="relative"
-              onMouseEnter={() => setHoveredTab(t.key)}
-              onMouseLeave={() => setHoveredTab(null)}
-            >
-              <NavLink
-                to={t.path}
-                className={({isActive}) =>
-                  `px-6 py-3 font-bold transition-all inline-flex items-center gap-2 rounded-lg border-2 ${t.bgColor} ${t.textColor} ${t.borderColor} ${isActive ? `${t.hoverBg} ring-2 ring-offset-2 scale-105` : `${t.hoverBg}`}`
-                }
-              >
-                <span className="text-2xl">{t.icon}</span>
-                <motion.span whileHover={{ y: -2 }}>{t.label}</motion.span>
-              </NavLink>
+      <div className="h-20"></div>
 
-              {/* Dropdown Menu */}
-              {hoveredTab === t.key && CRUD_OPERATIONS[t.key].length > 0 && (
+      <nav className="w-full bg-gradient-to-r from-amber-50/50 via-rose-50/40 to-orange-50/50 border-b border-amber-200/30 shadow-sm sticky top-20 z-30 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-6 md:px-12 py-4">
+          <div className="flex gap-6 justify-center relative flex-wrap items-center">
+            {TABS.map((t) => (
+              <div
+                key={t.key}
+                className="relative"
+                onMouseEnter={() => setHoveredTab(t.key)}
+                onMouseLeave={() => setHoveredTab(null)}
+              >
+                <NavLink
+                  to={t.path}
+                  className={({isActive}) =>
+                    `px-6 py-3 font-bold transition-all inline-flex items-center gap-2 rounded-lg border-2 ${t.bgColor} ${t.textColor} ${t.borderColor} ${isActive ? `${t.hoverBg} ring-2 ring-offset-2 scale-105` : `${t.hoverBg}`}`
+                  }
+                >
+                  <span className="text-2xl">{t.icon}</span>
+                  <motion.span whileHover={{ y: -2 }}>{t.label}</motion.span>
+                </NavLink>
+
+                {/* Dropdown Menu */}
+                {hoveredTab === t.key && CRUD_OPERATIONS[t.key].length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -73,7 +119,7 @@ export default function Header(){
                   {CRUD_OPERATIONS[t.key].map((op, idx) => {
                     const colors = {
                       create: { bg: "bg-green-50 hover:bg-green-100", text: "text-green-700", icon: "➕" },
-                      read: { bg: "bg-blue-50 hover:bg-blue-100", text: "text-blue-700", icon: "👁️" },
+                      view: { bg: "bg-blue-50 hover:bg-blue-100", text: "text-blue-700", icon: "📋" },
                       update: { bg: "bg-yellow-50 hover:bg-yellow-100", text: "text-yellow-700", icon: "✏️" },
                       delete: { bg: "bg-red-50 hover:bg-red-100", text: "text-red-700", icon: "🗑️" },
                     };
@@ -98,6 +144,7 @@ export default function Header(){
               )}
             </div>
           ))}
+          </div>
         </div>
       </nav>
     </>

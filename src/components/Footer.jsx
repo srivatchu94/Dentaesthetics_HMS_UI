@@ -31,32 +31,49 @@ export default function Footer() {
             <p className="text-slate-300">Your trusted dental hospital management system</p>
             <div className="flex gap-3">
               <a
-                href="#"
-                className="w-10 h-10 bg-indigo-600 hover:bg-indigo-700 rounded-full flex items-center justify-center transition-all"
+                href="https://facebook.com/DentaestheticsHMS"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 bg-indigo-600 hover:bg-indigo-700 rounded-full flex items-center justify-center transition-all hover:scale-110"
                 title="Facebook"
               >
                 f
               </a>
               <a
-                href="#"
-                className="w-10 h-10 bg-blue-400 hover:bg-blue-500 rounded-full flex items-center justify-center transition-all"
+                href="https://twitter.com/DentaHMS"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 bg-blue-400 hover:bg-blue-500 rounded-full flex items-center justify-center transition-all hover:scale-110"
                 title="Twitter"
               >
                 𝕏
               </a>
               <a
-                href="#"
-                className="w-10 h-10 bg-pink-600 hover:bg-pink-700 rounded-full flex items-center justify-center transition-all"
+                href="https://instagram.com/dentaesthetics_hms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 bg-pink-600 hover:bg-pink-700 rounded-full flex items-center justify-center transition-all hover:scale-110"
                 title="Instagram"
               >
                 📸
               </a>
               <a
-                href="#"
-                className="w-10 h-10 bg-blue-700 hover:bg-blue-800 rounded-full flex items-center justify-center transition-all"
+                href="https://linkedin.com/company/dentaesthetics-hms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 bg-blue-700 hover:bg-blue-800 rounded-full flex items-center justify-center transition-all hover:scale-110"
                 title="LinkedIn"
               >
                 in
+              </a>
+              <a
+                href="https://wa.me/15551234567"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 bg-green-600 hover:bg-green-700 rounded-full flex items-center justify-center transition-all hover:scale-110"
+                title="WhatsApp"
+              >
+                💬
               </a>
             </div>
           </div>
