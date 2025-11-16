@@ -2,9 +2,32 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
 
+// Sample patient data
+const SAMPLE_PATIENTS_LIST = [
+  { id: 1, firstName: "Sarah", lastName: "Johnson", dateOfBirth: "1985-03-15", gender: "Female", phoneNumber: "555-0101", email: "sarah.johnson@email.com", city: "New York", status: "Active", lastVisit: "2025-11-10", nextAppt: "2025-11-20" },
+  { id: 2, firstName: "Michael", lastName: "Chen", dateOfBirth: "1978-07-22", gender: "Male", phoneNumber: "555-0102", email: "michael.chen@email.com", city: "Los Angeles", status: "Active", lastVisit: "2025-11-08", nextAppt: "2025-11-22" },
+  { id: 3, firstName: "Emily", lastName: "Rodriguez", dateOfBirth: "1992-11-30", gender: "Female", phoneNumber: "555-0103", email: "emily.rodriguez@email.com", city: "Chicago", status: "Active", lastVisit: "2025-11-05", nextAppt: "2025-11-25" },
+  { id: 4, firstName: "David", lastName: "Thompson", dateOfBirth: "1965-05-18", gender: "Male", phoneNumber: "555-0104", email: "david.thompson@email.com", city: "Houston", status: "Inactive", lastVisit: "2025-10-28", nextAppt: "2025-12-01" },
+  { id: 5, firstName: "Lisa", lastName: "Martinez", dateOfBirth: "1988-09-12", gender: "Female", phoneNumber: "555-0105", email: "lisa.martinez@email.com", city: "Phoenix", status: "Active", lastVisit: "2025-11-12", nextAppt: "2025-11-18" },
+  { id: 6, firstName: "James", lastName: "Wilson", dateOfBirth: "1995-01-25", gender: "Male", phoneNumber: "555-0106", email: "james.wilson@email.com", city: "Philadelphia", status: "Active", lastVisit: "2025-11-09", nextAppt: "2025-11-23" },
+  { id: 7, firstName: "Maria", lastName: "Garcia", dateOfBirth: "1982-06-08", gender: "Female", phoneNumber: "555-0107", email: "maria.garcia@email.com", city: "San Antonio", status: "Active", lastVisit: "2025-11-11", nextAppt: "2025-11-21" },
+  { id: 8, firstName: "Robert", lastName: "Anderson", dateOfBirth: "1970-12-03", gender: "Male", phoneNumber: "555-0108", email: "robert.anderson@email.com", city: "San Diego", status: "Inactive", lastVisit: "2025-10-15", nextAppt: "2025-12-10" },
+];
+
 export default function Patients() {
   const [searchParams] = useSearchParams();
-  const [activeView, setActiveView] = useState("register");
+  const [activeView, setActiveView] = useState("list");
+  
+  // Search and filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState({
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    gender: "",
+    status: ""
+  });
+  const [showFilters, setShowFilters] = useState(false);
   
   // Check URL params on mount to set initial view
   useEffect(() => {
@@ -15,6 +38,35 @@ export default function Patients() {
       setActiveView("list");
     }
   }, [searchParams]);
+  
+  // Filter patients based on search and filters
+  const filteredPatients = SAMPLE_PATIENTS_LIST.filter(patient => {
+    const matchesSearch = searchQuery === "" || 
+      patient.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      patient.lastName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      patient.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      patient.phoneNumber.includes(searchQuery);
+    
+    const matchesFilters = 
+      (filters.firstName === "" || patient.firstName.toLowerCase().includes(filters.firstName.toLowerCase())) &&
+      (filters.lastName === "" || patient.lastName.toLowerCase().includes(filters.lastName.toLowerCase())) &&
+      (filters.dateOfBirth === "" || patient.dateOfBirth === filters.dateOfBirth) &&
+      (filters.gender === "" || patient.gender === filters.gender) &&
+      (filters.status === "" || patient.status === filters.status);
+    
+    return matchesSearch && matchesFilters;
+  });
+  
+  const clearFilters = () => {
+    setFilters({
+      firstName: "",
+      lastName: "",
+      dateOfBirth: "",
+      gender: "",
+      status: ""
+    });
+    setSearchQuery("");
+  };
   
   // Collapsible section states
   const [openSections, setOpenSections] = useState({
@@ -106,8 +158,8 @@ export default function Patients() {
     { clinicId: 3, clinicName: "Westside Family Dentistry" }
   ];
 
-  // Filter patients based on search criteria
-  const filteredPatients = mockPatients.filter(patient => {
+  // Filter patients based on old search criteria (for register/edit views)
+  const filteredPatientsOld = mockPatients.filter(patient => {
     if (filterData.firstName && !patient.firstName.toLowerCase().includes(filterData.firstName.toLowerCase())) return false;
     if (filterData.lastName && !patient.lastName.toLowerCase().includes(filterData.lastName.toLowerCase())) return false;
     if (filterData.dateOfBirth && patient.dateOfBirth !== filterData.dateOfBirth) return false;
@@ -657,33 +709,124 @@ export default function Patients() {
         {/* Patients List View */}
         {activeView === "list" && (
           <div className="bg-white rounded-lg shadow-lg p-8">
-            <h2 className="text-2xl font-bold text-amber-900 mb-6">View Patients</h2>
-            
-            {/* Tab Selector */}
-            <div className="flex gap-4 mb-6 border-b border-stone-200">
-              <button
-                onClick={() => setViewTab("search")}
-                className={`px-6 py-3 font-semibold transition-all ${
-                  viewTab === "search"
-                    ? "text-amber-700 border-b-2 border-amber-600"
-                    : "text-stone-500 hover:text-amber-600"
-                }`}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-amber-900">Patients List</h2>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowFilters(!showFilters)}
+                className="px-4 py-2 bg-amber-100 text-amber-700 rounded-lg font-semibold hover:bg-amber-200 transition flex items-center gap-2"
               >
-                🔍 Search Patients
-              </button>
-              <button
-                onClick={() => setViewTab("clinic")}
-                className={`px-6 py-3 font-semibold transition-all ${
-                  viewTab === "clinic"
-                    ? "text-amber-700 border-b-2 border-amber-600"
-                    : "text-stone-500 hover:text-amber-600"
-                }`}
-              >
-                🏥 By Clinic
-              </button>
+                {showFilters ? "🔼 Hide Filters" : "🔽 Show Filters"}
+              </motion.button>
             </div>
 
-            {/* Search Patients Tab */}
+            {/* Global Search Bar */}
+            <div className="mb-6">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="🔍 Search by name, email, or phone number..."
+                  className="w-full px-4 py-3 pl-12 border-2 border-amber-200 rounded-xl focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition"
+                />
+                <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Advanced Filters */}
+            <AnimatePresence>
+              {showFilters && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden"
+                >
+                  <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-6 mb-6 border-2 border-amber-200">
+                    <h3 className="text-lg font-semibold text-amber-900 mb-4 flex items-center gap-2">
+                      <span>🎯</span> Advanced Filters
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-2">First Name</label>
+                        <input
+                          type="text"
+                          value={filters.firstName}
+                          onChange={(e) => setFilters({ ...filters, firstName: e.target.value })}
+                          placeholder="Filter by first name"
+                          className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-2">Last Name</label>
+                        <input
+                          type="text"
+                          value={filters.lastName}
+                          onChange={(e) => setFilters({ ...filters, lastName: e.target.value })}
+                          placeholder="Filter by last name"
+                          className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-2">Date of Birth</label>
+                        <input
+                          type="date"
+                          value={filters.dateOfBirth}
+                          onChange={(e) => setFilters({ ...filters, dateOfBirth: e.target.value })}
+                          className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-2">Gender</label>
+                        <select
+                          value={filters.gender}
+                          onChange={(e) => setFilters({ ...filters, gender: e.target.value })}
+                          className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+                        >
+                          <option value="">All Genders</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-stone-700 mb-2">Status</label>
+                        <select
+                          value={filters.status}
+                          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                          className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+                        >
+                          <option value="">All Status</option>
+                          <option value="Active">Active</option>
+                          <option value="Inactive">Inactive</option>
+                        </select>
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          onClick={clearFilters}
+                          className="w-full px-4 py-2 bg-stone-200 text-stone-700 rounded-lg font-semibold hover:bg-stone-300 transition"
+                        >
+                          Clear All Filters
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Results Summary */}
+            <div className="mb-4 flex justify-between items-center">
+              <p className="text-sm text-stone-600">
+                Showing <span className="font-semibold text-amber-700">{filteredPatients.length}</span> of <span className="font-semibold">{SAMPLE_PATIENTS_LIST.length}</span> patients
+              </p>
+            </div>
+
+            {/* Results Table */}
             {viewTab === "search" && (
               <div>
                 {/* Filter Section */}
@@ -750,50 +893,71 @@ export default function Patients() {
                   </div>
                 </div>
 
-                {/* Results Table */}
                 <div className="overflow-x-auto">
-                  <div className="mb-4 flex justify-between items-center">
-                    <p className="text-sm text-stone-600">
-                      Showing <span className="font-semibold text-amber-700">{filteredPatients.length}</span> patient(s)
-                    </p>
-                  </div>
-                  
                   {filteredPatients.length > 0 ? (
                     <table className="w-full border-collapse">
                       <thead>
-                        <tr className="bg-amber-50 border-b-2 border-amber-200">
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Patient ID</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Name</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Date of Birth</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Gender</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Clinic ID</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Phone</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Email</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Actions</th>
+                        <tr className="bg-gradient-to-r from-amber-100 to-orange-100 border-b-2 border-amber-300">
+                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">ID</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Name</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Date of Birth</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Gender</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Phone</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Email</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">City</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Status</th>
+                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Last Visit</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredPatients.map((patient, idx) => (
-                          <tr key={patient.patientId} className={`border-b border-stone-200 hover:bg-amber-25 transition ${idx % 2 === 0 ? 'bg-white' : 'bg-stone-50'}`}>
-                            <td className="px-4 py-3 text-sm text-stone-700">{patient.patientId}</td>
-                            <td className="px-4 py-3 text-sm font-medium text-stone-900">{patient.firstName} {patient.lastName}</td>
-                            <td className="px-4 py-3 text-sm text-stone-700">{patient.dateOfBirth}</td>
-                            <td className="px-4 py-3 text-sm text-stone-700">{patient.gender}</td>
-                            <td className="px-4 py-3 text-sm text-stone-700">{patient.clinicId}</td>
-                            <td className="px-4 py-3 text-sm text-stone-700">{patient.phoneNumber}</td>
-                            <td className="px-4 py-3 text-sm text-stone-700">{patient.email}</td>
-                            <td className="px-4 py-3 text-sm">
-                              <button className="text-amber-600 hover:text-amber-800 font-semibold mr-3">View</button>
-                              <button className="text-blue-600 hover:text-blue-800 font-semibold">Edit</button>
+                          <motion.tr
+                            key={patient.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className={`border-b border-stone-200 hover:bg-amber-50 transition-all ${idx % 2 === 0 ? 'bg-white' : 'bg-stone-50'}`}
+                          >
+                            <td className="px-6 py-4 text-sm text-stone-700 font-medium">#{patient.id}</td>
+                            <td className="px-6 py-4 text-sm font-semibold text-stone-900">
+                              {patient.firstName} {patient.lastName}
                             </td>
-                          </tr>
+                            <td className="px-6 py-4 text-sm text-stone-700">{patient.dateOfBirth}</td>
+                            <td className="px-6 py-4 text-sm text-stone-700">
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                patient.gender === 'Male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
+                              }`}>
+                                {patient.gender}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-stone-700">{patient.phoneNumber}</td>
+                            <td className="px-6 py-4 text-sm text-stone-600">{patient.email}</td>
+                            <td className="px-6 py-4 text-sm text-stone-700">{patient.city}</td>
+                            <td className="px-6 py-4 text-sm">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                patient.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {patient.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-stone-700">{patient.lastVisit}</td>
+                          </motion.tr>
                         ))}
                       </tbody>
                     </table>
                   ) : (
-                    <div className="text-center py-12 bg-stone-50 rounded-lg border border-stone-200">
-                      <p className="text-stone-500 text-lg">No patients found matching your criteria</p>
-                      <p className="text-stone-400 text-sm mt-2">Try adjusting your filters</p>
+                    <div className="text-center py-16 bg-gradient-to-br from-stone-50 to-amber-50 rounded-xl border-2 border-dashed border-amber-300">
+                      <div className="text-6xl mb-4">🔍</div>
+                      <p className="text-stone-600 text-lg font-semibold">No patients found</p>
+                      <p className="text-stone-500 text-sm mt-2">Try adjusting your search or filters</p>
+                      {(searchQuery || Object.values(filters).some(v => v !== "")) && (
+                        <button
+                          onClick={clearFilters}
+                          className="mt-4 px-6 py-2 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700 transition"
+                        >
+                          Clear All Filters
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

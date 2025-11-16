@@ -53,7 +53,73 @@ export default function Doctors() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
   const [activeSection, setActiveSection] = useState("dashboard");
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isDashboardExpanded, setIsDashboardExpanded] = useState(false);
+  const [isManageExpanded, setIsManageExpanded] = useState(false);
+  
+  // Inventory management states
+  const [inventoryItems, setInventoryItems] = useState(SAMPLE_INVENTORY);
+  const [newItems, setNewItems] = useState([]);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [orderItem, setOrderItem] = useState(null);
+  const [orderQuantity, setOrderQuantity] = useState("");
+  const [selectedVendor, setSelectedVendor] = useState("");
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  
+  const vendors = [
+    "MedSupply Co.",
+    "Dental Solutions Ltd.",
+    "Healthcare Partners Inc.",
+    "Premier Medical Supplies",
+    "Global Dental Equipment"
+  ];
+  
+  const handleAddNewItem = () => {
+    setNewItems([...newItems, { tempId: Date.now(), item: "", category: "", available: "", reorderLevel: "" }]);
+  };
+  
+  const handleNewItemChange = (tempId, field, value) => {
+    setNewItems(newItems.map(item => 
+      item.tempId === tempId ? { ...item, [field]: value } : item
+    ));
+  };
+  
+  const handleSaveNewItems = () => {
+    const validItems = newItems.filter(item => item.item && item.category && item.available);
+    if (validItems.length > 0) {
+      const itemsToAdd = validItems.map((item, index) => ({
+        id: inventoryItems.length + index + 1,
+        item: item.item,
+        category: item.category,
+        available: parseInt(item.available) || 0,
+        ordered: 0,
+        reorderLevel: parseInt(item.reorderLevel) || 10,
+        status: "In Stock"
+      }));
+      setInventoryItems([...inventoryItems, ...itemsToAdd]);
+      setNewItems([]);
+    }
+  };
+  
+  const handlePlaceOrder = (item) => {
+    setOrderItem(item);
+    setOrderQuantity("");
+    setSelectedVendor("");
+    setOrderModalOpen(true);
+  };
+  
+  const handleConfirmOrder = () => {
+    if (orderItem && orderQuantity && selectedVendor) {
+      // Update the inventory item with ordered quantity
+      setInventoryItems(inventoryItems.map(item => 
+        item.id === orderItem.id 
+          ? { ...item, ordered: (item.ordered || 0) + parseInt(orderQuantity), status: "In Stock" }
+          : item
+      ));
+      setOrderModalOpen(false);
+      setSuccessModalOpen(true);
+    }
+  };
 
   const dashboardTabs = [
     { key: "overview", label: "Overview", icon: "📊", gradient: "from-indigo-500 to-purple-600" },
@@ -95,148 +161,354 @@ export default function Doctors() {
       {/* Spacer for header and nav */}
       <div className="h-[148px]"></div>
       
+      {/* Sidebar Toggle Button - Outside the sidebar */}
+      <motion.button
+        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        animate={{ 
+          left: isSidebarCollapsed ? "64px" : "280px"
+        }}
+        transition={{ duration: 0.35, ease: "easeInOut" }}
+        whileHover={{ 
+          scale: 1.1, 
+          boxShadow: "0 4px 20px rgba(99, 102, 241, 0.25)",
+          backgroundColor: "rgba(255, 255, 255, 1)"
+        }}
+        whileTap={{ scale: 0.9 }}
+        className="fixed top-[180px] w-5 h-12 bg-white/90 backdrop-blur-sm rounded-r-lg shadow-lg flex items-center justify-center text-indigo-600 hover:text-indigo-700 transition-all border border-l-0 border-indigo-100 hover:border-indigo-200 z-[60]"
+        style={{
+          clipPath: "polygon(0 0, 100% 15%, 100% 85%, 0 100%)"
+        }}
+      >
+        <motion.svg
+          animate={{ 
+            rotate: isSidebarCollapsed ? 180 : 0,
+            x: isSidebarCollapsed ? -1 : 1
+          }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="drop-shadow-sm"
+        >
+          <path
+            d="M10 12L6 8L10 4"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </motion.svg>
+      </motion.button>
+
       {/* Left Sidebar Navigation */}
       <motion.aside
         animate={{ 
-          width: isSidebarCollapsed ? "80px" : "288px"
+          width: isSidebarCollapsed ? "64px" : "280px"
         }}
-        transition={{ duration: 0.4 }}
-        className="bg-gradient-to-b from-indigo-600 via-purple-600 to-pink-600 shadow-2xl fixed left-0 top-[148px] h-[calc(100vh-148px)] overflow-y-auto z-40 rounded-tr-3xl border-t-4 border-white/20"
+        transition={{ duration: 0.35, ease: "easeInOut" }}
+        className="bg-gradient-to-b from-indigo-600 via-purple-600 to-pink-600 shadow-2xl fixed left-0 top-[148px] h-[calc(100vh-148px)] z-50 rounded-tr-3xl border-t-4 border-white/20"
+        style={{
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgba(255, 255, 255, 0.3) transparent'
+        }}
       >
-        {/* Toggle Button */}
-        <motion.button
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          whileHover={{ scale: 1.1, boxShadow: "0 10px 25px rgba(99, 102, 241, 0.3)" }}
-          whileTap={{ scale: 0.9 }}
-          className="absolute -right-3 top-6 w-10 h-10 bg-white rounded-full shadow-xl flex items-center justify-center text-indigo-600 hover:bg-indigo-50 transition border-2 border-indigo-200 z-50"
-        >
-          <motion.span
-            animate={{ rotate: isSidebarCollapsed ? 0 : 180 }}
-            transition={{ duration: 0.3 }}
-            className="font-bold text-lg"
-          >
-            ◀
-          </motion.span>
-        </motion.button>
+        <style>{`
+          aside::-webkit-scrollbar {
+            width: 6px;
+          }
+          aside::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          aside::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+          }
+          aside::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+          }
+        `}</style>
 
-        <div className="p-6">
-          {/* Header */}
-          <div className={`flex items-center gap-3 mb-6 pb-6 border-b border-white/20 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+        <div className={`transition-all duration-300 ${isSidebarCollapsed ? 'p-3' : 'p-5'}`}>
+          {/* Header - Clickable to expand sidebar */}
+          <motion.div 
+            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+            className={`flex items-center mb-5 pb-5 border-b border-white/20 cursor-pointer hover:bg-white/10 rounded-lg transition-all ${isSidebarCollapsed ? 'justify-center flex-col gap-2 p-2' : 'gap-3 p-2'}`}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
             <motion.div
               whileHover={{ rotate: 360, scale: 1.1 }}
               transition={{ duration: 0.6 }}
-              className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl shadow-lg border-2 border-white/30"
+              className={`bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center shadow-lg border-2 border-white/30 transition-all duration-300 relative ${isSidebarCollapsed ? 'w-10 h-10 text-xl' : 'w-12 h-12 text-2xl'}`}
             >
               👨‍⚕️
+              {/* Expand indicator when collapsed */}
+              {isSidebarCollapsed && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="absolute -bottom-1 -right-1 w-4 h-4 bg-indigo-400 rounded-full flex items-center justify-center text-white text-[10px] shadow-lg"
+                >
+                  »
+                </motion.div>
+              )}
             </motion.div>
-            {!isSidebarCollapsed && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-              >
-                <h2 className="text-white font-bold text-xl">Doctor's Space</h2>
-                <p className="text-indigo-100 text-sm">Dr. Smith</p>
-              </motion.div>
-            )}
-          </div>
+            <AnimatePresence mode="wait">
+              {!isSidebarCollapsed && (
+                <motion.div
+                  key="header-text"
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: "auto" }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden"
+                >
+                  <h2 className="text-white font-bold text-lg whitespace-nowrap">Doctor's Space</h2>
+                  <p className="text-indigo-100 text-xs whitespace-nowrap">Dr. Smith</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
 
           {/* Dashboard Section */}
-          <div className="mb-6">
-            {!isSidebarCollapsed && (
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white/90 text-xs font-bold uppercase tracking-wider">Dashboard</h3>
-                {activeSection === "dashboard" && (
+          <div className="mb-4">
+            {/* Dashboard Header - Collapsible (VS Code Style) */}
+            <motion.button
+              onClick={() => setIsDashboardExpanded(!isDashboardExpanded)}
+              className={`w-full flex items-center justify-between mb-2 px-2 py-1.5 hover:bg-white/10 rounded transition-all group ${isSidebarCollapsed ? 'justify-center' : ''}`}
+            >
+              {!isSidebarCollapsed ? (
+                <>
+                  <h3 className="text-white/90 text-xs font-bold uppercase tracking-wider whitespace-nowrap flex items-center gap-1.5">
+                    📊 Dashboard
+                  </h3>
+                  <motion.svg
+                    animate={{ 
+                      rotate: isDashboardExpanded ? 180 : 0,
+                      y: isDashboardExpanded ? 0 : [0, -2, 0]
+                    }}
+                    transition={{ 
+                      rotate: { duration: 0.3 },
+                      y: { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+                    }}
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    className="text-white/60"
+                  >
+                    <path
+                      d="M3 5L6 8L9 5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </motion.svg>
+                </>
+              ) : (
+                <div className="relative">
+                  <span className="text-xl">📊</span>
                   <motion.div
-                    layoutId="section-indicator"
-                    className="w-2 h-2 bg-white rounded-full"
+                    animate={{ 
+                      scale: isDashboardExpanded ? 1 : [1, 1.2, 1]
+                    }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    className="absolute -top-1 -right-1 w-2 h-2 bg-white/60 rounded-full"
                   />
-                )}
-              </div>
-            )}
-            <div className="space-y-2">
-              {dashboardTabs.map((tab) => (
-                <motion.button
-                  key={tab.key}
-                  onClick={() => {
-                    setActiveSection("dashboard");
-                    setActiveTab(tab.key);
-                  }}
-                  whileHover={{ x: isSidebarCollapsed ? 0 : 5 }}
-                  whileTap={{ scale: 0.98 }}
-                  title={isSidebarCollapsed ? tab.label : ""}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all ${
-                    isSidebarCollapsed ? 'justify-center' : ''
-                  } ${
-                    activeSection === "dashboard" && activeTab === tab.key
-                      ? "bg-white text-indigo-700 shadow-lg"
-                      : "text-white/80 hover:bg-white/10 hover:text-white"
-                  }`}
+                </div>
+              )}
+            </motion.button>
+            
+            {/* Dashboard Items */}
+            <AnimatePresence>
+              {isDashboardExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  className="overflow-hidden space-y-1"
                 >
-                  <span className="text-lg">{tab.icon}</span>
-                  {!isSidebarCollapsed && <span>{tab.label}</span>}
-                </motion.button>
-              ))}
-            </div>
+                  {dashboardTabs.map((tab) => (
+                    <motion.button
+                      key={tab.key}
+                      onClick={() => {
+                        setActiveSection("dashboard");
+                        setActiveTab(tab.key);
+                      }}
+                      whileHover={{ x: isSidebarCollapsed ? 0 : 3, scale: isSidebarCollapsed ? 1.08 : 1 }}
+                      whileTap={{ scale: 0.95 }}
+                      title={isSidebarCollapsed ? tab.label : ""}
+                      className={`w-full flex items-center rounded-lg font-medium transition-all ${
+                        isSidebarCollapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
+                      } ${
+                        activeSection === "dashboard" && activeTab === tab.key
+                          ? "bg-white text-indigo-700 shadow-md"
+                          : "text-white/80 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <span className={`transition-all flex-shrink-0 ${
+                        isSidebarCollapsed ? 'text-lg' : 'text-base'
+                      }`}>{tab.icon}</span>
+                      <AnimatePresence mode="wait">
+                        {!isSidebarCollapsed && (
+                          <motion.span
+                            key="label"
+                            initial={{ opacity: 0, width: 0 }}
+                            animate={{ opacity: 1, width: "auto" }}
+                            exit={{ opacity: 0, width: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden whitespace-nowrap text-xs"
+                          >
+                            {tab.label}
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </motion.button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-white/20 my-6"></div>
+          <div className="h-px bg-white/20 my-4"></div>
 
           {/* Manage Clinic Section */}
-          <div>
-            {!isSidebarCollapsed && (
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-white/90 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-                  <span>🏛️</span> Manage Clinic
-                </h3>
-                {activeSection === "manage" && (
+          <div className="mb-4">
+            {/* Manage Clinic Header - Collapsible (VS Code Style) */}
+            <motion.button
+              onClick={() => setIsManageExpanded(!isManageExpanded)}
+              className={`w-full flex items-center justify-between mb-2 px-2 py-1.5 hover:bg-white/10 rounded transition-all group ${isSidebarCollapsed ? 'justify-center' : ''}`}
+            >
+              {!isSidebarCollapsed ? (
+                <>
+                  <h3 className="text-white/90 text-xs font-bold uppercase tracking-wider whitespace-nowrap flex items-center gap-1.5">
+                    🏛️ Manage Clinic
+                  </h3>
+                  <motion.svg
+                    animate={{ 
+                      rotate: isManageExpanded ? 180 : 0,
+                      y: isManageExpanded ? 0 : [0, -2, 0]
+                    }}
+                    transition={{ 
+                      rotate: { duration: 0.3 },
+                      y: { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+                    }}
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    className="text-white/60"
+                  >
+                    <path
+                      d="M3 5L6 8L9 5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </motion.svg>
+                </>
+              ) : (
+                <div className="relative">
+                  <span className="text-xl">🏛️</span>
                   <motion.div
-                    layoutId="section-indicator"
-                    className="w-2 h-2 bg-white rounded-full"
+                    animate={{ 
+                      scale: isManageExpanded ? 1 : [1, 1.2, 1]
+                    }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    className="absolute -top-1 -right-1 w-2 h-2 bg-white/60 rounded-full"
                   />
-                )}
-              </div>
-            )}
-            <div className="space-y-2">
-              {manageClinicTabs.map((tab) => (
-                <motion.button
-                  key={tab.key}
-                  onClick={() => {
-                    setActiveSection("manage");
-                    setActiveTab(tab.key);
-                  }}
-                  whileHover={{ x: isSidebarCollapsed ? 0 : 5 }}
-                  whileTap={{ scale: 0.98 }}
-                  title={isSidebarCollapsed ? tab.label : ""}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all ${
-                    isSidebarCollapsed ? 'justify-center' : ''
-                  } ${
-                    activeSection === "manage" && activeTab === tab.key
-                      ? "bg-white text-indigo-700 shadow-lg"
-                      : "text-white/80 hover:bg-white/10 hover:text-white"
-                  }`}
+                </div>
+              )}
+            </motion.button>
+            
+            {/* Manage Clinic Items */}
+            <AnimatePresence>
+              {isManageExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  className="overflow-hidden space-y-1"
                 >
-                  <span className="text-lg">{tab.icon}</span>
-                  {!isSidebarCollapsed && <span>{tab.label}</span>}
-                </motion.button>
-              ))}
-            </div>
+                  {manageClinicTabs.map((tab) => (
+                    <motion.button
+                      key={tab.key}
+                      onClick={() => {
+                        setActiveSection("manage");
+                        setActiveTab(tab.key);
+                      }}
+                      whileHover={{ x: isSidebarCollapsed ? 0 : 3, scale: isSidebarCollapsed ? 1.08 : 1 }}
+                      whileTap={{ scale: 0.95 }}
+                      title={isSidebarCollapsed ? tab.label : ""}
+                      className={`w-full flex items-center rounded-lg font-medium transition-all ${
+                        isSidebarCollapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
+                      } ${
+                        activeSection === "manage" && activeTab === tab.key
+                          ? "bg-white text-indigo-700 shadow-md"
+                          : "text-white/80 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <span className={`transition-all flex-shrink-0 ${
+                        isSidebarCollapsed ? 'text-lg' : 'text-base'
+                      }`}>{tab.icon}</span>
+                      <AnimatePresence mode="wait">
+                        {!isSidebarCollapsed && (
+                          <motion.span
+                            key="label"
+                            initial={{ opacity: 0, width: 0 }}
+                            animate={{ opacity: 1, width: "auto" }}
+                            exit={{ opacity: 0, width: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden whitespace-nowrap text-xs"
+                          >
+                            {tab.label}
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </motion.button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Bottom Actions */}
-          <div className="mt-8 pt-6 border-t border-white/20">
+          <div className="mt-6 pt-4 border-t border-white/20">
             <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => navigate("/")}
-              className={`w-full flex items-center gap-2 px-4 py-3 bg-white/20 backdrop-blur-md text-white rounded-xl font-semibold hover:bg-white/30 transition shadow-lg border border-white/30 ${
-                isSidebarCollapsed ? 'justify-center' : 'justify-center'
+              className={`w-full flex items-center justify-center bg-white/20 backdrop-blur-md text-white rounded-lg font-semibold hover:bg-white/30 transition shadow-md border border-white/30 ${
+                isSidebarCollapsed ? 'px-2 py-2.5 gap-0' : 'px-3 py-2.5 gap-2'
               }`}
               title={isSidebarCollapsed ? "Back to Home" : ""}
             >
-              <span>←</span>
-              {!isSidebarCollapsed && <span>Back to Home</span>}
+              <span className={`transition-all ${
+                isSidebarCollapsed ? 'text-lg' : 'text-sm'
+              }`}>←</span>
+              <AnimatePresence mode="wait">
+                {!isSidebarCollapsed && (
+                  <motion.span
+                    key="back-text"
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: "auto" }}
+                    exit={{ opacity: 0, width: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden whitespace-nowrap text-xs"
+                  >
+                    Back to Home
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </motion.button>
           </div>
         </div>
@@ -245,10 +517,11 @@ export default function Doctors() {
       {/* Main Content Area */}
       <motion.div 
         animate={{ 
-          marginLeft: isSidebarCollapsed ? "80px" : "288px"
+          marginLeft: isSidebarCollapsed ? "64px" : "280px",
+          paddingLeft: isSidebarCollapsed ? "2rem" : "2.5rem"
         }}
-        transition={{ duration: 0.4 }}
-        className="flex-1 pb-12 px-8 pt-6 min-h-[calc(100vh-148px)]"
+        transition={{ duration: 0.35, ease: "easeInOut" }}
+        className="flex-1 pb-12 pr-8 pt-6 min-h-[calc(100vh-148px)]" style={{ marginTop: 0 }}
       >
         <AnimatePresence mode="wait">
           {/* Dashboard Section Tabs */}
@@ -275,11 +548,13 @@ export default function Doctors() {
                   </div>
                 </div>
 
-                {/* Quick Stats Grid */}
+                {/* Quick Stats Grid - Navigatable Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <motion.div
                     whileHover={{ scale: 1.05, y: -5 }}
-                    className="bg-gradient-to-br from-blue-50 to-indigo-100/50 rounded-xl p-5 border border-blue-200/50 shadow-md"
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveTab("appointments")}
+                    className="bg-gradient-to-br from-blue-50 to-indigo-100/50 rounded-xl p-5 border border-blue-200/50 shadow-md cursor-pointer"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-3xl">📅</span>
@@ -291,7 +566,9 @@ export default function Doctors() {
 
                   <motion.div
                     whileHover={{ scale: 1.05, y: -5 }}
-                    className="bg-gradient-to-br from-emerald-50 to-teal-100/50 rounded-xl p-5 border border-emerald-200/50 shadow-md"
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveTab("patients")}
+                    className="bg-gradient-to-br from-emerald-50 to-teal-100/50 rounded-xl p-5 border border-emerald-200/50 shadow-md cursor-pointer"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-3xl">👥</span>
@@ -303,7 +580,9 @@ export default function Doctors() {
 
                   <motion.div
                     whileHover={{ scale: 1.05, y: -5 }}
-                    className="bg-gradient-to-br from-amber-50 to-orange-100/50 rounded-xl p-5 border border-amber-200/50 shadow-md"
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveTab("payments")}
+                    className="bg-gradient-to-br from-amber-50 to-orange-100/50 rounded-xl p-5 border border-amber-200/50 shadow-md cursor-pointer"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-3xl">💰</span>
@@ -315,7 +594,9 @@ export default function Doctors() {
 
                   <motion.div
                     whileHover={{ scale: 1.05, y: -5 }}
-                    className="bg-gradient-to-br from-violet-50 to-purple-100/50 rounded-xl p-5 border border-violet-200/50 shadow-md"
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setActiveTab("inventory")}
+                    className="bg-gradient-to-br from-violet-50 to-purple-100/50 rounded-xl p-5 border border-violet-200/50 shadow-md cursor-pointer"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-3xl">🪑</span>
@@ -487,16 +768,27 @@ export default function Doctors() {
             >
               <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-blue-100/60 overflow-hidden">
                 <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
-                      👥
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
+                        👥
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
+                          My Patients
+                        </h2>
+                        <p className="text-sm text-stone-600 mt-0.5">Complete patient registry and records</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
-                        My Patients
-                      </h2>
-                      <p className="text-sm text-stone-600 mt-0.5">Complete patient registry and records</p>
-                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => navigate("/patients?view=list")}
+                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                    >
+                      <span>👁️</span>
+                      <span>View All Patients</span>
+                    </motion.button>
                   </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -672,55 +964,276 @@ export default function Doctors() {
             >
               <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-amber-100/60 overflow-hidden">
                 <div className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
-                      📦
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
+                        📦
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold bg-gradient-to-r from-amber-700 to-orange-700 bg-clip-text text-transparent">
+                          Clinic Inventory
+                        </h2>
+                        <p className="text-sm text-stone-600 mt-0.5">Manage inventory items and place orders</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-xl font-bold bg-gradient-to-r from-amber-700 to-orange-700 bg-clip-text text-transparent">
-                        Clinic Inventory
-                      </h2>
-                      <p className="text-sm text-stone-600 mt-0.5">Available items and items on order</p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleAddNewItem}
+                        className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg font-medium hover:shadow-lg transition text-sm"
+                      >
+                        + Add Item
+                      </button>
+                      {newItems.length > 0 && (
+                        <button
+                          onClick={handleSaveNewItems}
+                          className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium hover:shadow-lg transition text-sm"
+                        >
+                          Save New Items
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-stone-50 border-b border-stone-200">
-                      <tr>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Item</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Category</th>
-                        <th className="px-6 py-3 text-center font-semibold text-stone-700">Available</th>
-                        <th className="px-6 py-3 text-center font-semibold text-stone-700">Ordered</th>
-                        <th className="px-6 py-3 text-center font-semibold text-stone-700">Reorder Level</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {SAMPLE_INVENTORY.map((item, idx) => (
-                        <motion.tr
-                          key={item.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className="border-b border-stone-100 hover:bg-teal-50/30 transition"
-                        >
-                          <td className="px-6 py-4 font-medium text-stone-800">{item.item}</td>
-                          <td className="px-6 py-4 text-stone-600">{item.category}</td>
-                          <td className="px-6 py-4 text-center font-semibold text-stone-800">{item.available}</td>
-                          <td className="px-6 py-4 text-center text-stone-600">{item.ordered || "—"}</td>
-                          <td className="px-6 py-4 text-center text-stone-500 text-xs">{item.reorderLevel}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(item.status)}`}>
-                              {item.status}
+                
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* Existing Inventory Items */}
+                    {inventoryItems.map((item, idx) => (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: idx * 0.03 }}
+                        className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4 hover:shadow-lg transition-all"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <h3 className="font-bold text-stone-800 text-sm mb-1">{item.item}</h3>
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                              {item.category}
                             </span>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                          <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${getStatusColor(item.status)}`}>
+                            {item.status}
+                          </span>
+                        </div>
+                        
+                        <div className="space-y-2 text-xs mb-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-stone-600">Available:</span>
+                            <span className="font-bold text-stone-800 text-base">{item.available}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-stone-600">On Order:</span>
+                            <span className="font-semibold text-stone-700">{item.ordered || 0}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-stone-600">Reorder Level:</span>
+                            <span className="font-semibold text-stone-700">{item.reorderLevel}</span>
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => handlePlaceOrder(item)}
+                          className="w-full px-3 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-semibold hover:from-amber-700 hover:to-orange-700 transition text-sm shadow-md"
+                        >
+                          Place Order
+                        </button>
+                      </motion.div>
+                    ))}
+                    
+                    {/* New Item Entry Cards */}
+                    {newItems.map((newItem) => (
+                      <motion.div
+                        key={newItem.tempId}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-dashed border-emerald-300 rounded-xl p-4"
+                      >
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-semibold text-stone-700 mb-1">Item Name *</label>
+                            <input
+                              type="text"
+                              value={newItem.item}
+                              onChange={(e) => handleNewItemChange(newItem.tempId, 'item', e.target.value)}
+                              placeholder="Enter item name"
+                              className="w-full px-3 py-2 border border-emerald-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-stone-700 mb-1">Category *</label>
+                            <input
+                              type="text"
+                              value={newItem.category}
+                              onChange={(e) => handleNewItemChange(newItem.tempId, 'category', e.target.value)}
+                              placeholder="e.g., Supplies, Medication"
+                              className="w-full px-3 py-2 border border-emerald-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs font-semibold text-stone-700 mb-1">Quantity *</label>
+                              <input
+                                type="number"
+                                value={newItem.available}
+                                onChange={(e) => handleNewItemChange(newItem.tempId, 'available', e.target.value)}
+                                placeholder="0"
+                                className="w-full px-3 py-2 border border-emerald-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-stone-700 mb-1">Reorder At</label>
+                              <input
+                                type="number"
+                                value={newItem.reorderLevel}
+                                onChange={(e) => handleNewItemChange(newItem.tempId, 'reorderLevel', e.target.value)}
+                                placeholder="10"
+                                className="w-full px-3 py-2 border border-emerald-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setNewItems(newItems.filter(item => item.tempId !== newItem.tempId))}
+                            className="w-full px-3 py-2 bg-rose-100 text-rose-700 rounded-lg font-semibold hover:bg-rose-200 transition text-xs"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
               </div>
+              
+              {/* Order Modal */}
+              <AnimatePresence>
+                {orderModalOpen && orderItem && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                    onClick={() => setOrderModalOpen(false)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.95, opacity: 0 }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-amber-200"
+                    >
+                      <div className="p-6 border-b border-stone-200 bg-gradient-to-r from-amber-50 to-orange-50">
+                        <h3 className="text-xl font-bold text-amber-900">Place Order</h3>
+                        <p className="text-sm text-stone-600 mt-1">Submit a purchase order for inventory replenishment</p>
+                      </div>
+                      
+                      <div className="p-6 space-y-4">
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                          <label className="block text-xs font-semibold text-stone-600 mb-1">Item</label>
+                          <p className="text-lg font-bold text-stone-800">{orderItem.item}</p>
+                          <p className="text-xs text-stone-600 mt-1">Category: {orderItem.category}</p>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-semibold text-stone-700 mb-2">Quantity Required *</label>
+                          <input
+                            type="number"
+                            value={orderQuantity}
+                            onChange={(e) => setOrderQuantity(e.target.value)}
+                            placeholder="Enter quantity to order"
+                            min="1"
+                            className="w-full px-4 py-3 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-semibold text-stone-700 mb-2">Vendor *</label>
+                          <select
+                            value={selectedVendor}
+                            onChange={(e) => setSelectedVendor(e.target.value)}
+                            className="w-full px-4 py-3 border border-stone-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                          >
+                            <option value="">Select a vendor</option>
+                            {vendors.map((vendor, idx) => (
+                              <option key={idx} value={vendor}>{vendor}</option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <p className="text-xs text-blue-800">
+                            <span className="font-semibold">Current Stock:</span> {orderItem.available} units<br/>
+                            <span className="font-semibold">Reorder Level:</span> {orderItem.reorderLevel} units
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="p-6 border-t border-stone-200 flex gap-3">
+                        <button
+                          onClick={() => setOrderModalOpen(false)}
+                          className="flex-1 px-4 py-3 border border-stone-300 rounded-lg text-stone-700 font-semibold hover:bg-stone-50 transition"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleConfirmOrder}
+                          disabled={!orderQuantity || !selectedVendor}
+                          className={`flex-1 px-4 py-3 rounded-lg font-semibold transition ${
+                            orderQuantity && selectedVendor
+                              ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white hover:from-amber-700 hover:to-orange-700 shadow-md'
+                              : 'bg-stone-200 text-stone-400 cursor-not-allowed'
+                          }`}
+                        >
+                          Place Order
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
+              {/* Success Modal */}
+              <AnimatePresence>
+                {successModalOpen && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                    onClick={() => setSuccessModalOpen(false)}
+                  >
+                    <motion.div
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.95, opacity: 0 }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-emerald-200 text-center"
+                    >
+                      <div className="p-8">
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                          className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-full flex items-center justify-center text-white text-4xl shadow-lg"
+                        >
+                          ✓
+                        </motion.div>
+                        <h3 className="text-2xl font-bold text-emerald-700 mb-2">Order Placed Successfully!</h3>
+                        <p className="text-stone-600 mb-6">
+                          Your order has been submitted and will be processed shortly.
+                        </p>
+                        <button
+                          onClick={() => setSuccessModalOpen(false)}
+                          className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg font-semibold hover:from-emerald-700 hover:to-teal-700 transition shadow-md"
+                        >
+                          Continue
+                        </button>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
 

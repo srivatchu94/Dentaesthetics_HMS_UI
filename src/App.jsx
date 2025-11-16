@@ -13,6 +13,7 @@ import Staff from "./pages/Staff";
 import Doctors from "./pages/Doctors";
 import DeletePatients from "./pages/DeletePatients";
 import CrudPage from "./pages/CrudPage";
+import Calendar from "./pages/Calendar";
 import Footer from "./components/Footer";
 import WhatsAppChatbot from "./components/WhatsAppChatbot";
 
@@ -37,6 +38,7 @@ export default function App(){
           <Route path="/staff" element={<div className="max-w-6xl mx-auto"><Staff /></div>} />
           <Route path="/staff/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Staff" /></div>} />
           <Route path="/doctors" element={<Doctors />} />
+          <Route path="/calendar" element={<Calendar />} />
         </Routes>
       </main>
       <Footer />
