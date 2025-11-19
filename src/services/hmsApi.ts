@@ -5,8 +5,9 @@
 import type { ClinicModel, StaffModel, ServiceModel, EnterpriseDataModel, EnterpriseModel, ClinicalSpecialtyModel, RoleModel } from "../Interfaces";
 import type { DoctorProfileModel } from "../Interfaces/DoctorProfileModel";
 import type { StaffDetailsModel } from "../Interfaces/StaffDetailsModel";
+import type { PatientDataModel } from "../Interfaces/PatientModel";
 
-const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:5000/api";
+const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7104/api";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -33,12 +34,24 @@ export function getEnterprise(id: number): Promise<EnterpriseModel> {
 }
 
 // Clinics
-export function listClinics(): Promise<ClinicModel[]> { return request<ClinicModel[]>("/clinics"); }
-export function getClinic(clinicId: number): Promise<ClinicModel> { return request<ClinicModel>(`/clinics/${clinicId}`); }
-export interface CreateClinicDto { enterpriseId: number; clinicName: string; clinicAddress: string; clinicCity: string; clinicPhone: string; clinicEmail: string; operatingHours: string; }
-export function createClinic(payload: CreateClinicDto): Promise<ClinicModel> { return request<ClinicModel>("/clinics", { method: "POST", body: JSON.stringify(payload) }); }
+export function listClinics(): Promise<ClinicModel[]> { return request<ClinicModel[]>("/Clinic/GetAllClinics"); }
+export function getClinic(clinicId: number): Promise<ClinicModel> { return request<ClinicModel>(`/Clinic/GetClinicByID?id=${clinicId}`); }
+export interface CreateClinicDto { clinicId: number; enterpriseId: number; clinicName: string; clinicAddress: string; clinicCity: string; clinicPhone: string; clinicEmail: string; operatingHours: string; }
+export function createClinic(payload: CreateClinicDto): Promise<ClinicModel> { 
+  const clinicModel: ClinicModel = {
+    clinicId: payload.clinicId,
+    enterpriseId: payload.enterpriseId,
+    clinicName: payload.clinicName,
+    clinicAddress: payload.clinicAddress,
+    clinicCity: payload.clinicCity,
+    clinicPhone: payload.clinicPhone,
+    clinicEmail: payload.clinicEmail,
+    operatingHours: payload.operatingHours
+  };
+  return request<ClinicModel>("/Clinic/CreateClinic", { method: "POST", body: JSON.stringify(clinicModel) }); 
+}
 export interface UpdateClinicDto extends Partial<CreateClinicDto> {}
-export function updateClinic(clinicId: number, payload: UpdateClinicDto): Promise<ClinicModel> { return request<ClinicModel>(`/clinics/${clinicId}`, { method: "PUT", body: JSON.stringify(payload) }); }
+export function updateClinic(clinicId: number, payload: UpdateClinicDto): Promise<ClinicModel> { return request<ClinicModel>(`/Clinic/UpdateClinic?id=${clinicId}`, { method: "PUT", body: JSON.stringify(payload) }); }
 export function deleteClinic(clinicId: number): Promise<void> { return request<void>(`/clinics/${clinicId}`, { method: "DELETE" }); }
 
 // Staff
@@ -84,6 +97,19 @@ export function createRole(payload: CreateRoleDto): Promise<RoleModel> { return 
 export interface UpdateRoleDto extends Partial<CreateRoleDto> {}
 export function updateRole(roleId: number, payload: UpdateRoleDto): Promise<RoleModel> { return request<RoleModel>(`/roles/${roleId}`, { method: "PUT", body: JSON.stringify(payload) }); }
 export function deleteRole(roleId: number): Promise<void> { return request<void>(`/roles/${roleId}`, { method: "DELETE" }); }
+
+// Patients
+export function listPatients(): Promise<PatientDataModel[]> { return request<PatientDataModel[]>("/Patient/GetAllPatients"); }
+export function getPatient(patientId: number): Promise<PatientDataModel> { return request<PatientDataModel>(`/Patient/GetPatientByID?id=${patientId}`); }
+export function createPatient(payload: PatientDataModel): Promise<PatientDataModel> { 
+  return request<PatientDataModel>("/Patient/CreatePatient", { method: "POST", body: JSON.stringify(payload) }); 
+}
+export function updatePatient(patientId: number, payload: PatientDataModel): Promise<PatientDataModel> { 
+  return request<PatientDataModel>(`/Patient/UpdatePatient?id=${patientId}`, { method: "PUT", body: JSON.stringify(payload) }); 
+}
+export function deletePatient(patientId: number): Promise<void> { 
+  return request<void>(`/Patient/DeletePatient?id=${patientId}`, { method: "DELETE" }); 
+}
 
 // Usage example:
 // import { listClinics } from "../services";

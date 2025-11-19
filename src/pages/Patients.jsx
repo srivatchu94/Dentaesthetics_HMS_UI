@@ -1,6 +1,88 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
+import { createPatient } from "../services/patientService";
+
+// Reusable InputField component - moved outside to prevent re-creation on renders
+const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null }) => (
+  <div className="mb-4">
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    {options ? (
+      <select
+        name={name}
+        value={value}
+        onChange={onChange}
+        required={required}
+        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+      >
+        <option value="">Select {label}</option>
+        {options.map(opt => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
+    ) : type === "textarea" ? (
+      <textarea
+        name={name}
+        value={value}
+        onChange={onChange}
+        required={required}
+        placeholder={placeholder}
+        rows={3}
+        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition resize-none"
+      />
+    ) : (
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        required={required}
+        placeholder={placeholder}
+        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+      />
+    )}
+  </div>
+);
+
+// Reusable CollapsibleSection component - moved outside to prevent re-creation on renders
+const CollapsibleSection = ({ title, isOpen, onToggle, children, icon }) => (
+  <div className="mb-4 border border-stone-200 rounded-lg overflow-hidden shadow-sm">
+    <button
+      type="button"
+      onClick={onToggle}
+      className="w-full px-6 py-4 bg-gradient-to-r from-cream-50 to-peach-50 hover:from-cream-100 hover:to-peach-100 flex items-center justify-between transition-all"
+    >
+      <div className="flex items-center gap-3">
+        <span className="text-2xl">{icon}</span>
+        <span className="font-semibold text-amber-900 text-lg">{title}</span>
+      </div>
+      <motion.div
+        animate={{ rotate: isOpen ? 180 : 0 }}
+        transition={{ duration: 0.3 }}
+        className="text-amber-700"
+      >
+        ▼
+      </motion.div>
+    </button>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ height: 0, opacity: 0 }}
+          animate={{ height: "auto", opacity: 1 }}
+          exit={{ height: 0, opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="overflow-hidden"
+        >
+          <div className="p-6 bg-white">
+            {children}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+);
 
 // Sample patient data
 const SAMPLE_PATIENTS_LIST = [
@@ -177,102 +259,72 @@ export default function Patients() {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const fullPatientData = {
-      patient: patientData,
-      contact: contactData,
-      medical: medicalData,
-      insurance: insuranceData
+    
+    // Construct PatientDataModel according to API interface
+    const patientDataModel = {
+      patient: {
+        patientId: 0, // Will be assigned by backend
+        patientEntityID: "", // Will be assigned by backend
+        patientFirstName: patientData.firstName,
+        patientLastName: patientData.lastName,
+        patientDOB: patientData.dateOfBirth,
+        patientGender: patientData.gender,
+        patientBloodType: patientData.bloodGroup || ""
+      },
+      patientContact: {
+        patientId: 0, // Will be assigned by backend
+        patientAddress: `${contactData.addressLine1}${contactData.addressLine2 ? ', ' + contactData.addressLine2 : ''}`,
+        patientCity: contactData.city,
+        patientPhone: contactData.phoneNumber,
+        patientEmail: contactData.email || "",
+        patientEmergencyContact: contactData.emergencyContactName 
+          ? `${contactData.emergencyContactName} - ${contactData.emergencyContactPhone} (${contactData.emergencyContactRelation})`
+          : ""
+      },
+      patientMedicalInfo: {
+        patientId: 0, // Will be assigned by backend
+        patientMedicalHistory: medicalData.familyMedicalHistory || "",
+        patientAllergies: medicalData.allergies || "",
+        patientCurrentMedications: medicalData.currentMedications || "",
+        patientPrimaryPhysician: "", // Not collected in current form
+        no_of_visits: 0,
+        lastVisitedDate: medicalData.lastDentalVisit || new Date().toISOString(),
+        chronicDiseases: medicalData.chronicConditions || "",
+        medicalHistory: `Past Surgeries: ${medicalData.pastSurgeries || 'None'}; Smoking: ${medicalData.smokingStatus || 'Unknown'}; Alcohol: ${medicalData.alcoholConsumption || 'Unknown'}; Exercise: ${medicalData.exerciseFrequency || 'Unknown'}; Diet: ${medicalData.dietaryRestrictions || 'None'}; Notes: ${medicalData.notes || 'None'}`
+      },
+      patientInsurance: {
+        patientId: 0, // Will be assigned by backend
+        patientInsuranceProvider: insuranceData.insuranceProvider || ""
+      }
     };
-    console.log("Submitting patient data:", fullPatientData);
-    alert("Patient registration submitted! (Check console for data)");
+    
+    try {
+      console.log("Submitting patient data:", patientDataModel);
+      const response = await createPatient(patientDataModel);
+      console.log("Patient created successfully:", response);
+      alert("✅ Patient registration successful! Patient ID: " + response.patient.patientId);
+      
+      // Clear form after successful submission
+      setPatientData({ firstName: "", lastName: "", dateOfBirth: "", gender: "", bloodGroup: "", maritalStatus: "", isActive: true });
+      setContactData({ phoneNumber: "", alternatePhoneNumber: "", email: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "", emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelation: "" });
+      setMedicalData({ allergies: "", chronicConditions: "", currentMedications: "", pastSurgeries: "", familyMedicalHistory: "", smokingStatus: "", alcoholConsumption: "", exerciseFrequency: "", dietaryRestrictions: "", lastDentalVisit: "", notes: "" });
+      setInsuranceData({ insuranceProvider: "", policyNumber: "", groupNumber: "", policyHolderName: "", policyHolderRelation: "", coverageStartDate: "", coverageEndDate: "", isPrimaryInsurance: true, copayAmount: "", deductibleAmount: "", coveragePercentage: "", insurancePhone: "", isActive: true });
+      
+      // Optionally switch to list view
+      setActiveView("list");
+    } catch (error) {
+      console.error("Error creating patient:", error);
+      alert("❌ Error registering patient: " + error.message);
+    }
   };
-
-  const CollapsibleSection = ({ title, isOpen, onToggle, children, icon }) => (
-    <div className="mb-4 border border-stone-200 rounded-lg overflow-hidden shadow-sm">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="w-full px-6 py-4 bg-gradient-to-r from-stone-50 to-amber-50 hover:from-stone-100 hover:to-amber-100 flex items-center justify-between transition-all"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">{icon}</span>
-          <span className="font-semibold text-amber-900 text-lg">{title}</span>
-        </div>
-        <motion.div
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.3 }}
-          className="text-amber-700"
-        >
-          ▼
-        </motion.div>
-      </button>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="overflow-hidden"
-          >
-            <div className="p-6 bg-white">
-              {children}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-
-  const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null }) => (
-    <div className="mb-4">
-      <label className="block text-sm font-medium text-gray-700 mb-2">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      {options ? (
-        <select
-          name={name}
-          value={value}
-          onChange={onChange}
-          required={required}
-          className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-        >
-          <option value="">Select {label}</option>
-          {options.map(opt => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
-      ) : type === "textarea" ? (
-        <textarea
-          name={name}
-          value={value}
-          onChange={onChange}
-          required={required}
-          placeholder={placeholder}
-          rows={3}
-          className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition resize-none"
-        />
-      ) : (
-        <input
-          type={type}
-          name={name}
-          value={value}
-          onChange={onChange}
-          required={required}
-          placeholder={placeholder}
-          className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-        />
-      )}
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-stone-50 py-8">
       {/* Header */}
       <div className="max-w-7xl mx-auto px-4 mb-8">
-        <div className="bg-gradient-to-r from-amber-600 to-amber-700 rounded-lg shadow-lg p-6">
+        <div className="bg-gradient-to-r from-coral-500 to-peach-500 rounded-lg shadow-coral p-6">
           <h1 className="text-3xl font-bold text-white mb-2">Patient Management</h1>
           <p className="text-amber-50">Register, view, and manage patient information</p>
         </div>
@@ -698,7 +750,7 @@ export default function Patients() {
               </button>
               <button
                 type="submit"
-                className="px-8 py-3 bg-gradient-to-r from-amber-600 to-amber-700 text-white rounded-lg font-semibold hover:from-amber-700 hover:to-amber-800 shadow-lg transition"
+                className="px-8 py-3 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-lg font-semibold hover:from-coral-600 hover:to-peach-600 shadow-coral transition"
               >
                 Register Patient
               </button>
@@ -747,7 +799,7 @@ export default function Patients() {
                   transition={{ duration: 0.3 }}
                   className="overflow-hidden"
                 >
-                  <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-6 mb-6 border-2 border-amber-200">
+                  <div className="bg-gradient-to-r from-coral-50 to-peach-50 rounded-xl p-6 mb-6 border-2 border-coral-200">
                     <h3 className="text-lg font-semibold text-amber-900 mb-4 flex items-center gap-2">
                       <span>🎯</span> Advanced Filters
                     </h3>
@@ -897,7 +949,7 @@ export default function Patients() {
                   {filteredPatients.length > 0 ? (
                     <table className="w-full border-collapse">
                       <thead>
-                        <tr className="bg-gradient-to-r from-amber-100 to-orange-100 border-b-2 border-amber-300">
+                        <tr className="bg-gradient-to-r from-coral-100 to-peach-100 border-b-2 border-coral-300">
                           <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">ID</th>
                           <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Name</th>
                           <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Date of Birth</th>
@@ -946,7 +998,7 @@ export default function Patients() {
                       </tbody>
                     </table>
                   ) : (
-                    <div className="text-center py-16 bg-gradient-to-br from-stone-50 to-amber-50 rounded-xl border-2 border-dashed border-amber-300">
+                    <div className="text-center py-16 bg-gradient-to-br from-cream-50 to-peach-50 rounded-xl border-2 border-dashed border-coral-300">
                       <div className="text-6xl mb-4">🔍</div>
                       <p className="text-stone-600 text-lg font-semibold">No patients found</p>
                       <p className="text-stone-500 text-sm mt-2">Try adjusting your search or filters</p>
@@ -1010,7 +1062,7 @@ export default function Patients() {
                             className="bg-white border-2 border-stone-200 rounded-lg p-6 shadow-md hover:shadow-xl hover:border-amber-300 transition-all"
                           >
                             <div className="flex items-center gap-4 mb-4">
-                              <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                              <div className="w-16 h-16 bg-gradient-to-br from-coral-400 to-peach-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
                                 {patient.firstName.charAt(0)}{patient.lastName.charAt(0)}
                               </div>
                               <div>

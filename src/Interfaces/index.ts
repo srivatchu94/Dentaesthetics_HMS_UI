@@ -8,7 +8,12 @@ export type { DoctorProfileModel } from "./DoctorProfileModel";
 export type { DentalServiceModel } from "./DentalServiceModel";
 export type { ClinicalSpecialtyModel } from "./ClinicalSpecialtyModel";
 export type { RoleModel } from "./RoleModel";
-export type { PatientModel } from "./PatientModel";
-export type { PatientContactModel } from "./PatientContactModel";
-export type { PatientMedicalInfoModel } from "./PatientMedicalInfoModel";
-export type { PatientInsuranceModel } from "./PatientInsuranceModel";
+
+// Patient-related interfaces matching API models
+export type { Patient, PatientDataModel } from "./PatientModel";
+export type { PatientContact } from "./PatientContactModel";
+export type { PatientMedicalInfo } from "./PatientMedicalInfoModel";
+export type { PatientInsurance } from "./PatientInsuranceModel";
+export type { PatientVisitInformation } from "./PatientVisitInformationModel";
+export type { Prescription } from "./PrescriptionModel";
+export type { DoctorSalaryInfo, PatientTreatmentRecord, SalaryCalculation, SalaryPaymentRecord } from "./SalaryModel";

@@ -2,6 +2,49 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
+// Reusable InputField component - moved outside to prevent re-creation on renders
+const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null }) => (
+  <div className="mb-4">
+    <label className="block text-sm font-medium text-stone-700 mb-2">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    {options ? (
+      <select
+        name={name}
+        value={value || ""}
+        onChange={onChange}
+        required={required}
+        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+      >
+        <option value="">Select {label}</option>
+        {options.map(opt => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
+    ) : type === "textarea" ? (
+      <textarea
+        name={name}
+        value={value || ""}
+        onChange={onChange}
+        required={required}
+        placeholder={placeholder}
+        rows={3}
+        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition resize-none"
+      />
+    ) : (
+      <input
+        type={type}
+        name={name}
+        value={value || ""}
+        onChange={onChange}
+        required={required}
+        placeholder={placeholder}
+        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+      />
+    )}
+  </div>
+);
+
 export default function EditPatients() {
   const navigate = useNavigate();
   const [showSearch, setShowSearch] = useState(true);
@@ -147,53 +190,11 @@ export default function EditPatients() {
     setEditData(prev => ({ ...prev, [field]: value }));
   };
 
-  const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null }) => (
-    <div className="mb-4">
-      <label className="block text-sm font-medium text-stone-700 mb-2">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      {options ? (
-        <select
-          name={name}
-          value={value || ""}
-          onChange={onChange}
-          required={required}
-          className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-        >
-          <option value="">Select {label}</option>
-          {options.map(opt => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
-      ) : type === "textarea" ? (
-        <textarea
-          name={name}
-          value={value || ""}
-          onChange={onChange}
-          required={required}
-          placeholder={placeholder}
-          rows={3}
-          className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition resize-none"
-        />
-      ) : (
-        <input
-          type={type}
-          name={name}
-          value={value || ""}
-          onChange={onChange}
-          required={required}
-          placeholder={placeholder}
-          className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-        />
-      )}
-    </div>
-  );
-
   return (
     <div className="min-h-screen bg-stone-50 py-8">
       {/* Header */}
       <div className="max-w-7xl mx-auto px-4 mb-8">
-        <div className="bg-gradient-to-r from-amber-600 to-amber-700 rounded-lg shadow-lg p-6">
+        <div className="bg-gradient-to-r from-coral-500 to-peach-500 rounded-lg shadow-coral p-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">Edit Patient Information</h1>
@@ -307,7 +308,7 @@ export default function EditPatients() {
                         onClick={() => handleSelectPatient(patient)}
                       >
                         <div className="flex items-center gap-4 mb-4">
-                          <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                          <div className="w-16 h-16 bg-gradient-to-br from-coral-400 to-peach-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
                             {patient.firstName.charAt(0)}{patient.lastName.charAt(0)}
                           </div>
                           <div>
@@ -378,7 +379,7 @@ export default function EditPatients() {
                 </div>
                 <button
                   onClick={handleSave}
-                  className="px-8 py-3 bg-gradient-to-r from-amber-600 to-amber-700 text-white rounded-lg font-semibold hover:from-amber-700 hover:to-amber-800 shadow-lg transition"
+                  className="px-8 py-3 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-lg font-semibold hover:from-coral-600 hover:to-peach-600 shadow-coral transition"
                 >
                   Save Changes
                 </button>

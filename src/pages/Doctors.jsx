@@ -4,10 +4,10 @@ import { useNavigate } from "react-router-dom";
 
 // Sample data
 const SAMPLE_CLINIC_DETAILS = {
-  clinicName: "Downtown Dental Care",
-  address: "123 Main Street, Suite 200, New York, NY",
-  phone: "555-0101",
-  email: "contact@downtowndental.com",
+  clinicName: "Dentaesthetics Mumbai Central",
+  address: "Shop 12, Andheri West, Near Metro Station, Mumbai, MH 400053",
+  phone: "+91 98765 43210",
+  email: "contact@dentaestheticsmumbai.com",
   operatingHours: "Mon-Fri 9:00 AM - 6:00 PM",
   totalStaff: 12,
   activeDoctors: 4,
@@ -17,27 +17,27 @@ const SAMPLE_CLINIC_DETAILS = {
 };
 
 const SAMPLE_PATIENTS = [
-  { id: 1, name: "Sarah Johnson", status: "Active", lastVisit: "2025-11-10", nextAppt: "2025-11-20", balance: 0 },
-  { id: 2, name: "Michael Chen", status: "Active", lastVisit: "2025-11-08", nextAppt: "2025-11-22", balance: 250 },
-  { id: 3, name: "Emily Rodriguez", status: "Active", lastVisit: "2025-11-05", nextAppt: "2025-11-25", balance: 0 },
-  { id: 4, name: "David Thompson", status: "Pending", lastVisit: "2025-10-28", nextAppt: "2025-12-01", balance: 500 },
-  { id: 5, name: "Lisa Martinez", status: "Active", lastVisit: "2025-11-12", nextAppt: "2025-11-18", balance: 150 }
+  { id: 1, name: "Priya Sharma", status: "Active", lastVisit: "2025-11-10", nextAppt: "2025-11-20", balance: 0 },
+  { id: 2, name: "Arjun Patel", status: "Active", lastVisit: "2025-11-08", nextAppt: "2025-11-22", balance: 20750 },
+  { id: 3, name: "Anjali Reddy", status: "Active", lastVisit: "2025-11-05", nextAppt: "2025-11-25", balance: 0 },
+  { id: 4, name: "Vikram Singh", status: "Pending", lastVisit: "2025-10-28", nextAppt: "2025-12-01", balance: 41500 },
+  { id: 5, name: "Kavya Menon", status: "Active", lastVisit: "2025-11-12", nextAppt: "2025-11-18", balance: 12450 }
 ];
 
 const SAMPLE_PAYMENTS = [
-  { id: 1, patient: "Sarah Johnson", amount: 350, status: "Paid", date: "2025-11-10", method: "Insurance" },
-  { id: 2, patient: "Michael Chen", amount: 250, status: "Pending", date: "2025-11-08", method: "Credit Card" },
-  { id: 3, patient: "Emily Rodriguez", amount: 450, status: "Paid", date: "2025-11-05", method: "Cash" },
-  { id: 4, patient: "David Thompson", amount: 500, status: "Overdue", date: "2025-10-28", method: "Insurance" },
-  { id: 5, patient: "Lisa Martinez", amount: 150, status: "Pending", date: "2025-11-12", method: "Debit Card" }
+  { id: 1, patient: "Priya Sharma", amount: 29050, status: "Paid", date: "2025-11-10", method: "Insurance" },
+  { id: 2, patient: "Arjun Patel", amount: 20750, status: "Pending", date: "2025-11-08", method: "Credit Card" },
+  { id: 3, patient: "Anjali Reddy", amount: 37350, status: "Paid", date: "2025-11-05", method: "Cash" },
+  { id: 4, patient: "Vikram Singh", amount: 41500, status: "Overdue", date: "2025-10-28", method: "Insurance" },
+  { id: 5, patient: "Kavya Menon", amount: 12450, status: "Pending", date: "2025-11-12", method: "UPI" }
 ];
 
 const SAMPLE_APPOINTMENTS = [
-  { id: 1, patient: "Sarah Johnson", date: "2025-11-20", time: "10:00 AM", type: "Cleaning", status: "Confirmed" },
-  { id: 2, patient: "Michael Chen", date: "2025-11-22", time: "2:00 PM", type: "Root Canal", status: "Confirmed" },
-  { id: 3, patient: "Emily Rodriguez", date: "2025-11-25", time: "11:00 AM", type: "Filling", status: "Confirmed" },
-  { id: 4, patient: "John Smith", date: "2025-11-18", time: "9:00 AM", type: "Checkup", status: "Cancelled" },
-  { id: 5, patient: "Lisa Martinez", date: "2025-11-18", time: "3:00 PM", type: "Crown", status: "Confirmed" }
+  { id: 1, patient: "Priya Sharma", date: "2025-11-20", time: "10:00 AM", type: "Cleaning", status: "Confirmed" },
+  { id: 2, patient: "Arjun Patel", date: "2025-11-22", time: "2:00 PM", type: "Root Canal", status: "Confirmed" },
+  { id: 3, patient: "Anjali Reddy", date: "2025-11-25", time: "11:00 AM", type: "Filling", status: "Confirmed" },
+  { id: 4, patient: "Rahul Verma", date: "2025-11-18", time: "9:00 AM", type: "Checkup", status: "Cancelled" },
+  { id: 5, patient: "Kavya Menon", date: "2025-11-18", time: "3:00 PM", type: "Crown", status: "Confirmed" }
 ];
 
 const SAMPLE_INVENTORY = [
@@ -57,6 +57,26 @@ export default function Doctors() {
   const [isDashboardExpanded, setIsDashboardExpanded] = useState(false);
   const [isManageExpanded, setIsManageExpanded] = useState(false);
   
+  // Appointments management states
+  const [appointments, setAppointments] = useState(SAMPLE_APPOINTMENTS);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [editAction, setEditAction] = useState(""); // "cancel" or "reschedule"
+  const [rescheduleData, setRescheduleData] = useState({ date: "", time: "" });
+  
+  // New appointment booking states
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [newAppointment, setNewAppointment] = useState({
+    patient: "",
+    date: "",
+    time: "",
+    type: "",
+    doctor: "",
+    notes: "",
+    phone: "",
+    email: ""
+  });
+  
   // Inventory management states
   const [inventoryItems, setInventoryItems] = useState(SAMPLE_INVENTORY);
   const [newItems, setNewItems] = useState([]);
@@ -73,6 +93,84 @@ export default function Doctors() {
     "Premier Medical Supplies",
     "Global Dental Equipment"
   ];
+  
+  // Appointment management functions
+  const handleEditAppointment = (appointment) => {
+    setSelectedAppointment(appointment);
+    setEditAction("");
+    setRescheduleData({ date: appointment.date, time: appointment.time });
+    setEditModalOpen(true);
+  };
+  
+  const handleCancelAppointment = () => {
+    if (selectedAppointment) {
+      setAppointments(appointments.map(appt => 
+        appt.id === selectedAppointment.id 
+          ? { ...appt, status: "Cancelled" }
+          : appt
+      ));
+      setEditModalOpen(false);
+      setSelectedAppointment(null);
+      setEditAction("");
+    }
+  };
+  
+  const handleRescheduleAppointment = () => {
+    if (selectedAppointment && rescheduleData.date && rescheduleData.time) {
+      setAppointments(appointments.map(appt => 
+        appt.id === selectedAppointment.id 
+          ? { ...appt, date: rescheduleData.date, time: rescheduleData.time, status: "Confirmed" }
+          : appt
+      ));
+      setEditModalOpen(false);
+      setSelectedAppointment(null);
+      setEditAction("");
+      setRescheduleData({ date: "", time: "" });
+    }
+  };
+  
+  // New appointment booking functions
+  const handleOpenBooking = () => {
+    setBookingModalOpen(true);
+    setNewAppointment({
+      patient: "",
+      date: "",
+      time: "",
+      type: "",
+      doctor: "",
+      notes: "",
+      phone: "",
+      email: ""
+    });
+  };
+  
+  const handleBookAppointment = () => {
+    if (newAppointment.patient && newAppointment.date && newAppointment.time && newAppointment.type) {
+      const appointment = {
+        id: appointments.length + 1,
+        patient: newAppointment.patient,
+        date: newAppointment.date,
+        time: newAppointment.time,
+        type: newAppointment.type,
+        status: "Confirmed"
+      };
+      setAppointments([...appointments, appointment]);
+      setBookingModalOpen(false);
+      setNewAppointment({
+        patient: "",
+        date: "",
+        time: "",
+        type: "",
+        doctor: "",
+        notes: "",
+        phone: "",
+        email: ""
+      });
+      alert("✅ Appointment booked successfully!");
+    } else {
+      alert("❌ Please fill in all required fields");
+    }
+  };
   
   const handleAddNewItem = () => {
     setNewItems([...newItems, { tempId: Date.now(), item: "", category: "", available: "", reorderLevel: "" }]);
@@ -154,6 +252,356 @@ export default function Doctors() {
       "Critical": "bg-rose-100 text-rose-700 border-rose-200"
     };
     return colors[status] || "bg-stone-100 text-stone-600 border-stone-200";
+  };
+
+  // Edit Appointment Modal Component
+  const EditAppointmentModal = () => {
+    if (!editModalOpen || !selectedAppointment) return null;
+    
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999]"
+          onClick={() => setEditModalOpen(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.9, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden"
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-violet-500 to-purple-500 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  ✏️ Edit Appointment
+                </h2>
+                <button
+                  onClick={() => setEditModalOpen(false)}
+                  className="text-white/80 hover:text-white transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {/* Appointment Details */}
+              <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-lg p-4 border border-violet-200">
+                <h3 className="text-sm font-semibold text-stone-700 mb-2">Appointment Details</h3>
+                <div className="space-y-1 text-sm">
+                  <p><span className="font-medium text-stone-600">Patient:</span> <span className="text-stone-800">{selectedAppointment.patient}</span></p>
+                  <p><span className="font-medium text-stone-600">Type:</span> <span className="text-stone-800">{selectedAppointment.type}</span></p>
+                  <p><span className="font-medium text-stone-600">Current Date:</span> <span className="text-stone-800">{selectedAppointment.date}</span></p>
+                  <p><span className="font-medium text-stone-600">Current Time:</span> <span className="text-stone-800">{selectedAppointment.time}</span></p>
+                  <p><span className="font-medium text-stone-600">Status:</span> 
+                    <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${getStatusColor(selectedAppointment.status)}`}>
+                      {selectedAppointment.status}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Selection */}
+              <div>
+                <label className="block text-sm font-semibold text-stone-700 mb-2">Select Action</label>
+                <div className="space-y-2">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setEditAction("cancel")}
+                    className={`w-full px-4 py-3 rounded-lg border-2 text-left transition-all ${
+                      editAction === "cancel" 
+                        ? "bg-red-50 border-red-500 text-red-700" 
+                        : "bg-white border-stone-200 text-stone-700 hover:border-red-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🚫</span>
+                      <div>
+                        <p className="font-semibold">Cancel Appointment</p>
+                        <p className="text-xs opacity-70">Mark this appointment as cancelled</p>
+                      </div>
+                    </div>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setEditAction("reschedule")}
+                    className={`w-full px-4 py-3 rounded-lg border-2 text-left transition-all ${
+                      editAction === "reschedule" 
+                        ? "bg-blue-50 border-blue-500 text-blue-700" 
+                        : "bg-white border-stone-200 text-stone-700 hover:border-blue-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">📅</span>
+                      <div>
+                        <p className="font-semibold">Reschedule Appointment</p>
+                        <p className="text-xs opacity-70">Change the date and time</p>
+                      </div>
+                    </div>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Reschedule Inputs - Conditional */}
+              <AnimatePresence>
+                {editAction === "reschedule" && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-3 overflow-hidden"
+                  >
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-1">New Date</label>
+                      <input
+                        type="date"
+                        value={rescheduleData.date}
+                        onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
+                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-1">New Time</label>
+                      <input
+                        type="time"
+                        value={rescheduleData.time}
+                        onChange={(e) => setRescheduleData({ ...rescheduleData, time: e.target.value })}
+                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-stone-50 px-6 py-4 flex justify-end gap-3 border-t border-stone-200">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setEditModalOpen(false)}
+                className="px-4 py-2 text-stone-600 hover:text-stone-800 font-semibold transition"
+              >
+                Cancel
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  if (editAction === "cancel") {
+                    handleCancelAppointment();
+                  } else if (editAction === "reschedule") {
+                    handleRescheduleAppointment();
+                  }
+                }}
+                disabled={!editAction || (editAction === "reschedule" && (!rescheduleData.date || !rescheduleData.time))}
+                className={`px-6 py-2 rounded-lg font-semibold text-white transition shadow-md ${
+                  !editAction || (editAction === "reschedule" && (!rescheduleData.date || !rescheduleData.time))
+                    ? "bg-stone-300 cursor-not-allowed"
+                    : editAction === "cancel"
+                    ? "bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600"
+                    : "bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
+                }`}
+              >
+                {editAction === "cancel" ? "Confirm Cancel" : editAction === "reschedule" ? "Save Changes" : "Select Action"}
+              </motion.button>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  };
+
+  // Book Appointment Modal Component
+  const BookAppointmentModal = () => {
+    if (!bookingModalOpen) return null;
+    
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
+          onClick={() => setBookingModalOpen(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.9, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-violet-500 to-purple-500 px-6 py-4 sticky top-0 z-10">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  ➕ Book New Appointment
+                </h2>
+                <button
+                  onClick={() => setBookingModalOpen(false)}
+                  className="text-white/80 hover:text-white transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {/* Patient Information */}
+              <div>
+                <h3 className="text-sm font-semibold text-stone-700 mb-3 flex items-center gap-2">
+                  <span>👤</span> Patient Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Patient Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newAppointment.patient}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, patient: e.target.value })}
+                      placeholder="Enter patient name"
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Phone Number</label>
+                    <input
+                      type="tel"
+                      value={newAppointment.phone}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, phone: e.target.value })}
+                      placeholder="+1 (555) 123-4567"
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Email Address</label>
+                    <input
+                      type="email"
+                      value={newAppointment.email}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, email: e.target.value })}
+                      placeholder="patient@example.com"
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Appointment Details */}
+              <div className="border-t border-stone-200 pt-4">
+                <h3 className="text-sm font-semibold text-stone-700 mb-3 flex items-center gap-2">
+                  <span>📅</span> Appointment Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Date <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={newAppointment.date}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, date: e.target.value })}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Time <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="time"
+                      value={newAppointment.time}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, time: e.target.value })}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Appointment Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={newAppointment.type}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, type: e.target.value })}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                    >
+                      <option value="">Select type</option>
+                      <option value="Checkup">Checkup</option>
+                      <option value="Cleaning">Cleaning</option>
+                      <option value="Filling">Filling</option>
+                      <option value="Root Canal">Root Canal</option>
+                      <option value="Crown">Crown</option>
+                      <option value="Extraction">Extraction</option>
+                      <option value="Consultation">Consultation</option>
+                      <option value="Emergency">Emergency</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Assigned Doctor</label>
+                    <select
+                      value={newAppointment.doctor}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, doctor: e.target.value })}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                    >
+                      <option value="">Select doctor</option>
+                      <option value="Dr. Smith">Dr. Smith</option>
+                      <option value="Dr. Johnson">Dr. Johnson</option>
+                      <option value="Dr. Williams">Dr. Williams</option>
+                      <option value="Dr. Brown">Dr. Brown</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-stone-700 mb-1">Notes</label>
+                    <textarea
+                      value={newAppointment.notes}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, notes: e.target.value })}
+                      placeholder="Any additional notes or special requirements..."
+                      rows={3}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-stone-50 px-6 py-4 flex justify-end gap-3 border-t border-stone-200 sticky bottom-0">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setBookingModalOpen(false)}
+                className="px-6 py-2 text-stone-600 hover:text-stone-800 font-semibold transition"
+              >
+                Cancel
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleBookAppointment}
+                className="px-6 py-2 rounded-lg font-semibold text-white transition shadow-md bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
+              >
+                Book Appointment
+              </motion.button>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
   };
 
   return (
@@ -612,15 +1060,27 @@ export default function Doctors() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Upcoming Appointments Preview */}
                 <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-indigo-100/60 p-6">
-                  <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
-                    <span>📅</span> Next Appointments
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
+                      <span>📅</span> Next Appointments
+                    </h3>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setActiveTab("appointments")}
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 px-3 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+                    >
+                      View All →
+                    </motion.button>
+                  </div>
                   <div className="space-y-3">
                     {SAMPLE_APPOINTMENTS.filter(a => a.status === "Confirmed").slice(0, 3).map((appt) => (
                       <motion.div
                         key={appt.id}
-                        whileHover={{ x: 5 }}
-                        className="flex items-center justify-between p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100"
+                        whileHover={{ x: 5, scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setActiveTab("appointments")}
+                        className="flex items-center justify-between p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100 cursor-pointer transition-all hover:shadow-md"
                       >
                         <div>
                           <p className="font-semibold text-stone-800 text-sm">{appt.patient}</p>
@@ -636,15 +1096,27 @@ export default function Doctors() {
 
                 {/* Critical Inventory Alerts */}
                 <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-rose-100/60 p-6">
-                  <h3 className="text-lg font-bold text-rose-900 mb-4 flex items-center gap-2">
-                    <span>⚠️</span> Inventory Alerts
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-rose-900 flex items-center gap-2">
+                      <span>⚠️</span> Inventory Alerts
+                    </h3>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setActiveTab("inventory")}
+                      className="text-xs font-semibold text-rose-600 hover:text-rose-700 px-3 py-1 rounded-lg hover:bg-rose-50 transition-colors"
+                    >
+                      View All →
+                    </motion.button>
+                  </div>
                   <div className="space-y-3">
                     {SAMPLE_INVENTORY.filter(i => i.status !== "In Stock").slice(0, 3).map((item) => (
                       <motion.div
                         key={item.id}
-                        whileHover={{ x: 5 }}
-                        className={`flex items-center justify-between p-3 rounded-xl border ${
+                        whileHover={{ x: 5, scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setActiveTab("inventory")}
+                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md ${
                           item.status === "Critical" ? "bg-rose-50 border-rose-200" : "bg-amber-50 border-amber-200"
                         }`}
                       >
@@ -718,7 +1190,7 @@ export default function Doctors() {
 
                   <div>
                     <h3 className="text-xs font-bold text-teal-700 uppercase tracking-wider mb-4 flex items-center gap-2">
-                      <span className="w-1 h-4 bg-gradient-to-b from-teal-500 to-cyan-600 rounded-full"></span>
+                      <span className="w-1 h-4 bg-gradient-to-b from-teal-500 to-sage-500 rounded-full"></span>
                       Clinic Statistics
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
@@ -820,7 +1292,7 @@ export default function Doctors() {
                           <td className="px-6 py-4 text-stone-600">{patient.lastVisit}</td>
                           <td className="px-6 py-4 text-stone-600">{patient.nextAppt}</td>
                           <td className="px-6 py-4 text-right font-semibold text-stone-800">
-                            ${patient.balance}
+                            ₹{patient.balance.toLocaleString('en-IN')}
                           </td>
                         </motion.tr>
                       ))}
@@ -876,7 +1348,7 @@ export default function Doctors() {
                         >
                           <td className="px-6 py-4 font-medium text-stone-800">{payment.patient}</td>
                           <td className="px-6 py-4 text-stone-600">{payment.date}</td>
-                          <td className="px-6 py-4 text-right font-semibold text-stone-800">${payment.amount}</td>
+                          <td className="px-6 py-4 text-right font-semibold text-stone-800">₹{payment.amount.toLocaleString('en-IN')}</td>
                           <td className="px-6 py-4 text-stone-600">{payment.method}</td>
                           <td className="px-6 py-4">
                             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(payment.status)}`}>
@@ -903,15 +1375,37 @@ export default function Doctors() {
             >
               <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-violet-100/60 overflow-hidden">
                 <div className="p-6 bg-gradient-to-r from-violet-50 to-purple-50 border-b border-violet-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
-                      📅
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
+                        📅
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold bg-gradient-to-r from-violet-700 to-purple-700 bg-clip-text text-transparent">
+                          Appointments & Cancellations
+                        </h2>
+                        <p className="text-sm text-stone-600 mt-0.5">Upcoming appointments and recent cancellations</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-xl font-bold bg-gradient-to-r from-violet-700 to-purple-700 bg-clip-text text-transparent">
-                        Appointments & Cancellations
-                      </h2>
-                      <p className="text-sm text-stone-600 mt-0.5">Upcoming appointments and recent cancellations</p>
+                    <div className="flex items-center gap-3">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => navigate("/calendar")}
+                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                      >
+                        <span>📆</span>
+                        <span>Calendar View</span>
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleOpenBooking}
+                        className="px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                      >
+                        <span>➕</span>
+                        <span>Book New Appointment</span>
+                      </motion.button>
                     </div>
                   </div>
                 </div>
@@ -924,10 +1418,11 @@ export default function Doctors() {
                         <th className="px-6 py-3 text-left font-semibold text-stone-700">Time</th>
                         <th className="px-6 py-3 text-left font-semibold text-stone-700">Type</th>
                         <th className="px-6 py-3 text-left font-semibold text-stone-700">Status</th>
+                        <th className="px-6 py-3 text-center font-semibold text-stone-700">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {SAMPLE_APPOINTMENTS.map((appt, idx) => (
+                      {appointments.map((appt, idx) => (
                         <motion.tr
                           key={appt.id}
                           initial={{ opacity: 0, x: -10 }}
@@ -943,6 +1438,16 @@ export default function Doctors() {
                             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(appt.status)}`}>
                               {appt.status}
                             </span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => handleEditAppointment(appt)}
+                              className="px-3 py-1.5 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg text-xs font-semibold hover:from-violet-600 hover:to-purple-600 shadow-md hover:shadow-lg transition-all"
+                            >
+                              ✏️ Edit
+                            </motion.button>
                           </td>
                         </motion.tr>
                       ))}
@@ -1744,6 +2249,12 @@ export default function Doctors() {
           )}
         </AnimatePresence>
       </motion.div>
+      
+      {/* Edit Appointment Modal */}
+      <EditAppointmentModal />
+      
+      {/* Book Appointment Modal */}
+      <BookAppointmentModal />
     </div>
   );
 }

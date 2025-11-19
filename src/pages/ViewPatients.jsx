@@ -48,7 +48,7 @@ export default function ViewPatients() {
     <div className="min-h-screen bg-stone-50 py-8">
       {/* Header */}
       <div className="max-w-7xl mx-auto px-4 mb-8">
-        <div className="bg-gradient-to-r from-amber-600 to-amber-700 rounded-lg shadow-lg p-6">
+        <div className="bg-gradient-to-r from-coral-500 to-peach-500 rounded-lg shadow-coral p-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white mb-2">View Patients</h1>
@@ -254,7 +254,7 @@ export default function ViewPatients() {
                           className="bg-white border-2 border-stone-200 rounded-lg p-6 shadow-md hover:shadow-xl hover:border-amber-300 transition-all"
                         >
                           <div className="flex items-center gap-4 mb-4">
-                            <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                            <div className="w-16 h-16 bg-gradient-to-br from-coral-400 to-peach-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
                               {patient.firstName.charAt(0)}{patient.lastName.charAt(0)}
                             </div>
                             <div>

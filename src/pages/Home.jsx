@@ -57,29 +57,41 @@ export default function Home() {
       icon: "🏥", 
       title: "Clinic Management", 
       description: "Streamline operations across multiple locations with centralized control",
-      color: "from-teal-400/20 to-cyan-400/20",
-      textColor: "text-teal-700"
+      color: "from-teal-400/20 to-sage-400/20",
+      textColor: "text-teal-700",
+      link: "/clinics"
     },
     { 
       icon: "👥", 
       title: "Patient Care", 
       description: "Comprehensive records and personalized treatment tracking",
-      color: "from-blue-400/20 to-indigo-400/20",
-      textColor: "text-blue-700"
+      color: "from-peach-400/20 to-gold-400/20",
+      textColor: "text-peach-700",
+      link: "/patients"
     },
     { 
-      icon: "🛠️", 
-      title: "Service Organization", 
-      description: "Manage treatments, procedures, and pricing efficiently",
-      color: "from-purple-400/20 to-violet-400/20",
-      textColor: "text-purple-700"
+      icon: "📊", 
+      title: "Reports & Analytics", 
+      description: "Comprehensive insights, revenue tracking, and report generation",
+      color: "from-violet-400/20 to-purple-400/20",
+      textColor: "text-purple-700",
+      link: "/reports"
     },
     { 
       icon: "👔", 
       title: "Staff Coordination", 
       description: "Optimize team management and scheduling seamlessly",
-      color: "from-rose-400/20 to-pink-400/20",
-      textColor: "text-rose-700"
+      color: "from-sage-400/20 to-teal-400/20",
+      textColor: "text-sage-700",
+      link: "/staff"
+    },
+    { 
+      icon: "💰", 
+      title: "Salary Management", 
+      description: "Calculate dentist salaries with incentives based on treatments",
+      color: "from-emerald-400/20 to-cyan-400/20",
+      textColor: "text-emerald-700",
+      link: "/salary"
     },
   ];
 
@@ -94,7 +106,7 @@ export default function Home() {
       yearly: 39,
       blurb: "For solo practitioners launching digital ops",
       features: ["1 Clinic", "Up to 5 Staff", "1000 Patient Records", "Basic Reports"],
-      accent: "from-teal-500 to-cyan-600"
+      accent: "from-coral-500 to-peach-500"
     },
     {
       key: "growth",
@@ -104,7 +116,7 @@ export default function Home() {
       yearly: 79,
       blurb: "Multi-location teams scaling operations",
       features: ["Up to 3 Clinics", "30 Staff", "Unlimited Patients", "Advanced Analytics", "Priority Email Support"],
-      accent: "from-blue-600 to-indigo-600"
+      accent: "from-teal-500 to-sage-500"
     },
     {
       key: "pro",
@@ -114,7 +126,7 @@ export default function Home() {
       yearly: 159,
       blurb: "Established networks needing deeper insight",
       features: ["Up to 8 Clinics", "100 Staff", "Unlimited Patients", "Predictive Insights", "24/7 Priority Support"],
-      accent: "from-purple-600 to-violet-600"
+      accent: "from-gold-500 to-peach-500"
     },
     {
       key: "enterprise",
@@ -124,7 +136,7 @@ export default function Home() {
       yearly: 279,
       blurb: "Large groups with custom governance",
       features: ["Unlimited Clinics", "Unlimited Staff", "SLA & Dedicated CSM", "Custom Integrations", "On-Prem / Hybrid Options"],
-      accent: "from-rose-600 to-pink-600"
+      accent: "from-sage-600 to-teal-600"
     }
   ];
 
@@ -136,7 +148,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-teal-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-cream-50 via-warmGray-50 to-teal-50/30">
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         
         {/* Hero Section - Compact & Calming */}
@@ -144,18 +156,18 @@ export default function Home() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="bg-gradient-to-br from-white/80 via-blue-50/50 to-teal-50/50 backdrop-blur-sm rounded-2xl shadow-lg border border-blue-100/50 p-8"
+          className="bg-gradient-to-br from-white/80 via-coral-50/50 to-peach-50/50 backdrop-blur-sm rounded-2xl shadow-coral border border-coral-100/50 p-8"
         >
           <div className="text-center">
             <motion.div
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.5 }}
-              className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-teal-500 to-blue-600 rounded-2xl shadow-lg mb-4"
+              className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-coral-500 to-teal-500 rounded-2xl shadow-coral mb-4"
             >
               <span className="text-3xl">🦷</span>
             </motion.div>
-            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-teal-700 via-blue-700 to-indigo-700 bg-clip-text text-transparent mb-3">
+            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-coral-700 via-peach-700 to-teal-700 bg-clip-text text-transparent mb-3">
               Dentaesthetics VitalsVille
             </h1>
             <p className="text-base text-slate-600 max-w-2xl mx-auto leading-relaxed mb-6">
@@ -166,7 +178,7 @@ export default function Home() {
                 <motion.button
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                  className="px-8 py-3 bg-gradient-to-r from-teal-500 via-purple-500 to-coral-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                 >
                   <span className="text-xl">👨‍⚕️</span>
                   <span>Access Doctor's Space</span>
@@ -182,7 +194,7 @@ export default function Home() {
                   repeat: Infinity,
                   ease: "easeInOut"
                 }}
-                className="w-2 h-2 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
+                className="w-2 h-2 bg-gradient-to-r from-coral-500 to-teal-500 rounded-full"
               />
             </div>
           </div>
@@ -253,9 +265,7 @@ export default function Home() {
             {features.map((feature, idx) => (
               <Link
                 key={idx}
-                to={feature.title === "Clinic Management" ? "/clinics" : 
-                    feature.title === "Patient Care" ? "/patients" : 
-                    feature.title === "Service Organization" ? "/services" : "/staff"}
+                to={feature.link}
               >
                 <motion.div
                   whileHover={{ scale: 1.02, y: -2 }}
@@ -279,7 +289,7 @@ export default function Home() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.6 }}
-          className="bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-2xl p-6 border border-slate-200/50"
+          className="bg-gradient-to-br from-cream-50 to-warmGray-50 rounded-2xl p-6 border border-warmGray-200/50"
         >
           <h3 className="text-lg font-bold text-slate-800 mb-4 text-center">Quick Access</h3>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -313,11 +323,11 @@ export default function Home() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.8 }}
-          className="bg-gradient-to-br from-white/80 via-teal-50/50 to-blue-50/50 backdrop-blur-sm rounded-2xl shadow-lg border border-teal-100/60 p-8"
+          className="bg-gradient-to-br from-white/80 via-peach-50/50 to-gold-50/50 backdrop-blur-sm rounded-2xl shadow-coral border border-peach-100/60 p-8"
         >
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-teal-700 via-blue-700 to-indigo-700 bg-clip-text text-transparent">Subscription & Payment Options</h2>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-coral-700 via-peach-700 to-gold-700 bg-clip-text text-transparent">Subscription & Payment Options</h2>
               <p className="text-sm text-slate-600 mt-1">Flexible models to match clinic scale & evolution.</p>
             </div>
             <div className="flex items-center gap-3">
@@ -340,7 +350,7 @@ export default function Home() {
                 <h3 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">{tier.name}</h3>
                 <p className="text-xs text-slate-500 mb-3 leading-relaxed">{tier.blurb}</p>
                 <div className="mb-4">
-                  <span className="text-3xl font-extrabold bg-gradient-to-r from-teal-600 to-indigo-600 bg-clip-text text-transparent">
+                  <span className="text-3xl font-extrabold bg-gradient-to-r from-coral-600 to-peach-600 bg-clip-text text-transparent">
                     ${billingCycle === 'monthly' ? tier.monthly : tier.yearly}
                   </span>
                   <span className="text-xs text-slate-500 ml-1">/ {billingCycle}</span>
@@ -353,7 +363,7 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-                <button className="mt-5 w-full text-xs font-semibold px-3 py-2 rounded-lg bg-gradient-to-r from-teal-600 via-blue-600 to-indigo-600 text-white hover:shadow-lg hover:from-teal-700 hover:via-blue-700 hover:to-indigo-700 transition">
+                <button className="mt-5 w-full text-xs font-semibold px-3 py-2 rounded-lg bg-gradient-to-r from-coral-500 to-peach-500 text-white hover:shadow-coral hover:from-coral-600 hover:to-peach-600 transition">
                   Choose {tier.name}
                 </button>
                 {tier.key === 'enterprise' && (
@@ -389,7 +399,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 1 + i * 0.05 }}
-                  className="rounded-lg border border-slate-200 p-3 text-xs flex flex-col gap-2 hover:shadow-md hover:border-teal-300 transition bg-gradient-to-br from-slate-50 to-teal-50"
+                  className="rounded-lg border border-warmGray-200 p-3 text-xs flex flex-col gap-2 hover:shadow-md hover:border-coral-300 transition bg-gradient-to-br from-cream-50 to-coral-50"
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-base">{a.icon}</span>

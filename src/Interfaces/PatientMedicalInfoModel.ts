@@ -1,18 +1,12 @@
-// PatientMedicalInfoModel interface for medical history
-export interface PatientMedicalInfoModel {
-  medicalInfoId: number;
+// PatientMedicalInfo interface matching API model
+export interface PatientMedicalInfo {
   patientId: number;
-  allergies?: string;
-  chronicConditions?: string;
-  currentMedications?: string;
-  pastSurgeries?: string;
-  familyMedicalHistory?: string;
-  smokingStatus?: string;
-  alcoholConsumption?: string;
-  exerciseFrequency?: string;
-  dietaryRestrictions?: string;
-  lastDentalVisit?: string; // ISO date string or null
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
+  patientMedicalHistory: string;
+  patientAllergies: string;
+  patientCurrentMedications: string;
+  patientPrimaryPhysician: string;
+  no_of_visits: number;
+  lastVisitedDate: string; // ISO date string
+  chronicDiseases: string;
+  medicalHistory: string;
 }

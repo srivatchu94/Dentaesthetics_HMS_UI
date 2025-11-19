@@ -14,12 +14,17 @@ import Doctors from "./pages/Doctors";
 import DeletePatients from "./pages/DeletePatients";
 import CrudPage from "./pages/CrudPage";
 import Calendar from "./pages/Calendar";
+import VisitInformation from "./pages/VisitInformation";
+import ClinicAnalytics from "./pages/ClinicAnalytics";
+import ReportsAnalytics from "./pages/ReportsAnalytics";
+import SalaryManagement from "./pages/SalaryManagement";
+import DoctorSalaryDetails from "./pages/DoctorSalaryDetails";
 import Footer from "./components/Footer";
 import WhatsAppChatbot from "./components/WhatsAppChatbot";
 
 export default function App(){
   return (
-    <div className="app-container min-h-screen">
+          <div className="min-h-screen bg-gradient-to-br from-cream-50 via-warmGray-50 to-teal-50/30">
       <Header />
       <main>
         <Routes>
@@ -39,6 +44,11 @@ export default function App(){
           <Route path="/staff/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Staff" /></div>} />
           <Route path="/doctors" element={<Doctors />} />
           <Route path="/calendar" element={<Calendar />} />
+          <Route path="/visits" element={<VisitInformation />} />
+          <Route path="/clinics/analytics" element={<ClinicAnalytics />} />
+          <Route path="/reports" element={<ReportsAnalytics />} />
+          <Route path="/salary" element={<SalaryManagement />} />
+          <Route path="/salary/doctor/:doctorId" element={<DoctorSalaryDetails />} />
         </Routes>
       </main>
       <Footer />

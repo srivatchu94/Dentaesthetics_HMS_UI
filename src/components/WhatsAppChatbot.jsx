@@ -140,7 +140,7 @@ export default function WhatsAppChatbot() {
       {/* WhatsApp Floating Button */}
       <motion.button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full shadow-2xl flex items-center justify-center text-white text-3xl hover:scale-110 transition-all z-50"
+        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-teal-500 to-sage-500 rounded-full shadow-teal flex items-center justify-center text-white text-3xl hover:scale-110 transition-all z-50"
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.95 }}
         title="Book Appointment via WhatsApp"
@@ -158,7 +158,7 @@ export default function WhatsAppChatbot() {
             className="fixed bottom-24 right-6 w-96 max-w-[calc(100vw-3rem)] bg-white rounded-2xl shadow-2xl overflow-hidden z-50 border border-slate-200"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-green-600 to-green-700 p-4 text-white">
+            <div className="bg-gradient-to-r from-teal-600 to-sage-600 p-4 text-white">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-2xl">
                   🦷
@@ -179,7 +179,7 @@ export default function WhatsAppChatbot() {
             {/* Progress Bar */}
             <div className="bg-slate-100 h-2">
               <motion.div
-                className="bg-gradient-to-r from-green-500 to-green-600 h-full"
+                className="bg-gradient-to-r from-teal-500 to-sage-500 h-full"
                 initial={{ width: "0%" }}
                 animate={{ width: `${((step + 1) / steps.length) * 100}%` }}
                 transition={{ duration: 0.3 }}
@@ -282,7 +282,7 @@ export default function WhatsAppChatbot() {
               )}
               <button
                 onClick={handleNext}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg font-medium hover:from-green-600 hover:to-green-700 transition text-sm shadow-md"
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-teal-500 to-sage-500 text-white rounded-lg font-medium hover:from-teal-600 hover:to-sage-600 transition text-sm shadow-teal"
               >
                 {step < steps.length - 1 ? "Next →" : "Send via WhatsApp 💬"}
               </button>

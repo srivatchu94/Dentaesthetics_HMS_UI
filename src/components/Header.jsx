@@ -3,17 +3,19 @@ import { NavLink, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 const TABS = [
-  { key: "home", path: "/", label: "Home", bgColor: "from-rose-100 to-pink-100", textColor: "text-rose-800", borderColor: "border-rose-400", hoverBg: "hover:bg-rose-200", icon: "🏠" },
-  { key: "clinics", path: "/clinics", label: "Clinics", bgColor: "from-emerald-100 to-teal-100", textColor: "text-emerald-800", borderColor: "border-emerald-400", hoverBg: "hover:bg-emerald-200", icon: "🏥" },
-  { key: "patients", path: "/patients", label: "Patients", bgColor: "from-sky-100 to-cyan-100", textColor: "text-sky-800", borderColor: "border-sky-400", hoverBg: "hover:bg-sky-200", icon: "👥" },
-  { key: "services", path: "/services", label: "Services", bgColor: "from-amber-100 to-orange-100", textColor: "text-amber-800", borderColor: "border-amber-400", hoverBg: "hover:bg-amber-200", icon: "🛠️" },
-  { key: "staff", path: "/staff", label: "Staff", bgColor: "from-violet-100 to-purple-100", textColor: "text-violet-800", borderColor: "border-violet-400", hoverBg: "hover:bg-violet-200", icon: "👔" },
+  { key: "home", path: "/", label: "Home", bgColor: "from-coral-100 to-peach-100", textColor: "text-coral-800", borderColor: "border-coral-400", hoverBg: "hover:bg-coral-200", icon: "🏠" },
+  { key: "clinics", path: "/clinics", label: "Clinics", bgColor: "from-teal-100 to-sage-100", textColor: "text-teal-800", borderColor: "border-teal-400", hoverBg: "hover:bg-teal-200", icon: "🏥" },
+  { key: "patients", path: "/patients", label: "Patients", bgColor: "from-peach-100 to-gold-100", textColor: "text-peach-800", borderColor: "border-peach-400", hoverBg: "hover:bg-peach-200", icon: "👥" },
+  { key: "visits", path: "/visits", label: "Visits", bgColor: "from-violet-100 to-purple-100", textColor: "text-purple-800", borderColor: "border-purple-400", hoverBg: "hover:bg-purple-200", icon: "📋" },
+  { key: "services", path: "/services", label: "Services", bgColor: "from-gold-100 to-peach-100", textColor: "text-gold-800", borderColor: "border-gold-400", hoverBg: "hover:bg-gold-200", icon: "🦷" },
+  { key: "staff", path: "/staff", label: "Staff", bgColor: "from-sage-100 to-teal-100", textColor: "text-sage-800", borderColor: "border-sage-400", hoverBg: "hover:bg-sage-200", icon: "👨‍⚕️" },
 ];
 
 const CRUD_OPERATIONS = {
   home: [],
   clinics: ["create", "view", "update", "delete"],
   patients: ["create", "view", "update", "delete"],
+  visits: [],
   services: ["create", "view", "update", "delete"],
   staff: ["create", "view", "update", "delete"],
 };
@@ -167,15 +169,15 @@ export default function Header(){
   return (
     <>
       <header className="w-full fixed top-0 left-0 right-0 z-40">
-        <div className="bg-gradient-to-r from-amber-100 via-rose-100 to-orange-100 shadow-lg">
-          <div className="bg-gradient-to-br from-amber-50/90 via-rose-50/80 to-orange-50/90 backdrop-blur-sm">
+        <div className="bg-gradient-to-r from-coral-100 via-peach-100 to-teal-100 shadow-coral">
+          <div className="bg-gradient-to-br from-coral-50/90 via-peach-50/80 to-cream-50/90 backdrop-blur-sm">
             <div className="w-full px-6 md:px-12 py-4">
               <div className="grid grid-cols-3 items-center">
             {/* Logo - Left */}
                 <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                   <motion.div 
                     whileHover={{ scale: 1.1, rotate: 5 }}
-                    className="w-12 h-12 bg-gradient-to-br from-amber-400 via-rose-400 to-orange-400 rounded-xl shadow-lg flex items-center justify-center"
+                    className="w-12 h-12 bg-gradient-to-br from-coral-400 via-peach-400 to-gold-400 rounded-xl shadow-coral flex items-center justify-center"
                   >
                     <span className="text-2xl">🦷</span>
                   </motion.div>
@@ -183,7 +185,7 @@ export default function Header(){
 
             {/* Title - Center */}
                 <div className="text-center">
-                  <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-amber-700 via-rose-700 to-orange-700 bg-clip-text text-transparent">
+                  <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-coral-700 via-peach-700 to-teal-700 bg-clip-text text-transparent">
                     Dentaesthetics VitalsVille
                   </h1>
                 </div>
@@ -221,10 +223,10 @@ export default function Header(){
                               initial={{ opacity: 0, y: -10, scale: 0.95 }}
                               animate={{ opacity: 1, y: 0, scale: 1 }}
                               exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                              className="absolute right-0 top-full mt-2 w-96 bg-white rounded-xl shadow-2xl border-2 border-gray-100 overflow-hidden z-50"
+                              className="fixed right-4 top-20 w-96 bg-white rounded-xl shadow-2xl border-2 border-gray-100 overflow-hidden z-[9999]"
                             >
                               {/* Header */}
-                              <div className="bg-gradient-to-r from-amber-50 to-rose-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                              <div className="bg-gradient-to-r from-coral-50 to-peach-50 px-4 py-3 border-b border-warmGray-200 flex items-center justify-between">
                                 <h3 className="font-bold text-gray-800">Notifications</h3>
                                 {unreadCount > 0 && (
                                   <button
@@ -280,7 +282,7 @@ export default function Header(){
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => navigate("/doctors")}
-                        className="px-4 py-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white rounded-lg hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 transition-all font-semibold shadow-lg hover:shadow-xl text-sm flex items-center gap-2"
+                        className="px-4 py-2 bg-gradient-to-r from-teal-500 via-purple-500 to-coral-500 text-white rounded-lg hover:shadow-xl transition-all font-semibold shadow-lg text-sm flex items-center gap-2"
                       >
                         <span>👨‍⚕️</span>
                         <span>Doctor's Space</span>
@@ -292,7 +294,7 @@ export default function Header(){
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={handleLoginClick}
-                      className="px-6 py-2 bg-gradient-to-r from-amber-500 via-rose-500 to-orange-500 text-white rounded-lg hover:from-amber-600 hover:via-rose-600 hover:to-orange-600 transition-all font-semibold shadow-lg hover:shadow-xl text-sm"
+                      className="px-6 py-2 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-lg hover:from-coral-600 hover:to-peach-600 transition-all font-semibold shadow-coral hover:shadow-xl text-sm"
                     >
                       Login
                     </motion.button>
@@ -303,7 +305,7 @@ export default function Header(){
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={handleLogout}
-                      className="px-6 py-2 bg-gradient-to-r from-slate-500 to-slate-600 text-white rounded-lg hover:from-slate-600 hover:to-slate-700 transition-all font-semibold shadow-lg hover:shadow-xl text-sm"
+                      className="px-6 py-2 bg-gradient-to-r from-warmGray-500 to-warmGray-600 text-white rounded-lg hover:from-warmGray-600 hover:to-warmGray-700 transition-all font-semibold shadow-lg hover:shadow-xl text-sm"
                     >
                       Logout
                     </motion.button>
@@ -366,7 +368,7 @@ export default function Header(){
                   transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
                   className="flex justify-center mb-6"
                 >
-                  <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-xl">
+                  <div className="w-20 h-20 bg-gradient-to-br from-coral-500 to-teal-500 rounded-full flex items-center justify-center shadow-coral">
                     <motion.span
                       animate={{ rotate: [0, 360] }}
                       transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
@@ -382,7 +384,7 @@ export default function Header(){
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="text-3xl font-bold text-center bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2"
+                  className="text-3xl font-bold text-center bg-gradient-to-r from-coral-600 to-teal-600 bg-clip-text text-transparent mb-2"
                 >
                   {isSignUp ? "Create Account" : "Welcome Back"}
                 </motion.h2>
@@ -512,7 +514,7 @@ export default function Header(){
                     transition={{ delay: isSignUp ? 1.1 : 0.7 }}
                     whileHover={{ scale: 1.02, boxShadow: "0 20px 40px rgba(139, 92, 246, 0.3)" }}
                     whileTap={{ scale: 0.98 }}
-                    className="w-full py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-2xl transition-all mt-6"
+                    className="w-full py-4 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-bold text-lg shadow-coral hover:shadow-2xl transition-all mt-6"
                   >
                     {isSignUp ? "Create Account" : "Sign In"}
                   </motion.button>
@@ -554,7 +556,7 @@ export default function Header(){
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 300 }}
             transition={{ type: "spring", damping: 20, stiffness: 200 }}
-            className="fixed top-32 right-6 z-[100] bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white px-6 py-4 rounded-2xl shadow-2xl backdrop-blur-lg border-2 border-white/20 max-w-sm"
+            className="fixed top-32 right-6 z-[100] bg-gradient-to-r from-teal-500 to-sage-500 text-white px-6 py-4 rounded-2xl shadow-teal backdrop-blur-lg border-2 border-white/20 max-w-sm"
           >
             <div className="flex items-center gap-3">
               <motion.span
@@ -598,7 +600,7 @@ export default function Header(){
         }}
       />
 
-      <nav className="w-full bg-gradient-to-r from-amber-50/90 via-rose-50/80 to-orange-50/90 border-b border-amber-200/50 shadow-md sticky top-20 z-30 backdrop-blur-md">
+      <nav className="w-full bg-gradient-to-r from-coral-50/90 via-peach-50/80 to-cream-50/90 border-b border-coral-200/50 shadow-md sticky top-20 z-30 backdrop-blur-md">
         <div className="w-full px-6 md:px-12 py-4">
           <div className="flex gap-6 justify-center relative flex-wrap items-center">
             {TABS.map((t) => (
@@ -665,7 +667,7 @@ export default function Header(){
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full bg-gradient-to-r from-purple-50/95 via-pink-50/90 to-indigo-50/95 border-b border-purple-200/50 shadow-md sticky top-[148px] z-20 backdrop-blur-md"
+          className="w-full bg-gradient-to-r from-teal-50/95 via-sage-50/90 to-cream-50/95 border-b border-teal-200/50 shadow-md sticky top-[148px] z-20 backdrop-blur-md"
         >
           <div className="w-full px-6 md:px-12 py-3">
             <div ref={searchRef} className="relative max-w-4xl mx-auto">
@@ -712,7 +714,7 @@ export default function Header(){
                   >
                     {filteredSearch.length > 0 ? (
                       <>
-                        <div className="sticky top-0 bg-gradient-to-r from-purple-50 to-pink-50 px-4 py-2 border-b border-purple-100">
+                        <div className="sticky top-0 bg-gradient-to-r from-teal-50 to-sage-50 px-4 py-2 border-b border-teal-100">
                           <p className="text-sm font-semibold text-purple-700">
                             {filteredSearch.length} result{filteredSearch.length > 1 ? 's' : ''} found
                           </p>
@@ -727,7 +729,7 @@ export default function Header(){
                             onClick={() => handleSearchSelect(item.path)}
                             className="w-full px-5 py-4 flex items-center gap-4 border-b border-purple-50 last:border-0 text-left transition-all group"
                           >
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-coral-100 to-peach-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
                               {item.icon}
                             </div>
                             <div className="flex-1">

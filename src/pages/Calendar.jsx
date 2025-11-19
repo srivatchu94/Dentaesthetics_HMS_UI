@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 // Sample appointments data with time slots
 const INITIAL_APPOINTMENTS = [
@@ -18,6 +19,7 @@ const TIME_SLOTS = [
 const TREATMENT_TYPES = ["Cleaning", "Checkup", "Filling", "Root Canal", "Extraction", "Crown", "Braces Adjustment", "Whitening", "X-Ray", "Consultation"];
 
 export default function Calendar() {
+  const navigate = useNavigate();
   const [currentDate, setCurrentDate] = useState(new Date(2025, 10, 1)); // November 2025
   const [selectedDate, setSelectedDate] = useState(null);
   const [viewMode, setViewMode] = useState("month");
@@ -26,6 +28,8 @@ export default function Calendar() {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [appointments, setAppointments] = useState(INITIAL_APPOINTMENTS);
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [showDoubleBookingModal, setShowDoubleBookingModal] = useState(false);
+  const [pendingAppointment, setPendingAppointment] = useState(null);
   
   // Booking form state
   const [bookingForm, setBookingForm] = useState({
@@ -113,8 +117,43 @@ export default function Calendar() {
       notes: bookingForm.notes,
       color: ["emerald", "blue", "violet", "rose", "amber", "indigo"][Math.floor(Math.random() * 6)]
     };
-    setAppointments([...appointments, newAppointment]);
+    
+    // Check for existing appointments on the same date
+    const existingAppointments = appointments.filter(apt => apt.date === bookingForm.date);
+    
+    if (existingAppointments.length > 0) {
+      // Show double booking confirmation modal
+      setPendingAppointment(newAppointment);
+      setShowDoubleBookingModal(true);
+    } else {
+      // No conflicts, book directly
+      confirmBooking(newAppointment);
+    }
+  };
+  
+  const confirmBooking = (appointment) => {
+    setAppointments([...appointments, appointment]);
     setShowBookingModal(false);
+    setShowDoubleBookingModal(false);
+    setPendingAppointment(null);
+    setBookingForm({
+      patientName: "",
+      patientPhone: "",
+      patientEmail: "",
+      date: "",
+      startTime: "",
+      endTime: "",
+      type: "",
+      doctor: "Dr. Smith",
+      notes: ""
+    });
+    alert("✅ Appointment booked successfully!");
+  };
+  
+  const cancelDoubleBooking = () => {
+    setShowDoubleBookingModal(false);
+    setShowBookingModal(false);
+    setPendingAppointment(null);
     setBookingForm({
       patientName: "",
       patientPhone: "",
@@ -171,7 +210,7 @@ export default function Calendar() {
   const days = getDaysInMonth(currentDate);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50/40 to-pink-50/30 pt-[200px] px-6 pb-8">
+    <div className="min-h-screen bg-gradient-to-br from-cream-50 via-warmGray-50 to-teal-50/30 pt-[200px] px-6 pb-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <motion.div
@@ -179,10 +218,23 @@ export default function Calendar() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-6"
         >
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
-            📅 Appointment Calendar
-          </h1>
-          <p className="text-gray-600">Schedule and manage appointments with drag-and-drop</p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-coral-600 via-peach-600 to-teal-600 bg-clip-text text-transparent mb-2">
+                📅 Appointment Calendar
+              </h1>
+              <p className="text-gray-600">Schedule and manage appointments with drag-and-drop</p>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate("/doctors")}
+              className="px-6 py-3 bg-gradient-to-r from-warmGray-500 to-warmGray-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+            >
+              <span>←</span>
+              <span>Back to Appointments</span>
+            </motion.button>
+          </div>
         </motion.div>
 
         {/* Calendar Controls */}
@@ -199,7 +251,7 @@ export default function Calendar() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
-                className="p-2 rounded-lg bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-600 hover:from-indigo-200 hover:to-purple-200 transition-all"
+                className="p-2 rounded-lg bg-gradient-to-r from-coral-100 to-peach-100 text-coral-600 hover:from-coral-200 hover:to-peach-200 transition-all"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -214,7 +266,7 @@ export default function Calendar() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
-                className="p-2 rounded-lg bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-600 hover:from-indigo-200 hover:to-purple-200 transition-all"
+                className="p-2 rounded-lg bg-gradient-to-r from-coral-100 to-peach-100 text-coral-600 hover:from-coral-200 hover:to-peach-200 transition-all"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -231,7 +283,7 @@ export default function Calendar() {
                   setCurrentDate(new Date());
                   setViewMode("month");
                 }}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white font-semibold shadow-md hover:shadow-lg transition-all"
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-gold-500 to-peach-500 text-white font-semibold shadow-md hover:shadow-lg transition-all"
               >
                 Today
               </motion.button>
@@ -243,7 +295,7 @@ export default function Calendar() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setViewMode("month")}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold shadow-md hover:shadow-lg transition-all"
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-coral-500 to-peach-500 text-white font-semibold shadow-coral hover:shadow-lg transition-all"
                 >
                   Back to Month
                 </motion.button>
@@ -286,9 +338,9 @@ export default function Calendar() {
                     className={`min-h-[100px] rounded-xl p-2 border-2 transition-all cursor-pointer ${
                       day.isCurrentMonth
                         ? day.isToday
-                          ? "bg-gradient-to-br from-indigo-100 to-purple-100 border-indigo-400 shadow-md"
+                          ? "bg-gradient-to-br from-coral-100 to-peach-100 border-coral-400 shadow-coral"
                           : hasAppointments
-                          ? "bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 hover:border-purple-400 hover:shadow-md"
+                          ? "bg-gradient-to-br from-cream-50 to-warmGray-50 border-warmGray-200 hover:border-coral-400 hover:shadow-md"
                           : "bg-white border-gray-200 hover:border-purple-300 hover:shadow-sm"
                         : "bg-gray-50 border-gray-100"
                     }`}
@@ -342,7 +394,7 @@ export default function Calendar() {
                   setBookingForm({ ...bookingForm, date: selectedDate });
                   setShowBookingModal(true);
                 }}
-                className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                className="px-6 py-3 bg-gradient-to-r from-teal-500 to-sage-500 text-white rounded-xl font-semibold shadow-teal hover:shadow-xl transition-all flex items-center gap-2"
               >
                 <span>➕</span>
                 <span>New Appointment</span>
@@ -432,7 +484,7 @@ export default function Calendar() {
                 className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-8 max-h-[90vh] overflow-y-auto"
               >
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                  <h3 className="text-3xl font-bold bg-gradient-to-r from-coral-600 to-peach-600 bg-clip-text text-transparent">
                     Book New Appointment
                   </h3>
                   <button
@@ -565,7 +617,7 @@ export default function Calendar() {
                     type="submit"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    className="w-full py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-2xl transition-all"
+                    className="w-full py-4 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-bold text-lg shadow-coral hover:shadow-2xl transition-all"
                   >
                     Book Appointment
                   </motion.button>
@@ -593,7 +645,7 @@ export default function Calendar() {
                 className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8"
               >
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                  <h3 className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-sage-600 bg-clip-text text-transparent">
                     Appointment Details
                   </h3>
                   <button
@@ -669,9 +721,80 @@ export default function Calendar() {
                       setAppointments(appointments.filter(apt => apt.id !== selectedAppointment.id));
                       setShowAppointmentModal(false);
                     }}
-                    className="flex-1 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all"
+                    className="flex-1 py-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all"
                   >
                     Cancel Appointment
+                  </motion.button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Double Booking Confirmation Modal */}
+        <AnimatePresence>
+          {showDoubleBookingModal && pendingAppointment && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+              onClick={() => setShowDoubleBookingModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+              >
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-2xl">⚠️</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">
+                      Double Booking Detected
+                    </h3>
+                    <p className="text-gray-600 text-sm">
+                      There are already {appointments.filter(apt => apt.date === pendingAppointment.date).length} appointment(s) scheduled on <strong>{pendingAppointment.date}</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+                  <p className="text-sm text-amber-800 mb-2">
+                    <strong>Existing appointments on this date:</strong>
+                  </p>
+                  <div className="space-y-2">
+                    {appointments.filter(apt => apt.date === pendingAppointment.date).map(apt => (
+                      <div key={apt.id} className="text-sm text-amber-700 bg-white/50 px-3 py-2 rounded">
+                        • {apt.patient} - {apt.startTime} to {apt.endTime} ({apt.type})
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <p className="text-gray-600 text-sm mb-6">
+                  Would you like to proceed with double booking this appointment?
+                </p>
+
+                <div className="flex gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={cancelDoubleBooking}
+                    className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    No, Go Back
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => confirmBooking(pendingAppointment)}
+                    className="flex-1 py-3 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-semibold shadow-coral hover:shadow-xl transition-all"
+                  >
+                    Yes, Double Book
                   </motion.button>
                 </div>
               </motion.div>

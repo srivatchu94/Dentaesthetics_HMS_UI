@@ -19,7 +19,7 @@ export default function Footer() {
   ];
 
   return (
-    <footer className="w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] mt-16 bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800 text-white shadow-lg">
+    <footer className="w-screen relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] mt-16 bg-gradient-to-r from-warmGray-800 via-warmGray-900 to-warmGray-800 text-white shadow-lg">
       <div className="max-w-6xl mx-auto px-6 md:px-12 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Brand Section */}
