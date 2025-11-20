@@ -25,7 +25,39 @@ const SAMPLE_DOCTORS = [
     staffType: "doctor",
     fixedSalary: 150000,
     totalPatientsThisMonth: 42,
-    totalRevenueGenerated: 8350000
+    totalRevenueGenerated: 8350000,
+    salaryHistory: [
+      {
+        historyId: 1,
+        doctorId: 1,
+        fixedSalary: 150000,
+        effectiveDate: "2025-01-01",
+        endDate: null,
+        remarks: "Annual increment 2025",
+        updatedBy: "Admin",
+        updatedAt: "2025-01-01T10:00:00"
+      },
+      {
+        historyId: 2,
+        doctorId: 1,
+        fixedSalary: 135000,
+        effectiveDate: "2024-01-01",
+        endDate: "2024-12-31",
+        remarks: "Annual increment 2024",
+        updatedBy: "Admin",
+        updatedAt: "2024-01-01T10:00:00"
+      },
+      {
+        historyId: 3,
+        doctorId: 1,
+        fixedSalary: 120000,
+        effectiveDate: "2023-01-01",
+        endDate: "2023-12-31",
+        remarks: "Initial salary on joining",
+        updatedBy: "HR Manager",
+        updatedAt: "2023-01-01T09:00:00"
+      }
+    ]
   },
   {
     doctorId: 2,
@@ -58,11 +90,33 @@ const SAMPLE_DOCTORS = [
     specialty: "Oral Surgeon",
     registrationNumber: "MCI-A-34567-KA",
     clinicId: 102,
-    clinicName: "Smile Care Bangalore",
+    clinicName: "Dentaesthetics Bangalore Whitefield",
     staffType: "doctor",
     fixedSalary: 175000,
-    totalPatientsThisMonth: 28,
-    totalRevenueGenerated: 9940000
+    totalPatientsThisMonth: 35,
+    totalRevenueGenerated: 10450000,
+    salaryHistory: [
+      {
+        historyId: 10,
+        doctorId: 4,
+        fixedSalary: 175000,
+        effectiveDate: "2024-07-01",
+        endDate: null,
+        remarks: "Promotion to Senior Oral Surgeon",
+        updatedBy: "Admin",
+        updatedAt: "2024-07-01T11:30:00"
+      },
+      {
+        historyId: 11,
+        doctorId: 4,
+        fixedSalary: 150000,
+        effectiveDate: "2023-07-01",
+        endDate: "2024-06-30",
+        remarks: "Starting salary",
+        updatedBy: "HR Manager",
+        updatedAt: "2023-07-01T10:00:00"
+      }
+    ]
   },
   {
     doctorId: 5,
@@ -173,6 +227,15 @@ export default function SalaryManagement() {
   const [selectedPeriod, setSelectedPeriod] = useState("current");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  
+  // Edit salary modal state
+  const [showEditSalaryModal, setShowEditSalaryModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
+  const [editSalaryForm, setEditSalaryForm] = useState({
+    newSalary: "",
+    effectiveDate: new Date().toISOString().split('T')[0],
+    remarks: ""
+  });
 
   // Filter doctors based on clinic and search term
   const filteredDoctors = useMemo(() => {
@@ -220,6 +283,26 @@ export default function SalaryManagement() {
   const selectedClinicName = selectedClinic === "all" 
     ? "All Clinics" 
     : SAMPLE_CLINICS.find(c => c.clinicId === parseInt(selectedClinic))?.clinicName || "Unknown";
+
+  const handleEditSalary = (e, doctor) => {
+    e.stopPropagation();
+    setSelectedStaff(doctor);
+    setEditSalaryForm({
+      newSalary: doctor.fixedSalary.toString(),
+      effectiveDate: new Date().toISOString().split('T')[0],
+      remarks: ""
+    });
+    setShowEditSalaryModal(true);
+  };
+
+  const handleSaveSalary = () => {
+    if (!editSalaryForm.newSalary || parseFloat(editSalaryForm.newSalary) <= 0) {
+      alert("Please enter a valid salary amount");
+      return;
+    }
+    alert(`Salary updated for ${selectedStaff.doctorName}\nNew Salary: ₹${parseFloat(editSalaryForm.newSalary).toLocaleString('en-IN')}\nEffective Date: ${editSalaryForm.effectiveDate}\nRemarks: ${editSalaryForm.remarks || 'None'}`);
+    setShowEditSalaryModal(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-cream-50 via-warmGray-50 to-teal-50/30 p-6">
@@ -507,7 +590,18 @@ export default function SalaryManagement() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-600">Fixed Salary</span>
-                    <span className="text-sm font-bold text-emerald-600">₹{doctor.fixedSalary.toLocaleString('en-IN')}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-emerald-600">₹{doctor.fixedSalary.toLocaleString('en-IN')}</span>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={(e) => handleEditSalary(e, doctor)}
+                        className="p-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded transition-colors"
+                        title="Edit Fixed Salary"
+                      >
+                        <span className="text-xs">✏️</span>
+                      </motion.button>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-600">Patients Treated</span>
@@ -532,6 +626,143 @@ export default function SalaryManagement() {
               </motion.div>
             ))}
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Salary Modal */}
+      <AnimatePresence>
+        {showEditSalaryModal && selectedStaff && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowEditSalaryModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800">Edit Fixed Salary</h2>
+                  <p className="text-sm text-slate-600">Update salary for {selectedStaff.doctorName}</p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowEditSalaryModal(false)}
+                  className="text-slate-400 hover:text-slate-600 text-2xl"
+                >
+                  ✕
+                </motion.button>
+              </div>
+
+              {/* Current Salary Info */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-600">Current Fixed Salary</p>
+                    <p className="text-2xl font-bold text-slate-800">₹{selectedStaff.fixedSalary.toLocaleString('en-IN')}</p>
+                    <p className="text-xs text-slate-500 mt-1">{selectedStaff.specialty} • {selectedStaff.clinicName}</p>
+                  </div>
+                  <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white w-12 h-12 rounded-lg flex items-center justify-center text-2xl">
+                    💰
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    New Monthly Fixed Salary (₹) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={editSalaryForm.newSalary}
+                    onChange={(e) => setEditSalaryForm({...editSalaryForm, newSalary: e.target.value})}
+                    placeholder="Enter new salary amount"
+                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent outline-none text-lg"
+                  />
+                  {editSalaryForm.newSalary && (
+                    <div className="mt-2 flex items-center justify-between">
+                      <p className="text-sm text-emerald-600 font-semibold">
+                        ₹{parseFloat(editSalaryForm.newSalary).toLocaleString('en-IN')} per month
+                      </p>
+                      {parseFloat(editSalaryForm.newSalary) !== selectedStaff.fixedSalary && (
+                        <p className={`text-sm font-bold ${
+                          parseFloat(editSalaryForm.newSalary) > selectedStaff.fixedSalary 
+                            ? 'text-emerald-600' 
+                            : 'text-red-600'
+                        }`}>
+                          {parseFloat(editSalaryForm.newSalary) > selectedStaff.fixedSalary ? '↑' : '↓'} 
+                          {' '}₹{Math.abs(parseFloat(editSalaryForm.newSalary) - selectedStaff.fixedSalary).toLocaleString('en-IN')}
+                          {' '}({((Math.abs(parseFloat(editSalaryForm.newSalary) - selectedStaff.fixedSalary) / selectedStaff.fixedSalary) * 100).toFixed(1)}%)
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Effective From Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={editSalaryForm.effectiveDate}
+                    onChange={(e) => setEditSalaryForm({...editSalaryForm, effectiveDate: e.target.value})}
+                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent outline-none"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    New salary will be effective from this date. Previous salary will be recorded in history.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Remarks (Optional)
+                  </label>
+                  <textarea
+                    value={editSalaryForm.remarks}
+                    onChange={(e) => setEditSalaryForm({...editSalaryForm, remarks: e.target.value})}
+                    placeholder="e.g., Annual increment, Promotion, Performance bonus..."
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent outline-none resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowEditSalaryModal(false)}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleSaveSalary}
+                  disabled={!editSalaryForm.newSalary || parseFloat(editSalaryForm.newSalary) <= 0}
+                  className={`flex-1 px-6 py-3 rounded-lg font-bold shadow-lg transition-all ${
+                    !editSalaryForm.newSalary || parseFloat(editSalaryForm.newSalary) <= 0
+                      ? 'bg-gradient-to-r from-slate-300 to-slate-400 text-slate-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:shadow-xl'
+                  }`}
+                >
+                  💾 Update Salary
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

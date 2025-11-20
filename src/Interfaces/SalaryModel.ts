@@ -1,3 +1,14 @@
+export interface SalaryHistoryRecord {
+  historyId: number;
+  doctorId: number;
+  fixedSalary: number;
+  effectiveDate: string;
+  endDate?: string;
+  remarks?: string;
+  updatedBy?: string;
+  updatedAt: string;
+}
+
 export interface DoctorSalaryInfo {
   doctorId: number;
   doctorName: string;
@@ -7,6 +18,7 @@ export interface DoctorSalaryInfo {
   clinicName: string;
   staffType: 'doctor' | 'dentist' | 'hygienist' | 'assistant';
   fixedSalary: number;
+  salaryHistory?: SalaryHistoryRecord[];
   totalPatientsThisMonth: number;
   totalRevenueGenerated: number;
   profileImage?: string;

@@ -21,7 +21,14 @@ const SAMPLE_VISITS = [
     nextAppointmentDate: "2025-02-15",
     attendingPhysician: "Dr. Rajesh Kumar",
     billingAmount: 20750.00,
-    paymentStatus: "Paid"
+    paymentStatus: "Paid",
+    medicalConditions: {
+      chronicDiseases: ["Type 2 Diabetes Mellitus"],
+      allergies: ["Penicillin"],
+      currentMedications: ["Metformin 500mg twice daily"],
+      bloodPressure: "Normal",
+      notes: "Monitor blood sugar levels before procedures"
+    }
   },
   {
     visitId: 2,
@@ -40,7 +47,14 @@ const SAMPLE_VISITS = [
     nextAppointmentDate: "2025-11-22",
     attendingPhysician: "Dr. Rajesh Kumar",
     billingAmount: 99600.00,
-    paymentStatus: "Pending"
+    paymentStatus: "Pending",
+    medicalConditions: {
+      chronicDiseases: ["Hypertension", "Cardiovascular Disease"],
+      allergies: ["Aspirin", "Codeine"],
+      currentMedications: ["Amlodipine 5mg daily", "Atorvastatin 20mg daily"],
+      bloodPressure: "145/92 (Elevated)",
+      notes: "Avoid NSAIDs due to cardiovascular condition. Use alternative pain management."
+    }
   },
   {
     visitId: 3,
@@ -59,7 +73,14 @@ const SAMPLE_VISITS = [
     nextAppointmentDate: "2025-05-05",
     attendingPhysician: "Dr. Rajesh Kumar",
     billingAmount: 37350.00,
-    paymentStatus: "Paid"
+    paymentStatus: "Paid",
+    medicalConditions: {
+      chronicDiseases: [],
+      allergies: [],
+      currentMedications: [],
+      bloodPressure: "Normal",
+      notes: "No significant medical history"
+    }
   }
 ];
 
@@ -80,6 +101,9 @@ export default function VisitInformation() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [successMessage, setSuccessMessage] = useState("");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentVisit, setPaymentVisit] = useState(null);
+  const [newPaymentStatus, setNewPaymentStatus] = useState("");
 
   // Filter visits based on search and status
   const filteredVisits = visits.filter(visit => {
@@ -123,6 +147,249 @@ export default function VisitInformation() {
     // Close modal
     setShowPrescriptionModal(false);
     setPrescriptionText("");
+  };
+
+  const handleOpenPaymentModal = (visit) => {
+    setPaymentVisit(visit);
+    setNewPaymentStatus(visit.paymentStatus);
+    setShowPaymentModal(true);
+  };
+
+  const handleUpdatePaymentStatus = () => {
+    // Here you would make an API call to update payment status
+    console.log("Updating payment status for visit:", paymentVisit.visitId);
+    console.log("New status:", newPaymentStatus);
+    
+    // Update the visit with new payment status
+    const updatedVisits = visits.map(v => 
+      v.visitId === paymentVisit.visitId 
+        ? { ...v, paymentStatus: newPaymentStatus }
+        : v
+    );
+    setVisits(updatedVisits);
+    
+    // Show success message
+    setSuccessMessage(`Payment status updated to "${newPaymentStatus}" successfully!`);
+    setTimeout(() => setSuccessMessage(""), 3000);
+    
+    // Close modal
+    setShowPaymentModal(false);
+    setPaymentVisit(null);
+  };
+
+  const handlePrintPrescription = () => {
+    const printWindow = window.open('', '_blank');
+    const prescriptionContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Prescription - ${selectedVisit.patientName}</title>
+          <style>
+            body {
+              font-family: 'Times New Roman', serif;
+              padding: 40px;
+              max-width: 800px;
+              margin: 0 auto;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 3px double #333;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .header h1 {
+              margin: 0;
+              color: #8b5cf6;
+              font-size: 28px;
+            }
+            .header p {
+              margin: 5px 0;
+              color: #666;
+            }
+            .section {
+              margin-bottom: 20px;
+            }
+            .section-title {
+              font-weight: bold;
+              color: #8b5cf6;
+              border-bottom: 1px solid #ddd;
+              padding-bottom: 5px;
+              margin-bottom: 10px;
+            }
+            .patient-info {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 15px;
+              margin-bottom: 30px;
+            }
+            .info-item {
+              display: flex;
+              gap: 10px;
+            }
+            .info-label {
+              font-weight: bold;
+              color: #555;
+            }
+            .prescription-body {
+              white-space: pre-wrap;
+              line-height: 1.8;
+              padding: 20px;
+              background: #f9f9f9;
+              border-left: 4px solid #8b5cf6;
+              margin: 20px 0;
+              font-family: 'Courier New', monospace;
+            }
+            .medical-alert {
+              background: #fff3cd;
+              border: 2px solid #dc3545;
+              border-radius: 8px;
+              padding: 15px;
+              margin: 20px 0;
+            }
+            .medical-alert h3 {
+              color: #dc3545;
+              margin: 0 0 10px 0;
+              font-size: 16px;
+              font-weight: bold;
+            }
+            .medical-alert ul {
+              margin: 5px 0;
+              padding-left: 20px;
+            }
+            .medical-alert li {
+              color: #333;
+              font-weight: bold;
+              margin: 3px 0;
+            }
+            .alert-section {
+              margin: 10px 0;
+            }
+            .alert-section strong {
+              color: #dc3545;
+            }
+            .footer {
+              margin-top: 60px;
+              border-top: 1px solid #ddd;
+              padding-top: 20px;
+            }
+            .signature {
+              margin-top: 40px;
+              text-align: right;
+            }
+            .signature-line {
+              border-top: 1px solid #333;
+              width: 200px;
+              margin-left: auto;
+              margin-bottom: 5px;
+            }
+            @media print {
+              body { padding: 20px; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>MEDICAL PRESCRIPTION</h1>
+            <p><strong>${CURRENT_DOCTOR.name}</strong></p>
+            <p>${CURRENT_DOCTOR.specialization}</p>
+            <p>Reg. No: ${CURRENT_DOCTOR.registrationNumber}</p>
+            <p>Date: ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+          </div>
+
+          <div class="section">
+            <div class="section-title">PATIENT INFORMATION</div>
+            <div class="patient-info">
+              <div class="info-item">
+                <span class="info-label">Name:</span>
+                <span>${selectedVisit.patientName}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Age:</span>
+                <span>${selectedVisit.patientAge} years</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Gender:</span>
+                <span>${selectedVisit.patientGender}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Visit ID:</span>
+                <span>#${selectedVisit.visitId}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">DIAGNOSIS</div>
+            <p>${selectedVisit.diagnoses}</p>
+          </div>
+
+          ${selectedVisit.medicalConditions && (
+            selectedVisit.medicalConditions.chronicDiseases?.length > 0 || 
+            selectedVisit.medicalConditions.allergies?.length > 0 ||
+            selectedVisit.medicalConditions.currentMedications?.length > 0
+          ) ? `
+          <div class="medical-alert">
+            <h3>⚠️ MEDICAL ALERTS - CRITICAL INFORMATION</h3>
+            ${selectedVisit.medicalConditions.chronicDiseases?.length > 0 ? `
+            <div class="alert-section">
+              <strong>🏥 Chronic Conditions:</strong>
+              <ul>
+                ${selectedVisit.medicalConditions.chronicDiseases.map(disease => `<li>${disease}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+            ${selectedVisit.medicalConditions.allergies?.length > 0 ? `
+            <div class="alert-section">
+              <strong>⚠️ Drug Allergies:</strong>
+              <ul>
+                ${selectedVisit.medicalConditions.allergies.map(allergy => `<li>${allergy}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+            ${selectedVisit.medicalConditions.currentMedications?.length > 0 ? `
+            <div class="alert-section">
+              <strong>💊 Current Medications:</strong>
+              <ul>
+                ${selectedVisit.medicalConditions.currentMedications.map(med => `<li>${med}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+            ${selectedVisit.medicalConditions.bloodPressure && selectedVisit.medicalConditions.bloodPressure !== 'Normal' ? `
+            <div class="alert-section">
+              <strong>🩺 Blood Pressure:</strong> ${selectedVisit.medicalConditions.bloodPressure}
+            </div>
+            ` : ''}
+            ${selectedVisit.medicalConditions.notes && selectedVisit.medicalConditions.notes !== 'No significant medical history' ? `
+            <div class="alert-section">
+              <strong>📋 Clinical Notes:</strong> ${selectedVisit.medicalConditions.notes}
+            </div>
+            ` : ''}
+          </div>
+          ` : ''}
+
+          <div class="section">
+            <div class="section-title">PRESCRIPTION</div>
+            <div class="prescription-body">${prescriptionText || 'No prescription provided'}</div>
+          </div>
+
+          <div class="footer">
+            <div class="signature">
+              <div class="signature-line"></div>
+              <p><strong>${CURRENT_DOCTOR.name}</strong></p>
+              <p>${CURRENT_DOCTOR.specialization}</p>
+              <p>Reg. No: ${CURRENT_DOCTOR.registrationNumber}</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+    
+    printWindow.document.write(prescriptionContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
   };
 
   const formatDate = (dateString) => {
@@ -237,9 +504,18 @@ export default function VisitInformation() {
                     </div>
                   </div>
                 </div>
-                <div className={`px-4 py-2 rounded-lg bg-gradient-to-r ${getStatusColor(visit.paymentStatus)} text-white font-semibold text-sm shadow-md`}>
-                  {visit.paymentStatus}
-                </div>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenPaymentModal(visit);
+                  }}
+                  className={`px-4 py-2 rounded-lg bg-gradient-to-r ${getStatusColor(visit.paymentStatus)} text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all cursor-pointer`}
+                  title="Click to change payment status"
+                >
+                  {visit.paymentStatus} 💳
+                </motion.button>
               </div>
             </div>
 
@@ -291,7 +567,7 @@ export default function VisitInformation() {
                     onClick={() => handleOpenPrescription(visit)}
                     className="px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all"
                   >
-                    📝 Edit Prescription
+                    📝 Write Prescription
                   </motion.button>
                 </div>
                 <p className="text-slate-700">{visit.prescriptions}</p>
@@ -336,7 +612,7 @@ export default function VisitInformation() {
               {/* Modal Header */}
               <div className="bg-gradient-to-r from-violet-500 to-purple-500 px-8 py-6 text-white">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-3xl font-bold">Prescription</h2>
+                  <h2 className="text-3xl font-bold">Medical Prescription</h2>
                   <motion.button
                     whileHover={{ scale: 1.1, rotate: 90 }}
                     whileTap={{ scale: 0.9 }}
@@ -394,6 +670,100 @@ export default function VisitInformation() {
                   </div>
                 </div>
 
+                {/* Medical Alert Section */}
+                {selectedVisit.medicalConditions && (
+                  selectedVisit.medicalConditions.chronicDiseases?.length > 0 || 
+                  selectedVisit.medicalConditions.allergies?.length > 0 ||
+                  selectedVisit.medicalConditions.currentMedications?.length > 0 ||
+                  selectedVisit.medicalConditions.bloodPressure !== "Normal"
+                ) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gradient-to-r from-red-50 via-orange-50 to-amber-50 border-2 border-red-300 rounded-lg p-6 mb-6 shadow-lg"
+                  >
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-2xl flex-shrink-0 animate-pulse">
+                        ⚠️
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-red-900 mb-1">MEDICAL ALERTS - Critical Information</h3>
+                        <p className="text-sm text-red-700">Please review patient's medical conditions before prescribing medications</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Chronic Diseases */}
+                      {selectedVisit.medicalConditions.chronicDiseases?.length > 0 && (
+                        <div className="bg-white/80 rounded-lg p-4 border-l-4 border-red-500">
+                          <p className="text-xs font-bold text-red-700 mb-2 flex items-center gap-2">
+                            🏥 CHRONIC CONDITIONS
+                          </p>
+                          <ul className="space-y-1">
+                            {selectedVisit.medicalConditions.chronicDiseases.map((disease, idx) => (
+                              <li key={idx} className="text-sm text-slate-800 font-semibold flex items-center gap-2">
+                                <span className="text-red-500">●</span> {disease}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Allergies */}
+                      {selectedVisit.medicalConditions.allergies?.length > 0 && (
+                        <div className="bg-white/80 rounded-lg p-4 border-l-4 border-orange-500">
+                          <p className="text-xs font-bold text-orange-700 mb-2 flex items-center gap-2">
+                            ⚠️ DRUG ALLERGIES
+                          </p>
+                          <ul className="space-y-1">
+                            {selectedVisit.medicalConditions.allergies.map((allergy, idx) => (
+                              <li key={idx} className="text-sm text-slate-800 font-semibold flex items-center gap-2">
+                                <span className="text-orange-500">●</span> {allergy}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Current Medications */}
+                      {selectedVisit.medicalConditions.currentMedications?.length > 0 && (
+                        <div className="bg-white/80 rounded-lg p-4 border-l-4 border-blue-500">
+                          <p className="text-xs font-bold text-blue-700 mb-2 flex items-center gap-2">
+                            💊 CURRENT MEDICATIONS
+                          </p>
+                          <ul className="space-y-1">
+                            {selectedVisit.medicalConditions.currentMedications.map((med, idx) => (
+                              <li key={idx} className="text-sm text-slate-800 flex items-center gap-2">
+                                <span className="text-blue-500">●</span> {med}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Blood Pressure */}
+                      {selectedVisit.medicalConditions.bloodPressure && selectedVisit.medicalConditions.bloodPressure !== "Normal" && (
+                        <div className="bg-white/80 rounded-lg p-4 border-l-4 border-purple-500">
+                          <p className="text-xs font-bold text-purple-700 mb-2 flex items-center gap-2">
+                            🩺 BLOOD PRESSURE
+                          </p>
+                          <p className="text-sm text-slate-800 font-semibold">
+                            {selectedVisit.medicalConditions.bloodPressure}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Additional Notes */}
+                    {selectedVisit.medicalConditions.notes && selectedVisit.medicalConditions.notes !== "No significant medical history" && (
+                      <div className="mt-4 bg-amber-100 border border-amber-300 rounded-lg p-3">
+                        <p className="text-xs font-bold text-amber-900 mb-1">📋 CLINICAL NOTES</p>
+                        <p className="text-sm text-amber-900 italic">{selectedVisit.medicalConditions.notes}</p>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
                 {/* Prescription Text Area */}
                 <div className="mb-6">
                   <label className="block text-sm font-bold text-slate-700 mb-3">
@@ -411,7 +781,7 @@ export default function VisitInformation() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex gap-4 justify-end">
+                <div className="flex gap-4 justify-between">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
@@ -420,20 +790,199 @@ export default function VisitInformation() {
                   >
                     Cancel
                   </motion.button>
+                  <div className="flex gap-4">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handlePrintPrescription}
+                      disabled={!prescriptionText.trim()}
+                      className={`px-6 py-3 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all ${
+                        prescriptionText.trim()
+                          ? 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:from-teal-600 hover:to-cyan-700'
+                          : 'bg-gradient-to-r from-slate-300 to-slate-400 text-slate-500 cursor-not-allowed'
+                      }`}
+                    >
+                      🖨️ Print
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleSaveAndSend}
+                      disabled={!prescriptionText.trim()}
+                      className={`px-8 py-3 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all text-white ${
+                        prescriptionText.trim()
+                          ? 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700'
+                          : 'bg-gradient-to-r from-slate-300 to-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      💾 Save & Send
+                    </motion.button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Payment Status Modal */}
+      <AnimatePresence>
+        {showPaymentModal && paymentVisit && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowPaymentModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-800">Update Payment Status</h2>
+                  <p className="text-sm text-slate-600">Visit ID: #{paymentVisit.visitId} - {paymentVisit.patientName}</p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowPaymentModal(false)}
+                  className="text-slate-400 hover:text-slate-600 text-2xl"
+                >
+                  ✕
+                </motion.button>
+              </div>
+
+              {/* Current Status */}
+              <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-lg p-4 mb-6 border border-slate-200">
+                <p className="text-xs font-semibold text-slate-600 mb-2">CURRENT STATUS</p>
+                <div className="flex items-center justify-between">
+                  <span className={`px-4 py-2 rounded-lg bg-gradient-to-r ${getStatusColor(paymentVisit.paymentStatus)} text-white font-semibold text-sm shadow-md`}>
+                    {paymentVisit.paymentStatus}
+                  </span>
+                  <div className="text-right">
+                    <p className="text-xs text-slate-600">Billing Amount</p>
+                    <p className="text-xl font-bold text-slate-800">₹{paymentVisit.billingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Status Options */}
+              <div className="mb-6">
+                <label className="block text-sm font-bold text-slate-700 mb-3">
+                  Select New Payment Status
+                </label>
+                <div className="space-y-3">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={handleSaveAndSend}
-                    disabled={!prescriptionText.trim()}
-                    className={`px-8 py-3 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all text-white ${
-                      prescriptionText.trim()
-                        ? 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700'
-                        : 'bg-gradient-to-r from-slate-300 to-slate-400 cursor-not-allowed'
+                    onClick={() => setNewPaymentStatus("Paid")}
+                    className={`w-full p-4 rounded-lg border-2 transition-all flex items-center justify-between ${
+                      newPaymentStatus === "Paid"
+                        ? 'border-emerald-500 bg-gradient-to-r from-emerald-50 to-teal-50'
+                        : 'border-slate-200 hover:border-emerald-300 bg-white'
                     }`}
                   >
-                    💾 Save & Send Prescription
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        newPaymentStatus === "Paid" ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300'
+                      }`}>
+                        {newPaymentStatus === "Paid" && (
+                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="font-semibold text-slate-800">Paid</span>
+                    </div>
+                    <span className="px-3 py-1 rounded-md bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold">
+                      ✓ Completed
+                    </span>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setNewPaymentStatus("Pending")}
+                    className={`w-full p-4 rounded-lg border-2 transition-all flex items-center justify-between ${
+                      newPaymentStatus === "Pending"
+                        ? 'border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50'
+                        : 'border-slate-200 hover:border-amber-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        newPaymentStatus === "Pending" ? 'border-amber-500 bg-amber-500' : 'border-slate-300'
+                      }`}>
+                        {newPaymentStatus === "Pending" && (
+                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="font-semibold text-slate-800">Pending</span>
+                    </div>
+                    <span className="px-3 py-1 rounded-md bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold">
+                      ⏳ Awaiting
+                    </span>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setNewPaymentStatus("Overdue")}
+                    className={`w-full p-4 rounded-lg border-2 transition-all flex items-center justify-between ${
+                      newPaymentStatus === "Overdue"
+                        ? 'border-red-500 bg-gradient-to-r from-red-50 to-rose-50'
+                        : 'border-slate-200 hover:border-red-300 bg-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        newPaymentStatus === "Overdue" ? 'border-red-500 bg-red-500' : 'border-slate-300'
+                      }`}>
+                        {newPaymentStatus === "Overdue" && (
+                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="font-semibold text-slate-800">Overdue</span>
+                    </div>
+                    <span className="px-3 py-1 rounded-md bg-gradient-to-r from-red-500 to-rose-500 text-white text-xs font-bold">
+                      ⚠️ Action Required
+                    </span>
                   </motion.button>
                 </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-4">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleUpdatePaymentStatus}
+                  disabled={newPaymentStatus === paymentVisit.paymentStatus}
+                  className={`flex-1 px-6 py-3 rounded-lg font-bold shadow-lg transition-all ${
+                    newPaymentStatus !== paymentVisit.paymentStatus
+                      ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:shadow-xl'
+                      : 'bg-gradient-to-r from-slate-300 to-slate-400 text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  💳 Update Status
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>

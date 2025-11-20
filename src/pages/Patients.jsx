@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams } from "react-router-dom";
-import { createPatient } from "../services/patientService";
+import { createPatient, getPatientsByClinic } from "../services/patientService";
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null }) => (
@@ -110,6 +110,10 @@ export default function Patients() {
     status: ""
   });
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Success modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [registeredPatient, setRegisteredPatient] = useState(null);
   
   // Check URL params on mount to set initial view
   useEffect(() => {
@@ -224,6 +228,9 @@ export default function Patients() {
     clinicId: ""
   });
   const [selectedClinicId, setSelectedClinicId] = useState("");
+  const [clinicPatientsData, setClinicPatientsData] = useState([]);
+  const [loadingClinicPatients, setLoadingClinicPatients] = useState(false);
+  const [clinicError, setClinicError] = useState("");
 
   // Mock patient data (replace with API call)
   const mockPatients = [
@@ -250,10 +257,41 @@ export default function Patients() {
     return true;
   });
 
-  // Filter patients by selected clinic
-  const clinicPatients = selectedClinicId 
-    ? mockPatients.filter(p => p.clinicId === parseInt(selectedClinicId))
-    : [];
+  // Fetch patients by clinic ID (manual search)
+  const fetchClinicPatients = async () => {
+    if (!selectedClinicId || selectedClinicId.trim() === "") {
+      setClinicError("Please enter a clinic ID");
+      return;
+    }
+
+    setLoadingClinicPatients(true);
+    setClinicError("");
+
+    try {
+      const clinicId = parseInt(selectedClinicId);
+      if (isNaN(clinicId)) {
+        setClinicError("Please enter a valid clinic ID");
+        setClinicPatientsData([]);
+        setLoadingClinicPatients(false);
+        return;
+      }
+
+      const patients = await getPatientsByClinic(clinicId);
+      console.log("API Response:", patients);
+      console.log("First patient:", patients[0]);
+      setClinicPatientsData(patients);
+      setClinicError("");
+    } catch (error) {
+      console.error("Error fetching clinic patients:", error);
+      setClinicError(error.message || "Failed to fetch patients for this clinic. Please check the clinic ID.");
+      setClinicPatientsData([]);
+    } finally {
+      setLoadingClinicPatients(false);
+    }
+  };
+
+  // Filter patients by selected clinic (using real-time API data)
+  const clinicPatients = Array.isArray(clinicPatientsData) ? clinicPatientsData : [];
 
   const toggleSection = (section) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -304,16 +342,21 @@ export default function Patients() {
       console.log("Submitting patient data:", patientDataModel);
       const response = await createPatient(patientDataModel);
       console.log("Patient created successfully:", response);
-      alert("✅ Patient registration successful! Patient ID: " + response.patient.patientId);
+      
+      // Store patient info and show success modal
+      setRegisteredPatient({
+        patientId: response.patient.patientId,
+        name: `${patientData.firstName} ${patientData.lastName}`,
+        email: contactData.email,
+        phone: contactData.phoneNumber
+      });
+      setShowSuccessModal(true);
       
       // Clear form after successful submission
       setPatientData({ firstName: "", lastName: "", dateOfBirth: "", gender: "", bloodGroup: "", maritalStatus: "", isActive: true });
       setContactData({ phoneNumber: "", alternatePhoneNumber: "", email: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "", emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelation: "" });
       setMedicalData({ allergies: "", chronicConditions: "", currentMedications: "", pastSurgeries: "", familyMedicalHistory: "", smokingStatus: "", alcoholConsumption: "", exerciseFrequency: "", dietaryRestrictions: "", lastDentalVisit: "", notes: "" });
       setInsuranceData({ insuranceProvider: "", policyNumber: "", groupNumber: "", policyHolderName: "", policyHolderRelation: "", coverageStartDate: "", coverageEndDate: "", isPrimaryInsurance: true, copayAmount: "", deductibleAmount: "", coveragePercentage: "", insurancePhone: "", isActive: true });
-      
-      // Optionally switch to list view
-      setActiveView("list");
     } catch (error) {
       console.error("Error creating patient:", error);
       alert("❌ Error registering patient: " + error.message);
@@ -338,7 +381,7 @@ export default function Patients() {
             onClick={() => setActiveView("register")}
             className={`px-6 py-3 rounded-lg font-semibold transition ${
               activeView === "register"
-                ? "bg-amber-600 text-white shadow-lg"
+                ? "bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 text-white shadow-lg"
                 : "bg-white text-stone-700 hover:bg-stone-50 shadow"
             }`}
           >
@@ -348,7 +391,7 @@ export default function Patients() {
             onClick={() => setActiveView("list")}
             className={`px-6 py-3 rounded-lg font-semibold transition ${
               activeView === "list"
-                ? "bg-amber-600 text-white shadow-lg"
+                ? "bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 text-white shadow-lg"
                 : "bg-white text-stone-700 hover:bg-stone-50 shadow"
             }`}
           >
@@ -767,7 +810,7 @@ export default function Patients() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setShowFilters(!showFilters)}
-                className="px-4 py-2 bg-amber-100 text-amber-700 rounded-lg font-semibold hover:bg-amber-200 transition flex items-center gap-2"
+                className="px-4 py-2 bg-gradient-to-r from-teal-50 to-cyan-50 text-teal-700 rounded-lg font-semibold hover:from-teal-100 hover:to-cyan-100 transition flex items-center gap-2"
               >
                 {showFilters ? "🔼 Hide Filters" : "🔽 Show Filters"}
               </motion.button>
@@ -871,12 +914,42 @@ export default function Patients() {
               )}
             </AnimatePresence>
 
-            {/* Results Summary */}
-            <div className="mb-4 flex justify-between items-center">
-              <p className="text-sm text-stone-600">
-                Showing <span className="font-semibold text-amber-700">{filteredPatients.length}</span> of <span className="font-semibold">{SAMPLE_PATIENTS_LIST.length}</span> patients
-              </p>
+            {/* View Tab Selector */}
+            <div className="mb-6 flex gap-4">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setViewTab("search")}
+                className={`flex-1 px-6 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
+                  viewTab === "search"
+                    ? "bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 text-white shadow-lg"
+                    : "bg-white text-slate-700 hover:bg-slate-50 shadow border border-slate-200"
+                }`}
+              >
+                <span>🔍</span> Search All Patients
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setViewTab("clinic")}
+                className={`flex-1 px-6 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
+                  viewTab === "clinic"
+                    ? "bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 text-white shadow-lg"
+                    : "bg-white text-slate-700 hover:bg-slate-50 shadow border border-slate-200"
+                }`}
+              >
+                <span>🏥</span> View by Clinic ID
+              </motion.button>
             </div>
+
+            {/* Results Summary - Only show for search tab */}
+            {viewTab === "search" && (
+              <div className="mb-4 flex justify-between items-center">
+                <p className="text-sm text-stone-600">
+                  Showing <span className="font-semibold text-amber-700">{filteredPatients.length}</span> of <span className="font-semibold">{SAMPLE_PATIENTS_LIST.length}</span> patients
+                </p>
+              </div>
+            )}
 
             {/* Results Table */}
             {viewTab === "search" && (
@@ -968,7 +1041,7 @@ export default function Patients() {
                             initial={{ opacity: 0, x: -10 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: idx * 0.05 }}
-                            className={`border-b border-stone-200 hover:bg-amber-50 transition-all ${idx % 2 === 0 ? 'bg-white' : 'bg-stone-50'}`}
+                            className={`border-b border-stone-200 hover:bg-gradient-to-r hover:from-teal-50/30 hover:to-cyan-50/30 transition-all ${idx % 2 === 0 ? 'bg-white' : 'bg-stone-50'}`}
                           >
                             <td className="px-6 py-4 text-sm text-stone-700 font-medium">#{patient.id}</td>
                             <td className="px-6 py-4 text-sm font-semibold text-stone-900">
@@ -1005,7 +1078,7 @@ export default function Patients() {
                       {(searchQuery || Object.values(filters).some(v => v !== "")) && (
                         <button
                           onClick={clearFilters}
-                          className="mt-4 px-6 py-2 bg-amber-600 text-white rounded-lg font-semibold hover:bg-amber-700 transition"
+                          className="mt-4 px-6 py-2 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-lg font-semibold hover:from-teal-600 hover:to-cyan-700 transition shadow-md hover:shadow-lg"
                         >
                           Clear All Filters
                         </button>
@@ -1020,103 +1093,409 @@ export default function Patients() {
             {viewTab === "clinic" && (
               <div>
                 {/* Clinic Selector */}
-                <div className="bg-stone-50 rounded-lg p-6 mb-6 border border-stone-200">
-                  <h3 className="text-lg font-semibold text-amber-900 mb-4">Select Clinic</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-2">Clinic</label>
-                      <select
+                <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-6 mb-6 border-2 border-teal-200 shadow-md">
+                  <h3 className="text-lg font-semibold text-teal-900 mb-4 flex items-center gap-2">
+                    <span>🏥</span> Search Patients by Clinic ID
+                  </h3>
+                  <div className="flex gap-4 items-end">
+                    <div className="w-80">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Clinic ID</label>
+                      <input
+                        type="text"
                         value={selectedClinicId}
                         onChange={(e) => setSelectedClinicId(e.target.value)}
-                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                      >
-                        <option value="">Select a clinic</option>
-                        {mockClinics.map(clinic => (
-                          <option key={clinic.clinicId} value={clinic.clinicId}>
-                            {clinic.clinicName} (ID: {clinic.clinicId})
-                          </option>
-                        ))}
-                      </select>
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            fetchClinicPatients();
+                          }
+                        }}
+                        placeholder="Enter clinic ID..."
+                        className="w-full px-4 py-2.5 border-2 border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+                      />
                     </div>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={fetchClinicPatients}
+                      disabled={loadingClinicPatients || !selectedClinicId.trim()}
+                      className={`px-8 py-2.5 rounded-lg font-bold shadow-lg transition-all whitespace-nowrap ${
+                        loadingClinicPatients || !selectedClinicId.trim()
+                          ? 'bg-gradient-to-r from-slate-300 to-slate-400 text-slate-500 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:from-teal-600 hover:to-cyan-700 hover:shadow-xl'
+                      }`}
+                    >
+                      {loadingClinicPatients ? '⏳ Searching...' : '🔍 Search'}
+                    </motion.button>
+                    <p className="text-xs text-slate-600 pb-1">
+                      💡 Enter clinic ID and click Search or press Enter
+                    </p>
                   </div>
                 </div>
 
+                {/* Loading State */}
+                {loadingClinicPatients && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-12 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border-2 border-blue-200"
+                  >
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                      className="inline-block text-6xl mb-4"
+                    >
+                      ⏳
+                    </motion.div>
+                    <p className="text-blue-700 text-lg font-semibold">Loading patients...</p>
+                    <p className="text-blue-600 text-sm mt-2">Fetching data for Clinic ID: {selectedClinicId}</p>
+                  </motion.div>
+                )}
+
+                {/* Error State */}
+                {clinicError && !loadingClinicPatients && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 rounded-xl p-6 text-center"
+                  >
+                    <div className="text-6xl mb-4">⚠️</div>
+                    <h3 className="text-xl font-bold text-red-900 mb-2">Unable to Load Patients</h3>
+                    <p className="text-red-700">{clinicError}</p>
+                    <button
+                      onClick={() => {
+                        setSelectedClinicId("");
+                        setClinicError("");
+                      }}
+                      className="mt-4 px-6 py-2 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-lg font-semibold hover:from-red-600 hover:to-rose-600 transition shadow-md"
+                    >
+                      Try Another Clinic
+                    </button>
+                  </motion.div>
+                )}
+
                 {/* Patients Grid */}
-                {selectedClinicId ? (
+                {selectedClinicId && !loadingClinicPatients && !clinicError && (
                   <div>
-                    <div className="mb-4 flex justify-between items-center">
-                      <h3 className="text-lg font-semibold text-amber-900">
-                        Patients at {mockClinics.find(c => c.clinicId === parseInt(selectedClinicId))?.clinicName}
+                    {/* Results Header */}
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mb-6 flex justify-between items-center bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 rounded-xl p-5 border-2 border-emerald-200 shadow-md"
+                    >
+                      <h3 className="text-xl font-bold text-emerald-900 flex items-center gap-2">
+                        <span className="text-2xl">👥</span> 
+                        <span>Patients at Clinic <span className="text-teal-600">#{selectedClinicId}</span></span>
                       </h3>
-                      <p className="text-sm text-stone-600">
-                        Total: <span className="font-semibold text-amber-700">{clinicPatients.length}</span> patient(s)
-                      </p>
-                    </div>
+                      <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border-2 border-emerald-300 shadow-sm">
+                        <span className="text-sm text-emerald-700 font-medium">Total:</span>
+                        <span className="font-bold text-3xl text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-cyan-600">{clinicPatients.length}</span>
+                      </div>
+                    </motion.div>
 
                     {clinicPatients.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {clinicPatients.map((patient) => (
+                        {clinicPatients.map((patientData, idx) => {
+                          // API returns flat patient objects
+                          const patient = patientData || {};
+                          
+                          return (
                           <motion.div
-                            key={patient.patientId}
-                            whileHover={{ scale: 1.02, y: -4 }}
-                            className="bg-white border-2 border-stone-200 rounded-lg p-6 shadow-md hover:shadow-xl hover:border-amber-300 transition-all"
+                            key={patient.patientId || patient.id || idx}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            whileHover={{ scale: 1.03, y: -8 }}
+                            className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 shadow-lg hover:shadow-2xl hover:border-indigo-300 transition-all duration-300 relative overflow-hidden group"
                           >
-                            <div className="flex items-center gap-4 mb-4">
-                              <div className="w-16 h-16 bg-gradient-to-br from-coral-400 to-peach-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                                {patient.firstName.charAt(0)}{patient.lastName.charAt(0)}
-                              </div>
-                              <div>
-                                <h4 className="text-lg font-bold text-amber-900">{patient.firstName} {patient.lastName}</h4>
-                                <p className="text-sm text-stone-500">ID: {patient.patientId}</p>
+                            {/* Decorative gradient overlay */}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-200/20 to-purple-200/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-500" />
+                            
+                            {/* Patient Header */}
+                            <div className="relative flex items-center gap-4 mb-5">
+                              <motion.div 
+                                whileHover={{ rotate: 360 }}
+                                transition={{ duration: 0.6 }}
+                                className="w-16 h-16 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg ring-4 ring-white"
+                              >
+                                {(patient.patientFirstName || 'P').charAt(0)}{(patient.patientLastName || 'N').charAt(0)}
+                              </motion.div>
+                              <div className="flex-1">
+                                <h4 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-900 to-purple-700">
+                                  {patient.patientFirstName || ''} {patient.patientLastName || ''}
+                                </h4>
+                                <p className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full inline-block">
+                                  ID: {patient.patientId || 'N/A'}
+                                </p>
                               </div>
                             </div>
                             
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-stone-600">DOB:</span>
-                                <span className="font-medium text-stone-800">{patient.dateOfBirth}</span>
+                            {/* Patient Info Grid */}
+                            <div className="relative space-y-3 mb-5">
+                              <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
+                                <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
+                                  🆔 Entity ID:
+                                </span>
+                                <span className="text-sm font-bold text-indigo-900">{patient.patientEntityID || ''}</span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-stone-600">Gender:</span>
-                                <span className="font-medium text-stone-800">{patient.gender}</span>
+                              <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
+                                <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
+                                  🎂 DOB:
+                                </span>
+                                <span className="text-sm font-bold text-indigo-900">
+                                  {patient.patientDOB ? new Date(patient.patientDOB).toLocaleDateString() : ''}
+                                </span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-stone-600">Phone:</span>
-                                <span className="font-medium text-stone-800">{patient.phoneNumber}</span>
+                              <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
+                                <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
+                                  {patient.patientGender === 'Male' ? '👨' : '👩'} Gender:
+                                </span>
+                                <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+                                  patient.patientGender === 'Male' 
+                                    ? 'bg-blue-100 text-blue-700' 
+                                    : 'bg-pink-100 text-pink-700'
+                                }`}>
+                                  {patient.patientGender || ''}
+                                </span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-stone-600">Registered:</span>
-                                <span className="font-medium text-stone-800">{patient.registrationDate}</span>
+                              <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
+                                <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
+                                  🩸 Blood Type:
+                                </span>
+                                <span className="text-sm font-bold text-red-700 bg-red-50 px-3 py-1 rounded-full">{patient.patientBloodType || ''}</span>
                               </div>
                             </div>
 
-                            <div className="mt-4 pt-4 border-t border-stone-200 flex gap-2">
-                              <button className="flex-1 px-3 py-2 bg-amber-100 text-amber-700 rounded-lg font-semibold hover:bg-amber-200 transition text-sm">
-                                View Details
-                              </button>
-                              <button className="flex-1 px-3 py-2 bg-stone-100 text-stone-700 rounded-lg font-semibold hover:bg-stone-200 transition text-sm">
-                                Edit
-                              </button>
+                            {/* Action Buttons */}
+                            <div className="relative flex gap-2 pt-4 border-t-2 border-indigo-200">
+                              <motion.button 
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg font-bold hover:from-blue-600 hover:to-indigo-700 transition shadow-md hover:shadow-lg text-sm"
+                              >
+                                👁️ View
+                              </motion.button>
+                              <motion.button 
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-bold hover:from-indigo-700 hover:to-purple-700 transition shadow-md hover:shadow-lg text-sm"
+                              >
+                                ✏️ Edit
+                              </motion.button>
                             </div>
                           </motion.div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
-                      <div className="text-center py-12 bg-stone-50 rounded-lg border border-stone-200">
-                        <p className="text-stone-500 text-lg">No patients registered at this clinic</p>
-                      </div>
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="text-center py-12 bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl border-2 border-slate-200"
+                      >
+                        <div className="text-6xl mb-4">📭</div>
+                        <p className="text-slate-600 text-lg font-semibold">No Patients Found</p>
+                        <p className="text-slate-500 text-sm mt-2">There are no patients registered at Clinic #{selectedClinicId}</p>
+                      </motion.div>
                     )}
                   </div>
-                ) : (
-                  <div className="text-center py-12 bg-stone-50 rounded-lg border border-stone-200">
-                    <p className="text-stone-500 text-lg">Please select a clinic to view patients</p>
-                  </div>
+                )}
+
+                {/* Empty State - No Clinic Selected */}
+                {!selectedClinicId && !loadingClinicPatients && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-center py-16 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200"
+                  >
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      className="text-7xl mb-4"
+                    >
+                      🏥
+                    </motion.div>
+                    <h3 className="text-xl font-bold text-purple-900 mb-2">Enter a Clinic ID</h3>
+                    <p className="text-purple-700">Type a clinic ID above to view all patients registered at that clinic</p>
+                    <p className="text-purple-600 text-sm mt-2">Real-time data will be fetched from the server</p>
+                  </motion.div>
                 )}
               </div>
             )}
           </div>
         )}
       </div>
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && registeredPatient && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            onClick={() => setShowSuccessModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.5, opacity: 0, y: 50 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              {/* Success Animation Header */}
+              <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 p-8 text-center relative overflow-hidden">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="relative z-10"
+                >
+                  <motion.div
+                    animate={{ 
+                      rotate: [0, 10, -10, 10, 0],
+                      scale: [1, 1.1, 1, 1.1, 1]
+                    }}
+                    transition={{ 
+                      duration: 0.5,
+                      delay: 0.3,
+                      repeat: 2
+                    }}
+                    className="inline-block text-8xl mb-4"
+                  >
+                    ✅
+                  </motion.div>
+                  <motion.h2
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="text-3xl font-bold text-white mb-2"
+                  >
+                    Registration Successful!
+                  </motion.h2>
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="text-emerald-50 text-sm"
+                  >
+                    Patient has been successfully registered
+                  </motion.p>
+                </motion.div>
+                
+                {/* Animated Background Elements */}
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.5, 1],
+                    opacity: [0.3, 0.1, 0.3]
+                  }}
+                  transition={{ 
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                  className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full -mr-20 -mt-20"
+                />
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.3, 1],
+                    opacity: [0.2, 0.05, 0.2]
+                  }}
+                  transition={{ 
+                    duration: 2.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: 0.5
+                  }}
+                  className="absolute bottom-0 left-0 w-32 h-32 bg-white rounded-full -ml-16 -mb-16"
+                />
+              </div>
+
+              {/* Patient Details */}
+              <div className="p-8">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="space-y-4 mb-6"
+                >
+                  <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-4 border border-teal-200">
+                    <p className="text-xs font-semibold text-teal-700 mb-1">PATIENT ID</p>
+                    <p className="text-2xl font-bold text-slate-800">#{registeredPatient.patientId}</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold">
+                        {registeredPatient.name.charAt(0)}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs text-slate-600">Patient Name</p>
+                        <p className="font-semibold text-slate-800">{registeredPatient.name}</p>
+                      </div>
+                    </div>
+
+                    {registeredPatient.email && (
+                      <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-lg">
+                          📧
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs text-slate-600">Email</p>
+                          <p className="font-medium text-slate-800 text-sm">{registeredPatient.email}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {registeredPatient.phone && (
+                      <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-r from-orange-500 to-red-500 flex items-center justify-center text-white text-lg">
+                          📱
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs text-slate-600">Phone</p>
+                          <p className="font-medium text-slate-800">{registeredPatient.phone}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+
+                {/* Action Buttons */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 }}
+                  className="flex gap-3"
+                >
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setShowSuccessModal(false);
+                      setActiveView("list");
+                    }}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                  >
+                    View Patients
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setShowSuccessModal(false);
+                      setActiveView("register");
+                    }}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all"
+                  >
+                    Add Another
+                  </motion.button>
+                </motion.div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

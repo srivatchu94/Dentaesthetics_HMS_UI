@@ -208,6 +208,102 @@ export default function DoctorSalaryDetails() {
             </div>
           </div>
         </motion.div>
+
+        {/* Salary History Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg p-6 border border-slate-200 mb-6"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              📜 Salary Change History
+            </h3>
+            <span className="text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+              {doctor.salaryHistory?.length || 0} records
+            </span>
+          </div>
+          
+          {doctor.salaryHistory && doctor.salaryHistory.length > 0 ? (
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {doctor.salaryHistory.map((history, index) => (
+                <motion.div
+                  key={history.historyId}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className={`p-4 rounded-lg border ${
+                    index === 0 
+                      ? 'bg-emerald-50 border-emerald-300' 
+                      : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg font-bold text-slate-800">
+                          ₹{history.fixedSalary.toLocaleString('en-IN')}
+                        </span>
+                        {index === 0 && (
+                          <span className="text-xs bg-emerald-500 text-white px-2 py-0.5 rounded-full font-semibold">
+                            Current
+                          </span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-slate-600">Effective From:</span>
+                          <span className="ml-2 font-semibold text-slate-800">
+                            {new Date(history.effectiveDate).toLocaleDateString('en-IN')}
+                          </span>
+                        </div>
+                        {history.endDate && (
+                          <div>
+                            <span className="text-slate-600">Until:</span>
+                            <span className="ml-2 font-semibold text-slate-800">
+                              {new Date(history.endDate).toLocaleDateString('en-IN')}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      {history.remarks && (
+                        <p className="text-sm text-slate-600 mt-2 italic">
+                          💬 {history.remarks}
+                        </p>
+                      )}
+                      {history.updatedBy && (
+                        <p className="text-xs text-slate-500 mt-2">
+                          Updated by {history.updatedBy} on {new Date(history.updatedAt).toLocaleString('en-IN')}
+                        </p>
+                      )}
+                    </div>
+                    {index > 0 && doctor.salaryHistory[index - 1] && (
+                      <div className="text-right ml-4">
+                        <span className={`text-sm font-bold ${
+                          history.fixedSalary < doctor.salaryHistory[index - 1].fixedSalary
+                            ? 'text-emerald-600'
+                            : 'text-red-600'
+                        }`}>
+                          {history.fixedSalary < doctor.salaryHistory[index - 1].fixedSalary ? '↑' : '↓'}
+                          {' '}₹{Math.abs(history.fixedSalary - doctor.salaryHistory[index - 1].fixedSalary).toLocaleString('en-IN')}
+                        </span>
+                        <p className="text-xs text-slate-500">
+                          {((Math.abs(history.fixedSalary - doctor.salaryHistory[index - 1].fixedSalary) / doctor.salaryHistory[index - 1].fixedSalary) * 100).toFixed(1)}%
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-500">
+              <div className="text-4xl mb-2">📋</div>
+              <p className="text-sm">No salary change history available</p>
+              <p className="text-xs mt-1">Current salary has been in effect since registration</p>
+            </div>
+          )}
+        </motion.div>
       </motion.div>
 
       {/* Global Incentive Control */}

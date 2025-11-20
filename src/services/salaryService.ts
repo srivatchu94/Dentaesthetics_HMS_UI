@@ -1,5 +1,5 @@
 import { request } from "./apiClient";
-import type { DoctorSalaryInfo, PatientTreatmentRecord, SalaryCalculation, SalaryPaymentRecord } from "../Interfaces";
+import type { DoctorSalaryInfo, PatientTreatmentRecord, SalaryCalculation, SalaryPaymentRecord, SalaryHistoryRecord } from "../Interfaces";
 
 // Get all doctors with salary information
 export const getAllDoctorsSalaryInfo = async (): Promise<DoctorSalaryInfo[]> => {
@@ -73,6 +73,24 @@ export const updateTreatmentIncentive = async (
   });
 };
 
+// Get salary history for a doctor
+export const getDoctorSalaryHistory = async (doctorId: number): Promise<SalaryHistoryRecord[]> => {
+  return request<SalaryHistoryRecord[]>(`/api/salary/doctor/${doctorId}/salary-history`);
+};
+
+// Update fixed salary with effective date
+export const updateFixedSalary = async (
+  doctorId: number,
+  newSalary: number,
+  effectiveDate: string,
+  remarks?: string
+): Promise<SalaryHistoryRecord> => {
+  return request<SalaryHistoryRecord>(`/api/salary/doctor/${doctorId}/update-salary`, {
+    method: 'POST',
+    body: JSON.stringify({ newSalary, effectiveDate, remarks })
+  });
+};
+
 export const salaryService = {
   getAllDoctorsSalaryInfo,
   searchDoctorsByName,
@@ -81,5 +99,7 @@ export const salaryService = {
   getSalaryHistory,
   processSalaryPayment,
   getPaymentRecords,
-  updateTreatmentIncentive
+  updateTreatmentIncentive,
+  getDoctorSalaryHistory,
+  updateFixedSalary
 };

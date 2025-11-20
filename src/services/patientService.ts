@@ -29,3 +29,7 @@ export function deletePatient(patientId: number): Promise<void> {
     method: "DELETE"
   });
 }
+
+export function getPatientsByClinic(clinicId: number): Promise<PatientDataModel[]> {
+  return request<PatientDataModel[]>(`/Patient/clinic/${clinicId}`);
+}

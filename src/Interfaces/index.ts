@@ -16,4 +16,4 @@ export type { PatientMedicalInfo } from "./PatientMedicalInfoModel";
 export type { PatientInsurance } from "./PatientInsuranceModel";
 export type { PatientVisitInformation } from "./PatientVisitInformationModel";
 export type { Prescription } from "./PrescriptionModel";
-export type { DoctorSalaryInfo, PatientTreatmentRecord, SalaryCalculation, SalaryPaymentRecord } from "./SalaryModel";
+export type { DoctorSalaryInfo, PatientTreatmentRecord, SalaryCalculation, SalaryPaymentRecord, SalaryHistoryRecord } from "./SalaryModel";
