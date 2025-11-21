@@ -6,7 +6,8 @@ import { PatientInsurance } from './PatientInsuranceModel';
 // Patient interface matching API model
 export interface Patient {
   patientId: number;
-  patientEntityID: string;
+  clinicID: string;
+  patientEntityID?: string; // Optional for backward compatibility
   patientFirstName: string;
   patientLastName: string;
   patientDOB: string; // ISO date string

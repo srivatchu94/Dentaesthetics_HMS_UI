@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSearchParams } from "react-router-dom";
-import { createPatient, getPatientsByClinic } from "../services/patientService";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients } from "../services/patientService";
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null }) => (
@@ -98,6 +98,7 @@ const SAMPLE_PATIENTS_LIST = [
 
 export default function Patients() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [activeView, setActiveView] = useState("list");
   
   // Search and filter states
@@ -232,6 +233,15 @@ export default function Patients() {
   const [loadingClinicPatients, setLoadingClinicPatients] = useState(false);
   const [clinicError, setClinicError] = useState("");
 
+  // Patient details modal states
+  const [showPatientModal, setShowPatientModal] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedPatient, setEditedPatient] = useState(null);
+  const [loadingPatientDetails, setLoadingPatientDetails] = useState(false);
+  const [showUpdateSuccessModal, setShowUpdateSuccessModal] = useState(false);
+  const [updatingPatient, setUpdatingPatient] = useState(false);
+
   // Mock patient data (replace with API call)
   const mockPatients = [
     { patientId: 1, firstName: "John", lastName: "Doe", dateOfBirth: "1990-05-15", gender: "Male", clinicId: 1, phoneNumber: "+1 555-0101", email: "john.doe@email.com", registrationDate: "2024-01-15" },
@@ -257,10 +267,17 @@ export default function Patients() {
     return true;
   });
 
-  // Fetch patients by clinic ID (manual search)
+  // Fetch patients using search API with multiple optional parameters
   const fetchClinicPatients = async () => {
-    if (!selectedClinicId || selectedClinicId.trim() === "") {
-      setClinicError("Please enter a clinic ID");
+    // Check if at least one search parameter is provided
+    const hasSearchParams = selectedClinicId.trim() || 
+                           filterData.patientId.trim() || 
+                           filterData.firstName.trim() || 
+                           filterData.lastName.trim() || 
+                           filterData.dateOfBirth.trim();
+    
+    if (!hasSearchParams) {
+      setClinicError("Please enter at least one search parameter");
       return;
     }
 
@@ -268,22 +285,43 @@ export default function Patients() {
     setClinicError("");
 
     try {
-      const clinicId = parseInt(selectedClinicId);
-      if (isNaN(clinicId)) {
-        setClinicError("Please enter a valid clinic ID");
-        setClinicPatientsData([]);
-        setLoadingClinicPatients(false);
-        return;
+      // Build search parameters object
+      const searchParams = {};
+      
+      if (selectedClinicId.trim()) {
+        const clinicId = parseInt(selectedClinicId);
+        if (!isNaN(clinicId)) {
+          searchParams.clinicId = clinicId;
+        }
+      }
+      
+      if (filterData.patientId.trim()) {
+        const patientId = parseInt(filterData.patientId);
+        if (!isNaN(patientId)) {
+          searchParams.patientId = patientId;
+        }
+      }
+      
+      if (filterData.firstName.trim()) {
+        searchParams.firstName = filterData.firstName.trim();
+      }
+      
+      if (filterData.lastName.trim()) {
+        searchParams.lastName = filterData.lastName.trim();
+      }
+      
+      if (filterData.dateOfBirth.trim()) {
+        searchParams.dob = filterData.dateOfBirth.trim();
       }
 
-      const patients = await getPatientsByClinic(clinicId);
-      console.log("API Response:", patients);
-      console.log("First patient:", patients[0]);
+      const patients = await searchPatients(searchParams);
+      console.log("Patient Search Response:", patients);
+      console.log("Search Parameters:", searchParams);
       setClinicPatientsData(patients);
       setClinicError("");
     } catch (error) {
-      console.error("Error fetching clinic patients:", error);
-      setClinicError(error.message || "Failed to fetch patients for this clinic. Please check the clinic ID.");
+      console.error("Error searching patients:", error);
+      setClinicError(error.message || "Failed to find patients. Please check your search criteria.");
       setClinicPatientsData([]);
     } finally {
       setLoadingClinicPatients(false);
@@ -914,45 +952,7 @@ export default function Patients() {
               )}
             </AnimatePresence>
 
-            {/* View Tab Selector */}
-            <div className="mb-6 flex gap-4">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setViewTab("search")}
-                className={`flex-1 px-6 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
-                  viewTab === "search"
-                    ? "bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 text-white shadow-lg"
-                    : "bg-white text-slate-700 hover:bg-slate-50 shadow border border-slate-200"
-                }`}
-              >
-                <span>🔍</span> Search All Patients
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setViewTab("clinic")}
-                className={`flex-1 px-6 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2 ${
-                  viewTab === "clinic"
-                    ? "bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 text-white shadow-lg"
-                    : "bg-white text-slate-700 hover:bg-slate-50 shadow border border-slate-200"
-                }`}
-              >
-                <span>🏥</span> View by Clinic ID
-              </motion.button>
-            </div>
-
-            {/* Results Summary - Only show for search tab */}
-            {viewTab === "search" && (
-              <div className="mb-4 flex justify-between items-center">
-                <p className="text-sm text-stone-600">
-                  Showing <span className="font-semibold text-amber-700">{filteredPatients.length}</span> of <span className="font-semibold">{SAMPLE_PATIENTS_LIST.length}</span> patients
-                </p>
-              </div>
-            )}
-
             {/* Results Table */}
-            {viewTab === "search" && (
               <div>
                 {/* Filter Section */}
                 <div className="bg-stone-50 rounded-lg p-6 mb-6 border border-stone-200">
@@ -990,7 +990,7 @@ export default function Patients() {
                     <div>
                       <label className="block text-sm font-medium text-stone-700 mb-2">Patient ID</label>
                       <input
-                        type="number"
+                        type="text"
                         value={filterData.patientId}
                         onChange={(e) => setFilterData({ ...filterData, patientId: e.target.value })}
                         placeholder="Enter patient ID"
@@ -1000,107 +1000,6 @@ export default function Patients() {
                     <div>
                       <label className="block text-sm font-medium text-stone-700 mb-2">Clinic ID</label>
                       <input
-                        type="number"
-                        value={filterData.clinicId}
-                        onChange={(e) => setFilterData({ ...filterData, clinicId: e.target.value })}
-                        placeholder="Enter clinic ID"
-                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      <button
-                        onClick={() => setFilterData({ firstName: "", lastName: "", dateOfBirth: "", patientId: "", clinicId: "" })}
-                        className="w-full px-4 py-2 bg-stone-200 text-stone-700 rounded-lg font-semibold hover:bg-stone-300 transition"
-                      >
-                        Clear Filters
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  {filteredPatients.length > 0 ? (
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="bg-gradient-to-r from-coral-100 to-peach-100 border-b-2 border-coral-300">
-                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">ID</th>
-                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Name</th>
-                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Date of Birth</th>
-                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Gender</th>
-                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Phone</th>
-                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Email</th>
-                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">City</th>
-                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Status</th>
-                          <th className="px-6 py-4 text-left text-sm font-bold text-amber-900">Last Visit</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredPatients.map((patient, idx) => (
-                          <motion.tr
-                            key={patient.id}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.05 }}
-                            className={`border-b border-stone-200 hover:bg-gradient-to-r hover:from-teal-50/30 hover:to-cyan-50/30 transition-all ${idx % 2 === 0 ? 'bg-white' : 'bg-stone-50'}`}
-                          >
-                            <td className="px-6 py-4 text-sm text-stone-700 font-medium">#{patient.id}</td>
-                            <td className="px-6 py-4 text-sm font-semibold text-stone-900">
-                              {patient.firstName} {patient.lastName}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-stone-700">{patient.dateOfBirth}</td>
-                            <td className="px-6 py-4 text-sm text-stone-700">
-                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                patient.gender === 'Male' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-700'
-                              }`}>
-                                {patient.gender}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-stone-700">{patient.phoneNumber}</td>
-                            <td className="px-6 py-4 text-sm text-stone-600">{patient.email}</td>
-                            <td className="px-6 py-4 text-sm text-stone-700">{patient.city}</td>
-                            <td className="px-6 py-4 text-sm">
-                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                patient.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-700'
-                              }`}>
-                                {patient.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-stone-700">{patient.lastVisit}</td>
-                          </motion.tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className="text-center py-16 bg-gradient-to-br from-cream-50 to-peach-50 rounded-xl border-2 border-dashed border-coral-300">
-                      <div className="text-6xl mb-4">🔍</div>
-                      <p className="text-stone-600 text-lg font-semibold">No patients found</p>
-                      <p className="text-stone-500 text-sm mt-2">Try adjusting your search or filters</p>
-                      {(searchQuery || Object.values(filters).some(v => v !== "")) && (
-                        <button
-                          onClick={clearFilters}
-                          className="mt-4 px-6 py-2 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-lg font-semibold hover:from-teal-600 hover:to-cyan-700 transition shadow-md hover:shadow-lg"
-                        >
-                          Clear All Filters
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Clinic-Based Grid Tab */}
-            {viewTab === "clinic" && (
-              <div>
-                {/* Clinic Selector */}
-                <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl p-6 mb-6 border-2 border-teal-200 shadow-md">
-                  <h3 className="text-lg font-semibold text-teal-900 mb-4 flex items-center gap-2">
-                    <span>🏥</span> Search Patients by Clinic ID
-                  </h3>
-                  <div className="flex gap-4 items-end">
-                    <div className="w-80">
-                      <label className="block text-sm font-medium text-slate-700 mb-2">Clinic ID</label>
-                      <input
                         type="text"
                         value={selectedClinicId}
                         onChange={(e) => setSelectedClinicId(e.target.value)}
@@ -1109,35 +1008,45 @@ export default function Patients() {
                             fetchClinicPatients();
                           }
                         }}
-                        placeholder="Enter clinic ID..."
-                        className="w-full px-4 py-2.5 border-2 border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition"
+                        placeholder="Enter clinic ID"
+                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
                       />
                     </div>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={fetchClinicPatients}
-                      disabled={loadingClinicPatients || !selectedClinicId.trim()}
-                      className={`px-8 py-2.5 rounded-lg font-bold shadow-lg transition-all whitespace-nowrap ${
-                        loadingClinicPatients || !selectedClinicId.trim()
-                          ? 'bg-gradient-to-r from-slate-300 to-slate-400 text-slate-500 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:from-teal-600 hover:to-cyan-700 hover:shadow-xl'
-                      }`}
-                    >
-                      {loadingClinicPatients ? '⏳ Searching...' : '🔍 Search'}
-                    </motion.button>
-                    <p className="text-xs text-slate-600 pb-1">
-                      💡 Enter clinic ID and click Search or press Enter
-                    </p>
+                    <div className="flex items-end gap-2">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={fetchClinicPatients}
+                        disabled={loadingClinicPatients || (!selectedClinicId.trim() && !filterData.patientId.trim() && !filterData.firstName.trim() && !filterData.lastName.trim() && !filterData.dateOfBirth.trim())}
+                        className={`flex-1 px-4 py-2 rounded-lg font-semibold transition shadow-md ${
+                          loadingClinicPatients || (!selectedClinicId.trim() && !filterData.patientId.trim() && !filterData.firstName.trim() && !filterData.lastName.trim() && !filterData.dateOfBirth.trim())
+                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:from-teal-600 hover:to-cyan-700 hover:shadow-lg'
+                        }`}
+                      >
+                        {loadingClinicPatients ? '⏳ Searching...' : '🔍 Search'}
+                      </motion.button>
+                      <button
+                        onClick={() => {
+                          setFilterData({ firstName: "", lastName: "", dateOfBirth: "", patientId: "", clinicId: "" });
+                          setSelectedClinicId("");
+                          setClinicPatientsData([]);
+                          setClinicError("");
+                        }}
+                        className="flex-1 px-4 py-2 bg-stone-200 text-stone-700 rounded-lg font-semibold hover:bg-stone-300 transition"
+                      >
+                        Clear Filters
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Loading State */}
+                {/* Clinic Search Results */}
                 {loadingClinicPatients && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-center py-12 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border-2 border-blue-200"
+                    className="text-center py-12 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border-2 border-blue-200 mb-6"
                   >
                     <motion.div
                       animate={{ rotate: 360 }}
@@ -1151,32 +1060,20 @@ export default function Patients() {
                   </motion.div>
                 )}
 
-                {/* Error State */}
                 {clinicError && !loadingClinicPatients && (
                   <motion.div
                     initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 rounded-xl p-6 text-center"
+                    className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 rounded-xl p-6 text-center mb-6"
                   >
                     <div className="text-6xl mb-4">⚠️</div>
                     <h3 className="text-xl font-bold text-red-900 mb-2">Unable to Load Patients</h3>
                     <p className="text-red-700">{clinicError}</p>
-                    <button
-                      onClick={() => {
-                        setSelectedClinicId("");
-                        setClinicError("");
-                      }}
-                      className="mt-4 px-6 py-2 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-lg font-semibold hover:from-red-600 hover:to-rose-600 transition shadow-md"
-                    >
-                      Try Another Clinic
-                    </button>
                   </motion.div>
                 )}
 
-                {/* Patients Grid */}
-                {selectedClinicId && !loadingClinicPatients && !clinicError && (
-                  <div>
-                    {/* Results Header */}
+                {clinicPatients.length > 0 && !loadingClinicPatients && (
+                  <div className="mb-6">
                     <motion.div 
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1192,135 +1089,175 @@ export default function Patients() {
                       </div>
                     </motion.div>
 
-                    {clinicPatients.length > 0 ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {clinicPatients.map((patientData, idx) => {
-                          // API returns flat patient objects
-                          const patient = patientData || {};
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                      {clinicPatients.map((patientData, idx) => {
+                        const patient = patientData || {};
+                        
+                        return (
+                        <motion.div
+                          key={patient.patientId || patient.id || idx}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          whileHover={{ scale: 1.03, y: -8 }}
+                          className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 shadow-lg hover:shadow-2xl hover:border-indigo-300 transition-all duration-300 relative overflow-hidden group"
+                        >
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-200/20 to-purple-200/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-500" />
                           
-                          return (
-                          <motion.div
-                            key={patient.patientId || patient.id || idx}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.05 }}
-                            whileHover={{ scale: 1.03, y: -8 }}
-                            className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 shadow-lg hover:shadow-2xl hover:border-indigo-300 transition-all duration-300 relative overflow-hidden group"
-                          >
-                            {/* Decorative gradient overlay */}
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-200/20 to-purple-200/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-500" />
-                            
-                            {/* Patient Header */}
-                            <div className="relative flex items-center gap-4 mb-5">
-                              <motion.div 
-                                whileHover={{ rotate: 360 }}
-                                transition={{ duration: 0.6 }}
-                                className="w-16 h-16 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg ring-4 ring-white"
-                              >
-                                {(patient.patientFirstName || 'P').charAt(0)}{(patient.patientLastName || 'N').charAt(0)}
-                              </motion.div>
-                              <div className="flex-1">
-                                <h4 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-900 to-purple-700">
-                                  {patient.patientFirstName || ''} {patient.patientLastName || ''}
-                                </h4>
-                                <p className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full inline-block">
-                                  ID: {patient.patientId || 'N/A'}
-                                </p>
-                              </div>
+                          <div className="relative flex items-center gap-4 mb-5">
+                            <motion.div 
+                              whileHover={{ rotate: 360 }}
+                              transition={{ duration: 0.6 }}
+                              className="w-16 h-16 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg ring-4 ring-white"
+                            >
+                              {(patient.patientFirstName || 'P').charAt(0)}{(patient.patientLastName || 'N').charAt(0)}
+                            </motion.div>
+                            <div className="flex-1">
+                              <h4 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-900 to-purple-700">
+                                {patient.patientFirstName || ''} {patient.patientLastName || ''}
+                              </h4>
+                              <p className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full inline-block">
+                                ID: {patient.patientId || 'N/A'}
+                              </p>
                             </div>
-                            
-                            {/* Patient Info Grid */}
-                            <div className="relative space-y-3 mb-5">
-                              <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
-                                <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
-                                  🆔 Entity ID:
-                                </span>
-                                <span className="text-sm font-bold text-indigo-900">{patient.patientEntityID || ''}</span>
-                              </div>
-                              <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
-                                <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
-                                  🎂 DOB:
-                                </span>
-                                <span className="text-sm font-bold text-indigo-900">
-                                  {patient.patientDOB ? new Date(patient.patientDOB).toLocaleDateString() : ''}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
-                                <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
-                                  {patient.patientGender === 'Male' ? '👨' : '👩'} Gender:
-                                </span>
-                                <span className={`text-sm font-bold px-3 py-1 rounded-full ${
-                                  patient.patientGender === 'Male' 
-                                    ? 'bg-blue-100 text-blue-700' 
-                                    : 'bg-pink-100 text-pink-700'
-                                }`}>
-                                  {patient.patientGender || ''}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
-                                <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
-                                  🩸 Blood Type:
-                                </span>
-                                <span className="text-sm font-bold text-red-700 bg-red-50 px-3 py-1 rounded-full">{patient.patientBloodType || ''}</span>
-                              </div>
+                          </div>
+                          
+                          <div className="relative space-y-3 mb-5">
+                            <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
+                              <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
+                                🆔 Entity ID:
+                              </span>
+                              <span className="text-sm font-bold text-indigo-900">{patient.patientEntityID || ''}</span>
                             </div>
+                            <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
+                              <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
+                                🎂 DOB:
+                              </span>
+                              <span className="text-sm font-bold text-indigo-900">
+                                {patient.patientDOB ? new Date(patient.patientDOB).toLocaleDateString() : ''}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
+                              <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
+                                {patient.patientGender === 'Male' ? '👨' : '👩'} Gender:
+                              </span>
+                              <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+                                patient.patientGender === 'Male' 
+                                  ? 'bg-blue-100 text-blue-700' 
+                                  : 'bg-pink-100 text-pink-700'
+                              }`}>
+                                {patient.patientGender || ''}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
+                              <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
+                                🩸 Blood Type:
+                              </span>
+                              <span className="text-sm font-bold text-red-700 bg-red-50 px-3 py-1 rounded-full">{patient.patientBloodType || ''}</span>
+                            </div>
+                          </div>
 
-                            {/* Action Buttons */}
-                            <div className="relative flex gap-2 pt-4 border-t-2 border-indigo-200">
-                              <motion.button 
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg font-bold hover:from-blue-600 hover:to-indigo-700 transition shadow-md hover:shadow-lg text-sm"
-                              >
-                                👁️ View
-                              </motion.button>
-                              <motion.button 
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-bold hover:from-indigo-700 hover:to-purple-700 transition shadow-md hover:shadow-lg text-sm"
-                              >
-                                ✏️ Edit
-                              </motion.button>
-                            </div>
-                          </motion.div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-center py-12 bg-gradient-to-r from-slate-50 to-gray-50 rounded-xl border-2 border-slate-200"
-                      >
-                        <div className="text-6xl mb-4">📭</div>
-                        <p className="text-slate-600 text-lg font-semibold">No Patients Found</p>
-                        <p className="text-slate-500 text-sm mt-2">There are no patients registered at Clinic #{selectedClinicId}</p>
-                      </motion.div>
-                    )}
+                          <div className="relative flex gap-2 pt-4 border-t-2 border-indigo-200">
+                            <motion.button 
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={async () => {
+                                setLoadingPatientDetails(true);
+                                setShowPatientModal(true);
+                                setIsEditMode(false);
+                                try {
+                                  const fullProfile = await getPatientFullProfile(patient.patientId);
+                                  console.log("Full Patient Profile Response:", fullProfile);
+                                  console.log("Patient:", fullProfile?.patient);
+                                  console.log("Contact:", fullProfile?.patientContact);
+                                  console.log("Medical Info:", fullProfile?.patientMedicalInfo);
+                                  console.log("Insurance:", fullProfile?.patientInsurance);
+                                  setSelectedPatient(fullProfile);
+                                  setEditedPatient(fullProfile);
+                                } catch (error) {
+                                  console.error("Error fetching patient profile:", error);
+                                } finally {
+                                  setLoadingPatientDetails(false);
+                                }
+                              }}
+                              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg font-bold hover:from-blue-600 hover:to-indigo-700 transition shadow-md hover:shadow-lg text-sm"
+                            >
+                              👁️ View
+                            </motion.button>
+                            <motion.button 
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={async () => {
+                                setLoadingPatientDetails(true);
+                                setShowPatientModal(true);
+                                setIsEditMode(true);
+                                try {
+                                  const fullProfile = await getPatientFullProfile(patient.patientId);
+                                  console.log("Full Patient Profile Response (Edit):", fullProfile);
+                                  console.log("Patient:", fullProfile?.patient);
+                                  console.log("Contact:", fullProfile?.patientContact);
+                                  console.log("Medical Info:", fullProfile?.patientMedicalInfo);
+                                  console.log("Insurance:", fullProfile?.patientInsurance);
+                                  setSelectedPatient(fullProfile);
+                                  setEditedPatient(fullProfile);
+                                } catch (error) {
+                                  console.error("Error fetching patient profile:", error);
+                                } finally {
+                                  setLoadingPatientDetails(false);
+                                }
+                              }}
+                              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-bold hover:from-indigo-700 hover:to-purple-700 transition shadow-md hover:shadow-lg text-sm"
+                            >
+                              ✏️ Edit
+                            </motion.button>
+                          </div>
+                        </motion.div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
-                {/* Empty State - No Clinic Selected */}
-                {!selectedClinicId && !loadingClinicPatients && (
+                {/* Funny Empty State Message - Only show when no clinic selected */}
+                {!selectedClinicId && !loadingClinicPatients && clinicPatients.length === 0 && (
                   <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-center py-16 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center py-20 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 rounded-3xl border-2 border-dashed border-purple-300 shadow-lg"
                   >
                     <motion.div
-                      animate={{ scale: [1, 1.1, 1] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      className="text-7xl mb-4"
+                      animate={{ 
+                        rotate: [0, -10, 10, -10, 10, 0],
+                        scale: [1, 1.1, 1, 1.1, 1]
+                      }}
+                      transition={{ 
+                        duration: 2,
+                        repeat: Infinity,
+                        repeatDelay: 3
+                      }}
+                      className="text-8xl mb-6"
                     >
-                      🏥
+                      🕵️
                     </motion.div>
-                    <h3 className="text-xl font-bold text-purple-900 mb-2">Enter a Clinic ID</h3>
-                    <p className="text-purple-700">Type a clinic ID above to view all patients registered at that clinic</p>
-                    <p className="text-purple-600 text-sm mt-2">Real-time data will be fetched from the server</p>
+                    <h3 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600 mb-3">
+                      Ready to Find Your Patients?
+                    </h3>
+                    <p className="text-slate-600 text-lg mb-2">
+                      🎯 Enter a <span className="font-bold text-purple-600">Clinic ID</span> above and hit that Search button!
+                    </p>
+                    <p className="text-slate-500 text-base max-w-md mx-auto leading-relaxed">
+                      Our super-powered search will fetch real-time patient data faster than you can say "dental hygiene"! 🦷✨
+                    </p>
+                    <motion.div
+                      animate={{ y: [0, -10, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                      className="mt-8 text-4xl"
+                    >
+                      👆
+                    </motion.div>
                   </motion.div>
                 )}
               </div>
-            )}
           </div>
         )}
       </div>
@@ -1491,6 +1428,570 @@ export default function Patients() {
                     Add Another
                   </motion.button>
                 </motion.div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Patient Details Modal */}
+      <AnimatePresence>
+        {showPatientModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4 overflow-y-auto"
+            onClick={() => setShowPatientModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full my-8 border border-slate-200"
+            >
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 px-8 py-6 rounded-t-2xl border-b-4 border-teal-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white tracking-tight">
+                      {isEditMode ? 'Edit Patient Record' : 'Patient Medical Record'}
+                    </h2>
+                    <p className="text-teal-50 text-sm mt-1">
+                      {isEditMode ? 'Update patient information' : 'Complete patient profile and medical history'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowPatientModal(false)}
+                    className="text-white hover:bg-white/20 rounded-lg p-2.5 transition-all duration-200"
+                    title="Close"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <div className="px-8 py-6 max-h-[70vh] overflow-y-auto bg-gradient-to-br from-cream-50 to-peach-50">
+                {loadingPatientDetails ? (
+                  <div className="text-center py-20 bg-white rounded-xl shadow-lg border-2 border-teal-200">
+                    <div className="flex justify-center mb-6">
+                      <div className="relative">
+                        <div className="w-16 h-16 border-4 border-teal-100 rounded-full"></div>
+                        <div className="w-16 h-16 border-4 border-teal-500 rounded-full absolute top-0 left-0 animate-spin border-t-transparent"></div>
+                      </div>
+                    </div>
+                    <p className="text-teal-800 text-base font-semibold">Loading patient information...</p>
+                    <p className="text-teal-600 text-sm mt-2">Please wait</p>
+                  </div>
+                ) : selectedPatient ? (
+                  <div className="space-y-5">
+                    {/* Basic Information */}
+                    <div className="bg-white rounded-xl p-6 shadow-md border-2 border-coral-200">
+                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-coral-200">
+                        <div className="w-10 h-10 bg-gradient-to-br from-coral-100 to-peach-100 rounded-lg flex items-center justify-center shadow-sm">
+                          <svg className="w-6 h-6 text-coral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-bold text-amber-900">Basic Information</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">First Name</label>
+                          <input
+                            type="text"
+                            value={isEditMode ? editedPatient?.patient?.patientFirstName || '' : selectedPatient?.patient?.patientFirstName || ''}
+                            onChange={(e) => isEditMode && setEditedPatient({
+                              ...editedPatient,
+                              patient: { ...editedPatient.patient, patientFirstName: e.target.value }
+                            })}
+                            disabled={!isEditMode}
+                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-500 text-slate-700 transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Last Name</label>
+                          <input
+                            type="text"
+                            value={isEditMode ? editedPatient?.patient?.patientLastName || '' : selectedPatient?.patient?.patientLastName || ''}
+                            onChange={(e) => isEditMode && setEditedPatient({
+                              ...editedPatient,
+                              patient: { ...editedPatient.patient, patientLastName: e.target.value }
+                            })}
+                            disabled={!isEditMode}
+                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-500 text-slate-700 transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Clinic ID</label>
+                          <input
+                            type="text"
+                            value={selectedPatient?.patient?.clinicID || selectedPatient?.patient?.patientEntityID || ''}
+                            disabled
+                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg bg-slate-50 text-slate-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Date of Birth</label>
+                          <input
+                            type="date"
+                            value={isEditMode ? editedPatient?.patient?.patientDOB?.split('T')[0] || '' : selectedPatient?.patient?.patientDOB?.split('T')[0] || ''}
+                            onChange={(e) => isEditMode && setEditedPatient({
+                              ...editedPatient,
+                              patient: { ...editedPatient.patient, patientDOB: e.target.value }
+                            })}
+                            disabled={!isEditMode}
+                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-500 text-slate-700 transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Gender</label>
+                          {isEditMode ? (
+                            <select
+                              value={editedPatient?.patient?.patientGender || ''}
+                              onChange={(e) => setEditedPatient({
+                                ...editedPatient,
+                                patient: { ...editedPatient.patient, patientGender: e.target.value }
+                              })}
+                              className="w-full mt-1.5 px-4 py-2.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 text-stone-700 transition-colors"
+                            >
+                              <option value="">Select Gender</option>
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={selectedPatient?.patient?.patientGender || ''}
+                              disabled
+                              className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg disabled:bg-slate-50 disabled:text-slate-500 text-slate-700 transition-colors"
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Blood Type</label>
+                          {isEditMode ? (
+                            <select
+                              value={editedPatient?.patient?.patientBloodType || ''}
+                              onChange={(e) => setEditedPatient({
+                                ...editedPatient,
+                                patient: { ...editedPatient.patient, patientBloodType: e.target.value }
+                              })}
+                              className="w-full mt-1.5 px-4 py-2.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 text-stone-700 transition-colors"
+                            >
+                              <option value="">Select Blood Type</option>
+                              <option value="A+">A+</option>
+                              <option value="A-">A-</option>
+                              <option value="B+">B+</option>
+                              <option value="B-">B-</option>
+                              <option value="AB+">AB+</option>
+                              <option value="AB-">AB-</option>
+                              <option value="O+">O+</option>
+                              <option value="O-">O-</option>
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={selectedPatient?.patient?.patientBloodType || ''}
+                              disabled
+                              className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg disabled:bg-slate-50 disabled:text-slate-500 text-slate-700 transition-colors"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contact Information */}
+                    <div className="bg-white rounded-xl p-6 shadow-md border-2 border-teal-200">
+                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-teal-200">
+                        <div className="w-10 h-10 bg-gradient-to-br from-teal-100 to-cyan-100 rounded-lg flex items-center justify-center shadow-sm">
+                          <svg className="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-bold text-amber-900">Contact Information</h3>
+                      </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Phone Number</label>
+                            <input
+                              type="text"
+                              value={isEditMode ? editedPatient?.patientContact?.patientPhone || '' : selectedPatient?.patientContact?.patientPhone || ''}
+                              onChange={(e) => isEditMode && setEditedPatient({
+                                ...editedPatient,
+                                patientContact: { ...editedPatient.patientContact, patientPhone: e.target.value }
+                              })}
+                              disabled={!isEditMode}
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Email Address</label>
+                            <input
+                              type="email"
+                              value={isEditMode ? editedPatient?.patientContact?.patientEmail || '' : selectedPatient?.patientContact?.patientEmail || ''}
+                              onChange={(e) => isEditMode && setEditedPatient({
+                                ...editedPatient,
+                                patientContact: { ...editedPatient.patientContact, patientEmail: e.target.value }
+                              })}
+                              disabled={!isEditMode}
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 transition-colors"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="text-sm font-semibold text-slate-600">Address</label>
+                            <input
+                              type="text"
+                              value={isEditMode ? editedPatient?.patientContact?.patientAddress || '' : selectedPatient?.patientContact?.patientAddress || ''}
+                              onChange={(e) => isEditMode && setEditedPatient({
+                                ...editedPatient,
+                                patientContact: { ...editedPatient.patientContact, patientAddress: e.target.value }
+                              })}
+                              disabled={!isEditMode}
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">City</label>
+                            <input
+                              type="text"
+                              value={isEditMode ? editedPatient?.patientContact?.patientCity || '' : selectedPatient?.patientContact?.patientCity || ''}
+                              onChange={(e) => isEditMode && setEditedPatient({
+                                ...editedPatient,
+                                patientContact: { ...editedPatient.patientContact, patientCity: e.target.value }
+                              })}
+                              disabled={!isEditMode}
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Emergency Contact</label>
+                            <input
+                              type="text"
+                              value={isEditMode ? editedPatient?.patientContact?.patientEmergencyContact || '' : selectedPatient?.patientContact?.patientEmergencyContact || ''}
+                              onChange={(e) => isEditMode && setEditedPatient({
+                                ...editedPatient,
+                                patientContact: { ...editedPatient.patientContact, patientEmergencyContact: e.target.value }
+                              })}
+                              disabled={!isEditMode}
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 transition-colors"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                    {/* Medical Information */}
+                    <div className="bg-white rounded-xl p-6 shadow-md border-2 border-amber-200">
+                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-amber-200">
+                        <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center shadow-sm">
+                          <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-bold text-amber-900">Medical Information</h3>
+                      </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Allergies</label>
+                            <textarea
+                              value={isEditMode ? editedPatient?.patientMedicalInfo?.patientAllergies || '' : selectedPatient?.patientMedicalInfo?.patientAllergies || ''}
+                              onChange={(e) => isEditMode && setEditedPatient({
+                                ...editedPatient,
+                                patientMedicalInfo: { ...editedPatient.patientMedicalInfo, patientAllergies: e.target.value }
+                              })}
+                              disabled={!isEditMode}
+                              rows="2"
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-stone-100 transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Current Medications</label>
+                            <textarea
+                              value={isEditMode ? editedPatient?.patientMedicalInfo?.patientCurrentMedications || '' : selectedPatient?.patientMedicalInfo?.patientCurrentMedications || ''}
+                              onChange={(e) => isEditMode && setEditedPatient({
+                                ...editedPatient,
+                                patientMedicalInfo: { ...editedPatient.patientMedicalInfo, patientCurrentMedications: e.target.value }
+                              })}
+                              disabled={!isEditMode}
+                              rows="2"
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-stone-100 transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Chronic Diseases</label>
+                            <textarea
+                              value={isEditMode ? editedPatient?.patientMedicalInfo?.chronicDiseases || '' : selectedPatient?.patientMedicalInfo?.chronicDiseases || ''}
+                              onChange={(e) => isEditMode && setEditedPatient({
+                                ...editedPatient,
+                                patientMedicalInfo: { ...editedPatient.patientMedicalInfo, chronicDiseases: e.target.value }
+                              })}
+                              disabled={!isEditMode}
+                              rows="2"
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-stone-100 transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Medical History</label>
+                            <textarea
+                              value={isEditMode ? editedPatient?.patientMedicalInfo?.medicalHistory || '' : selectedPatient?.patientMedicalInfo?.medicalHistory || ''}
+                              onChange={(e) => isEditMode && setEditedPatient({
+                                ...editedPatient,
+                                patientMedicalInfo: { ...editedPatient.patientMedicalInfo, medicalHistory: e.target.value }
+                              })}
+                              disabled={!isEditMode}
+                              rows="2"
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-stone-100 transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Primary Physician</label>
+                            <input
+                              type="text"
+                              value={isEditMode ? editedPatient?.patientMedicalInfo?.patientPrimaryPhysician || '' : selectedPatient?.patientMedicalInfo?.patientPrimaryPhysician || ''}
+                              onChange={(e) => isEditMode && setEditedPatient({
+                                ...editedPatient,
+                                patientMedicalInfo: { ...editedPatient.patientMedicalInfo, patientPrimaryPhysician: e.target.value }
+                              })}
+                              disabled={!isEditMode}
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-stone-100 transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-slate-600">Number of Visits</label>
+                            <input
+                              type="number"
+                              value={selectedPatient?.patientMedicalInfo?.no_of_visits || 0}
+                              disabled
+                              className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg bg-slate-100"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="text-sm font-semibold text-slate-600">Last Visited Date</label>
+                            <input
+                              type="date"
+                              value={selectedPatient?.patientMedicalInfo?.lastVisitedDate?.split('T')[0] || ''}
+                              disabled
+                              className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg bg-slate-100"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                    {/* Insurance Information */}
+                    <div className="bg-white rounded-xl p-6 shadow-md border-2 border-cyan-200">
+                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-cyan-200">
+                        <div className="w-10 h-10 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-lg flex items-center justify-center shadow-sm">
+                          <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-bold text-amber-900">Insurance Information</h3>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <label className="text-sm font-semibold text-slate-600">Insurance Provider</label>
+                          <input
+                            type="text"
+                            value={isEditMode ? editedPatient?.patientInsurance?.patientInsuranceProvider || '' : selectedPatient?.patientInsurance?.patientInsuranceProvider || ''}
+                            onChange={(e) => isEditMode && setEditedPatient({
+                              ...editedPatient,
+                              patientInsurance: { ...editedPatient.patientInsurance, patientInsuranceProvider: e.target.value }
+                            })}
+                            disabled={!isEditMode}
+                            className="w-full mt-1.5 px-4 py-2.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 disabled:bg-stone-100 disabled:text-stone-500 text-stone-700 transition-colors"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-20 bg-white rounded-xl shadow-lg border-2 border-coral-200">
+                    <div className="flex justify-center mb-4">
+                      <div className="w-16 h-16 bg-gradient-to-br from-coral-100 to-peach-100 rounded-full flex items-center justify-center">
+                        <svg className="w-8 h-8 text-coral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                        </svg>
+                      </div>
+                    </div>
+                    <p className="text-amber-900 font-bold">No patient data available</p>
+                    <p className="text-stone-600 text-sm mt-2">Unable to load patient information</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              {!loadingPatientDetails && selectedPatient && (
+                <div className="bg-gradient-to-r from-coral-50 to-peach-50 px-8 py-5 rounded-b-2xl border-t-2 border-teal-300 flex gap-3">
+                  {isEditMode ? (
+                    <>
+                      <motion.button
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        onClick={async () => {
+                          try {
+                            setUpdatingPatient(true);
+                            
+                            // Ensure all required fields have values
+                            const payload = {
+                              ...editedPatient,
+                              patientContact: {
+                                ...editedPatient.patientContact,
+                                patientEmergencyContact: editedPatient.patientContact?.patientEmergencyContact || "N/A"
+                              }
+                            };
+                            
+                            await updatePatientFullProfile(payload);
+                            setShowPatientModal(false);
+                            setIsEditMode(false);
+                            setShowUpdateSuccessModal(true);
+                            
+                            // Reload clinic patients if a clinic is selected
+                            if (selectedClinicId) {
+                              const patientsData = await getPatientsByClinic(parseInt(selectedClinicId));
+                              setClinicPatientsData(patientsData);
+                            }
+                          } catch (error) {
+                            console.error("Error updating patient:", error);
+                            alert("Failed to update patient. Please try again.");
+                          } finally {
+                            setUpdatingPatient(false);
+                          }
+                        }}
+                        disabled={updatingPatient}
+                        className="flex-1 px-6 py-3 bg-gradient-to-r from-coral-500 to-peach-500 hover:from-coral-600 hover:to-peach-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {updatingPatient ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Updating...
+                          </span>
+                        ) : "Save Changes"}
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        onClick={() => {
+                          setShowPatientModal(false);
+                          setIsEditMode(false);
+                          setEditedPatient(null);
+                          setSelectedPatient(null);
+                        }}
+                        className="flex-1 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold shadow-sm hover:shadow-md transition-all duration-200"
+                      >
+                        Cancel
+                      </motion.button>
+                    </>
+                  ) : (
+                    <>
+                      <motion.button
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        onClick={() => setIsEditMode(true)}
+                        className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-200"
+                      >
+                        Edit Patient
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
+                        onClick={() => setShowPatientModal(false)}
+                        className="flex-1 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold shadow-sm hover:shadow-md transition-all duration-200"
+                      >
+                        Close
+                      </motion.button>
+                    </>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Update Success Modal */}
+      <AnimatePresence>
+        {showUpdateSuccessModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => {
+              setShowUpdateSuccessModal(false);
+              // Redirect back to clinic-based patient list
+              if (selectedClinicId) {
+                // Stay on same page but reset search
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              {/* Success Header */}
+              <div className="bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 p-8 text-center">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="inline-block"
+                >
+                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <svg className="w-12 h-12 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                </motion.div>
+                <h3 className="text-3xl font-bold text-white mb-2">
+                  🎉 Woohoo! 🎉
+                </h3>
+                <p className="text-white/90 text-lg font-medium">
+                  Patient Records Updated!
+                </p>
+              </div>
+
+              {/* Success Message */}
+              <div className="p-8 text-center">
+                <div className="mb-6">
+                  <p className="text-xl font-semibold text-slate-800 mb-3">
+                    Mission Accomplished! 🚀
+                  </p>
+                  <p className="text-slate-600 leading-relaxed">
+                    The patient's records have been successfully updated! 
+                    Even the database did a little happy dance. 💃
+                  </p>
+                  <p className="text-slate-500 text-sm mt-3 italic">
+                    (No patients were harmed in the making of this update)
+                  </p>
+                </div>
+
+                {/* Action Button */}
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setShowUpdateSuccessModal(false);
+                    if (selectedClinicId) {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-coral-500 to-peach-500 hover:from-coral-600 hover:to-peach-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  Back to Patient List
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
