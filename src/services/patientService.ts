@@ -25,7 +25,7 @@ export function updatePatient(patientId: number, payload: PatientDataModel): Pro
 }
 
 export function deletePatient(patientId: number): Promise<void> {
-  return request<void>(`/Patient/DeletePatient?id=${patientId}`, {
+  return request<void>(`/Patient/${patientId}`, {
     method: "DELETE"
   });
 }

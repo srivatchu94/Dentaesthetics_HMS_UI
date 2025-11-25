@@ -13,3 +13,14 @@ body { @apply bg-slate-50 text-slate-900; }
 .tab-active { @apply ring-4 ring-white/30 scale-105; }
 .card { @apply bg-white rounded-lg shadow p-4; }
 .footer { @apply text-sm text-slate-500 text-center mt-8; }
+
+/* Shake animation for validation errors */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}

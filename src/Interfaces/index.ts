@@ -9,6 +9,9 @@ export type { DentalServiceModel } from "./DentalServiceModel";
 export type { ClinicalSpecialtyModel } from "./ClinicalSpecialtyModel";
 export type { RoleModel } from "./RoleModel";
 
+// Authentication models
+export type { RegisterRequest, LoginRequest, AuthResponse, UserCredentialModel } from "./AuthModels";
+
 // Patient-related interfaces matching API models
 export type { Patient, PatientDataModel } from "./PatientModel";
 export type { PatientContact } from "./PatientContactModel";

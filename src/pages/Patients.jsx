@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients } from "../services/patientService";
+import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient } from "../services/patientService";
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null }) => (
@@ -171,6 +171,7 @@ export default function Patients() {
     gender: "",
     bloodGroup: "",
     maritalStatus: "",
+    clinicId: "",
     isActive: true
   });
 
@@ -232,6 +233,7 @@ export default function Patients() {
   const [clinicPatientsData, setClinicPatientsData] = useState([]);
   const [loadingClinicPatients, setLoadingClinicPatients] = useState(false);
   const [clinicError, setClinicError] = useState("");
+  const [searchPerformed, setSearchPerformed] = useState(false);
 
   // Patient details modal states
   const [showPatientModal, setShowPatientModal] = useState(false);
@@ -241,6 +243,12 @@ export default function Patients() {
   const [loadingPatientDetails, setLoadingPatientDetails] = useState(false);
   const [showUpdateSuccessModal, setShowUpdateSuccessModal] = useState(false);
   const [updatingPatient, setUpdatingPatient] = useState(false);
+  
+  // Delete modal states
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [showDeleteSuccessModal, setShowDeleteSuccessModal] = useState(false);
+  const [patientToDelete, setPatientToDelete] = useState(null);
+  const [deletingPatient, setDeletingPatient] = useState(false);
 
   // Mock patient data (replace with API call)
   const mockPatients = [
@@ -283,6 +291,7 @@ export default function Patients() {
 
     setLoadingClinicPatients(true);
     setClinicError("");
+    setSearchPerformed(true);
 
     try {
       // Build search parameters object
@@ -347,7 +356,8 @@ export default function Patients() {
         patientLastName: patientData.lastName,
         patientDOB: patientData.dateOfBirth,
         patientGender: patientData.gender,
-        patientBloodType: patientData.bloodGroup || ""
+        patientBloodType: patientData.bloodGroup || "",
+        clinicID: patientData.clinicId || ""
       },
       patientContact: {
         patientId: 0, // Will be assigned by backend
@@ -495,6 +505,15 @@ export default function Patients() {
                   value={patientData.maritalStatus}
                   onChange={(e) => setPatientData({ ...patientData, maritalStatus: e.target.value })}
                   options={["Single", "Married", "Divorced", "Widowed"]}
+                />
+                <InputField
+                  label="Clinic ID"
+                  name="clinicId"
+                  type="text"
+                  value={patientData.clinicId}
+                  onChange={(e) => setPatientData({ ...patientData, clinicId: e.target.value })}
+                  required
+                  placeholder="Enter clinic ID"
                 />
               </div>
             </CollapsibleSection>
@@ -1032,6 +1051,7 @@ export default function Patients() {
                           setSelectedClinicId("");
                           setClinicPatientsData([]);
                           setClinicError("");
+                          setSearchPerformed(false);
                         }}
                         className="flex-1 px-4 py-2 bg-stone-200 text-stone-700 rounded-lg font-semibold hover:bg-stone-300 transition"
                       >
@@ -1069,6 +1089,85 @@ export default function Patients() {
                     <div className="text-6xl mb-4">⚠️</div>
                     <h3 className="text-xl font-bold text-red-900 mb-2">Unable to Load Patients</h3>
                     <p className="text-red-700">{clinicError}</p>
+                  </motion.div>
+                )}
+
+                {/* No Results Found Message */}
+                {!loadingClinicPatients && !clinicError && clinicPatients.length === 0 && searchPerformed && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 rounded-2xl border-2 border-amber-300 p-10 text-center shadow-lg mb-6"
+                  >
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                      className="text-8xl mb-6"
+                    >
+                      🔍❌
+                    </motion.div>
+                    <h3 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-600 mb-4">
+                      Oops! No Patients Found
+                    </h3>
+                    <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 mb-4 border-2 border-amber-200">
+                      <p className="text-lg font-semibold text-amber-900 mb-3">
+                        We searched high and low, but couldn't find any patients matching:
+                      </p>
+                      <div className="space-y-2 text-left max-w-md mx-auto">
+                        {selectedClinicId && (
+                          <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 rounded-lg">
+                            <span className="text-amber-700 font-semibold">🏥 Clinic ID:</span>
+                            <span className="text-amber-900 font-bold">{selectedClinicId}</span>
+                          </div>
+                        )}
+                        {filterData.patientId && (
+                          <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 rounded-lg">
+                            <span className="text-amber-700 font-semibold">🆔 Patient ID:</span>
+                            <span className="text-amber-900 font-bold">{filterData.patientId}</span>
+                          </div>
+                        )}
+                        {filterData.firstName && (
+                          <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 rounded-lg">
+                            <span className="text-amber-700 font-semibold">👤 First Name:</span>
+                            <span className="text-amber-900 font-bold">{filterData.firstName}</span>
+                          </div>
+                        )}
+                        {filterData.lastName && (
+                          <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 rounded-lg">
+                            <span className="text-amber-700 font-semibold">👥 Last Name:</span>
+                            <span className="text-amber-900 font-bold">{filterData.lastName}</span>
+                          </div>
+                        )}
+                        {filterData.dateOfBirth && (
+                          <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 rounded-lg">
+                            <span className="text-amber-700 font-semibold">🎂 Date of Birth:</span>
+                            <span className="text-amber-900 font-bold">{filterData.dateOfBirth}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-slate-600 text-lg mb-3">
+                      Maybe they're playing hide and seek? 🙈
+                    </p>
+                    <p className="text-slate-500 text-base max-w-lg mx-auto leading-relaxed mb-4">
+                      Try adjusting your search criteria or double-check the information. 
+                      Perhaps the patient is registered under a different clinic?
+                    </p>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        setFilterData({ firstName: "", lastName: "", dateOfBirth: "", patientId: "", clinicId: "" });
+                        setSelectedClinicId("");
+                        setClinicPatientsData([]);
+                        setClinicError("");
+                        setSearchPerformed(false);
+                      }}
+                      className="mt-4 px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-200"
+                    >
+                      🔄 Clear Search & Try Again
+                    </motion.button>
                   </motion.div>
                 )}
 
@@ -1209,6 +1308,17 @@ export default function Patients() {
                               className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-bold hover:from-indigo-700 hover:to-purple-700 transition shadow-md hover:shadow-lg text-sm"
                             >
                               ✏️ Edit
+                            </motion.button>
+                            <motion.button 
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => {
+                                setPatientToDelete(patient);
+                                setShowDeleteConfirmModal(true);
+                              }}
+                              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-lg font-bold hover:from-red-600 hover:to-rose-700 transition shadow-md hover:shadow-lg text-sm"
+                            >
+                              🗑️ Delete
                             </motion.button>
                           </div>
                         </motion.div>
@@ -1851,9 +1961,38 @@ export default function Patients() {
                             setIsEditMode(false);
                             setShowUpdateSuccessModal(true);
                             
-                            // Reload clinic patients if a clinic is selected
-                            if (selectedClinicId) {
-                              const patientsData = await getPatientsByClinic(parseInt(selectedClinicId));
+                            // Reload patients using the same search criteria
+                            const searchParams = {};
+                            
+                            if (selectedClinicId.trim()) {
+                              const clinicId = parseInt(selectedClinicId);
+                              if (!isNaN(clinicId)) {
+                                searchParams.clinicId = clinicId;
+                              }
+                            }
+                            
+                            if (filterData.patientId.trim()) {
+                              const patientId = parseInt(filterData.patientId);
+                              if (!isNaN(patientId)) {
+                                searchParams.patientId = patientId;
+                              }
+                            }
+                            
+                            if (filterData.firstName.trim()) {
+                              searchParams.firstName = filterData.firstName.trim();
+                            }
+                            
+                            if (filterData.lastName.trim()) {
+                              searchParams.lastName = filterData.lastName.trim();
+                            }
+                            
+                            if (filterData.dateOfBirth.trim()) {
+                              searchParams.dob = filterData.dateOfBirth.trim();
+                            }
+                            
+                            // Only refresh if there are search parameters
+                            if (Object.keys(searchParams).length > 0) {
+                              const patientsData = await searchPatients(searchParams);
                               setClinicPatientsData(patientsData);
                             }
                           } catch (error) {
@@ -1989,6 +2128,237 @@ export default function Patients() {
                     }
                   }}
                   className="w-full px-6 py-3 bg-gradient-to-r from-coral-500 to-peach-500 hover:from-coral-600 hover:to-peach-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-200"
+                >
+                  Back to Patient List
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteConfirmModal && patientToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => !deletingPatient && setShowDeleteConfirmModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              {/* Warning Header */}
+              <div className="bg-gradient-to-r from-red-500 via-rose-500 to-red-600 p-8 text-center">
+                <motion.div
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="inline-block"
+                >
+                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <span className="text-5xl">⚠️</span>
+                  </div>
+                </motion.div>
+                <h3 className="text-3xl font-bold text-white mb-2">
+                  Danger Zone! ⚡
+                </h3>
+                <p className="text-white/90 text-lg font-medium">
+                  Are you absolutely sure?
+                </p>
+              </div>
+
+              {/* Warning Message */}
+              <div className="p-8">
+                <div className="mb-6 text-center">
+                  <p className="text-xl font-semibold text-red-600 mb-3">
+                    Delete Patient Record?
+                  </p>
+                  <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-4">
+                    <p className="font-bold text-red-900 mb-2">
+                      {patientToDelete.patientFirstName} {patientToDelete.patientLastName}
+                    </p>
+                    <p className="text-sm text-red-700">
+                      Patient ID: <span className="font-mono font-bold">{patientToDelete.patientId}</span>
+                    </p>
+                  </div>
+                  <p className="text-slate-600 leading-relaxed mb-2">
+                    This action <span className="font-bold text-red-600">cannot be undone</span>. 
+                    All patient records will be permanently deleted from the system.
+                  </p>
+                  <p className="text-slate-500 text-sm italic">
+                    Think twice, delete once! 🤔
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowDeleteConfirmModal(false)}
+                    disabled={deletingPatient}
+                    className="flex-1 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50"
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={async () => {
+                      try {
+                        setDeletingPatient(true);
+                        await deletePatient(patientToDelete.patientId);
+                        setShowDeleteConfirmModal(false);
+                        setShowDeleteSuccessModal(true);
+                        
+                        // Refresh patient list using the same search criteria
+                        const searchParams = {};
+                        
+                        if (selectedClinicId.trim()) {
+                          const clinicId = parseInt(selectedClinicId);
+                          if (!isNaN(clinicId)) {
+                            searchParams.clinicId = clinicId;
+                          }
+                        }
+                        
+                        if (filterData.patientId.trim()) {
+                          const patientId = parseInt(filterData.patientId);
+                          if (!isNaN(patientId)) {
+                            searchParams.patientId = patientId;
+                          }
+                        }
+                        
+                        if (filterData.firstName.trim()) {
+                          searchParams.firstName = filterData.firstName.trim();
+                        }
+                        
+                        if (filterData.lastName.trim()) {
+                          searchParams.lastName = filterData.lastName.trim();
+                        }
+                        
+                        if (filterData.dateOfBirth.trim()) {
+                          searchParams.dob = filterData.dateOfBirth.trim();
+                        }
+                        
+                        // Only refresh if there are search parameters
+                        if (Object.keys(searchParams).length > 0) {
+                          const patients = await searchPatients(searchParams);
+                          setClinicPatientsData(patients);
+                        }
+                      } catch (error) {
+                        console.error("Error deleting patient:", error);
+                        alert("Failed to delete patient. Please try again.");
+                      } finally {
+                        setDeletingPatient(false);
+                      }
+                    }}
+                    disabled={deletingPatient}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deletingPatient ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Deleting...
+                      </span>
+                    ) : "Yes, Delete Forever"}
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Success Modal */}
+      <AnimatePresence>
+        {showDeleteSuccessModal && patientToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => {
+              setShowDeleteSuccessModal(false);
+              setPatientToDelete(null);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              {/* Sad Header */}
+              <div className="bg-gradient-to-r from-slate-700 via-slate-600 to-slate-700 p-8 text-center">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="inline-block"
+                >
+                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <motion.span 
+                      animate={{ rotate: [0, -10, 10, -10, 0] }}
+                      transition={{ duration: 0.5, delay: 0.5 }}
+                      className="text-5xl"
+                    >
+                      😢
+                    </motion.span>
+                  </div>
+                </motion.div>
+                <h3 className="text-3xl font-bold text-white mb-2">
+                  Farewell, Friend! 👋
+                </h3>
+                <p className="text-white/90 text-lg font-medium">
+                  Patient Record Deleted
+                </p>
+              </div>
+
+              {/* Sad Message */}
+              <div className="p-8 text-center">
+                <div className="mb-6">
+                  <p className="text-xl font-semibold text-slate-800 mb-3">
+                    They're Gone... 💔
+                  </p>
+                  <div className="bg-slate-50 border-2 border-slate-200 rounded-lg p-4 mb-4">
+                    <p className="font-bold text-slate-700 mb-1">
+                      {patientToDelete.patientFirstName} {patientToDelete.patientLastName}
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      has been removed from the system
+                    </p>
+                  </div>
+                  <p className="text-slate-600 leading-relaxed mb-2">
+                    The patient record has sailed off into the digital sunset. 🌅
+                    <br />
+                    Our database just shed a single tear... 😭
+                  </p>
+                  <p className="text-slate-500 text-sm italic mt-3">
+                    "We'll miss you, but your data won't miss our servers!" 🗄️💨
+                  </p>
+                </div>
+
+                {/* Action Button */}
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setShowDeleteSuccessModal(false);
+                    setPatientToDelete(null);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-200"
                 >
                   Back to Patient List
                 </motion.button>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { registerUser, loginUser } from "../services/authService";
 
 const TABS = [
   { key: "home", path: "/", label: "Home", bgColor: "from-coral-100 to-peach-100", textColor: "text-coral-800", borderColor: "border-coral-400", hoverBg: "hover:bg-coral-200", icon: "🏠" },
@@ -50,13 +51,18 @@ export default function Header(){
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    name: "",
-    role: "doctor",
-    specialty: "",
-    licenseNumber: ""
+    username: "",
+    emailid: "",
+    mobileNumber: "",
+    password: ""
   });
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMatchWarning, setPasswordMatchWarning] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [welcomeMessage, setWelcomeMessage] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState(SAMPLE_NOTIFICATIONS);
   const [showSearch, setShowSearch] = useState(false);
@@ -107,28 +113,96 @@ export default function Header(){
     setIsSignUp(false);
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
-    // Simulate login/signup - in real app, this would call an API
-    const userName = isSignUp ? formData.name : formData.email.split('@')[0];
-    setUserInfo({ 
-      name: userName.charAt(0).toUpperCase() + userName.slice(1), 
-      role: formData.role.charAt(0).toUpperCase() + formData.role.slice(1) 
-    });
-    setIsLoggedIn(true);
-    setShowLoginModal(false);
-    setShowWelcome(true);
-    // Hide welcome message after 5 seconds
-    setTimeout(() => setShowWelcome(false), 5000);
-    // Reset form
-    setFormData({
-      email: "",
-      password: "",
-      name: "",
-      role: "doctor",
-      specialty: "",
-      licenseNumber: ""
-    });
+    setAuthError("");
+    
+    if (isSignUp) {
+      // Validate passwords match
+      if (formData.password !== confirmPassword) {
+        setAuthError("Passwords do not match!");
+        return;
+      }
+      
+      setLoading(true);
+      try {
+        const response = await registerUser(formData);
+        console.log("Registration successful:", response);
+        
+        const funnyMessages = [
+          "🎉 Boom! You're in the club now!",
+          "🚀 Account launched successfully!",
+          "🎊 Welcome aboard the dental express!",
+          "✨ Magic happened! Account created!",
+          "🦷 Your dental journey starts now!",
+          "🌟 You're officially awesome!"
+        ];
+        const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
+        
+        // Show success modal
+        setShowLoginModal(false);
+        setSuccessMessage(randomMessage);
+        setShowSuccessModal(true);
+        
+        // Reset form and redirect to login after 3 seconds
+        setTimeout(() => {
+          setShowSuccessModal(false);
+          setIsSignUp(false);
+          setFormData({ username: "", emailid: "", mobileNumber: "", password: "" });
+          setConfirmPassword("");
+          setPasswordMatchWarning("");
+          setShowLoginModal(true);
+        }, 3000);
+      } catch (err) {
+        if (err.response?.status === 409) {
+          setAuthError("Username already exists. Please choose a different username.");
+        } else if (err.response?.status === 400) {
+          setAuthError("Invalid input. Please check your information.");
+        } else {
+          setAuthError("Registration failed. Please try again.");
+        }
+        console.error("Registration error:", err);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // Login logic
+      setLoading(true);
+      try {
+        const response = await loginUser({ username: formData.username, password: formData.password });
+        console.log("Login successful:", response);
+        
+        // Use username from response or fallback to form data
+        const username = response?.username || formData.username;
+        
+        // Generate funny welcome message
+        const funnyWelcomeMessages = [
+          `🎉 Welcome back, ${username}! We missed your smile!`,
+          `🚀 ${username} is in the house! Let's get to work!`,
+          `🦷 Look who's back! ${username} ready to brighten some smiles?`,
+          `✨ ${username} has entered the chat! Time to work some dental magic!`,
+          `🌟 Hey ${username}! Your patients have been waiting for you!`,
+          `🎊 ${username} is back in action! Let's do this!`
+        ];
+        const randomWelcome = funnyWelcomeMessages[Math.floor(Math.random() * funnyWelcomeMessages.length)];
+        
+        setUserInfo({ 
+          name: username, 
+          role: "User"
+        });
+        setWelcomeMessage(randomWelcome);
+        setIsLoggedIn(true);
+        setShowLoginModal(false);
+        setShowWelcome(true);
+        setTimeout(() => setShowWelcome(false), 5000);
+        setFormData({ username: "", emailid: "", mobileNumber: "", password: "" });
+      } catch (err) {
+        setAuthError("Invalid credentials. Please try again.");
+        console.error("Login error:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const handleLogout = () => {
@@ -138,10 +212,26 @@ export default function Header(){
   };
 
   const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    if (name === "confirmPassword") {
+      setConfirmPassword(value);
+      if (value && formData.password && value !== formData.password) {
+        setPasswordMatchWarning("⚠️ Passwords do not match!");
+      } else {
+        setPasswordMatchWarning("");
+      }
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+      if (name === "password" && confirmPassword && value !== confirmPassword) {
+        setPasswordMatchWarning("⚠️ Passwords do not match!");
+      } else if (name === "password" && confirmPassword && value === confirmPassword) {
+        setPasswordMatchWarning("");
+      }
+    }
+    setAuthError("");
   };
 
   const handleCrudClick = (tabKey, operation) => {
@@ -399,46 +489,76 @@ export default function Header(){
 
                 {/* Form */}
                 <form onSubmit={handleFormSubmit} className="space-y-4">
-                  {isSignUp && (
-                    <motion.div
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.5 }}
-                    >
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name</label>
-                      <input
-                        type="text"
-                        name="name"
-                        required={isSignUp}
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
-                        placeholder="Dr. John Smith"
-                      />
-                    </motion.div>
+                  {/* Error Alert */}
+                  {authError && (
+                    <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-lg">
+                      <p className="text-red-800 text-sm flex items-center gap-2">
+                        <span>⚠️</span>
+                        {authError}
+                      </p>
+                    </div>
                   )}
 
                   <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: isSignUp ? 0.6 : 0.5 }}
+                    transition={{ delay: 0.5 }}
                   >
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Username</label>
                     <input
-                      type="email"
-                      name="email"
+                      type="text"
+                      name="username"
                       required
-                      value={formData.email}
+                      value={formData.username}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
-                      placeholder="doctor@example.com"
+                      placeholder="Enter your username"
                     />
                   </motion.div>
+
+                  {isSignUp && (
+                    <>
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.6 }}
+                      >
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Email ID</label>
+                        <input
+                          type="email"
+                          name="emailid"
+                          required
+                          value={formData.emailid}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
+                          placeholder="your.email@example.com"
+                        />
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.7 }}
+                      >
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number</label>
+                        <input
+                          type="tel"
+                          name="mobileNumber"
+                          required
+                          value={formData.mobileNumber}
+                          onChange={handleInputChange}
+                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
+                          placeholder="1234567890"
+                          maxLength={10}
+                        />
+                      </motion.div>
+                    </>
+                  )}
 
                   <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: isSignUp ? 0.7 : 0.6 }}
+                    transition={{ delay: isSignUp ? 0.8 : 0.6 }}
                   >
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
                     <input
@@ -449,75 +569,73 @@ export default function Header(){
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
                       placeholder="••••••••"
+                      minLength={6}
                     />
                   </motion.div>
 
                   {isSignUp && (
-                    <>
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.8 }}
-                      >
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Role</label>
-                        <select
-                          name="role"
-                          value={formData.role}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
-                        >
-                          <option value="doctor">Doctor</option>
-                          <option value="admin">Admin</option>
-                          <option value="staff">Staff</option>
-                        </select>
-                      </motion.div>
-
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.9 }}
-                      >
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Specialty</label>
-                        <input
-                          type="text"
-                          name="specialty"
-                          value={formData.specialty}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
-                          placeholder="Orthodontics, Endodontics, etc."
-                        />
-                      </motion.div>
-
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 1.0 }}
-                      >
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">License Number</label>
-                        <input
-                          type="text"
-                          name="licenseNumber"
-                          value={formData.licenseNumber}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
-                          placeholder="DL-123456"
-                        />
-                      </motion.div>
-                    </>
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.9 }}
+                    >
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Confirm Password</label>
+                      <input
+                        type="password"
+                        name="confirmPassword"
+                        required
+                        value={confirmPassword}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 rounded-xl border-2 transition-all outline-none ${
+                          passwordMatchWarning 
+                            ? 'border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100' 
+                            : 'border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100'
+                        }`}
+                        placeholder="Confirm your password"
+                      />
+                      {passwordMatchWarning && (
+                        <p className="text-yellow-600 font-semibold text-xs mt-1 animate-pulse">
+                          {passwordMatchWarning}
+                        </p>
+                      )}
+                    </motion.div>
                   )}
 
                   {/* Submit Button */}
                   <motion.button
                     type="submit"
+                    disabled={loading}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: isSignUp ? 1.1 : 0.7 }}
-                    whileHover={{ scale: 1.02, boxShadow: "0 20px 40px rgba(139, 92, 246, 0.3)" }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full py-4 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-bold text-lg shadow-coral hover:shadow-2xl transition-all mt-6"
+                    transition={{ delay: isSignUp ? 1.0 : 0.7 }}
+                    whileHover={{ scale: loading ? 1 : 1.02, boxShadow: loading ? "none" : "0 20px 40px rgba(139, 92, 246, 0.3)" }}
+                    whileTap={{ scale: loading ? 1 : 0.98 }}
+                    className="w-full py-4 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-bold text-lg shadow-coral hover:shadow-2xl transition-all mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isSignUp ? "Create Account" : "Sign In"}
+                    {loading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin">⏳</span> {isSignUp ? "Creating Account..." : "Signing In..."}
+                      </span>
+                    ) : (
+                      isSignUp ? "Create Account" : "Sign In"
+                    )}
                   </motion.button>
+
+                  {/* Preview Error Page Button (Testing) */}
+                  {!isSignUp && (
+                    <motion.button
+                      type="button"
+                      onClick={() => navigate('/error-preview')}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.8 }}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="w-full py-3 bg-gradient-to-r from-gray-400 to-gray-500 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all mt-3"
+                    >
+                      🎭 Preview Error Page (Testing)
+                    </motion.button>
+                  )}
                 </form>
 
                 {/* Toggle Sign In/Sign Up */}
@@ -552,32 +670,70 @@ export default function Header(){
       <AnimatePresence>
         {showWelcome && isLoggedIn && (
           <motion.div
-            initial={{ opacity: 0, x: 300 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 300 }}
-            transition={{ type: "spring", damping: 20, stiffness: 200 }}
-            className="fixed top-32 right-6 z-[100] bg-gradient-to-r from-teal-500 to-sage-500 text-white px-6 py-4 rounded-2xl shadow-teal backdrop-blur-lg border-2 border-white/20 max-w-sm"
+            initial={{ opacity: 0, scale: 0.8, y: -50 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: -50 }}
+            transition={{ type: "spring", damping: 15, stiffness: 200 }}
+            className="fixed top-32 right-6 z-[100] bg-gradient-to-br from-purple-500 via-pink-500 to-coral-500 text-white px-6 py-5 rounded-2xl shadow-2xl backdrop-blur-lg border-2 border-white/30 max-w-md"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-start gap-4">
               <motion.span
-                animate={{ rotate: [0, 10, -10, 10, 0] }}
-                transition={{ duration: 0.5, repeat: 2 }}
-                className="text-3xl"
+                animate={{ 
+                  rotate: [0, 15, -15, 15, 0],
+                  scale: [1, 1.2, 1, 1.2, 1]
+                }}
+                transition={{ duration: 1, repeat: 2 }}
+                className="text-4xl"
               >
                 👋
               </motion.span>
-              <div>
-                <p className="text-lg font-bold">Hello, {userInfo.name}!</p>
-                <p className="text-sm text-white/90">Thanks for logging in. Welcome back!</p>
+              <div className="flex-1">
+                <motion.p 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="text-xl font-bold mb-1"
+                >
+                  {welcomeMessage}
+                </motion.p>
+                <motion.p 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-sm text-white/90"
+                >
+                  You're all set to go! 🚀
+                </motion.p>
               </div>
             </div>
-            {/* Progress bar */}
+            {/* Animated Progress bar */}
             <motion.div
               initial={{ width: "100%" }}
               animate={{ width: "0%" }}
               transition={{ duration: 5, ease: "linear" }}
-              className="absolute bottom-0 left-0 h-1 bg-white/30 rounded-full"
+              className="absolute bottom-0 left-0 h-1.5 bg-white/40 rounded-full"
             />
+            {/* Sparkle effects */}
+            <motion.div
+              animate={{ 
+                scale: [0, 1, 0],
+                rotate: [0, 180, 360]
+              }}
+              transition={{ duration: 1, repeat: Infinity, repeatDelay: 0.5 }}
+              className="absolute -top-2 -right-2 text-2xl"
+            >
+              ✨
+            </motion.div>
+            <motion.div
+              animate={{ 
+                scale: [0, 1, 0],
+                rotate: [360, 180, 0]
+              }}
+              transition={{ duration: 1, repeat: Infinity, repeatDelay: 0.8, delay: 0.3 }}
+              className="absolute -bottom-2 -left-2 text-2xl"
+            >
+              💫
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -761,6 +917,114 @@ export default function Header(){
           </div>
         </motion.div>
       )}
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 0, rotate: 180 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              {/* Animated Background */}
+              <div className="relative bg-gradient-to-br from-green-400 via-emerald-500 to-teal-600 p-8 text-center">
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.2, 1],
+                    rotate: [0, 360]
+                  }}
+                  transition={{ 
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "linear"
+                  }}
+                  className="absolute top-4 left-4 w-16 h-16 bg-white/20 rounded-full blur-xl"
+                />
+                <motion.div
+                  animate={{ 
+                    scale: [1, 1.3, 1],
+                    rotate: [360, 0]
+                  }}
+                  transition={{ 
+                    duration: 2.5,
+                    repeat: Infinity,
+                    ease: "linear"
+                  }}
+                  className="absolute bottom-4 right-4 w-20 h-20 bg-white/20 rounded-full blur-xl"
+                />
+                
+                {/* Success Icon */}
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="relative z-10"
+                >
+                  <motion.div
+                    animate={{ 
+                      rotate: [0, 10, -10, 10, 0],
+                      scale: [1, 1.1, 1, 1.1, 1]
+                    }}
+                    transition={{ 
+                      duration: 0.5,
+                      repeat: Infinity,
+                      repeatDelay: 1
+                    }}
+                    className="text-8xl mb-4"
+                  >
+                    🎉
+                  </motion.div>
+                </motion.div>
+                
+                {/* Message */}
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-3xl font-bold text-white mb-2 relative z-10"
+                >
+                  Success!
+                </motion.h2>
+                <motion.p
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-xl text-white/90 relative z-10"
+                >
+                  {successMessage}
+                </motion.p>
+              </div>
+              
+              {/* Bottom Section */}
+              <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  className="flex items-center justify-center gap-2 text-emerald-700"
+                >
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    className="text-2xl"
+                  >
+                    ⏳
+                  </motion.span>
+                  <span className="font-semibold">Redirecting to login...</span>
+                </motion.div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
