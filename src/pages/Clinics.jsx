@@ -6,6 +6,7 @@ import { createDoctor } from "../services/doctorService";
 export default function Clinics(){
   const [log, setLog] = useState([]);
   const navigate = useNavigate();
+  const [hoveredCard, setHoveredCard] = useState(null);
   
   // Doctor Management States
   const [showDoctorModal, setShowDoctorModal] = useState(false);
@@ -209,7 +210,7 @@ export default function Clinics(){
       title: "Add Clinic", 
       icon: "➕", 
       description: "Register a new clinic location",
-      color: "from-emerald-500 to-teal-500",
+      color: "from-emerald-400 to-teal-400",
       bgColor: "from-emerald-50 to-teal-50",
       action: () => onAction("Add Clinic")
     },
@@ -217,7 +218,7 @@ export default function Clinics(){
       title: "List Clinics", 
       icon: "📋", 
       description: "View all registered clinics",
-      color: "from-blue-500 to-cyan-500",
+      color: "from-blue-400 to-cyan-400",
       bgColor: "from-blue-50 to-cyan-50",
       action: () => onAction("List Clinics")
     },
@@ -225,7 +226,7 @@ export default function Clinics(){
       title: "Update Clinic", 
       icon: "✏️", 
       description: "Modify clinic information",
-      color: "from-amber-500 to-orange-500",
+      color: "from-amber-400 to-orange-400",
       bgColor: "from-amber-50 to-orange-50",
       action: () => onAction("Update Clinic")
     },
@@ -233,7 +234,7 @@ export default function Clinics(){
       title: "Delete Clinic", 
       icon: "🗑️", 
       description: "Remove clinic from system",
-      color: "from-red-500 to-rose-500",
+      color: "from-rose-400 to-rose-500",
       bgColor: "from-red-50 to-rose-50",
       action: () => onAction("Delete Clinic")
     },
@@ -241,7 +242,7 @@ export default function Clinics(){
       title: "Onboard Doctors", 
       icon: "👨‍⚕️", 
       description: "Add and manage doctors",
-      color: "from-purple-500 to-indigo-500",
+      color: "from-indigo-400 to-purple-400",
       bgColor: "from-purple-50 to-indigo-50",
       action: () => onAction("Onboard Doctors")
     },
@@ -249,7 +250,7 @@ export default function Clinics(){
       title: "View Doctors", 
       icon: "👀", 
       description: "Search and edit doctors",
-      color: "from-violet-500 to-purple-500",
+      color: "from-violet-400 to-purple-400",
       bgColor: "from-violet-50 to-purple-50",
       action: () => navigate("/doctors/view")
     },
@@ -257,25 +258,74 @@ export default function Clinics(){
       title: "Doctor-Clinic Mapping", 
       icon: "🔗", 
       description: "Map doctors to clinics",
-      color: "from-pink-500 to-rose-500",
+      color: "from-pink-400 to-rose-400",
       bgColor: "from-pink-50 to-rose-50",
       action: () => navigate("/doctors/clinic-mapping")
     }
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-teal-50/30 py-8">
-      {/* Header */}
-      <div className="max-w-7xl mx-auto px-4 mb-8">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 rounded-xl shadow-2xl p-8"
-        >
-          <h1 className="text-4xl font-bold text-white mb-2">Clinic Management</h1>
-          <p className="text-blue-50 text-lg">Manage clinic locations, operations, and analytics</p>
-        </motion.div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 py-8">
+      {/* Animated Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-7xl mx-auto px-4 mb-8"
+      >
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-600 via-slate-700 to-slate-800 p-8 shadow-2xl">
+          {/* Animated background blobs */}
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              rotate: [0, 90, 0],
+            }}
+            transition={{
+              duration: 20,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl"
+          />
+          <motion.div
+            animate={{
+              scale: [1.2, 1, 1.2],
+              rotate: [90, 0, 90],
+            }}
+            transition={{
+              duration: 15,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            className="absolute bottom-0 left-0 w-96 h-96 bg-blue-400/20 rounded-full blur-3xl"
+          />
+          
+          <div className="relative z-10">
+            <motion.h1
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-5xl font-bold text-white mb-3 flex items-center gap-4"
+            >
+              <motion.span
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+                className="text-6xl"
+              >
+                🏥
+              </motion.span>
+              Clinic Management Hub
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-xl text-cyan-50"
+            >
+              Manage clinic locations, operations, and analytics with ease
+            </motion.p>
+          </div>
+        </div>
+      </motion.div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 space-y-6">
@@ -286,24 +336,51 @@ export default function Clinics(){
           transition={{ delay: 0.1 }}
         >
           <h2 className="text-2xl font-bold text-slate-800 mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {quickActions.map((action, index) => (
               <motion.div
                 key={action.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 * (index + 1) }}
-                whileHover={{ scale: 1.03, y: -5 }}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 + index * 0.05 }}
+                whileHover={{ scale: 1.05, y: -5 }}
                 whileTap={{ scale: 0.98 }}
+                onHoverStart={() => setHoveredCard(action.title)}
+                onHoverEnd={() => setHoveredCard(null)}
                 onClick={action.action}
-                className={`bg-gradient-to-br ${action.bgColor} rounded-xl shadow-lg hover:shadow-2xl transition-all cursor-pointer p-6 border border-slate-200 group`}
+                className="relative cursor-pointer group"
               >
-                <div className="flex flex-col items-center text-center">
-                  <div className={`w-16 h-16 rounded-full bg-gradient-to-r ${action.color} flex items-center justify-center text-3xl mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
-                    {action.icon}
+                <div className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${action.color} p-6 shadow-lg hover:shadow-2xl transition-all duration-300`}>
+                  {/* Animated shine effect */}
+                  <motion.div
+                    animate={{
+                      x: hoveredCard === action.title ? ["-100%", "200%"] : "-100%",
+                    }}
+                    transition={{
+                      duration: 0.6,
+                      ease: "easeInOut"
+                    }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12"
+                  />
+                  
+                  {/* Content */}
+                  <div className="relative z-10">
+                    <motion.div
+                      animate={{
+                        rotate: hoveredCard === action.title ? [0, -10, 10, -10, 0] : 0,
+                      }}
+                      transition={{ duration: 0.5 }}
+                      className="text-5xl mb-3"
+                    >
+                      {action.icon}
+                    </motion.div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      {action.title}
+                    </h3>
+                    <p className="text-white/90 text-sm">
+                      {action.description}
+                    </p>
                   </div>
-                  <h3 className="text-lg font-bold text-slate-800 mb-2">{action.title}</h3>
-                  <p className="text-sm text-slate-600">{action.description}</p>
                 </div>
               </motion.div>
             ))}

@@ -9,6 +9,7 @@ export default function Staff(){
   const [log,setLog] = useState([]);
   const navigate = useNavigate();
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [hoveredCard, setHoveredCard] = useState(null);
   const [staffForm, setStaffForm] = useState({
     name: "",
     specialty: "",
@@ -45,40 +46,196 @@ export default function Staff(){
   };
 
   return (
-    <div className="space-y-4">
-      <TabCard title="Staff - Quick Actions" items={CRUD} onAction={onAction} />
-      
-      {/* Salary Management Button */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50 to-teal-50 py-8">
+      {/* Animated Header */}
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 rounded-xl shadow-lg p-6 border border-emerald-200"
+        className="max-w-7xl mx-auto px-4 mb-8"
       >
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-xl font-bold bg-gradient-to-r from-emerald-700 via-teal-700 to-cyan-700 bg-clip-text text-transparent mb-2">
-              💰 Salary Management
-            </h3>
-            <p className="text-slate-600 text-sm">
-              Calculate dentist salaries with fixed components and patient-based incentives
-            </p>
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-600 via-slate-700 to-slate-800 p-8 shadow-2xl">
+          {/* Animated background blobs */}
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              rotate: [0, 90, 0],
+            }}
+            transition={{
+              duration: 20,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl"
+          />
+          <motion.div
+            animate={{
+              scale: [1.2, 1, 1.2],
+              rotate: [90, 0, 90],
+            }}
+            transition={{
+              duration: 15,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            className="absolute bottom-0 left-0 w-96 h-96 bg-cyan-400/20 rounded-full blur-3xl"
+          />
+          
+          <div className="relative z-10">
+            <motion.h1
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-5xl font-bold text-white mb-3 flex items-center gap-4"
+            >
+              <motion.span
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+                className="text-6xl"
+              >
+                👥
+              </motion.span>
+              Staff Management Hub
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-xl text-emerald-50"
+            >
+              Manage staff members, roles, and operations efficiently
+            </motion.p>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate("/salary")}
-            className="px-6 py-3 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all"
-          >
-            Manage Salaries →
-          </motion.button>
         </div>
       </motion.div>
 
-      <div className="card">
-        <h3 className="font-semibold mb-2">Staff activity</h3>
-        <ul className="list-disc pl-5 text-sm">
-          {log.length===0 ? <li>No activity yet</li> : log.map((l,i)=><li key={i}>{l}</li>)}
-        </ul>
+      <div className="max-w-7xl mx-auto px-4 space-y-6">
+        {/* Quick Actions Tiles */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { id: 'add', title: '➕ Add Staff', description: 'Add new staff member', icon: '➕', color: 'from-emerald-400 to-teal-400', action: 'Add Staff' },
+              { id: 'list', title: '📋 List Staff', description: 'View all staff', icon: '📋', color: 'from-teal-400 to-cyan-400', action: 'List Staff' },
+              { id: 'assign', title: '🎭 Assign Role', description: 'Assign staff roles', icon: '🎭', color: 'from-cyan-400 to-blue-400', action: 'Assign Role' },
+              { id: 'remove', title: '🗑️ Remove Staff', description: 'Remove staff member', icon: '🗑️', color: 'from-blue-400 to-indigo-400', action: 'Remove Staff' }
+            ].map((tile, index) => (
+              <motion.div
+                key={tile.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 + index * 0.05 }}
+                whileHover={{ scale: 1.05, y: -5 }}
+                whileTap={{ scale: 0.98 }}
+                onHoverStart={() => setHoveredCard(tile.id)}
+                onHoverEnd={() => setHoveredCard(null)}
+                onClick={() => onAction(tile.action)}
+                className="relative cursor-pointer group"
+              >
+                <div className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${tile.color} p-6 shadow-lg hover:shadow-2xl transition-all duration-300`}>
+                  {/* Animated shine effect */}
+                  <motion.div
+                    animate={{
+                      x: hoveredCard === tile.id ? ["-100%", "200%"] : "-100%",
+                    }}
+                    transition={{
+                      duration: 0.6,
+                      ease: "easeInOut"
+                    }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12"
+                  />
+                  
+                  {/* Content */}
+                  <div className="relative z-10">
+                    <motion.div
+                      animate={{
+                        rotate: hoveredCard === tile.id ? [0, -10, 10, -10, 0] : 0,
+                      }}
+                      transition={{ duration: 0.5 }}
+                      className="text-5xl mb-3"
+                    >
+                      {tile.icon}
+                    </motion.div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      {tile.title}
+                    </h3>
+                    <p className="text-white/90 text-sm">
+                      {tile.description}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      
+        {/* Salary Management Button */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-gradient-to-r from-amber-50 via-orange-50 to-red-50 rounded-xl shadow-lg p-6 border border-amber-200"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <motion.div
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+                className="text-5xl"
+              >
+                💰
+              </motion.div>
+              <div>
+                <h3 className="text-2xl font-bold bg-gradient-to-r from-amber-700 via-orange-700 to-red-700 bg-clip-text text-transparent mb-1">
+                  Salary Management
+                </h3>
+                <p className="text-slate-600">
+                  Calculate dentist salaries with fixed components and patient-based incentives
+                </p>
+              </div>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate("/salary")}
+              className="px-6 py-3 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+            >
+              Manage Salaries →
+            </motion.button>
+          </div>
+        </motion.div>
+
+        {/* Activity Log */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="bg-white rounded-xl shadow-lg p-6 border border-slate-200"
+        >
+          <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <span className="text-2xl">📊</span>
+            Recent Activity
+          </h3>
+          <ul className="space-y-2">
+            {log.length === 0 ? (
+              <li className="text-slate-500 italic">No activity yet</li>
+            ) : (
+              log.map((l, i) => (
+                <motion.li
+                  key={i}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="p-3 bg-slate-50 rounded-lg text-slate-700 border-l-4 border-teal-500"
+                >
+                  {l}
+                </motion.li>
+              ))
+            )}
+          </ul>
+        </motion.div>
       </div>
 
       {/* Add Staff Modal */}

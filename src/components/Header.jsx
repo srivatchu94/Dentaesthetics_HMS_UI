@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { registerUser, loginUser } from "../services/authService";
+import { registerUser, loginUser, getUserByUsername } from "../services/authService";
+import { listDoctorProfiles } from "../services/doctorService";
 
 const TABS = [
   { key: "home", path: "/", label: "Home", bgColor: "from-coral-100 to-peach-100", textColor: "text-coral-800", borderColor: "border-coral-400", hoverBg: "hover:bg-coral-200", icon: "🏠" },
@@ -9,7 +10,7 @@ const TABS = [
   { key: "patients", path: "/patients", label: "Patients", bgColor: "from-peach-100 to-gold-100", textColor: "text-peach-800", borderColor: "border-peach-400", hoverBg: "hover:bg-peach-200", icon: "👥" },
   { key: "visits", path: "/visits", label: "Visits", bgColor: "from-violet-100 to-purple-100", textColor: "text-purple-800", borderColor: "border-purple-400", hoverBg: "hover:bg-purple-200", icon: "📋" },
   { key: "services", path: "/services", label: "Services", bgColor: "from-gold-100 to-peach-100", textColor: "text-gold-800", borderColor: "border-gold-400", hoverBg: "hover:bg-gold-200", icon: "🦷" },
-  { key: "staff", path: "/staff", label: "Staff", bgColor: "from-sage-100 to-teal-100", textColor: "text-sage-800", borderColor: "border-sage-400", hoverBg: "hover:bg-sage-200", icon: "👨‍⚕️" },
+  { key: "team-hub", path: "/team-hub", label: "Team Hub", bgColor: "from-indigo-100 to-purple-100", textColor: "text-indigo-800", borderColor: "border-indigo-400", hoverBg: "hover:bg-indigo-200", icon: "🌟" },
 ];
 
 const CRUD_OPERATIONS = {
@@ -18,7 +19,7 @@ const CRUD_OPERATIONS = {
   patients: ["create", "view", "update", "delete"],
   visits: [],
   services: ["create", "view", "update", "delete"],
-  staff: ["create", "view", "update", "delete"],
+  "team-hub": [],
 };
 
 // Sample notifications data
@@ -39,7 +40,8 @@ const SEARCH_DATA = [
   { type: "appointment", name: "Today's Appointments", path: "/doctors", icon: "📅", meta: "12 scheduled" },
   { type: "clinic", name: "Downtown Dental Care", path: "/clinics/view", icon: "🏥", meta: "Main Clinic" },
   { type: "service", name: "Root Canal", path: "/services", icon: "🛠️", meta: "$500" },
-  { type: "staff", name: "Staff Management", path: "/staff", icon: "👔", meta: "12 members" },
+  { type: "team-hub", name: "Team Hub", path: "/team-hub", icon: "🌟", meta: "Doctors & Staff" },
+  { type: "doctors", name: "Doctors Lounge", path: "/doctors", icon: "👨‍⚕️", meta: "24 physicians" },
   { type: "inventory", name: "Inventory Management", path: "/doctors", icon: "📦", meta: "6 items" },
 ];
 
@@ -47,6 +49,7 @@ export default function Header(){
   const [hoveredTab, setHoveredTab] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState({ name: "", role: "" });
+  const [doctorName, setDoctorName] = useState("");
   const [showWelcome, setShowWelcome] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
@@ -196,6 +199,21 @@ export default function Header(){
         setShowWelcome(true);
         setTimeout(() => setShowWelcome(false), 5000);
         setFormData({ username: "", emailid: "", mobileNumber: "", password: "" });
+        
+        // Fetch doctor's profile to get their actual name
+        try {
+          const doctors = await listDoctorProfiles();
+          // Find doctor by matching username or email
+          const doctor = doctors.find(d => 
+            d.email?.toLowerCase() === username.toLowerCase() ||
+            (d.firstName + d.lastName).toLowerCase().replace(/\s/g, '') === username.toLowerCase().replace(/\s/g, '')
+          );
+          if (doctor) {
+            setDoctorName(`Dr. ${doctor.firstName} ${doctor.lastName}`);
+          }
+        } catch (err) {
+          console.log("Could not fetch doctor profile:", err);
+        }
       } catch (err) {
         setAuthError("Invalid credentials. Please try again.");
         console.error("Login error:", err);
@@ -209,6 +227,7 @@ export default function Header(){
     setIsLoggedIn(false);
     setShowWelcome(false);
     setUserInfo({ name: "", role: "" });
+    setDoctorName("");
   };
 
   const handleInputChange = (e) => {
@@ -375,7 +394,7 @@ export default function Header(){
                         className="px-4 py-2 bg-gradient-to-r from-teal-500 via-purple-500 to-coral-500 text-white rounded-lg hover:shadow-xl transition-all font-semibold shadow-lg text-sm flex items-center gap-2"
                       >
                         <span>👨‍⚕️</span>
-                        <span>Doctor's Space</span>
+                        <span>{doctorName || "Doctor's Space"}</span>
                       </motion.button>
                     </>
                   )}

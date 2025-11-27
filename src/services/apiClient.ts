@@ -11,10 +11,22 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     },
     ...options
   });
+  
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
+    const error: any = new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
+    error.status = res.status;
+    error.response = { status: res.status, statusText: res.statusText, data: text };
+    
+    // Auto-redirect for unauthorized errors - redirect immediately without throwing
+    if (res.status === 401 || res.status === 403) {
+      window.location.href = '/unauthorized';
+      return Promise.reject(error); // Return rejected promise without showing alert
+    }
+    
+    throw error;
   }
+  
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }

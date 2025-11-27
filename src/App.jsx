@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header";
 import ErrorPage from "./components/ErrorPage";
 import ErrorBoundary from "./components/ErrorBoundary";
+import UnauthorizedPage from "./pages/UnauthorizedPage";
 import Home from "./pages/Home";
 import Clinics from "./pages/Clinics";
 import CreateClinic from "./pages/CreateClinic";
@@ -12,6 +13,7 @@ import ViewPatients from "./pages/ViewPatients";
 import EditPatients from "./pages/EditPatients";
 import Services from "./pages/Services";
 import Staff from "./pages/Staff";
+import TeamHub from "./pages/TeamHub";
 import Doctors from "./pages/Doctors";
 import ViewDoctors from "./pages/ViewDoctors";
 import DoctorClinicMapping from "./pages/DoctorClinicMapping";
@@ -45,6 +47,7 @@ export default function App(){
           <Route path="/patients/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resourceType="patients" /></div>} />
           <Route path="/services" element={<div className="max-w-6xl mx-auto"><Services /></div>} />
           <Route path="/services/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Services" /></div>} />
+          <Route path="/team-hub" element={<TeamHub />} />
           <Route path="/staff" element={<div className="max-w-6xl mx-auto"><Staff /></div>} />
           <Route path="/staff/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Staff" /></div>} />
           <Route path="/doctors" element={<Doctors />} />
@@ -57,6 +60,7 @@ export default function App(){
           <Route path="/salary" element={<SalaryManagement />} />
           <Route path="/salary/doctor/:doctorId" element={<DoctorSalaryDetails />} />
           <Route path="/error-preview" element={<ErrorPage error={{ message: "This is a preview of the error page for testing purposes!" }} />} />
+          <Route path="/unauthorized" element={<UnauthorizedPage />} />
           </Routes>
         </main>
         <Footer />

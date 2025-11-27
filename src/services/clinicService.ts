@@ -40,13 +40,13 @@ export function createClinic(payload: CreateClinicDto): Promise<ClinicModel> {
   });
 }
 
-export function updateClinic(clinicId: number, payload: UpdateClinicDto): Promise<ClinicModel> {
-  return request<ClinicModel>(`/Clinic/UpdateClinic?id=${clinicId}`, {
+export function updateClinic(clinicId: number, clinic: ClinicModel): Promise<ClinicModel> {
+  return request<ClinicModel>(`/Clinic/${clinicId}`, {
     method: "PUT",
-    body: JSON.stringify(payload)
+    body: JSON.stringify(clinic)
   });
 }
 
 export function deleteClinic(clinicId: number): Promise<void> {
-  return request<void>(`/clinics/${clinicId}`, { method: "DELETE" });
+  return request<void>(`/Clinic/${clinicId}`, { method: "DELETE" });
 }

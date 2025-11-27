@@ -100,6 +100,7 @@ export default function Patients() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState("list");
+  const [hoveredCard, setHoveredCard] = useState(null);
   
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState("");
@@ -412,40 +413,132 @@ export default function Patients() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 py-8">
-      {/* Header */}
-      <div className="max-w-7xl mx-auto px-4 mb-8">
-        <div className="bg-gradient-to-r from-coral-500 to-peach-500 rounded-lg shadow-coral p-6">
-          <h1 className="text-3xl font-bold text-white mb-2">Patient Management</h1>
-          <p className="text-amber-50">Register, view, and manage patient information</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 py-8">
+      {/* Animated Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="max-w-7xl mx-auto px-4 mb-8"
+      >
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-600 via-slate-700 to-slate-800 p-8 shadow-2xl">
+          {/* Animated background blobs */}
+          <motion.div
+            animate={{
+              scale: [1, 1.2, 1],
+              rotate: [0, 90, 0],
+            }}
+            transition={{
+              duration: 20,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl"
+          />
+          <motion.div
+            animate={{
+              scale: [1.2, 1, 1.2],
+              rotate: [90, 0, 90],
+            }}
+            transition={{
+              duration: 15,
+              repeat: Infinity,
+              ease: "linear"
+            }}
+            className="absolute bottom-0 left-0 w-96 h-96 bg-blue-400/20 rounded-full blur-3xl"
+          />
+          
+          <div className="relative z-10">
+            <motion.h1
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="text-5xl font-bold text-white mb-3 flex items-center gap-4"
+            >
+              <motion.span
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+                className="text-6xl"
+              >
+                🏥
+              </motion.span>
+              Patient Management Hub
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-xl text-cyan-50"
+            >
+              Register, view, and manage patient information with ease
+            </motion.p>
+          </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4">
-        {/* View Selector */}
-        <div className="mb-6 flex gap-4">
-          <button
-            onClick={() => setActiveView("register")}
-            className={`px-6 py-3 rounded-lg font-semibold transition ${
-              activeView === "register"
-                ? "bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 text-white shadow-lg"
-                : "bg-white text-stone-700 hover:bg-stone-50 shadow"
-            }`}
-          >
-            📝 Register Patient
-          </button>
-          <button
-            onClick={() => setActiveView("list")}
-            className={`px-6 py-3 rounded-lg font-semibold transition ${
-              activeView === "list"
-                ? "bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-500 text-white shadow-lg"
-                : "bg-white text-stone-700 hover:bg-stone-50 shadow"
-            }`}
-          >
-            📋 View Patients
-          </button>
-        </div>
+        {/* Quick Action Tiles */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="mb-8"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { id: 'register', title: '📝 Register Patient', description: 'Add new patient records', icon: '📝', color: 'from-teal-400 to-cyan-400', action: () => setActiveView('register') },
+              { id: 'list', title: '📋 View Patients', description: 'Browse patient records', icon: '📋', color: 'from-blue-400 to-indigo-400', action: () => setActiveView('list') },
+              { id: 'edit', title: '✏️ Edit Records', description: 'Update patient info', icon: '✏️', color: 'from-indigo-400 to-purple-400', action: () => navigate('/patients/edit') },
+              { id: 'remove', title: '🗑️ Remove Patient', description: 'Delete patient records', icon: '🗑️', color: 'from-rose-400 to-rose-500', action: () => navigate('/patients/delete') }
+            ].map((tile, index) => (
+              <motion.div
+                key={tile.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 + index * 0.05 }}
+                whileHover={{ scale: 1.05, y: -5 }}
+                whileTap={{ scale: 0.98 }}
+                onHoverStart={() => setHoveredCard(tile.id)}
+                onHoverEnd={() => setHoveredCard(null)}
+                onClick={tile.action}
+                className="relative cursor-pointer group"
+              >
+                <div className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${tile.color} p-6 shadow-lg hover:shadow-2xl transition-all duration-300`}>
+                  {/* Animated shine effect */}
+                  <motion.div
+                    animate={{
+                      x: hoveredCard === tile.id ? ["-100%", "200%"] : "-100%",
+                    }}
+                    transition={{
+                      duration: 0.6,
+                      ease: "easeInOut"
+                    }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12"
+                  />
+                  
+                  {/* Content */}
+                  <div className="relative z-10">
+                    <motion.div
+                      animate={{
+                        rotate: hoveredCard === tile.id ? [0, -10, 10, -10, 0] : 0,
+                      }}
+                      transition={{ duration: 0.5 }}
+                      className="text-5xl mb-3"
+                    >
+                      {tile.icon}
+                    </motion.div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      {tile.title}
+                    </h3>
+                    <p className="text-white/90 text-sm">
+                      {tile.description}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
 
         {/* Registration Form */}
         {activeView === "register" && (
