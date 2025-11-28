@@ -8,6 +8,7 @@ export * from "./doctorService";
 export * from "./roleService";
 export * from "./patientService";
 export * from "./authService";
+export * from "./accessControlService";
 
 // Export hooks
 export * from "./hooks";

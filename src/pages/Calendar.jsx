@@ -20,6 +20,12 @@ const TREATMENT_TYPES = ["Cleaning", "Checkup", "Filling", "Root Canal", "Extrac
 
 export default function Calendar() {
   const navigate = useNavigate();
+  const location = window.location;
+  
+  // Get patient data from navigation state
+  const navigationState = window.history.state?.usr;
+  const patientFromNav = navigationState?.patientData;
+  
   const [currentDate, setCurrentDate] = useState(new Date(2025, 10, 1)); // November 2025
   const [selectedDate, setSelectedDate] = useState(null);
   const [viewMode, setViewMode] = useState("month");
@@ -31,18 +37,25 @@ export default function Calendar() {
   const [showDoubleBookingModal, setShowDoubleBookingModal] = useState(false);
   const [pendingAppointment, setPendingAppointment] = useState(null);
   
-  // Booking form state
+  // Booking form state - pre-fill with patient data if available
   const [bookingForm, setBookingForm] = useState({
-    patientName: "",
-    patientPhone: "",
-    patientEmail: "",
+    patientName: patientFromNav?.patientName || "",
+    patientPhone: patientFromNav?.patientPhone || "",
+    patientEmail: patientFromNav?.patientEmail || "",
     date: "",
     startTime: "",
     endTime: "",
     type: "",
     doctor: "Dr. Smith",
-    notes: ""
+    notes: patientFromNav ? `Patient ID: ${patientFromNav.patientId} | DOB: ${patientFromNav.patientDOB ? new Date(patientFromNav.patientDOB).toLocaleDateString() : 'N/A'} | Gender: ${patientFromNav.patientGender || 'N/A'}` : ""
   });
+  
+  // Auto-open booking modal if patient data is provided
+  React.useEffect(() => {
+    if (patientFromNav) {
+      setShowBookingModal(true);
+    }
+  }, [patientFromNav]);
 
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -496,6 +509,42 @@ export default function Calendar() {
                     </svg>
                   </button>
                 </div>
+
+                {/* Patient Info Banner (if coming from patient search) */}
+                {patientFromNav && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-6 p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border-2 border-emerald-300 rounded-xl"
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full flex items-center justify-center text-white font-bold">
+                        {patientFromNav.patientFirstName?.charAt(0)}{patientFromNav.patientLastName?.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-emerald-900">Booking for Patient:</p>
+                        <p className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-700 to-teal-700">
+                          {patientFromNav.patientName}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="bg-white/60 px-3 py-1.5 rounded-lg">
+                        <span className="text-emerald-700 font-semibold">ID:</span> {patientFromNav.patientId}
+                      </div>
+                      {patientFromNav.patientGender && (
+                        <div className="bg-white/60 px-3 py-1.5 rounded-lg">
+                          <span className="text-emerald-700 font-semibold">Gender:</span> {patientFromNav.patientGender}
+                        </div>
+                      )}
+                      {patientFromNav.patientBloodType && (
+                        <div className="bg-white/60 px-3 py-1.5 rounded-lg">
+                          <span className="text-emerald-700 font-semibold">Blood:</span> {patientFromNav.patientBloodType}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
 
                 <form onSubmit={handleBookingSubmit} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">

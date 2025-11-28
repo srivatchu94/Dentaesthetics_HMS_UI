@@ -8,6 +8,7 @@ export type { DoctorProfileModel } from "./DoctorProfileModel";
 export type { DentalServiceModel } from "./DentalServiceModel";
 export type { ClinicalSpecialtyModel } from "./ClinicalSpecialtyModel";
 export type { RoleModel } from "./RoleModel";
+export type { AccessControlModel, CreateAccessControlDto, BulkAssignRolesDto, UpdateAccessControlDto, AccessControlWithDetails } from "./AccessControlModel";
 
 // Authentication models
 export type { RegisterRequest, LoginRequest, AuthResponse, UserCredentialModel } from "./AuthModels";

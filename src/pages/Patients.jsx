@@ -1312,6 +1312,29 @@ export default function Patients() {
                                 ID: {patient.patientId || 'N/A'}
                               </p>
                             </div>
+                            <motion.button
+                              whileHover={{ scale: 1.1, rotate: 10 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => navigate('/calendar', { 
+                                state: { 
+                                  patientData: {
+                                    patientId: patient.patientId,
+                                    patientName: `${patient.patientFirstName || ''} ${patient.patientLastName || ''}`.trim(),
+                                    patientFirstName: patient.patientFirstName,
+                                    patientLastName: patient.patientLastName,
+                                    patientPhone: patient.patientPhone || '',
+                                    patientEmail: patient.patientEmail || '',
+                                    patientDOB: patient.patientDOB,
+                                    patientGender: patient.patientGender,
+                                    patientBloodType: patient.patientBloodType
+                                  }
+                                } 
+                              })}
+                              className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+                              title="Book Appointment"
+                            >
+                              📅
+                            </motion.button>
                           </div>
                           
                           <div className="relative space-y-3 mb-5">
@@ -2127,10 +2150,35 @@ export default function Patients() {
                       <motion.button
                         whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
+                        onClick={() => {
+                          const patient = selectedPatient?.patient;
+                          navigate('/calendar', { 
+                            state: { 
+                              patientData: {
+                                patientId: patient?.patientId,
+                                patientName: `${patient?.patientFirstName || ''} ${patient?.patientLastName || ''}`.trim(),
+                                patientFirstName: patient?.patientFirstName,
+                                patientLastName: patient?.patientLastName,
+                                patientPhone: selectedPatient?.patientContact?.patientPrimaryPhone || '',
+                                patientEmail: selectedPatient?.patientContact?.patientEmail || '',
+                                patientDOB: patient?.patientDOB,
+                                patientGender: patient?.patientGender,
+                                patientBloodType: patient?.patientBloodType
+                              }
+                            } 
+                          });
+                        }}
+                        className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-200"
+                      >
+                        📅 Book Appointment
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.99 }}
                         onClick={() => setIsEditMode(true)}
                         className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-200"
                       >
-                        Edit Patient
+                        ✏️ Edit Patient
                       </motion.button>
                       <motion.button
                         whileHover={{ scale: 1.01 }}

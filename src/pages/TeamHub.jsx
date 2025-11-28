@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { createDoctor } from '../services/doctorService';
+import { createDoctor, searchDoctors } from '../services/doctorService';
+import { bulkAssignRoles } from '../services/accessControlService';
 
 const TeamHub = () => {
   const navigate = useNavigate();
@@ -27,136 +28,44 @@ const TeamHub = () => {
   const [selectedRoles, setSelectedRoles] = useState([]);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [roleSelectionMode, setRoleSelectionMode] = useState("multi-select"); // multi-select, drag-drop, toggle-switch, permission-builder
+  const [isSearching, setIsSearching] = useState(false);
+  const [isAssigningRoles, setIsAssigningRoles] = useState(false);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [successMessage, setSuccessMessage] = useState({ name: "", roles: "", count: 0 });
   
-  // Expanded roles with permissions
+  // Roles mapped to backend database (RoleId matches backend)
   const availableRoles = [
     { 
       id: 1, 
-      name: "Super Admin", 
+      name: "Admin", 
       icon: "👑", 
       color: "from-purple-500 to-indigo-600", 
-      description: "Complete system control",
-      permissions: ["All Access", "User Management", "System Settings", "Audit Logs"]
+      description: "Full system access",
+      permissions: ["User Management", "Roles Management", "Settings", "Clinic Operations"]
     },
     { 
       id: 2, 
-      name: "Clinic Admin", 
-      icon: "🏥", 
-      color: "from-blue-500 to-cyan-500", 
-      description: "Clinic-level administration",
-      permissions: ["Clinic Settings", "Staff Management", "Reports", "Inventory"]
-    },
-    { 
-      id: 3, 
-      name: "Senior Doctor", 
-      icon: "👨‍⚕️", 
-      color: "from-teal-400 to-emerald-400", 
-      description: "Advanced medical access",
-      permissions: ["Patient Records", "Prescriptions", "Surgery", "Supervise Staff"]
-    },
-    { 
-      id: 4, 
       name: "Doctor", 
       icon: "🩺", 
       color: "from-cyan-400 to-blue-400", 
-      description: "Standard medical care",
-      permissions: ["Patient Records", "Prescriptions", "Treatments", "Appointments"]
+      description: "Medical professional access",
+      permissions: ["Patient Records", "Treatment Plans", "Prescriptions", "Scheduling"]
     },
     { 
-      id: 5, 
-      name: "Dental Hygienist", 
-      icon: "🦷", 
-      color: "from-green-400 to-teal-400", 
-      description: "Preventive dental care",
-      permissions: ["Cleanings", "X-Rays", "Patient Education", "Basic Exams"]
-    },
-    { 
-      id: 6, 
-      name: "Nurse", 
-      icon: "👩‍⚕️", 
-      color: "from-pink-400 to-rose-400", 
-      description: "Patient care support",
-      permissions: ["Patient Records", "Vital Signs", "Assist Procedures", "Medications"]
-    },
-    { 
-      id: 7, 
+      id: 3, 
       name: "Receptionist", 
       icon: "📞", 
       color: "from-rose-400 to-pink-400", 
       description: "Front desk operations",
-      permissions: ["Appointments", "Check-in/out", "Phone Calls", "Basic Info"]
+      permissions: ["Appointments", "Patient Check-ins", "Billing", "Front-desk Operations"]
     },
     { 
-      id: 8, 
-      name: "Practice Manager", 
-      icon: "💼", 
-      color: "from-emerald-400 to-teal-400", 
-      description: "Operations management",
-      permissions: ["Staff Scheduling", "Inventory", "Reports", "Billing Overview"]
-    },
-    { 
-      id: 9, 
-      name: "Financial Manager", 
-      icon: "💰", 
-      color: "from-amber-400 to-orange-400", 
-      description: "Financial operations",
-      permissions: ["Billing", "Payments", "Insurance", "Financial Reports"]
-    },
-    { 
-      id: 10, 
-      name: "Accountant", 
-      icon: "📊", 
-      color: "from-orange-400 to-amber-400", 
-      description: "Accounting & bookkeeping",
-      permissions: ["Invoices", "Expenses", "Tax Records", "Payroll"]
-    },
-    { 
-      id: 11, 
-      name: "Lab Technician", 
-      icon: "🔬", 
-      color: "from-indigo-400 to-purple-400", 
-      description: "Laboratory operations",
-      permissions: ["Lab Tests", "Equipment", "Results Entry", "Quality Control"]
-    },
-    { 
-      id: 12, 
-      name: "Pharmacist", 
-      icon: "💊", 
-      color: "from-violet-400 to-purple-400", 
-      description: "Medication management",
-      permissions: ["Prescriptions", "Drug Inventory", "Dispensing", "Drug Info"]
-    },
-    { 
-      id: 13, 
-      name: "Radiologist", 
-      icon: "📷", 
-      color: "from-slate-400 to-slate-500", 
-      description: "Imaging specialist",
-      permissions: ["X-Rays", "Imaging", "Results", "Equipment"]
-    },
-    { 
-      id: 14, 
-      name: "IT Support", 
-      icon: "💻", 
-      color: "from-blue-400 to-indigo-400", 
-      description: "Technical support",
-      permissions: ["System Access", "Troubleshooting", "Backups", "Updates"]
-    },
-    { 
-      id: 15, 
-      name: "Marketing", 
-      icon: "📢", 
-      color: "from-pink-400 to-fuchsia-400", 
-      description: "Marketing & outreach",
-      permissions: ["Campaigns", "Social Media", "Analytics", "Patient Engagement"]
-    },
-    { 
-      id: 16, 
-      name: "HR Manager", 
-      icon: "👥", 
-      color: "from-teal-400 to-cyan-400", 
-      description: "Human resources",
-      permissions: ["Recruitment", "Onboarding", "Performance", "Leave Management"]
+      id: 4, 
+      name: "Patient", 
+      icon: "🙋", 
+      color: "from-green-400 to-teal-400", 
+      description: "Limited patient access",
+      permissions: ["Personal Records", "Appointments", "Bills", "Notifications"]
     }
   ];
   
@@ -329,17 +238,55 @@ const TeamHub = () => {
   };
   
   // Access Control Functions
-  const handleSearchStaff = () => {
-    // Filter mock data based on search criteria
-    const filtered = mockStaffData.filter(staff => {
-      return (
-        (searchFilters.staffId === "" || staff.staffId.toLowerCase().includes(searchFilters.staffId.toLowerCase())) &&
-        (searchFilters.firstName === "" || staff.firstName.toLowerCase().includes(searchFilters.firstName.toLowerCase())) &&
-        (searchFilters.lastName === "" || staff.lastName.toLowerCase().includes(searchFilters.lastName.toLowerCase())) &&
-        (searchFilters.clinicId === "" || staff.clinicId.toLowerCase().includes(searchFilters.clinicId.toLowerCase()))
-      );
-    });
-    setSearchResults(filtered);
+  const handleSearchStaff = async () => {
+    setIsSearching(true);
+    try {
+      // Build search params for API
+      const searchParams = {};
+      
+      if (searchFilters.staffId) {
+        searchParams.staffId = parseInt(searchFilters.staffId);
+      }
+      if (searchFilters.firstName) {
+        searchParams.firstName = searchFilters.firstName;
+      }
+      if (searchFilters.lastName) {
+        searchParams.lastName = searchFilters.lastName;
+      }
+      if (searchFilters.clinicId) {
+        searchParams.clinicId = parseInt(searchFilters.clinicId);
+      }
+      
+      console.log('🔍 Searching doctors with params:', searchParams);
+      
+      // Call the SearchDoctors API
+      const results = await searchDoctors(searchParams);
+      
+      console.log('✅ Found doctors:', results);
+      
+      // Transform API results to match UI structure
+      const transformedResults = results.map(doctor => ({
+        id: doctor.doctorId,
+        staffId: doctor.staffId,
+        firstName: doctor.firstName,
+        lastName: doctor.lastName,
+        clinicId: doctor.branchId, // branchId maps to clinicId
+        currentRole: doctor.role,
+        email: doctor.email
+      }));
+      
+      setSearchResults(transformedResults);
+      
+      if (transformedResults.length === 0) {
+        alert('ℹ️ No doctors found matching the search criteria.');
+      }
+    } catch (error) {
+      console.error('❌ Error searching doctors:', error);
+      alert(`❌ Failed to search doctors: ${error.message}`);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
   };
   
   const handleSelectStaff = (staff) => {
@@ -368,22 +315,58 @@ const TeamHub = () => {
     setShowConfirmation(true);
   };
   
-  const handleConfirmAssignment = () => {
+  const handleConfirmAssignment = async () => {
     if (selectedStaff) {
       const roleNames = selectedRoles.map(r => r.name).join(", ");
-      // Update the staff's role in the results (showing first role for display)
-      setSearchResults(prev => prev.map(s => 
-        s.id === selectedStaff.id ? { ...s, currentRole: selectedRoles[0].name, allRoles: selectedRoles } : s
-      ));
-      setShowConfirmation(false);
-      setShowRoleManager(false);
-      setSelectedStaff(null);
-      setSelectedRoles([]);
+      setIsAssigningRoles(true);
       
-      // Show success animation
-      setTimeout(() => {
-        alert(`✅ Successfully assigned ${selectedRoles.length} role(s) to ${selectedStaff.firstName} ${selectedStaff.lastName}!\n\nRoles: ${roleNames}`);
-      }, 300);
+      try {
+        // Prepare the payload for backend API
+        const payload = {
+          userId: selectedStaff.staffId,  // Use staffId as the userId
+          clinicId: selectedStaff.clinicId, // Use actual clinicId (branchId from API)
+          roleIds: selectedRoles.map(r => r.id), // Array of role IDs [1, 2, 3, etc.]
+          isActive: true
+        };
+        
+        console.log('📤 Sending role assignment:', payload);
+        
+        // Call the backend API to assign roles (calls AssignRoles endpoint for each role)
+        const result = await bulkAssignRoles(payload);
+        
+        console.log('✅ Roles assigned successfully:', result);
+        
+        // Update the staff's role in the results (showing first role for display)
+        setSearchResults(prev => prev.map(s => 
+          s.id === selectedStaff.id ? { ...s, currentRole: selectedRoles[0].name, allRoles: selectedRoles } : s
+        ));
+        
+        // Close modals
+        setShowConfirmation(false);
+        setShowRoleManager(false);
+        setIsAssigningRoles(false);
+        
+        // Show animated success popup
+        setSuccessMessage({
+          name: `${selectedStaff.firstName} ${selectedStaff.lastName}`,
+          roles: roleNames,
+          count: result.length
+        });
+        setShowSuccessPopup(true);
+        
+        // Reset selection after 4 seconds
+        setTimeout(() => {
+          setSelectedStaff(null);
+          setSelectedRoles([]);
+        }, 4000);
+        
+      } catch (error) {
+        console.error('❌ Error assigning roles:', error);
+        setIsAssigningRoles(false);
+        
+        // Show error in a custom way (you can create error popup too)
+        alert(`❌ Failed to assign roles: ${error.message}\n\nPlease check the console for details.`);
+      }
     }
   };
   
@@ -1529,9 +1512,12 @@ const TeamHub = () => {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleConfirmAssignment}
-                  className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl font-bold shadow-lg transition-all"
+                  disabled={isAssigningRoles}
+                  className={`flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl font-bold shadow-lg transition-all ${
+                    isAssigningRoles ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
-                  ✓ Confirm & Assign
+                  {isAssigningRoles ? '⏳ Assigning...' : '✓ Confirm & Assign'}
                 </motion.button>
               </div>
             </motion.div>
@@ -1637,9 +1623,12 @@ const TeamHub = () => {
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={handleSearchStaff}
-                        className="w-full py-3 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all"
+                        disabled={isSearching}
+                        className={`w-full py-3 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all ${
+                          isSearching ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
                       >
-                        🔍 Search Staff
+                        {isSearching ? '⏳ Searching...' : '🔍 Search Staff'}
                       </motion.button>
                     </div>
 
@@ -2115,6 +2104,147 @@ const TeamHub = () => {
                     </div>
                   </motion.div>
                 )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Popup with Animations */}
+      <AnimatePresence>
+        {showSuccessPopup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            onClick={() => setShowSuccessPopup(false)}
+          >
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 0, rotate: 180 }}
+              transition={{ type: "spring", duration: 0.6 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              {/* Confetti Animation Background */}
+              <div className="relative bg-gradient-to-br from-green-400 via-emerald-500 to-teal-500 p-8 text-center overflow-hidden">
+                {/* Animated confetti particles */}
+                {[...Array(20)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ y: -20, opacity: 1 }}
+                    animate={{ 
+                      y: [null, 200],
+                      x: [null, Math.random() * 200 - 100],
+                      rotate: [null, Math.random() * 360],
+                      opacity: [null, 0]
+                    }}
+                    transition={{ 
+                      duration: 2 + Math.random(),
+                      delay: Math.random() * 0.5,
+                      repeat: Infinity,
+                      repeatDelay: 1
+                    }}
+                    className="absolute w-3 h-3 rounded-full"
+                    style={{
+                      left: `${Math.random() * 100}%`,
+                      backgroundColor: ['#fbbf24', '#f472b6', '#a78bfa', '#60a5fa', '#34d399'][i % 5]
+                    }}
+                  />
+                ))}
+                
+                {/* Success Icon */}
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: [0, 1.2, 1] }}
+                  transition={{ delay: 0.2, duration: 0.5 }}
+                  className="relative z-10"
+                >
+                  <div className="w-24 h-24 mx-auto mb-4 bg-white rounded-full flex items-center justify-center shadow-xl">
+                    <motion.div
+                      animate={{ rotate: [0, 15, -15, 0] }}
+                      transition={{ delay: 0.6, duration: 0.5 }}
+                      className="text-6xl"
+                    >
+                      🎉
+                    </motion.div>
+                  </div>
+                </motion.div>
+                
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-3xl font-bold text-white mb-2 relative z-10"
+                >
+                  Boom! Roles Assigned! 🚀
+                </motion.h2>
+                
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-white/90 text-lg relative z-10"
+                >
+                  That was smoother than butter! 🧈
+                </motion.p>
+              </div>
+              
+              {/* Details Section */}
+              <div className="p-6 bg-white">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="space-y-4"
+                >
+                  <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl">
+                    <span className="text-3xl">👤</span>
+                    <div>
+                      <p className="text-sm text-slate-600">Superstar</p>
+                      <p className="font-bold text-slate-800">{successMessage.name}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-3 bg-purple-50 rounded-xl">
+                    <span className="text-3xl">🎭</span>
+                    <div>
+                      <p className="text-sm text-slate-600">New Powers Unlocked</p>
+                      <p className="font-bold text-slate-800">{successMessage.roles}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl">
+                    <span className="text-3xl">💾</span>
+                    <div>
+                      <p className="text-sm text-slate-600">Database Magic</p>
+                      <p className="font-bold text-slate-800">{successMessage.count} record{successMessage.count > 1 ? 's' : ''} created</p>
+                    </div>
+                  </div>
+                  
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 1 }}
+                    className="text-center text-sm text-slate-500 italic mt-4"
+                  >
+                    "With great power comes great responsibility!" 🦸‍♂️
+                  </motion.div>
+                </motion.div>
+                
+                <motion.button
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.8 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowSuccessPopup(false)}
+                  className="w-full mt-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl font-bold shadow-lg transition-all"
+                >
+                  Awesome! 🎊
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>
