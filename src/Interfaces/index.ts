@@ -5,6 +5,7 @@ export type { EnterpriseModel } from "./EnterpriseModel";
 export type { EnterpriseDataModel } from "./EnterpriseDataModel";
 export type { StaffDetailsModel } from "./StaffDetailsModel";
 export type { DoctorProfileModel } from "./DoctorProfileModel";
+export type { DoctorClinicMapping } from "./DoctorClinicMappingModel";
 export type { DentalServiceModel } from "./DentalServiceModel";
 export type { ClinicalSpecialtyModel } from "./ClinicalSpecialtyModel";
 export type { RoleModel } from "./RoleModel";

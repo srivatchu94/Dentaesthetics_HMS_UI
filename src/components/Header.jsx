@@ -8,7 +8,6 @@ const TABS = [
   { key: "home", path: "/", label: "Home", bgColor: "from-coral-100 to-peach-100", textColor: "text-coral-800", borderColor: "border-coral-400", hoverBg: "hover:bg-coral-200", icon: "🏠" },
   { key: "clinics", path: "/clinics", label: "Clinics", bgColor: "from-teal-100 to-sage-100", textColor: "text-teal-800", borderColor: "border-teal-400", hoverBg: "hover:bg-teal-200", icon: "🏥" },
   { key: "patients", path: "/patients", label: "Patients", bgColor: "from-peach-100 to-gold-100", textColor: "text-peach-800", borderColor: "border-peach-400", hoverBg: "hover:bg-peach-200", icon: "👥" },
-  { key: "visits", path: "/visits", label: "Visits", bgColor: "from-violet-100 to-purple-100", textColor: "text-purple-800", borderColor: "border-purple-400", hoverBg: "hover:bg-purple-200", icon: "📋" },
   { key: "services", path: "/services", label: "Services", bgColor: "from-gold-100 to-peach-100", textColor: "text-gold-800", borderColor: "border-gold-400", hoverBg: "hover:bg-gold-200", icon: "🦷" },
   { key: "team-hub", path: "/team-hub", label: "Team Hub", bgColor: "from-indigo-100 to-purple-100", textColor: "text-indigo-800", borderColor: "border-indigo-400", hoverBg: "hover:bg-indigo-200", icon: "🌟" },
 ];
@@ -17,7 +16,6 @@ const CRUD_OPERATIONS = {
   home: [],
   clinics: ["create", "view", "update", "delete"],
   patients: ["create", "view", "update", "delete"],
-  visits: [],
   services: ["create", "view", "update", "delete"],
   "team-hub": [],
 };

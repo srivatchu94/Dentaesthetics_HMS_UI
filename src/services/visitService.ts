@@ -34,9 +34,9 @@ export const visitService = {
     );
   },
 
-  // Create new visit
+  // Create new visit - using Patient controller AddPatientVisit endpoint
   createVisit: async (visit: Omit<PatientVisitInformation, 'visitId'>): Promise<PatientVisitInformation> => {
-    return await request<PatientVisitInformation>(VISIT_ENDPOINT, {
+    return await request<PatientVisitInformation>('/Patient/AddPatientVisit', {
       method: 'POST',
       body: JSON.stringify(visit)
     });

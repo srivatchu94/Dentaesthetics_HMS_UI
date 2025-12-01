@@ -1,993 +1,1107 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-
-// Sample data - replace with actual API calls
-const SAMPLE_VISITS = [
-  {
-    visitId: 1,
-    patientId: 1,
-    patientName: "Priya Sharma",
-    patientAge: 35,
-    patientGender: "Female",
-    clinicId: 1,
-    clinicName: "Dentaesthetics Mumbai Central",
-    visitDate: "2025-11-15",
-    reasonForVisit: "Routine Checkup",
-    diagnoses: "Mild gingivitis, Early stage cavity on tooth #18",
-    treatments: "Dental cleaning, Fluoride treatment",
-    prescriptions: "Chlorhexidine mouthwash 0.2% - Use twice daily for 2 weeks",
-    notes: "Patient reports sensitivity to cold. Recommend follow-up in 3 months.",
-    nextAppointmentDate: "2025-02-15",
-    attendingPhysician: "Dr. Rajesh Kumar",
-    billingAmount: 20750.00,
-    paymentStatus: "Paid",
-    medicalConditions: {
-      chronicDiseases: ["Type 2 Diabetes Mellitus"],
-      allergies: ["Penicillin"],
-      currentMedications: ["Metformin 500mg twice daily"],
-      bloodPressure: "Normal",
-      notes: "Monitor blood sugar levels before procedures"
-    }
-  },
-  {
-    visitId: 2,
-    patientId: 2,
-    patientName: "Arjun Patel",
-    patientAge: 42,
-    patientGender: "Male",
-    clinicId: 1,
-    clinicName: "Dentaesthetics Mumbai Central",
-    visitDate: "2025-11-08",
-    reasonForVisit: "Toothache",
-    diagnoses: "Pulpitis in tooth #30, Requires root canal treatment",
-    treatments: "Emergency pain management, Root canal therapy scheduled",
-    prescriptions: "Ibuprofen 400mg - Take every 6 hours as needed for pain",
-    notes: "Patient experiencing severe pain. Root canal scheduled for next week.",
-    nextAppointmentDate: "2025-11-22",
-    attendingPhysician: "Dr. Rajesh Kumar",
-    billingAmount: 99600.00,
-    paymentStatus: "Pending",
-    medicalConditions: {
-      chronicDiseases: ["Hypertension", "Cardiovascular Disease"],
-      allergies: ["Aspirin", "Codeine"],
-      currentMedications: ["Amlodipine 5mg daily", "Atorvastatin 20mg daily"],
-      bloodPressure: "145/92 (Elevated)",
-      notes: "Avoid NSAIDs due to cardiovascular condition. Use alternative pain management."
-    }
-  },
-  {
-    visitId: 3,
-    patientId: 3,
-    patientName: "Anjali Reddy",
-    patientAge: 28,
-    patientGender: "Female",
-    clinicId: 1,
-    clinicName: "Dentaesthetics Mumbai Central",
-    visitDate: "2025-11-05",
-    reasonForVisit: "Dental filling",
-    diagnoses: "Cavity on tooth #14",
-    treatments: "Composite filling placement",
-    prescriptions: "No prescription needed",
-    notes: "Procedure completed successfully. No complications.",
-    nextAppointmentDate: "2025-05-05",
-    attendingPhysician: "Dr. Rajesh Kumar",
-    billingAmount: 37350.00,
-    paymentStatus: "Paid",
-    medicalConditions: {
-      chronicDiseases: [],
-      allergies: [],
-      currentMedications: [],
-      bloodPressure: "Normal",
-      notes: "No significant medical history"
-    }
-  }
-];
-
-// Doctor information - should come from authentication context
-const CURRENT_DOCTOR = {
-  doctorId: 1,
-  name: "Dr. Rajesh Kumar",
-  registrationNumber: "MCI-A-12345-MH",
-  specialization: "General Dentistry & Oral Medicine"
-};
+import { searchPatients } from "../services/patientService";
+import { visitService } from "../services/visitService";
 
 export default function VisitInformation() {
   const navigate = useNavigate();
-  const [visits, setVisits] = useState(SAMPLE_VISITS);
-  const [selectedVisit, setSelectedVisit] = useState(null);
-  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
-  const [prescriptionText, setPrescriptionText] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [successMessage, setSuccessMessage] = useState("");
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentVisit, setPaymentVisit] = useState(null);
-  const [newPaymentStatus, setNewPaymentStatus] = useState("");
-
-  // Filter visits based on search and status
-  const filteredVisits = visits.filter(visit => {
-    const matchesSearch = 
-      visit.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      visit.diagnoses.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      visit.reasonForVisit.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = filterStatus === "all" || visit.paymentStatus.toLowerCase() === filterStatus;
-    
-    return matchesSearch && matchesStatus;
+  const [currentView, setCurrentView] = useState("home"); // home, enter, view
+  const [searchFilters, setSearchFilters] = useState({
+    patientId: "",
+    clinicId: "",
+    firstName: "",
+    lastName: ""
+  });
+  const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [savingVisit, setSavingVisit] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [showVisitModal, setShowVisitModal] = useState(false);
+  const [showAddVisitForm, setShowAddVisitForm] = useState(false);
+  const [patientVisits, setPatientVisits] = useState([]);
+  
+  // New visit form state
+  const [newVisit, setNewVisit] = useState({
+    patientId: "",
+    clinicId: "",
+    visitDate: "",
+    reasonForVisit: "",
+    diagnoses: "",
+    treatments: "",
+    prescriptions: "",
+    notes: "",
+    nextAppointmentDate: "",
+    attendingPhysician: "",
+    billingAmount: "",
+    paymentStatus: "Pending"
   });
 
-  const handleViewDetails = (visit) => {
-    setSelectedVisit(visit);
-  };
+  // Sample visits data for demonstration
+  const SAMPLE_VISITS = [
+    {
+      visitId: 1,
+      patientId: 1,
+      visitDate: "2025-01-15",
+      reasonForVisit: "Routine Checkup",
+      diagnoses: "Mild gingivitis, Early stage cavity on tooth #18",
+      treatments: "Dental cleaning, Fluoride treatment",
+      prescriptions: "Chlorhexidine mouthwash 0.2% - Use twice daily",
+      notes: "Patient reports sensitivity to cold",
+      nextAppointmentDate: "2025-04-15",
+      attendingPhysician: "Dr. Rajesh Kumar",
+      billingAmount: 20750.00,
+      paymentStatus: "Paid"
+    }
+  ];
 
-  const handleOpenPrescription = (visit) => {
-    setSelectedVisit(visit);
-    setPrescriptionText(visit.prescriptions || "");
-    setShowPrescriptionModal(true);
-  };
+  const handleSearch = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        ...(searchFilters.patientId && { patientId: parseInt(searchFilters.patientId) }),
+        ...(searchFilters.clinicId && { clinicId: parseInt(searchFilters.clinicId) }),
+        ...(searchFilters.firstName && { firstName: searchFilters.firstName }),
+        ...(searchFilters.lastName && { lastName: searchFilters.lastName })
+      };
 
-  const handleSaveAndSend = () => {
-    // Here you would make an API call to save the prescription
-    console.log("Saving prescription for visit:", selectedVisit.visitId);
-    console.log("Prescription content:", prescriptionText);
-    
-    // Update the visit with new prescription
-    const updatedVisits = visits.map(v => 
-      v.visitId === selectedVisit.visitId 
-        ? { ...v, prescriptions: prescriptionText }
-        : v
-    );
-    setVisits(updatedVisits);
-    
-    // Show success message
-    setSuccessMessage("Prescription saved and sent successfully!");
-    setTimeout(() => setSuccessMessage(""), 3000);
-    
-    // Close modal
-    setShowPrescriptionModal(false);
-    setPrescriptionText("");
-  };
-
-  const handleOpenPaymentModal = (visit) => {
-    setPaymentVisit(visit);
-    setNewPaymentStatus(visit.paymentStatus);
-    setShowPaymentModal(true);
-  };
-
-  const handleUpdatePaymentStatus = () => {
-    // Here you would make an API call to update payment status
-    console.log("Updating payment status for visit:", paymentVisit.visitId);
-    console.log("New status:", newPaymentStatus);
-    
-    // Update the visit with new payment status
-    const updatedVisits = visits.map(v => 
-      v.visitId === paymentVisit.visitId 
-        ? { ...v, paymentStatus: newPaymentStatus }
-        : v
-    );
-    setVisits(updatedVisits);
-    
-    // Show success message
-    setSuccessMessage(`Payment status updated to "${newPaymentStatus}" successfully!`);
-    setTimeout(() => setSuccessMessage(""), 3000);
-    
-    // Close modal
-    setShowPaymentModal(false);
-    setPaymentVisit(null);
-  };
-
-  const handlePrintPrescription = () => {
-    const printWindow = window.open('', '_blank');
-    const prescriptionContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Prescription - ${selectedVisit.patientName}</title>
-          <style>
-            body {
-              font-family: 'Times New Roman', serif;
-              padding: 40px;
-              max-width: 800px;
-              margin: 0 auto;
-            }
-            .header {
-              text-align: center;
-              border-bottom: 3px double #333;
-              padding-bottom: 20px;
-              margin-bottom: 30px;
-            }
-            .header h1 {
-              margin: 0;
-              color: #8b5cf6;
-              font-size: 28px;
-            }
-            .header p {
-              margin: 5px 0;
-              color: #666;
-            }
-            .section {
-              margin-bottom: 20px;
-            }
-            .section-title {
-              font-weight: bold;
-              color: #8b5cf6;
-              border-bottom: 1px solid #ddd;
-              padding-bottom: 5px;
-              margin-bottom: 10px;
-            }
-            .patient-info {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 15px;
-              margin-bottom: 30px;
-            }
-            .info-item {
-              display: flex;
-              gap: 10px;
-            }
-            .info-label {
-              font-weight: bold;
-              color: #555;
-            }
-            .prescription-body {
-              white-space: pre-wrap;
-              line-height: 1.8;
-              padding: 20px;
-              background: #f9f9f9;
-              border-left: 4px solid #8b5cf6;
-              margin: 20px 0;
-              font-family: 'Courier New', monospace;
-            }
-            .medical-alert {
-              background: #fff3cd;
-              border: 2px solid #dc3545;
-              border-radius: 8px;
-              padding: 15px;
-              margin: 20px 0;
-            }
-            .medical-alert h3 {
-              color: #dc3545;
-              margin: 0 0 10px 0;
-              font-size: 16px;
-              font-weight: bold;
-            }
-            .medical-alert ul {
-              margin: 5px 0;
-              padding-left: 20px;
-            }
-            .medical-alert li {
-              color: #333;
-              font-weight: bold;
-              margin: 3px 0;
-            }
-            .alert-section {
-              margin: 10px 0;
-            }
-            .alert-section strong {
-              color: #dc3545;
-            }
-            .footer {
-              margin-top: 60px;
-              border-top: 1px solid #ddd;
-              padding-top: 20px;
-            }
-            .signature {
-              margin-top: 40px;
-              text-align: right;
-            }
-            .signature-line {
-              border-top: 1px solid #333;
-              width: 200px;
-              margin-left: auto;
-              margin-bottom: 5px;
-            }
-            @media print {
-              body { padding: 20px; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>MEDICAL PRESCRIPTION</h1>
-            <p><strong>${CURRENT_DOCTOR.name}</strong></p>
-            <p>${CURRENT_DOCTOR.specialization}</p>
-            <p>Reg. No: ${CURRENT_DOCTOR.registrationNumber}</p>
-            <p>Date: ${new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-          </div>
-
-          <div class="section">
-            <div class="section-title">PATIENT INFORMATION</div>
-            <div class="patient-info">
-              <div class="info-item">
-                <span class="info-label">Name:</span>
-                <span>${selectedVisit.patientName}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Age:</span>
-                <span>${selectedVisit.patientAge} years</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Gender:</span>
-                <span>${selectedVisit.patientGender}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Visit ID:</span>
-                <span>#${selectedVisit.visitId}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">DIAGNOSIS</div>
-            <p>${selectedVisit.diagnoses}</p>
-          </div>
-
-          ${selectedVisit.medicalConditions && (
-            selectedVisit.medicalConditions.chronicDiseases?.length > 0 || 
-            selectedVisit.medicalConditions.allergies?.length > 0 ||
-            selectedVisit.medicalConditions.currentMedications?.length > 0
-          ) ? `
-          <div class="medical-alert">
-            <h3>⚠️ MEDICAL ALERTS - CRITICAL INFORMATION</h3>
-            ${selectedVisit.medicalConditions.chronicDiseases?.length > 0 ? `
-            <div class="alert-section">
-              <strong>🏥 Chronic Conditions:</strong>
-              <ul>
-                ${selectedVisit.medicalConditions.chronicDiseases.map(disease => `<li>${disease}</li>`).join('')}
-              </ul>
-            </div>
-            ` : ''}
-            ${selectedVisit.medicalConditions.allergies?.length > 0 ? `
-            <div class="alert-section">
-              <strong>⚠️ Drug Allergies:</strong>
-              <ul>
-                ${selectedVisit.medicalConditions.allergies.map(allergy => `<li>${allergy}</li>`).join('')}
-              </ul>
-            </div>
-            ` : ''}
-            ${selectedVisit.medicalConditions.currentMedications?.length > 0 ? `
-            <div class="alert-section">
-              <strong>💊 Current Medications:</strong>
-              <ul>
-                ${selectedVisit.medicalConditions.currentMedications.map(med => `<li>${med}</li>`).join('')}
-              </ul>
-            </div>
-            ` : ''}
-            ${selectedVisit.medicalConditions.bloodPressure && selectedVisit.medicalConditions.bloodPressure !== 'Normal' ? `
-            <div class="alert-section">
-              <strong>🩺 Blood Pressure:</strong> ${selectedVisit.medicalConditions.bloodPressure}
-            </div>
-            ` : ''}
-            ${selectedVisit.medicalConditions.notes && selectedVisit.medicalConditions.notes !== 'No significant medical history' ? `
-            <div class="alert-section">
-              <strong>📋 Clinical Notes:</strong> ${selectedVisit.medicalConditions.notes}
-            </div>
-            ` : ''}
-          </div>
-          ` : ''}
-
-          <div class="section">
-            <div class="section-title">PRESCRIPTION</div>
-            <div class="prescription-body">${prescriptionText || 'No prescription provided'}</div>
-          </div>
-
-          <div class="footer">
-            <div class="signature">
-              <div class="signature-line"></div>
-              <p><strong>${CURRENT_DOCTOR.name}</strong></p>
-              <p>${CURRENT_DOCTOR.specialization}</p>
-              <p>Reg. No: ${CURRENT_DOCTOR.registrationNumber}</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-    
-    printWindow.document.write(prescriptionContent);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-    }, 250);
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const getStatusColor = (status) => {
-    switch(status.toLowerCase()) {
-      case 'paid':
-        return 'from-emerald-500 to-teal-500';
-      case 'pending':
-        return 'from-amber-500 to-orange-500';
-      case 'overdue':
-        return 'from-red-500 to-rose-500';
-      default:
-        return 'from-slate-500 to-gray-500';
+      const response = await searchPatients(params);
+      setSearchResults(response || []);
+    } catch (error) {
+      console.error("Error searching patients:", error);
+      setSearchResults([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50/40 to-pink-50/30 p-6">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 bg-clip-text text-transparent mb-2">
-              Visit Information
-            </h1>
-            <p className="text-slate-600">Manage patient visits, diagnoses, and prescriptions</p>
-          </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate(-1)}
-            className="px-6 py-3 bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all"
-          >
-            ← Back
-          </motion.button>
-        </div>
+  const handleViewVisits = (patient) => {
+    setSelectedPatient(patient);
+    const visits = SAMPLE_VISITS.filter(v => v.patientId === patient.patientId);
+    setPatientVisits(visits);
+    setShowVisitModal(true);
+  };
 
-        {/* Success Message */}
-        <AnimatePresence>
-          {successMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-3 rounded-lg shadow-lg mb-4"
-            >
-              ✓ {successMessage}
-            </motion.div>
-          )}
-        </AnimatePresence>
+  const handleAddVisit = () => {
+    setShowAddVisitForm(!showAddVisitForm);
+    if (!showAddVisitForm) {
+      setNewVisit({
+        patientId: selectedPatient?.patientId || "",
+        clinicId: selectedPatient?.clinicId || "",
+        visitDate: new Date().toISOString().split('T')[0],
+        reasonForVisit: "",
+        diagnoses: "",
+        treatments: "",
+        prescriptions: "",
+        notes: "",
+        nextAppointmentDate: "",
+        attendingPhysician: "",
+        billingAmount: "",
+        paymentStatus: "Pending"
+      });
+    }
+  };
 
-        {/* Search and Filters */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-xl shadow-lg p-6 border border-purple-100">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Search by patient name, diagnosis, or reason..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg border border-purple-200 focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none"
-              />
-            </div>
-            <div className="flex gap-2">
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-3 rounded-lg border border-purple-200 focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none bg-white"
+  const handleSaveVisit = async () => {
+    // Validation
+    if (!newVisit.visitDate) {
+      alert("Please enter a visit date");
+      return;
+    }
+    if (!newVisit.reasonForVisit) {
+      alert("Please enter a reason for visit");
+      return;
+    }
+
+    setSavingVisit(true);
+    try {
+      // Build the PatientVisitInformation model from user input
+      const visitPayload = {
+        patientId: selectedPatient.patientId,
+        clinicId: selectedPatient.clinicId || 1, // Use patient's clinic or default to 1
+        visitDate: newVisit.visitDate,
+        reasonForVisit: newVisit.reasonForVisit,
+        diagnoses: newVisit.diagnoses || "",
+        treatments: newVisit.treatments || "",
+        prescriptions: newVisit.prescriptions || "",
+        notes: newVisit.notes || "",
+        nextAppointmentDate: newVisit.nextAppointmentDate || "",
+        attendingPhysician: newVisit.attendingPhysician || "",
+        billingAmount: parseFloat(newVisit.billingAmount) || 0,
+        paymentStatus: newVisit.paymentStatus
+      };
+
+      // Call the API to add patient visit
+      const savedVisit = await visitService.createVisit(visitPayload);
+      
+      // Update local state with the saved visit
+      setPatientVisits([savedVisit, ...patientVisits]);
+      setShowAddVisitForm(false);
+      
+      // Reset form
+      setNewVisit({
+        visitDate: "",
+        reasonForVisit: "",
+        diagnoses: "",
+        treatments: "",
+        prescriptions: "",
+        notes: "",
+        nextAppointmentDate: "",
+        attendingPhysician: "",
+        billingAmount: "",
+        paymentStatus: "Pending"
+      });
+      
+      // Show success message
+      alert(`✅ Visit information saved successfully! Visit ID: ${savedVisit.visitId}`);
+    } catch (error) {
+      console.error("Error saving visit:", error);
+      const errorMessage = error.message || "Failed to save visit information. Please try again.";
+      alert(`❌ Error: ${errorMessage}`);
+    } finally {
+      setSavingVisit(false);
+    }
+  };
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1
+    }
+  };
+
+  // === HOME VIEW ===
+  if (currentView === "home") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-8">
+        <motion.div
+          initial="hidden"
+          animate="visible"
+          variants={containerVariants}
+        >
+          <motion.div variants={itemVariants} className="text-center mb-12">
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <motion.div
+                animate={{
+                  rotate: [0, 10, -10, 0],
+                  scale: [1, 1.1, 1]
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  repeatType: "reverse"
+                }}
+                className="text-6xl"
               >
-                <option value="all">All Status</option>
-                <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
-                <option value="overdue">Overdue</option>
-              </select>
+                🏥
+              </motion.div>
+              <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                Visit Information
+              </h1>
             </div>
-          </div>
-        </div>
-      </motion.div>
+            <p className="text-gray-600 text-lg">Manage patient visits and medical records</p>
+          </motion.div>
 
-      {/* Visits List */}
-      <div className="grid grid-cols-1 gap-6">
-        {filteredVisits.map((visit, index) => (
-          <motion.div
-            key={visit.visitId}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {/* Enter Visit Info Tile */}
+            <motion.div
+              variants={itemVariants}
+              whileHover={{ scale: 1.05, rotateY: 5, rotateZ: 2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setCurrentView("enter")}
+              className="relative group cursor-pointer"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 rounded-3xl blur-2xl opacity-60 group-hover:opacity-90 transition-all duration-500 animate-pulse"></div>
+              <div className="relative bg-gradient-to-br from-white to-blue-50 rounded-3xl p-10 shadow-2xl overflow-hidden border-2 border-blue-200/50 hover:border-blue-400/80 transition-all duration-300">
+                {/* Shine effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-30 group-hover:animate-shine"></div>
+                <motion.div
+                  animate={{
+                    scale: [1, 1.2, 1],
+                    rotate: [0, 180, 360]
+                  }}
+                  transition={{
+                    duration: 10,
+                    repeat: Infinity,
+                    ease: "linear"
+                  }}
+                  className="absolute -top-20 -right-20 w-40 h-40 bg-gradient-to-br from-blue-300 to-purple-400 rounded-full opacity-20"
+                ></motion.div>
+                <motion.div
+                  animate={{
+                    scale: [1.2, 1, 1.2],
+                    rotate: [360, 180, 0]
+                  }}
+                  transition={{
+                    duration: 8,
+                    repeat: Infinity,
+                    ease: "linear"
+                  }}
+                  className="absolute -bottom-10 -left-10 w-32 h-32 bg-gradient-to-br from-purple-300 to-pink-400 rounded-full opacity-20"
+                ></motion.div>
+
+                <div className="relative z-10 text-center">
+                  <motion.div
+                    animate={{
+                      y: [0, -10, 0]
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      repeatType: "reverse"
+                    }}
+                    className="text-7xl mb-6"
+                  >
+                    📝
+                  </motion.div>
+                  <h2 className="text-3xl font-bold text-gray-800 mb-4">Enter Visit Info</h2>
+                  <p className="text-gray-600 mb-6">Record new patient visit details and medical information</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-blue-600 font-semibold">Get Started</span>
+                    <motion.span
+                      animate={{ x: [0, 5, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    >
+                      →
+                    </motion.span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* View Visits Tile */}
+            <motion.div
+              variants={itemVariants}
+              whileHover={{ scale: 1.05, rotateY: -5, rotateZ: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setCurrentView("view")}
+              className="relative group cursor-pointer"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500 via-pink-500 to-rose-600 rounded-3xl blur-2xl opacity-60 group-hover:opacity-90 transition-all duration-500 animate-pulse"></div>
+              <div className="relative bg-gradient-to-br from-white to-purple-50 rounded-3xl p-10 shadow-2xl overflow-hidden border-2 border-purple-200/50 hover:border-purple-400/80 transition-all duration-300">
+                {/* Shine effect */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-30 group-hover:animate-shine"></div>
+                <motion.div
+                  animate={{
+                    scale: [1, 1.2, 1],
+                    rotate: [360, 180, 0]
+                  }}
+                  transition={{
+                    duration: 10,
+                    repeat: Infinity,
+                    ease: "linear"
+                  }}
+                  className="absolute -top-20 -left-20 w-40 h-40 bg-gradient-to-br from-purple-300 to-pink-400 rounded-full opacity-20"
+                ></motion.div>
+                <motion.div
+                  animate={{
+                    scale: [1.2, 1, 1.2],
+                    rotate: [0, 180, 360]
+                  }}
+                  transition={{
+                    duration: 8,
+                    repeat: Infinity,
+                    ease: "linear"
+                  }}
+                  className="absolute -bottom-10 -right-10 w-32 h-32 bg-gradient-to-br from-pink-300 to-red-400 rounded-full opacity-20"
+                ></motion.div>
+
+                <div className="relative z-10 text-center">
+                  <motion.div
+                    animate={{
+                      y: [0, -10, 0]
+                    }}
+                    transition={{
+                      duration: 2,
+                      repeat: Infinity,
+                      repeatType: "reverse",
+                      delay: 0.5
+                    }}
+                    className="text-7xl mb-6"
+                  >
+                    👁️
+                  </motion.div>
+                  <h2 className="text-3xl font-bold text-gray-800 mb-4">View Visits</h2>
+                  <p className="text-gray-600 mb-6">Search and review patient visit history and records</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-purple-600 font-semibold">Browse Records</span>
+                    <motion.span
+                      animate={{ x: [0, 5, 0] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    >
+                      →
+                    </motion.span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // === RENDER SEARCH FORM (shared by both enter and view) ===
+  const renderSearchForm = (colorScheme) => (
+    <div className="bg-white rounded-3xl shadow-2xl p-8 mb-8">
+      <h2 className="text-2xl font-bold text-gray-800 mb-6">Search Patient</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <input
+          type="text"
+          placeholder="Patient ID"
+          value={searchFilters.patientId}
+          onChange={(e) => setSearchFilters({ ...searchFilters, patientId: e.target.value })}
+          className={`px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-${colorScheme}-500 focus:border-transparent`}
+        />
+        <input
+          type="text"
+          placeholder="Clinic ID"
+          value={searchFilters.clinicId}
+          onChange={(e) => setSearchFilters({ ...searchFilters, clinicId: e.target.value })}
+          className={`px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-${colorScheme}-500 focus:border-transparent`}
+        />
+        <input
+          type="text"
+          placeholder="First Name"
+          value={searchFilters.firstName}
+          onChange={(e) => setSearchFilters({ ...searchFilters, firstName: e.target.value })}
+          className={`px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-${colorScheme}-500 focus:border-transparent`}
+        />
+        <input
+          type="text"
+          placeholder="Last Name"
+          value={searchFilters.lastName}
+          onChange={(e) => setSearchFilters({ ...searchFilters, lastName: e.target.value })}
+          className={`px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-${colorScheme}-500 focus:border-transparent`}
+        />
+      </div>
+      <button
+        onClick={handleSearch}
+        disabled={loading}
+        className={`w-full px-6 py-4 bg-gradient-to-r from-${colorScheme}-600 to-${colorScheme === 'blue' ? 'purple' : 'pink'}-600 text-white rounded-xl font-semibold hover:from-${colorScheme}-700 hover:to-${colorScheme === 'blue' ? 'purple' : 'pink'}-700 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50`}
+      >
+        {loading ? "Searching..." : "🔍 Search Patient"}
+      </button>
+    </div>
+  );
+
+  // === RENDER SEARCH RESULTS (shared by both enter and view) ===
+  const renderSearchResults = (buttonText, buttonColor, onClickHandler) => (
+    searchResults.length > 0 && (
+      <div className="bg-white rounded-3xl shadow-2xl p-8">
+        <h2 className="text-2xl font-bold text-gray-800 mb-6">Search Results</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {searchResults.map((patient) => (
+            <motion.div
+              key={patient.patientId}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              whileHover={{ scale: 1.05 }}
+              className={`bg-gradient-to-br from-${buttonColor}-50 to-${buttonColor === 'blue' ? 'purple' : 'pink'}-50 rounded-2xl p-6 shadow-lg`}
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className={`w-16 h-16 bg-gradient-to-br from-${buttonColor}-400 to-${buttonColor === 'blue' ? 'purple' : 'pink'}-600 rounded-full flex items-center justify-center text-white text-2xl font-bold`}>
+                  {patient.patientFirstName?.[0]}{patient.patientLastName?.[0]}
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">{patient.patientFirstName} {patient.patientLastName}</h3>
+                  <p className="text-sm text-gray-600">ID: {patient.patientId}</p>
+                </div>
+              </div>
+              <div className="space-y-2 text-sm mb-4">
+                <p className="text-gray-600">📧 {patient.patientEmail}</p>
+                <p className="text-gray-600">📞 {patient.patientPhone}</p>
+                <p className="text-gray-600">🎂 {patient.patientDOB}</p>
+                <p className="text-gray-600">⚥ {patient.patientGender}</p>
+              </div>
+              <button
+                onClick={() => onClickHandler(patient)}
+                className={`w-full px-4 py-2 bg-gradient-to-r from-${buttonColor}-600 to-${buttonColor === 'blue' ? 'purple' : 'pink'}-600 text-white rounded-xl font-semibold hover:from-${buttonColor}-700 hover:to-${buttonColor === 'blue' ? 'purple' : 'pink'}-700 transition-all duration-300`}
+              >
+                {buttonText}
+              </button>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    )
+  );
+
+  // === ENTER VIEW ===
+  if (currentView === "enter") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <motion.button
+            whileHover={{ scale: 1.05, x: -5 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setCurrentView("home")}
+            className="mb-6 flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 font-semibold"
+          >
+            <span>←</span>
+            <span>Back to Home</span>
+          </motion.button>
+
+          {/* Header Card */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl shadow-2xl p-8 mb-8 relative overflow-hidden"
+          >
+            <motion.div
+              animate={{
+                scale: [1, 1.2, 1],
+                rotate: [0, 90, 180, 270, 360]
+              }}
+              transition={{
+                duration: 20,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+              className="absolute -top-20 -right-20 w-40 h-40 bg-white rounded-full opacity-10"
+            ></motion.div>
+            <motion.div
+              animate={{
+                scale: [1.2, 1, 1.2],
+                rotate: [360, 270, 180, 90, 0]
+              }}
+              transition={{
+                duration: 15,
+                repeat: Infinity,
+                ease: "linear"
+              }}
+              className="absolute -bottom-20 -left-20 w-40 h-40 bg-white rounded-full opacity-10"
+            ></motion.div>
+            <div className="relative z-10 flex items-center gap-4">
+              <motion.div
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="text-6xl"
+              >
+                📝
+              </motion.div>
+              <div>
+                <h1 className="text-4xl font-bold text-white mb-2">
+                  Enter Visit Information
+                </h1>
+                <p className="text-blue-100 text-lg">Record patient visit details and medical information</p>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Visit Entry Form */}
+          <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg hover:shadow-xl transition-all border border-purple-100 overflow-hidden"
+            transition={{ delay: 0.2 }}
+            className="bg-white rounded-3xl shadow-2xl p-8 border-2 border-indigo-100"
           >
-            <div className="bg-gradient-to-r from-violet-50 to-purple-50 px-6 py-4 border-b border-purple-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg">
-                    {visit.patientName.charAt(0)}
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-800">{visit.patientName}</h3>
-                    <div className="flex items-center gap-4 text-sm text-slate-600">
-                      <span>{visit.patientAge} yrs • {visit.patientGender}</span>
-                      <span className="text-purple-600">Visit ID: #{visit.visitId}</span>
-                    </div>
-                  </div>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenPaymentModal(visit);
-                  }}
-                  className={`px-4 py-2 rounded-lg bg-gradient-to-r ${getStatusColor(visit.paymentStatus)} text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all cursor-pointer`}
-                  title="Click to change payment status"
-                >
-                  {visit.paymentStatus} 💳
-                </motion.button>
-              </div>
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">Patient Visit Details</h2>
+              <p className="text-gray-600">Fill in the information below to record a new patient visit</p>
             </div>
 
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                <div>
-                  <p className="text-xs font-semibold text-purple-600 mb-1">VISIT DATE</p>
-                  <p className="text-slate-800 font-medium">📅 {formatDate(visit.visitDate)}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-purple-600 mb-1">CLINIC</p>
-                  <p className="text-slate-800 font-medium">🏥 {visit.clinicName}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-purple-600 mb-1">ATTENDING PHYSICIAN</p>
-                  <p className="text-slate-800 font-medium">👨‍⚕️ {visit.attendingPhysician}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-purple-600 mb-1">REASON FOR VISIT</p>
-                  <p className="text-slate-800 font-medium">{visit.reasonForVisit}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-purple-600 mb-1">BILLING AMOUNT</p>
-                  <p className="text-slate-800 font-medium text-lg">₹{visit.billingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-semibold text-purple-600 mb-1">NEXT APPOINTMENT</p>
-                  <p className="text-slate-800 font-medium">{formatDate(visit.nextAppointmentDate)}</p>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Patient ID */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Patient ID *</label>
+                <input
+                  type="number"
+                  value={newVisit.patientId || ''}
+                  onChange={(e) => setNewVisit({ ...newVisit, patientId: e.target.value })}
+                  placeholder="Enter patient ID"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-4 border border-purple-100">
-                  <p className="text-sm font-semibold text-purple-700 mb-2">DIAGNOSIS</p>
-                  <p className="text-slate-700">{visit.diagnoses}</p>
-                </div>
-                <div className="bg-gradient-to-r from-violet-50 to-pink-50 rounded-lg p-4 border border-purple-100">
-                  <p className="text-sm font-semibold text-purple-700 mb-2">TREATMENTS</p>
-                  <p className="text-slate-700">{visit.treatments}</p>
-                </div>
+              {/* Clinic ID */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Clinic ID *</label>
+                <input
+                  type="number"
+                  value={newVisit.clinicId || ''}
+                  onChange={(e) => setNewVisit({ ...newVisit, clinicId: e.target.value })}
+                  placeholder="Enter clinic ID"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                />
               </div>
 
-              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg p-4 border border-teal-100 mb-6">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-teal-700">CURRENT PRESCRIPTION</p>
+              {/* Visit Date */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Visit Date *</label>
+                <input
+                  type="date"
+                  value={newVisit.visitDate}
+                  onChange={(e) => setNewVisit({ ...newVisit, visitDate: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              {/* Attending Physician */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Attending Physician</label>
+                <input
+                  type="text"
+                  value={newVisit.attendingPhysician}
+                  onChange={(e) => setNewVisit({ ...newVisit, attendingPhysician: e.target.value })}
+                  placeholder="Dr. Name"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              {/* Reason for Visit */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2">Reason for Visit *</label>
+                <input
+                  type="text"
+                  value={newVisit.reasonForVisit}
+                  onChange={(e) => setNewVisit({ ...newVisit, reasonForVisit: e.target.value })}
+                  placeholder="e.g., Routine checkup, Toothache, Follow-up"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              {/* Diagnoses */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2">Diagnoses</label>
+                <textarea
+                  value={newVisit.diagnoses}
+                  onChange={(e) => setNewVisit({ ...newVisit, diagnoses: e.target.value })}
+                  placeholder="Medical diagnoses and observations..."
+                  rows="3"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                />
+              </div>
+
+              {/* Treatments */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2">Treatments</label>
+                <textarea
+                  value={newVisit.treatments}
+                  onChange={(e) => setNewVisit({ ...newVisit, treatments: e.target.value })}
+                  placeholder="Treatments provided during the visit..."
+                  rows="3"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                />
+              </div>
+
+              {/* Prescriptions */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2">Prescriptions</label>
+                <textarea
+                  value={newVisit.prescriptions}
+                  onChange={(e) => setNewVisit({ ...newVisit, prescriptions: e.target.value })}
+                  placeholder="Medications prescribed..."
+                  rows="3"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                />
+              </div>
+
+              {/* Notes */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2">Notes</label>
+                <textarea
+                  value={newVisit.notes}
+                  onChange={(e) => setNewVisit({ ...newVisit, notes: e.target.value })}
+                  placeholder="Additional notes and observations..."
+                  rows="3"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none"
+                />
+              </div>
+
+              {/* Next Appointment */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Next Appointment Date</label>
+                <input
+                  type="date"
+                  value={newVisit.nextAppointmentDate}
+                  onChange={(e) => setNewVisit({ ...newVisit, nextAppointmentDate: e.target.value })}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              {/* Billing Amount */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Billing Amount (₹)</label>
+                <input
+                  type="number"
+                  value={newVisit.billingAmount}
+                  onChange={(e) => setNewVisit({ ...newVisit, billingAmount: e.target.value })}
+                  placeholder="0.00"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              {/* Payment Status */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-bold text-gray-700 mb-2">Payment Status</label>
+                <div className="grid grid-cols-3 gap-4">
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => handleOpenPrescription(visit)}
-                    className="px-4 py-2 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all"
+                    onClick={() => setNewVisit({ ...newVisit, paymentStatus: 'Pending' })}
+                    className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+                      newVisit.paymentStatus === 'Pending'
+                        ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-lg'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
                   >
-                    📝 Write Prescription
+                    ⏳ Pending
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setNewVisit({ ...newVisit, paymentStatus: 'Paid' })}
+                    className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+                      newVisit.paymentStatus === 'Paid'
+                        ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    ✓ Paid
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setNewVisit({ ...newVisit, paymentStatus: 'Partial' })}
+                    className={`px-6 py-3 rounded-xl font-semibold transition-all ${
+                      newVisit.paymentStatus === 'Partial'
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    ◐ Partial
                   </motion.button>
                 </div>
-                <p className="text-slate-700">{visit.prescriptions}</p>
-              </div>
-
-              <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-lg p-4 border border-slate-200">
-                <p className="text-sm font-semibold text-slate-700 mb-2">NOTES</p>
-                <p className="text-slate-600 text-sm">{visit.notes}</p>
               </div>
             </div>
-          </motion.div>
-        ))}
 
-        {filteredVisits.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-12 bg-white/80 rounded-xl shadow-lg"
-          >
-            <p className="text-slate-500 text-lg">No visits found matching your criteria.</p>
+            {/* Action Buttons */}
+            <div className="flex gap-4 mt-8">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => {
+                  setNewVisit({
+                    visitDate: "",
+                    reasonForVisit: "",
+                    diagnoses: "",
+                    treatments: "",
+                    prescriptions: "",
+                    notes: "",
+                    nextAppointmentDate: "",
+                    attendingPhysician: "",
+                    billingAmount: "",
+                    paymentStatus: "Pending",
+                    patientId: "",
+                    clinicId: ""
+                  });
+                }}
+                className="flex-1 px-6 py-4 bg-gradient-to-r from-gray-400 to-gray-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+              >
+                🔄 Reset Form
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={async () => {
+                  // Validation
+                  if (!newVisit.patientId || !newVisit.clinicId) {
+                    alert('Please enter Patient ID and Clinic ID');
+                    return;
+                  }
+                  if (!newVisit.visitDate) {
+                    alert('Please enter a visit date');
+                    return;
+                  }
+                  if (!newVisit.reasonForVisit) {
+                    alert('Please enter a reason for visit');
+                    return;
+                  }
+
+                  setSavingVisit(true);
+                  try {
+                    const visitPayload = {
+                      patientId: parseInt(newVisit.patientId),
+                      clinicId: parseInt(newVisit.clinicId),
+                      visitDate: newVisit.visitDate,
+                      reasonForVisit: newVisit.reasonForVisit,
+                      diagnoses: newVisit.diagnoses || "",
+                      treatments: newVisit.treatments || "",
+                      prescriptions: newVisit.prescriptions || "",
+                      notes: newVisit.notes || "",
+                      nextAppointmentDate: newVisit.nextAppointmentDate || "",
+                      attendingPhysician: newVisit.attendingPhysician || "",
+                      billingAmount: parseFloat(newVisit.billingAmount) || 0,
+                      paymentStatus: newVisit.paymentStatus
+                    };
+
+                    const savedVisit = await visitService.createVisit(visitPayload);
+                    alert(`✅ Visit saved successfully! Visit ID: ${savedVisit.visitId}`);
+                    
+                    // Reset form
+                    setNewVisit({
+                      visitDate: "",
+                      reasonForVisit: "",
+                      diagnoses: "",
+                      treatments: "",
+                      prescriptions: "",
+                      notes: "",
+                      nextAppointmentDate: "",
+                      attendingPhysician: "",
+                      billingAmount: "",
+                      paymentStatus: "Pending",
+                      patientId: "",
+                      clinicId: ""
+                    });
+                  } catch (error) {
+                    console.error('Error saving visit:', error);
+                    alert(`❌ Error: ${error.message || 'Failed to save visit'}`);
+                  } finally {
+                    setSavingVisit(false);
+                  }
+                }}
+                disabled={savingVisit || !newVisit.patientId || !newVisit.clinicId || !newVisit.visitDate || !newVisit.reasonForVisit}
+                className={`flex-1 px-6 py-4 rounded-xl font-bold shadow-lg transition-all ${
+                  savingVisit || !newVisit.patientId || !newVisit.clinicId || !newVisit.visitDate || !newVisit.reasonForVisit
+                    ? 'bg-gray-400 cursor-not-allowed text-white'
+                    : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 text-white hover:shadow-2xl'
+                }`}
+              >
+                {savingVisit ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Saving...
+                  </span>
+                ) : (
+                  '💾 Save Visit Information'
+                )}
+              </motion.button>
+            </div>
           </motion.div>
-        )}
+        </motion.div>
       </div>
+    );
+  }
 
-      {/* Prescription Modal */}
-      <AnimatePresence>
-        {showPrescriptionModal && selectedVisit && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setShowPrescriptionModal(false)}
+  // === VIEW VIEW ===
+  if (currentView === "view") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-8">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <button
+            onClick={() => setCurrentView("home")}
+            className="mb-6 flex items-center gap-2 px-6 py-3 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-gray-700 font-semibold"
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
-            >
-              {/* Modal Header */}
-              <div className="bg-gradient-to-r from-violet-500 to-purple-500 px-8 py-6 text-white">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-3xl font-bold">Medical Prescription</h2>
-                  <motion.button
-                    whileHover={{ scale: 1.1, rotate: 90 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setShowPrescriptionModal(false)}
-                    className="text-white hover:bg-white/20 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-                  >
-                    ✕
-                  </motion.button>
-                </div>
-                
-                {/* Doctor Information */}
-                <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-purple-100 text-sm mb-1">Doctor Name</p>
-                      <p className="font-bold text-lg">{CURRENT_DOCTOR.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-purple-100 text-sm mb-1">Registration Number</p>
-                      <p className="font-bold text-lg">{CURRENT_DOCTOR.registrationNumber}</p>
+            <span>←</span>
+            <span>Back to Home</span>
+          </button>
+
+          <div className="bg-white rounded-3xl shadow-2xl p-8 mb-8">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+              View Visit History
+            </h1>
+            <p className="text-gray-600">Search for patients and view their complete visit records</p>
+          </div>
+
+          {renderSearchForm('purple')}
+          {renderSearchResults('👁️ View Visit History', 'purple', handleViewVisits)}
+        </motion.div>
+      </div>
+    );
+  }
+
+  // === VISIT MODAL ===
+  return (
+    <AnimatePresence>
+      {showVisitModal && selectedPatient && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowVisitModal(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto"
+          >
+            {/* Patient Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-8 rounded-t-3xl sticky top-0 z-10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-6">
+                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-blue-600 text-3xl font-bold shadow-lg">
+                    {selectedPatient.patientFirstName?.[0]}{selectedPatient.patientLastName?.[0]}
+                  </div>
+                  <div className="text-white">
+                    <h2 className="text-3xl font-bold mb-2">
+                      {selectedPatient.patientFirstName} {selectedPatient.patientLastName}
+                    </h2>
+                    <div className="flex flex-wrap gap-4 text-sm">
+                      <span>📋 ID: {selectedPatient.patientId}</span>
+                      <span>🎂 DOB: {selectedPatient.patientDOB}</span>
+                      <span>⚥ {selectedPatient.patientGender}</span>
+                      <span>🩸 {selectedPatient.patientBloodType || "N/A"}</span>
                     </div>
                   </div>
-                  <div className="mt-3 pt-3 border-t border-white/20">
-                    <p className="text-purple-100 text-sm">Specialization: {CURRENT_DOCTOR.specialization}</p>
-                  </div>
                 </div>
+                <button
+                  onClick={() => setShowVisitModal(false)}
+                  className="text-white text-4xl hover:rotate-90 transition-transform duration-300"
+                >
+                  ×
+                </button>
               </div>
+            </div>
 
-              {/* Modal Body */}
-              <div className="p-8 overflow-y-auto max-h-[60vh]">
-                {/* Patient Information */}
-                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-6 mb-6 border border-purple-100">
-                  <h3 className="text-lg font-bold text-purple-900 mb-3">Patient Information</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <p className="text-xs text-purple-600 font-semibold mb-1">NAME</p>
-                      <p className="text-slate-800 font-medium">{selectedVisit.patientName}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-purple-600 font-semibold mb-1">AGE / GENDER</p>
-                      <p className="text-slate-800 font-medium">{selectedVisit.patientAge} yrs / {selectedVisit.patientGender}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-purple-600 font-semibold mb-1">VISIT DATE</p>
-                      <p className="text-slate-800 font-medium">{formatDate(selectedVisit.visitDate)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-purple-600 font-semibold mb-1">VISIT ID</p>
-                      <p className="text-slate-800 font-medium">#{selectedVisit.visitId}</p>
-                    </div>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-purple-200">
-                    <p className="text-xs text-purple-600 font-semibold mb-1">DIAGNOSIS</p>
-                    <p className="text-slate-800">{selectedVisit.diagnoses}</p>
-                  </div>
-                </div>
+            <div className="p-8">
+              {/* Add Visit Button */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleAddVisit}
+                className="w-full mb-6 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-lg flex items-center justify-center gap-2"
+              >
+                {showAddVisitForm ? "✖️ Cancel" : "➕ Add New Visit"}
+              </motion.button>
 
-                {/* Medical Alert Section */}
-                {selectedVisit.medicalConditions && (
-                  selectedVisit.medicalConditions.chronicDiseases?.length > 0 || 
-                  selectedVisit.medicalConditions.allergies?.length > 0 ||
-                  selectedVisit.medicalConditions.currentMedications?.length > 0 ||
-                  selectedVisit.medicalConditions.bloodPressure !== "Normal"
-                ) && (
+              {/* Add Visit Form */}
+              <AnimatePresence>
+                {showAddVisitForm && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-gradient-to-r from-red-50 via-orange-50 to-amber-50 border-2 border-red-300 rounded-lg p-6 mb-6 shadow-lg"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="mb-8 overflow-hidden"
                   >
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="bg-red-500 text-white rounded-full w-10 h-10 flex items-center justify-center text-2xl flex-shrink-0 animate-pulse">
-                        ⚠️
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 shadow-lg">
+                      <h3 className="text-2xl font-bold text-gray-800 mb-6">New Visit Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Visit Date *</label>
+                          <input
+                            type="date"
+                            value={newVisit.visitDate}
+                            onChange={(e) => setNewVisit({ ...newVisit, visitDate: e.target.value })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Attending Physician</label>
+                          <input
+                            type="text"
+                            value={newVisit.attendingPhysician}
+                            onChange={(e) => setNewVisit({ ...newVisit, attendingPhysician: e.target.value })}
+                            placeholder="Dr. Name"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Reason for Visit *</label>
+                          <input
+                            type="text"
+                            value={newVisit.reasonForVisit}
+                            onChange={(e) => setNewVisit({ ...newVisit, reasonForVisit: e.target.value })}
+                            placeholder="e.g., Routine checkup, Toothache, etc."
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Diagnoses</label>
+                          <textarea
+                            value={newVisit.diagnoses}
+                            onChange={(e) => setNewVisit({ ...newVisit, diagnoses: e.target.value })}
+                            placeholder="Medical diagnoses..."
+                            rows="3"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Treatments</label>
+                          <textarea
+                            value={newVisit.treatments}
+                            onChange={(e) => setNewVisit({ ...newVisit, treatments: e.target.value })}
+                            placeholder="Treatments provided..."
+                            rows="3"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Prescriptions</label>
+                          <textarea
+                            value={newVisit.prescriptions}
+                            onChange={(e) => setNewVisit({ ...newVisit, prescriptions: e.target.value })}
+                            placeholder="Medications prescribed..."
+                            rows="3"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                          <textarea
+                            value={newVisit.notes}
+                            onChange={(e) => setNewVisit({ ...newVisit, notes: e.target.value })}
+                            placeholder="Additional notes..."
+                            rows="3"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Next Appointment</label>
+                          <input
+                            type="date"
+                            value={newVisit.nextAppointmentDate}
+                            onChange={(e) => setNewVisit({ ...newVisit, nextAppointmentDate: e.target.value })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Billing Amount (₹)</label>
+                          <input
+                            type="number"
+                            value={newVisit.billingAmount}
+                            onChange={(e) => setNewVisit({ ...newVisit, billingAmount: e.target.value })}
+                            placeholder="0.00"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Payment Status</label>
+                          <select
+                            value={newVisit.paymentStatus}
+                            onChange={(e) => setNewVisit({ ...newVisit, paymentStatus: e.target.value })}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="Paid">Paid</option>
+                            <option value="Partial">Partial</option>
+                          </select>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-bold text-red-900 mb-1">MEDICAL ALERTS - Critical Information</h3>
-                        <p className="text-sm text-red-700">Please review patient's medical conditions before prescribing medications</p>
-                      </div>
+                      <button
+                        onClick={handleSaveVisit}
+                        disabled={savingVisit || !newVisit.visitDate || !newVisit.reasonForVisit}
+                        className={`w-full mt-6 px-6 py-4 rounded-xl font-semibold transition-all duration-300 shadow-lg ${
+                          savingVisit || !newVisit.visitDate || !newVisit.reasonForVisit
+                            ? 'bg-gray-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white'
+                        }`}
+                      >
+                        {savingVisit ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Saving...
+                          </span>
+                        ) : (
+                          '💾 Save Visit Information'
+                        )}
+                      </button>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Chronic Diseases */}
-                      {selectedVisit.medicalConditions.chronicDiseases?.length > 0 && (
-                        <div className="bg-white/80 rounded-lg p-4 border-l-4 border-red-500">
-                          <p className="text-xs font-bold text-red-700 mb-2 flex items-center gap-2">
-                            🏥 CHRONIC CONDITIONS
-                          </p>
-                          <ul className="space-y-1">
-                            {selectedVisit.medicalConditions.chronicDiseases.map((disease, idx) => (
-                              <li key={idx} className="text-sm text-slate-800 font-semibold flex items-center gap-2">
-                                <span className="text-red-500">●</span> {disease}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Allergies */}
-                      {selectedVisit.medicalConditions.allergies?.length > 0 && (
-                        <div className="bg-white/80 rounded-lg p-4 border-l-4 border-orange-500">
-                          <p className="text-xs font-bold text-orange-700 mb-2 flex items-center gap-2">
-                            ⚠️ DRUG ALLERGIES
-                          </p>
-                          <ul className="space-y-1">
-                            {selectedVisit.medicalConditions.allergies.map((allergy, idx) => (
-                              <li key={idx} className="text-sm text-slate-800 font-semibold flex items-center gap-2">
-                                <span className="text-orange-500">●</span> {allergy}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Current Medications */}
-                      {selectedVisit.medicalConditions.currentMedications?.length > 0 && (
-                        <div className="bg-white/80 rounded-lg p-4 border-l-4 border-blue-500">
-                          <p className="text-xs font-bold text-blue-700 mb-2 flex items-center gap-2">
-                            💊 CURRENT MEDICATIONS
-                          </p>
-                          <ul className="space-y-1">
-                            {selectedVisit.medicalConditions.currentMedications.map((med, idx) => (
-                              <li key={idx} className="text-sm text-slate-800 flex items-center gap-2">
-                                <span className="text-blue-500">●</span> {med}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* Blood Pressure */}
-                      {selectedVisit.medicalConditions.bloodPressure && selectedVisit.medicalConditions.bloodPressure !== "Normal" && (
-                        <div className="bg-white/80 rounded-lg p-4 border-l-4 border-purple-500">
-                          <p className="text-xs font-bold text-purple-700 mb-2 flex items-center gap-2">
-                            🩺 BLOOD PRESSURE
-                          </p>
-                          <p className="text-sm text-slate-800 font-semibold">
-                            {selectedVisit.medicalConditions.bloodPressure}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Additional Notes */}
-                    {selectedVisit.medicalConditions.notes && selectedVisit.medicalConditions.notes !== "No significant medical history" && (
-                      <div className="mt-4 bg-amber-100 border border-amber-300 rounded-lg p-3">
-                        <p className="text-xs font-bold text-amber-900 mb-1">📋 CLINICAL NOTES</p>
-                        <p className="text-sm text-amber-900 italic">{selectedVisit.medicalConditions.notes}</p>
-                      </div>
-                    )}
                   </motion.div>
                 )}
+              </AnimatePresence>
 
-                {/* Prescription Text Area */}
-                <div className="mb-6">
-                  <label className="block text-sm font-bold text-slate-700 mb-3">
-                    Prescription Details
-                  </label>
-                  <textarea
-                    value={prescriptionText}
-                    onChange={(e) => setPrescriptionText(e.target.value)}
-                    placeholder="Enter prescription details here...&#10;&#10;Example:&#10;Rx&#10;1. Amoxicillin 500mg - Take 1 capsule three times daily for 7 days&#10;2. Ibuprofen 400mg - Take as needed for pain, every 6-8 hours&#10;3. Chlorhexidine mouthwash 0.2% - Rinse twice daily after brushing&#10;&#10;Instructions: Avoid hard foods, maintain oral hygiene"
-                    className="w-full h-64 px-4 py-3 border-2 border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none resize-none font-mono text-sm"
-                  />
-                  <p className="text-xs text-slate-500 mt-2">
-                    This prescription will be saved with the patient's visit information.
-                  </p>
+              {/* Visit History */}
+              <h3 className="text-2xl font-bold text-gray-800 mb-6">Visit History ({patientVisits.length})</h3>
+              {patientVisits.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p className="text-6xl mb-4">📋</p>
+                  <p className="text-xl">No visits recorded yet</p>
                 </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-4 justify-between">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowPrescriptionModal(false)}
-                    className="px-6 py-3 bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all"
-                  >
-                    Cancel
-                  </motion.button>
-                  <div className="flex gap-4">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={handlePrintPrescription}
-                      disabled={!prescriptionText.trim()}
-                      className={`px-6 py-3 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all ${
-                        prescriptionText.trim()
-                          ? 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:from-teal-600 hover:to-cyan-700'
-                          : 'bg-gradient-to-r from-slate-300 to-slate-400 text-slate-500 cursor-not-allowed'
-                      }`}
+              ) : (
+                <div className="space-y-4">
+                  {patientVisits.map((visit) => (
+                    <motion.div
+                      key={visit.visitId}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300"
                     >
-                      🖨️ Print
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={handleSaveAndSend}
-                      disabled={!prescriptionText.trim()}
-                      className={`px-8 py-3 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all text-white ${
-                        prescriptionText.trim()
-                          ? 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700'
-                          : 'bg-gradient-to-r from-slate-300 to-slate-400 cursor-not-allowed'
-                      }`}
-                    >
-                      💾 Save & Send
-                    </motion.button>
-                  </div>
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h4 className="text-xl font-bold text-gray-800">{visit.reasonForVisit}</h4>
+                          <p className="text-gray-600">📅 {visit.visitDate}</p>
+                        </div>
+                        <span className={`px-4 py-2 rounded-xl font-semibold ${
+                          visit.paymentStatus === "Paid" ? "bg-green-100 text-green-700" :
+                          visit.paymentStatus === "Pending" ? "bg-yellow-100 text-yellow-700" :
+                          "bg-orange-100 text-orange-700"
+                        }`}>
+                          {visit.paymentStatus}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 mb-1">Diagnoses:</p>
+                          <p className="text-sm text-gray-600">{visit.diagnoses || "N/A"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 mb-1">Treatments:</p>
+                          <p className="text-sm text-gray-600">{visit.treatments || "N/A"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 mb-1">Prescriptions:</p>
+                          <p className="text-sm text-gray-600">{visit.prescriptions || "N/A"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 mb-1">Attending Physician:</p>
+                          <p className="text-sm text-gray-600">{visit.attendingPhysician || "N/A"}</p>
+                        </div>
+                      </div>
+
+                      {visit.notes && (
+                        <div className="mb-4">
+                          <p className="text-sm font-semibold text-gray-700 mb-1">Notes:</p>
+                          <p className="text-sm text-gray-600">{visit.notes}</p>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center pt-4 border-t border-gray-300">
+                        <div className="text-sm text-gray-600">
+                          {visit.nextAppointmentDate && (
+                            <span>🗓️ Next: {visit.nextAppointmentDate}</span>
+                          )}
+                        </div>
+                        <div className="text-lg font-bold text-blue-600">
+                          ₹{visit.billingAmount?.toLocaleString()}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
-              </div>
-            </motion.div>
+              )}
+            </div>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Payment Status Modal */}
-      <AnimatePresence>
-        {showPaymentModal && paymentVisit && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            onClick={() => setShowPaymentModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-800">Update Payment Status</h2>
-                  <p className="text-sm text-slate-600">Visit ID: #{paymentVisit.visitId} - {paymentVisit.patientName}</p>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.1, rotate: 90 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setShowPaymentModal(false)}
-                  className="text-slate-400 hover:text-slate-600 text-2xl"
-                >
-                  ✕
-                </motion.button>
-              </div>
-
-              {/* Current Status */}
-              <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-lg p-4 mb-6 border border-slate-200">
-                <p className="text-xs font-semibold text-slate-600 mb-2">CURRENT STATUS</p>
-                <div className="flex items-center justify-between">
-                  <span className={`px-4 py-2 rounded-lg bg-gradient-to-r ${getStatusColor(paymentVisit.paymentStatus)} text-white font-semibold text-sm shadow-md`}>
-                    {paymentVisit.paymentStatus}
-                  </span>
-                  <div className="text-right">
-                    <p className="text-xs text-slate-600">Billing Amount</p>
-                    <p className="text-xl font-bold text-slate-800">₹{paymentVisit.billingAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Payment Status Options */}
-              <div className="mb-6">
-                <label className="block text-sm font-bold text-slate-700 mb-3">
-                  Select New Payment Status
-                </label>
-                <div className="space-y-3">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setNewPaymentStatus("Paid")}
-                    className={`w-full p-4 rounded-lg border-2 transition-all flex items-center justify-between ${
-                      newPaymentStatus === "Paid"
-                        ? 'border-emerald-500 bg-gradient-to-r from-emerald-50 to-teal-50'
-                        : 'border-slate-200 hover:border-emerald-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        newPaymentStatus === "Paid" ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300'
-                      }`}>
-                        {newPaymentStatus === "Paid" && (
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="font-semibold text-slate-800">Paid</span>
-                    </div>
-                    <span className="px-3 py-1 rounded-md bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-xs font-bold">
-                      ✓ Completed
-                    </span>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setNewPaymentStatus("Pending")}
-                    className={`w-full p-4 rounded-lg border-2 transition-all flex items-center justify-between ${
-                      newPaymentStatus === "Pending"
-                        ? 'border-amber-500 bg-gradient-to-r from-amber-50 to-orange-50'
-                        : 'border-slate-200 hover:border-amber-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        newPaymentStatus === "Pending" ? 'border-amber-500 bg-amber-500' : 'border-slate-300'
-                      }`}>
-                        {newPaymentStatus === "Pending" && (
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="font-semibold text-slate-800">Pending</span>
-                    </div>
-                    <span className="px-3 py-1 rounded-md bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold">
-                      ⏳ Awaiting
-                    </span>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setNewPaymentStatus("Overdue")}
-                    className={`w-full p-4 rounded-lg border-2 transition-all flex items-center justify-between ${
-                      newPaymentStatus === "Overdue"
-                        ? 'border-red-500 bg-gradient-to-r from-red-50 to-rose-50'
-                        : 'border-slate-200 hover:border-red-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        newPaymentStatus === "Overdue" ? 'border-red-500 bg-red-500' : 'border-slate-300'
-                      }`}>
-                        {newPaymentStatus === "Overdue" && (
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="font-semibold text-slate-800">Overdue</span>
-                    </div>
-                    <span className="px-3 py-1 rounded-md bg-gradient-to-r from-red-500 to-rose-500 text-white text-xs font-bold">
-                      ⚠️ Action Required
-                    </span>
-                  </motion.button>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-4">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setShowPaymentModal(false)}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 rounded-lg font-semibold shadow-md hover:shadow-lg transition-all"
-                >
-                  Cancel
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleUpdatePaymentStatus}
-                  disabled={newPaymentStatus === paymentVisit.paymentStatus}
-                  className={`flex-1 px-6 py-3 rounded-lg font-bold shadow-lg transition-all ${
-                    newPaymentStatus !== paymentVisit.paymentStatus
-                      ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:shadow-xl'
-                      : 'bg-gradient-to-r from-slate-300 to-slate-400 text-slate-500 cursor-not-allowed'
-                  }`}
-                >
-                  💳 Update Status
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

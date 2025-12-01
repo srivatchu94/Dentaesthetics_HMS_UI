@@ -24,3 +24,69 @@ body { @apply bg-slate-50 text-slate-900; }
 .animate-shake {
   animation: shake 0.5s ease-in-out;
 }
+
+/* Shine animation for hover effects */
+@keyframes shine {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%) skewX(-15deg); }
+}
+
+.animate-shine {
+  animation: shine 1s ease-in-out;
+}
+
+/* Print Styles for Prescription */
+@media print {
+  body {
+    background: white;
+  }
+  
+  #prescription-print {
+    max-width: 100%;
+    padding: 0;
+  }
+  
+  .print\:border-0 {
+    border: none !important;
+  }
+  
+  /* Hide everything except the prescription content */
+  body > *:not(#prescription-print) {
+    display: none !important;
+  }
+  
+  /* Show only prescription content */
+  #prescription-print,
+  #prescription-print * {
+    display: block !important;
+    visibility: visible !important;
+  }
+  
+  /* Remove shadows and backgrounds for printing */
+  * {
+    box-shadow: none !important;
+  }
+  
+  /* Ensure page breaks are handled properly */
+  .page-break-avoid {
+    page-break-inside: avoid;
+  }
+  
+  /* Adjust font sizes for print */
+  body {
+    font-size: 12pt;
+  }
+  
+  h1 {
+    font-size: 24pt;
+  }
+  
+  h2 {
+    font-size: 18pt;
+  }
+  
+  h3 {
+    font-size: 14pt;
+  }
+}
+

@@ -114,17 +114,51 @@ export function deleteDoctor(staffId: number): Promise<void> {
 
 // Search doctors with filters
 export function searchDoctors(params: {
+  enterpriseId?: number;
   firstName?: string;
   lastName?: string;
   staffId?: number;
   clinicId?: number;
+  specialtyId?: number;
 }): Promise<DoctorProfileModel[]> {
   const queryParams = new URLSearchParams();
   
+  if (params.enterpriseId) queryParams.append('enterpriseId', params.enterpriseId.toString());
   if (params.firstName) queryParams.append('firstName', params.firstName);
   if (params.lastName) queryParams.append('lastName', params.lastName);
   if (params.staffId) queryParams.append('staffId', params.staffId.toString());
   if (params.clinicId) queryParams.append('clinicId', params.clinicId.toString());
+  if (params.specialtyId) queryParams.append('specialtyId', params.specialtyId.toString());
   
   return request<DoctorProfileModel[]>(`/DoctorProfile/SearchDoctors?${queryParams.toString()}`);
+}
+
+// Doctor-Clinic Mapping
+import type { DoctorClinicMapping } from '../Interfaces/DoctorClinicMappingModel';
+
+export function mapDoctorToClinics(mappings: DoctorClinicMapping[]): Promise<DoctorClinicMapping[]> {
+  return request<DoctorClinicMapping[]>("/DoctorProfile/MapDoctortoClinics", {
+    method: "POST",
+    body: JSON.stringify(mappings)
+  });
+}
+
+export function getDoctorClinicMappings(doctorId: number): Promise<DoctorClinicMapping[]> {
+  return request<DoctorClinicMapping[]>(`/DoctorProfile/GetDoctorMappings?doctorId=${doctorId}`);
+}
+
+export function getClinicDoctorMappings(clinicId: number): Promise<DoctorClinicMapping[]> {
+  return request<DoctorClinicMapping[]>(`/DoctorProfile/GetClinicMappings?clinicId=${clinicId}`);
+}
+
+// Get doctors by enterprise ID
+export function getDoctorsByEnterpriseId(enterpriseId: number): Promise<DoctorProfileModel[]> {
+  return request<DoctorProfileModel[]>(`/DoctorProfile/GetDoctorsByEnterpriseID?enterpriseId=${enterpriseId}`);
+}
+
+// Get clinics by enterprise ID
+import type { ClinicModel } from '../Interfaces/ClinicModel';
+
+export function getClinicsByEnterpriseId(enterpriseId: number): Promise<ClinicModel[]> {
+  return request<ClinicModel[]>(`/DoctorProfile/GetClinicsByEnterpriseID?enterpriseId=${enterpriseId}`);
 }
