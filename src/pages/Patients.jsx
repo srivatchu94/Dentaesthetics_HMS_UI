@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient } from "../services/patientService";
 import { visitService } from "../services/visitService";
+import ViewPatients from "./ViewPatients";
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => (
@@ -135,6 +136,9 @@ export default function Patients() {
   // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [registeredPatient, setRegisteredPatient] = useState(null);
+  
+  // View Patients modal state
+  const [showViewPatientsModal, setShowViewPatientsModal] = useState(false);
   
   // Check URL params on mount to set initial view
   useEffect(() => {
@@ -553,7 +557,7 @@ export default function Patients() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { id: 'register', title: '📝 Register Patient', description: 'Add new patient records', icon: '📝', color: 'from-teal-400 to-cyan-400', action: () => setActiveView('register') },
-              { id: 'list', title: '📋 View Patients', description: 'Browse patient records', icon: '📋', color: 'from-blue-400 to-indigo-400', action: () => setActiveView('list') },
+              { id: 'list', title: '📋 View Patients', description: 'Browse patient records', icon: '📋', color: 'from-blue-400 to-indigo-400', action: () => setShowViewPatientsModal(true) },
               { id: 'edit', title: '✏️ Edit Records', description: 'Update patient info', icon: '✏️', color: 'from-indigo-400 to-purple-400', action: () => navigate('/patients/edit') },
               { id: 'remove', title: '🗑️ Remove Patient', description: 'Delete patient records', icon: '🗑️', color: 'from-rose-400 to-rose-500', action: () => navigate('/patients/delete') }
             ].map((tile, index) => (
@@ -3806,6 +3810,45 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </motion.button>
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* View Patients Modal */}
+      <AnimatePresence>
+        {showViewPatientsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            onClick={() => setShowViewPatientsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full h-[95vh] max-w-[98vw] bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-3xl shadow-2xl overflow-hidden relative"
+            >
+              {/* Close Button */}
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowViewPatientsModal(false)}
+                className="absolute top-6 right-6 z-50 w-12 h-12 bg-white hover:bg-red-50 text-red-600 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+                title="Close"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </motion.button>
+
+              {/* ViewPatients Component */}
+              <div className="h-full overflow-y-auto">
+                <ViewPatients />
               </div>
             </motion.div>
           </motion.div>

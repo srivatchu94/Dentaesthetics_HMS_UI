@@ -26,16 +26,19 @@ export default function ViewDoctors() {
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
-    loadSpecialties();
+    // loadSpecialties(); // TODO: ClinicalSpecialty endpoint not available yet
   }, []);
 
   const loadSpecialties = async () => {
-    try {
-      const data = await listClinicalSpecialties();
-      setSpecialties(data);
-    } catch (error) {
-      console.error("Error loading specialties:", error);
-    }
+    // TODO: Backend endpoint /ClinicalSpecialty/GetAllSpecialties returns 404
+    // Commenting out until endpoint is implemented
+    // try {
+    //   const data = await listClinicalSpecialties();
+    //   setSpecialties(data);
+    // } catch (error) {
+    //   console.error("Error loading specialties:", error);
+    // }
+    console.log("Specialty loading disabled - endpoint not available");
   };
 
   const handleSearch = async () => {

@@ -41,7 +41,7 @@ export default function App(){
           <Route path="/clinics/view" element={<div className="max-w-6xl mx-auto"><ViewClinics /></div>} />
           <Route path="/clinics/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Clinics" /></div>} />
           <Route path="/patients" element={<div className="max-w-6xl mx-auto"><Patients /></div>} />
-          <Route path="/patients/view" element={<div className="max-w-6xl mx-auto"><ViewPatients /></div>} />
+          <Route path="/patients/view" element={<ViewPatients />} />
           <Route path="/patients/edit" element={<div className="max-w-6xl mx-auto"><EditPatients /></div>} />
           <Route path="/patients/delete" element={<div className="max-w-6xl mx-auto"><DeletePatients /></div>} />
           <Route path="/patients/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resourceType="patients" /></div>} />
