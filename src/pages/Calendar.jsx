@@ -1,15 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { getCalendarAppointments, updateAppointment } from "../services/appointmentService";
 
-// Sample appointments data with time slots
-const INITIAL_APPOINTMENTS = [
-  { id: 1, patient: "Sarah Johnson", patientPhone: "555-0101", patientEmail: "sarah@email.com", date: "2025-11-16", startTime: "10:00", endTime: "10:30", type: "Cleaning", doctor: "Dr. Smith", status: "Confirmed", notes: "Regular cleaning", color: "emerald" },
-  { id: 2, patient: "Michael Chen", patientPhone: "555-0102", patientEmail: "michael@email.com", date: "2025-11-16", startTime: "14:00", endTime: "15:30", type: "Root Canal", doctor: "Dr. Smith", status: "Confirmed", notes: "Follow-up required", color: "rose" },
-  { id: 3, patient: "Emily Rodriguez", patientPhone: "555-0103", patientEmail: "emily@email.com", date: "2025-11-18", startTime: "11:00", endTime: "11:45", type: "Filling", doctor: "Dr. Smith", status: "Confirmed", notes: "Upper molar", color: "blue" },
-  { id: 4, patient: "David Thompson", patientPhone: "555-0104", patientEmail: "david@email.com", date: "2025-11-20", startTime: "09:00", endTime: "09:30", type: "Checkup", doctor: "Dr. Smith", status: "Pending", notes: "Annual checkup", color: "amber" },
-];
-
+// Time slots for booking
 const TIME_SLOTS = [
   "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
   "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
@@ -26,16 +20,36 @@ export default function Calendar() {
   const navigationState = window.history.state?.usr;
   const patientFromNav = navigationState?.patientData;
   
-  const [currentDate, setCurrentDate] = useState(new Date(2025, 10, 1)); // November 2025
+  const [currentDate, setCurrentDate] = useState(new Date()); // Today's date
   const [selectedDate, setSelectedDate] = useState(null);
   const [viewMode, setViewMode] = useState("month");
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [appointments, setAppointments] = useState(INITIAL_APPOINTMENTS);
+  const [appointments, setAppointments] = useState([]);
+  const [loadingAppointments, setLoadingAppointments] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [showDoubleBookingModal, setShowDoubleBookingModal] = useState(false);
   const [pendingAppointment, setPendingAppointment] = useState(null);
+  const [isEditingAppointment, setIsEditingAppointment] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    patient: "",
+    patientPhone: "",
+    patientEmail: "",
+    date: "",
+    startTime: "",
+    endTime: "",
+    type: "",
+    doctor: "",
+    notes: "",
+    billableAmount: 0,
+    paidAmount: 0,
+    pendingAmount: 0,
+    status: "",
+    paymentStatus: "",
+    reasonForVisit: ""
+  });
+  const [updatingAppointment, setUpdatingAppointment] = useState(false);
   
   // Booking form state - pre-fill with patient data if available
   const [bookingForm, setBookingForm] = useState({
@@ -56,6 +70,147 @@ export default function Calendar() {
       setShowBookingModal(true);
     }
   }, [patientFromNav]);
+
+  // Load appointments from API
+  useEffect(() => {
+    const loadAppointments = async () => {
+      try {
+        setLoadingAppointments(true);
+        console.log('📅 Loading calendar appointments from API...');
+        const data = await getCalendarAppointments();
+        
+        // Transform backend data to match frontend format
+        const transformedAppointments = data.map((apt) => ({
+          id: apt.appointmentId,
+          patient: `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
+          patientPhone: apt.phoneNumber || '',
+          patientEmail: apt.email || '',
+          date: apt.appointmentDate ? apt.appointmentDate.split('T')[0] : '',
+          startTime: apt.startTime || '',
+          endTime: apt.endTime || '',
+          type: apt.appointmentType || '',
+          doctor: apt.attendingPhysician || 'Dr. Smith',
+          status: apt.status || 'Confirmed',
+          notes: apt.notes || '',
+          billableAmount: apt.billableAmount || 0,
+          paidAmount: apt.paidAmount || 0,
+          pendingAmount: apt.pendingAmount || 0,
+          paymentStatus: apt.paymentStatus || 'Pending',
+          patientId: apt.patientId,
+          clinicId: apt.clinicId,
+          doctorId: apt.doctorId,
+          enterpriseId: apt.enterpriseId,
+          reasonForVisit: apt.reasonForVisit || '',
+          color: 'emerald'
+        }));
+        
+        console.log('✅ Loaded appointments:', transformedAppointments);
+        setAppointments(transformedAppointments);
+      } catch (error) {
+        console.error('❌ Error loading appointments:', error);
+        // Show error to user
+        alert('Failed to load appointments. Please refresh the page.');
+        setAppointments([]);
+      } finally {
+        setLoadingAppointments(false);
+      }
+    };
+
+    loadAppointments();
+  }, []);
+
+  // Normalize time to HH:mm format
+  const normalizeTime = (time) => {
+    if (!time) return '08:00';
+    if (time.match(/^\d{2}:\d{2}$/)) return time;
+    if (time.match(/^\d{2}:\d{2}:\d{2}$/)) return time.substring(0, 5);
+    return '08:00';
+  };
+
+  // Process appointments with normalized times
+  const processedAppointments = appointments.map(apt => ({
+    ...apt,
+    startTime: normalizeTime(apt.startTime),
+    endTime: normalizeTime(apt.endTime) || normalizeTime(apt.startTime)
+  }));
+
+  // Handle updating appointment details
+  const handleUpdateAppointment = async () => {
+    if (!selectedAppointment) return;
+    
+    try {
+      setUpdatingAppointment(true);
+      console.log('📝 Updating appointment details...');
+      
+      // Convert time strings HH:mm to HH:mm:ss format required by backend
+      const convertTimeToTimeSpan = (timeStr) => {
+        if (!timeStr) return "00:00:00";
+        if (timeStr.includes(':')) {
+          const parts = timeStr.split(':');
+          if (parts.length === 2) {
+            return `${parts[0]}:${parts[1]}:00`;
+          }
+          return timeStr;
+        }
+        return "00:00:00";
+      };
+      
+      // Prepare update payload - complete AppointmentsModel for backend
+      const updatePayload = {
+        appointmentId: selectedAppointment.id,
+        patientId: selectedAppointment.patientId,
+        clinicId: selectedAppointment.clinicId,
+        doctorId: selectedAppointment.doctorId || 0,
+        enterpriseId: selectedAppointment.enterpriseId,
+        firstName: editFormData.patient.split(' ')[0] || "",
+        lastName: editFormData.patient.split(' ').slice(1).join(' ') || "",
+        phoneNumber: editFormData.patientPhone,
+        email: editFormData.patientEmail,
+        appointmentDate: editFormData.date,
+        startTime: convertTimeToTimeSpan(editFormData.startTime),
+        endTime: convertTimeToTimeSpan(editFormData.endTime),
+        appointmentType: editFormData.type,
+        attendingPhysician: editFormData.doctor,
+        notes: editFormData.notes,
+        billableAmount: parseFloat(editFormData.billableAmount) || 0,
+        paidAmount: parseFloat(editFormData.paidAmount) || 0,
+        pendingAmount: parseFloat(editFormData.pendingAmount) || 0,
+        status: editFormData.status,
+        paymentStatus: editFormData.paymentStatus,
+        reasonForVisit: editFormData.reasonForVisit || ''
+      };
+      
+      console.log('📤 Sending payload to backend:', updatePayload);
+      
+      // Call API to update
+      await updateAppointment(updatePayload);
+      
+      console.log('✅ Appointment updated successfully');
+      
+      // Update local state
+      const updatedAppointments = appointments.map(apt => 
+        apt.id === selectedAppointment.id 
+          ? { ...apt, ...editFormData }
+          : apt
+      );
+      setAppointments(updatedAppointments);
+      
+      // Update selected appointment
+      const updatedAppointment = { ...selectedAppointment, ...editFormData };
+      setSelectedAppointment(updatedAppointment);
+      
+      // Exit edit mode
+      setIsEditingAppointment(false);
+      
+      // Show success notification
+      alert('✅ Appointment updated successfully!');
+    } catch (error) {
+      console.error('❌ Error updating appointment:', error);
+      alert('❌ Failed to update appointment. Please try again.');
+    } finally {
+      setUpdatingAppointment(false);
+    }
+  };
 
   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -93,7 +248,7 @@ export default function Calendar() {
   };
 
   const getAppointmentsForDate = (dateStr) => {
-    return appointments.filter(apt => apt.date === dateStr);
+    return processedAppointments.filter(apt => apt.date === dateStr);
   };
 
   const handleDateClick = (day) => {
@@ -195,7 +350,7 @@ export default function Calendar() {
   };
 
   const isSlotBlocked = (dateStr, time) => {
-    return appointments.some(apt => {
+    return processedAppointments.some(apt => {
       if (apt.date !== dateStr) return false;
       const slotIdx = TIME_SLOTS.indexOf(time);
       const startIdx = TIME_SLOTS.indexOf(apt.startTime);
@@ -205,7 +360,7 @@ export default function Calendar() {
   };
 
   const getAppointmentAtSlot = (dateStr, time) => {
-    return appointments.find(apt => {
+    return processedAppointments.find(apt => {
       if (apt.date !== dateStr) return false;
       const slotIdx = TIME_SLOTS.indexOf(time);
       const startIdx = TIME_SLOTS.indexOf(apt.startTime);
@@ -441,6 +596,24 @@ export default function Calendar() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedAppointment(appointment);
+                          setEditFormData({
+                            patient: appointment.patient || "",
+                            patientPhone: appointment.patientPhone || "",
+                            patientEmail: appointment.patientEmail || "",
+                            date: appointment.date || "",
+                            startTime: appointment.startTime || "",
+                            endTime: appointment.endTime || "",
+                            type: appointment.type || "",
+                            doctor: appointment.doctor || "",
+                            notes: appointment.notes || "",
+                            billableAmount: appointment.billableAmount || 0,
+                            paidAmount: appointment.paidAmount || 0,
+                            pendingAmount: appointment.pendingAmount || 0,
+                            status: appointment.status || "",
+                            paymentStatus: appointment.paymentStatus || "",
+                            reasonForVisit: appointment.reasonForVisit || ""
+                          });
+                          setIsEditingAppointment(false);
                           setShowAppointmentModal(true);
                         }}
                         className={`absolute w-full z-10 cursor-move`}
@@ -691,89 +864,399 @@ export default function Calendar() {
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8"
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
               >
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-sage-600 bg-clip-text text-transparent">
-                    Appointment Details
-                  </h3>
-                  <button
-                    onClick={() => setShowAppointmentModal(false)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
-                  </button>
+                {/* Header */}
+                <div className="sticky top-0 bg-gradient-to-r from-teal-600 to-cyan-600 p-5 flex items-center justify-between rounded-t-2xl">
+                  <div>
+                    <h3 className="text-xl font-bold text-white">📅 Appointment Details</h3>
+                    <p className="text-xs text-cyan-100 mt-1">ID: {selectedAppointment.id}</p>
+                  </div>
+                  <div className="flex gap-3">
+                    {!isEditingAppointment && (
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setIsEditingAppointment(true)}
+                        className="px-4 py-2 bg-white text-teal-600 rounded-lg font-bold text-sm hover:bg-cyan-50 transition-colors"
+                      >
+                        ✏️ Edit
+                      </motion.button>
+                    )}
+                    <button
+                      onClick={() => setShowAppointmentModal(false)}
+                      className="text-white hover:text-gray-200 transition-colors"
+                    >
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Patient</p>
-                    <p className="text-lg font-semibold text-gray-800">{selectedAppointment.patient}</p>
-                  </div>
-
+                {/* Content */}
+                <div className="p-6 space-y-4">
+                  {/* Patient Info */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Phone</p>
-                      <p className="font-semibold text-gray-800">{selectedAppointment.patientPhone}</p>
+                      <label className="text-xs text-blue-600 font-bold uppercase mb-2 block">👤 Patient Name</label>
+                      {isEditingAppointment ? (
+                        <input
+                          type="text"
+                          value={editFormData.patient}
+                          onChange={(e) => setEditFormData({ ...editFormData, patient: e.target.value })}
+                          className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      ) : (
+                        <p className="text-base font-bold text-gray-800 bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">{editFormData.patient}</p>
+                      )}
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Email</p>
-                      <p className="font-semibold text-gray-800 text-sm">{selectedAppointment.patientEmail}</p>
+                      <label className="text-xs text-purple-600 font-bold uppercase mb-2 block">👨‍⚕️ Doctor</label>
+                      {isEditingAppointment ? (
+                        <input
+                          type="text"
+                          value={editFormData.doctor}
+                          onChange={(e) => setEditFormData({ ...editFormData, doctor: e.target.value })}
+                          className="w-full px-3 py-2 border-2 border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        />
+                      ) : (
+                        <p className="text-base font-bold text-gray-800 bg-purple-50 p-3 rounded-lg border-l-4 border-purple-500">{editFormData.doctor}</p>
+                      )}
                     </div>
                   </div>
 
+                  {/* Contact Info */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Date</p>
-                      <p className="font-semibold text-gray-800">{selectedAppointment.date}</p>
+                      <label className="text-xs text-gray-600 font-bold uppercase mb-2 block">📞 Phone</label>
+                      {isEditingAppointment ? (
+                        <input
+                          type="tel"
+                          value={editFormData.patientPhone}
+                          onChange={(e) => setEditFormData({ ...editFormData, patientPhone: e.target.value })}
+                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
+                        />
+                      ) : (
+                        <p className="text-sm font-semibold text-gray-800 bg-gray-50 p-3 rounded-lg">{editFormData.patientPhone}</p>
+                      )}
                     </div>
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Time</p>
-                      <p className="font-semibold text-gray-800">{selectedAppointment.startTime} - {selectedAppointment.endTime}</p>
+                      <label className="text-xs text-gray-600 font-bold uppercase mb-2 block">✉️ Email</label>
+                      {isEditingAppointment ? (
+                        <input
+                          type="email"
+                          value={editFormData.patientEmail}
+                          onChange={(e) => setEditFormData({ ...editFormData, patientEmail: e.target.value })}
+                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
+                        />
+                      ) : (
+                        <p className="text-sm font-semibold text-gray-800 bg-gray-50 p-3 rounded-lg truncate">{editFormData.patientEmail}</p>
+                      )}
                     </div>
                   </div>
 
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Treatment Type</p>
-                    <p className="font-semibold text-gray-800">{selectedAppointment.type}</p>
-                  </div>
-
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Doctor</p>
-                    <p className="font-semibold text-gray-800">{selectedAppointment.doctor}</p>
-                  </div>
-
-                  {selectedAppointment.notes && (
+                  {/* Date & Time */}
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Notes</p>
-                      <p className="text-gray-700">{selectedAppointment.notes}</p>
+                      <label className="text-xs text-orange-600 font-bold uppercase mb-2 block">📅 Date</label>
+                      {isEditingAppointment ? (
+                        <input
+                          type="date"
+                          value={editFormData.date}
+                          onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
+                          className="w-full px-3 py-2 border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                        />
+                      ) : (
+                        <p className="text-sm font-bold text-gray-800 bg-orange-50 p-3 rounded-lg border-l-4 border-orange-500">{editFormData.date}</p>
+                      )}
                     </div>
+                    <div>
+                      <label className="text-xs text-green-600 font-bold uppercase mb-2 block">🕐 Start Time</label>
+                      {isEditingAppointment ? (
+                        <input
+                          type="time"
+                          value={editFormData.startTime}
+                          onChange={(e) => setEditFormData({ ...editFormData, startTime: e.target.value })}
+                          className="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                      ) : (
+                        <p className="text-sm font-bold text-gray-800 bg-green-50 p-3 rounded-lg border-l-4 border-green-500">{editFormData.startTime}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-xs text-red-600 font-bold uppercase mb-2 block">⏱️ End Time</label>
+                      {isEditingAppointment ? (
+                        <input
+                          type="time"
+                          value={editFormData.endTime}
+                          onChange={(e) => setEditFormData({ ...editFormData, endTime: e.target.value })}
+                          className="w-full px-3 py-2 border-2 border-red-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                        />
+                      ) : (
+                        <p className="text-sm font-bold text-gray-800 bg-red-50 p-3 rounded-lg border-l-4 border-red-500">{editFormData.endTime}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Treatment Type */}
+                  <div>
+                    <label className="text-xs text-indigo-600 font-bold uppercase mb-2 block">🦷 Treatment Type</label>
+                    {isEditingAppointment ? (
+                      <select
+                        value={editFormData.type}
+                        onChange={(e) => setEditFormData({ ...editFormData, type: e.target.value })}
+                        className="w-full px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">Select Treatment Type</option>
+                        {TREATMENT_TYPES.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-sm font-bold text-gray-800 bg-indigo-50 p-3 rounded-lg border-l-4 border-indigo-500">{editFormData.type}</p>
+                    )}
+                  </div>
+
+                  {/* Reason for Visit */}
+                  <div>
+                    <label className="text-xs text-cyan-600 font-bold uppercase mb-2 block">💬 Reason for Visit</label>
+                    {isEditingAppointment ? (
+                      <textarea
+                        value={editFormData.reasonForVisit}
+                        onChange={(e) => setEditFormData({ ...editFormData, reasonForVisit: e.target.value })}
+                        placeholder="Enter reason for visit..."
+                        className="w-full p-3 border-2 border-cyan-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 min-h-[80px] resize-none"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-700 bg-cyan-50 p-3 rounded-lg border-l-4 border-cyan-500">{editFormData.reasonForVisit || "No reason specified"}</p>
+                    )}
+                  </div>
+
+                  {/* Financial Details */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-gray-700 uppercase">💰 Financial Details</p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs text-emerald-600 font-bold mb-2 block">Total Amount</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="number"
+                            value={editFormData.billableAmount}
+                            onChange={(e) => setEditFormData({ ...editFormData, billableAmount: parseFloat(e.target.value) || 0 })}
+                            className="w-full px-3 py-2 border-2 border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            step="0.01"
+                          />
+                        ) : (
+                          <p className="text-lg font-bold text-emerald-700 bg-emerald-50 p-3 rounded-lg border-l-4 border-emerald-500">₹{editFormData.billableAmount.toFixed(2)}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-xs text-green-600 font-bold mb-2 block">Paid Amount</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="number"
+                            value={editFormData.paidAmount}
+                            onChange={(e) => setEditFormData({ ...editFormData, paidAmount: parseFloat(e.target.value) || 0 })}
+                            className="w-full px-3 py-2 border-2 border-green-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                            step="0.01"
+                          />
+                        ) : (
+                          <p className="text-lg font-bold text-green-700 bg-green-50 p-3 rounded-lg border-l-4 border-green-500">₹{editFormData.paidAmount.toFixed(2)}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-xs text-orange-600 font-bold mb-2 block">Pending Amount</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="number"
+                            value={editFormData.pendingAmount}
+                            onChange={(e) => setEditFormData({ ...editFormData, pendingAmount: parseFloat(e.target.value) || 0 })}
+                            className="w-full px-3 py-2 border-2 border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
+                            step="0.01"
+                          />
+                        ) : (
+                          <p className="text-lg font-bold text-orange-700 bg-orange-50 p-3 rounded-lg border-l-4 border-orange-500">₹{editFormData.pendingAmount.toFixed(2)}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Status */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-gray-700 uppercase">💳 Payment Status</p>
+                    {isEditingAppointment ? (
+                      <select
+                        value={editFormData.paymentStatus}
+                        onChange={(e) => setEditFormData({ ...editFormData, paymentStatus: e.target.value })}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
+                      >
+                        <option value="">Select Payment Status</option>
+                        <option value="Pending">⏳ Pending</option>
+                        <option value="Paid">✅ Paid</option>
+                        <option value="Partial">💸 Partial</option>
+                        <option value="Invoice">📄 Invoice</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2 flex-wrap">
+                        {['Pending', 'Paid', 'Partial', 'Invoice'].map((status) => {
+                          const statusColors = {
+                            'Pending': 'bg-yellow-500 text-white',
+                            'Paid': 'bg-green-500 text-white',
+                            'Partial': 'bg-blue-500 text-white',
+                            'Invoice': 'bg-purple-500 text-white'
+                          };
+                          const statusEmojis = {
+                            'Pending': '⏳',
+                            'Paid': '✅',
+                            'Partial': '💸',
+                            'Invoice': '📄'
+                          };
+                          return (
+                            <span
+                              key={status}
+                              className={`px-3 py-2 rounded-lg text-xs font-bold ${
+                                editFormData.paymentStatus === status
+                                  ? statusColors[status]
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}
+                            >
+                              {statusEmojis[status]} {status}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Appointment Status */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-gray-700 uppercase">📊 Appointment Status</p>
+                    {isEditingAppointment ? (
+                      <select
+                        value={editFormData.status}
+                        onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
+                      >
+                        <option value="">Select Status</option>
+                        <option value="Confirmed">✅ Confirmed</option>
+                        <option value="Pending">⏳ Pending</option>
+                        <option value="Completed">🎉 Completed</option>
+                        <option value="Cancelled">❌ Cancelled</option>
+                      </select>
+                    ) : (
+                      <div className="flex gap-2 flex-wrap">
+                        {['Confirmed', 'Pending', 'Completed', 'Cancelled'].map((status) => {
+                          const statusColors = {
+                            'Confirmed': 'bg-green-500 text-white',
+                            'Pending': 'bg-yellow-500 text-white',
+                            'Completed': 'bg-blue-500 text-white',
+                            'Cancelled': 'bg-red-500 text-white'
+                          };
+                          const statusEmojis = {
+                            'Confirmed': '✅',
+                            'Pending': '⏳',
+                            'Completed': '🎉',
+                            'Cancelled': '❌'
+                          };
+                          return (
+                            <span
+                              key={status}
+                              className={`px-3 py-2 rounded-lg text-xs font-bold ${
+                                editFormData.status === status
+                                  ? statusColors[status]
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}
+                            >
+                              {statusEmojis[status]} {status}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <label className="text-xs text-yellow-600 font-bold uppercase mb-2 block">📝 Notes</label>
+                    {isEditingAppointment ? (
+                      <textarea
+                        value={editFormData.notes}
+                        onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                        placeholder="Enter appointment notes..."
+                        className="w-full p-3 border-2 border-yellow-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 min-h-[100px] resize-none"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-700 bg-yellow-50 p-3 rounded-lg border-l-4 border-yellow-500">{editFormData.notes || "No notes"}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="border-t bg-gray-50 p-4 flex gap-3 rounded-b-2xl">
+                  {isEditingAppointment ? (
+                    <>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={handleUpdateAppointment}
+                        disabled={updatingAppointment}
+                        className="flex-1 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {updatingAppointment ? '⏳ Updating...' : '✅ Update'}
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setIsEditingAppointment(false);
+                          setEditFormData({
+                            patient: selectedAppointment.patient || "",
+                            patientPhone: selectedAppointment.patientPhone || "",
+                            patientEmail: selectedAppointment.patientEmail || "",
+                            date: selectedAppointment.date || "",
+                            startTime: selectedAppointment.startTime || "",
+                            endTime: selectedAppointment.endTime || "",
+                            type: selectedAppointment.type || "",
+                            doctor: selectedAppointment.doctor || "",
+                            notes: selectedAppointment.notes || "",
+                            billableAmount: selectedAppointment.billableAmount || 0,
+                            paidAmount: selectedAppointment.paidAmount || 0,
+                            pendingAmount: selectedAppointment.pendingAmount || 0,
+                            status: selectedAppointment.status || "",
+                            paymentStatus: selectedAppointment.paymentStatus || "",
+                            reasonForVisit: selectedAppointment.reasonForVisit || ""
+                          });
+                        }}
+                        disabled={updatingAppointment}
+                        className="flex-1 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
+                      >
+                        ✕ Cancel
+                      </motion.button>
+                    </>
+                  ) : (
+                    <>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setAppointments(appointments.filter(apt => apt.id !== selectedAppointment.id));
+                          setShowAppointmentModal(false);
+                        }}
+                        className="flex-1 py-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all"
+                      >
+                        🗑️ Delete Appointment
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setShowAppointmentModal(false)}
+                        className="flex-1 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all"
+                      >
+                        ✕ Close
+                      </motion.button>
+                    </>
                   )}
-
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Status</p>
-                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
-                      selectedAppointment.status === "Confirmed" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-                    }`}>
-                      {selectedAppointment.status}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex gap-3">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      setAppointments(appointments.filter(apt => apt.id !== selectedAppointment.id));
-                      setShowAppointmentModal(false);
-                    }}
-                    className="flex-1 py-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all"
-                  >
-                    Cancel Appointment
-                  </motion.button>
                 </div>
               </motion.div>
             </motion.div>

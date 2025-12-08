@@ -5,6 +5,9 @@ export interface RegisterRequest {
   password: string;
   emailid: string;
   mobileNumber: string;
+  firstName?: string;
+  lastName?: string;
+  roleId?: number;
 }
 
 export interface LoginRequest {
@@ -12,6 +15,41 @@ export interface LoginRequest {
   password: string;
 }
 
+// Access structure for enterprise/clinic/roles
+export interface UserAccess {
+  enterpriseId: number;
+  clinicId: number;
+  roleIds: number[];
+}
+
+// Actual backend login response structure (with refresh token)
+export interface LoginResponse {
+  accessToken: string;
+  refreshToken: string;
+  username: string;
+  userId: number;
+  access: UserAccess[];
+  accessTokenExpiresAt: string;
+  refreshTokenExpiresAt: string;
+  inactivityTimeoutMinutes: number;
+  maxSessionDurationHours: number;
+}
+
+// Refresh token request
+export interface RefreshTokenRequest {
+  accessToken: string;
+  refreshToken: string;
+}
+
+// Refresh token response
+export interface RefreshTokenResponse {
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresAt: string;
+  refreshTokenExpiresAt: string;
+}
+
+// Legacy AuthResponse (kept for compatibility)
 export interface AuthResponse {
   username: string;
   isActive: boolean;

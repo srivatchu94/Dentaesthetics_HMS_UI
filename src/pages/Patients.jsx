@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient } from "../services/patientService";
 import { visitService } from "../services/visitService";
+import { getClinicsByEnterpriseId } from "../services/doctorService";
+import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment } from "../services/appointmentService";
 import ViewPatients from "./ViewPatients";
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
@@ -140,6 +142,216 @@ export default function Patients() {
   // View Patients modal state
   const [showViewPatientsModal, setShowViewPatientsModal] = useState(false);
   
+  // Appointments modal states
+  const [showViewAppointmentsModal, setShowViewAppointmentsModal] = useState(false);
+  const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
+  
+  // Appointment booking form state
+  const [appointmentForm, setAppointmentForm] = useState({
+    // Patient details
+    firstName: "",
+    lastName: "",
+    phoneNumber: "",
+    email: "",
+    // Scheduling
+    date: "",
+    startTime: "",
+    endTime: "",
+    durationMinutes: "",
+    // Details
+    appointmentType: "",
+    reasonForVisit: "",
+    notes: "",
+    roomNumber: "",
+    telehealthLink: "",
+    attendingPhysician: "",
+    // Status & billing
+    status: "Scheduled",
+    isConfirmed: false,
+    billableAmount: "",
+    paidAmount: "",
+    pendingAmount: "",
+    paymentStatus: "Pending",
+    // References
+    doctorId: ""
+  });
+  
+  // Patient search state for appointment booking
+  const [patientSearchForm, setPatientSearchForm] = useState({
+    clinicId: "",
+    patientId: "",
+    firstName: "",
+    lastName: ""
+  });
+  const [searchedPatient, setSearchedPatient] = useState(null);
+  const [patientSearchLoading, setPatientSearchLoading] = useState(false);
+  const [patientNotFound, setPatientNotFound] = useState(false);
+  const [bookingWithoutRegistration, setBookingWithoutRegistration] = useState(false);
+  const [clinicsList, setClinicsList] = useState([]);
+  const [showAppointmentSuccessModal, setShowAppointmentSuccessModal] = useState(false);
+  const [createdAppointment, setCreatedAppointment] = useState(null);
+  const [appointmentsList, setAppointmentsList] = useState([]);
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
+  const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
+  const [isEditingAppointment, setIsEditingAppointment] = useState(false);
+  const [editAppointmentForm, setEditAppointmentForm] = useState(null);
+  const [showAppointmentUpdateSuccess, setShowAppointmentUpdateSuccess] = useState(false);
+  const [showNotLoggedInModal, setShowNotLoggedInModal] = useState(false);
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(!!localStorage.getItem('accessToken'));
+  
+  // Appointment filter state
+  const [appointmentFilter, setAppointmentFilter] = useState({
+    clinicId: "",
+    firstName: "",
+    lastName: "",
+    doctorId: "",
+    appointmentDate: ""
+  });
+  const [filteredAppointmentsList, setFilteredAppointmentsList] = useState([]);
+  
+  // Load clinics on mount
+  useEffect(() => {
+    const enterpriseId = localStorage.getItem('enterpriseId') || '1';
+    getClinicsByEnterpriseId(parseInt(enterpriseId))
+      .then(clinics => setClinicsList(clinics))
+      .catch(err => console.error('Failed to load clinics:', err));
+  }, []);
+
+  // Check login status on mount and when active view changes
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    setIsUserLoggedIn(!!token);
+    console.log('✅ Login status updated:', !!token);
+  }, [activeView]);
+
+  // Also check on initial mount
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    setIsUserLoggedIn(!!token);
+    console.log('✅ Initial login check:', !!token);
+  }, []);
+  
+  // Function to load appointments
+  const loadAppointments = async () => {
+    setLoadingAppointments(true);
+    try {
+      const appointments = await listAppointments();
+      setAppointmentsList(appointments);
+      setFilteredAppointmentsList(appointments);
+    } catch (error) {
+      console.error('Failed to load appointments:', error);
+    } finally {
+      setLoadingAppointments(false);
+    }
+  };
+  
+  // Function to filter appointments via API
+  const filterAppointments = async () => {
+    if (!appointmentFilter.clinicId) {
+      alert('⚠️ Clinic ID is required to search appointments');
+      return;
+    }
+    
+    setLoadingAppointments(true);
+    try {
+      const filterParams = {
+        clinicId: appointmentFilter.clinicId,
+        firstName: appointmentFilter.firstName || undefined,
+        lastName: appointmentFilter.lastName || undefined,
+        doctorId: appointmentFilter.doctorId || undefined,
+        appointmentDate: appointmentFilter.appointmentDate || undefined
+      };
+      
+      const results = await getAppointmentsByFilters(filterParams);
+      setFilteredAppointmentsList(results);
+      
+      if (results.length === 0) {
+        alert('ℹ️ No appointments found matching the search criteria');
+      }
+    } catch (error) {
+      console.error('Failed to filter appointments:', error);
+      alert('❌ Failed to search appointments. Please try again.');
+      setFilteredAppointmentsList([]);
+    } finally {
+      setLoadingAppointments(false);
+    }
+  };
+  
+  // Reset filters
+  const resetAppointmentFilters = () => {
+    setAppointmentFilter({
+      clinicId: "",
+      firstName: "",
+      lastName: "",
+      doctorId: "",
+      appointmentDate: ""
+    });
+    setFilteredAppointmentsList(appointmentsList);
+  };
+
+  // Handle Visit Filtering
+  const handleFilterVisits = async () => {
+    setLoadingVisits(true);
+    try {
+      let visits = [];
+
+      // Priority: Patient ID > Clinic ID > Visit Date
+      if (visitFilters.patientId) {
+        visits = await visitService.getVisitsByPatientId(parseInt(visitFilters.patientId));
+      } else if (visitFilters.clinicId) {
+        visits = await visitService.getVisitsByClinicId(parseInt(visitFilters.clinicId));
+      } else if (visitFilters.visitDate) {
+        // Use single date as both start and end
+        visits = await visitService.getVisitsByDateRange(visitFilters.visitDate, visitFilters.visitDate);
+      }
+
+      // Apply additional client-side filtering if multiple criteria
+      let filtered = visits || [];
+      
+      if (visitFilters.patientId && visitFilters.clinicId) {
+        filtered = filtered.filter(v => v.clinicId == visitFilters.clinicId);
+      }
+      if (visitFilters.visitDate) {
+        filtered = filtered.filter(v => v.visitDate?.split('T')[0] === visitFilters.visitDate);
+      }
+
+      setFilteredVisits(filtered);
+      setPatientVisits(filtered);
+    } catch (error) {
+      console.error("Error filtering visits:", error);
+      alert("Error loading visits: " + (error.message || "Unknown error"));
+      setFilteredVisits([]);
+      setPatientVisits([]);
+    } finally {
+      setLoadingVisits(false);
+    }
+  };
+
+  const handleResetVisitFilters = () => {
+    setVisitFilters({
+      clinicId: "",
+      patientId: "",
+      visitDate: ""
+    });
+    setFilteredVisits([]);
+    setPatientVisits([]);
+  };
+  
+  // Load appointments when View Appointments modal opens
+  useEffect(() => {
+    if (showViewAppointmentsModal) {
+      loadAppointments();
+      // Reset filters when modal opens
+      setAppointmentFilter({
+        clinicId: localStorage.getItem('clinicId') || "",
+        firstName: "",
+        lastName: "",
+        doctorId: "",
+        appointmentDate: ""
+      });
+    }
+  }, [showViewAppointmentsModal]);
+  
   // Check URL params on mount to set initial view
   useEffect(() => {
     const viewParam = searchParams.get("view");
@@ -189,6 +401,12 @@ export default function Patients() {
   const [patientVisits, setPatientVisits] = useState([]);
   const [loadingVisits, setLoadingVisits] = useState(false);
   const [visitSearchQuery, setVisitSearchQuery] = useState("");
+  const [visitFilters, setVisitFilters] = useState({
+    clinicId: "",
+    patientId: "",
+    visitDate: ""
+  });
+  const [filteredVisits, setFilteredVisits] = useState([]);
   const [newVisit, setNewVisit] = useState({
     visitDate: new Date().toISOString().split('T')[0],
     reasonForVisit: "",
@@ -552,9 +770,9 @@ export default function Patients() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="mb-8"
+          className="mb-4"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               { id: 'register', title: '📝 Register Patient', description: 'Add new patient records', icon: '📝', color: 'from-teal-400 to-cyan-400', action: () => setActiveView('register') },
               { id: 'list', title: '📋 View Patients', description: 'Browse patient records', icon: '📋', color: 'from-blue-400 to-indigo-400', action: () => setShowViewPatientsModal(true) },
@@ -566,14 +784,14 @@ export default function Patients() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.2 + index * 0.05 }}
-                whileHover={{ scale: 1.05, y: -5 }}
+                whileHover={{ scale: 1.03, y: -3 }}
                 whileTap={{ scale: 0.98 }}
                 onHoverStart={() => setHoveredCard(tile.id)}
                 onHoverEnd={() => setHoveredCard(null)}
                 onClick={tile.action}
                 className="relative cursor-pointer group"
               >
-                <div className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${tile.color} p-6 shadow-lg hover:shadow-2xl transition-all duration-300`}>
+                <div className={`relative overflow-hidden rounded-lg bg-gradient-to-br ${tile.color} p-4 shadow-md hover:shadow-lg transition-all duration-300`}>
                   {/* Animated shine effect */}
                   <motion.div
                     animate={{
@@ -587,6 +805,69 @@ export default function Patients() {
                   />
                   
                   {/* Content */}
+                  <div className="relative z-10">
+                    <motion.div
+                      animate={{
+                        rotate: hoveredCard === tile.id ? [0, -10, 10, -10, 0] : 0,
+                      }}
+                      transition={{ duration: 0.5 }}
+                      className="text-3xl mb-2"
+                    >
+                      {tile.icon}
+                    </motion.div>
+                    <h3 className="text-base font-bold text-white mb-1">
+                      {tile.title}
+                    </h3>
+                    <p className="text-white/90 text-xs">
+                      {tile.description}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Visits Management Tiles */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mb-4"
+        >
+          <h2 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <span className="text-2xl">🏥</span>
+            Visits Management
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { id: 'add-visit', title: '📝 Add Visit', description: 'Record new patient visit', icon: '📝', color: 'from-emerald-400 to-teal-400', action: () => setShowAddVisitModal(true) },
+              { id: 'view-visits', title: '📋 View Visits', description: 'Browse visit history', icon: '📋', color: 'from-violet-400 to-purple-400', action: () => setShowViewVisitsModal(true) }
+            ].map((tile, index) => (
+              <motion.div
+                key={tile.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4 + index * 0.05 }}
+                whileHover={{ scale: 1.03, y: -3 }}
+                whileTap={{ scale: 0.98 }}
+                onHoverStart={() => setHoveredCard(tile.id)}
+                onHoverEnd={() => setHoveredCard(null)}
+                onClick={tile.action}
+                className="relative cursor-pointer group"
+              >
+                <div className={`relative overflow-hidden rounded-lg bg-gradient-to-br ${tile.color} p-4 shadow-md hover:shadow-lg transition-all duration-300`}>
+                  <motion.div
+                    animate={{
+                      x: hoveredCard === tile.id ? ["-100%", "200%"] : "-100%",
+                    }}
+                    transition={{
+                      duration: 0.6,
+                      ease: "easeInOut"
+                    }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12"
+                  />
+                  
                   <div className="relative z-10">
                     <motion.div
                       animate={{
@@ -610,35 +891,44 @@ export default function Patients() {
           </div>
         </motion.div>
 
-        {/* Visits Management Tiles */}
+        {/* Appointments Management Tiles */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mb-8"
+          transition={{ delay: 0.5 }}
+          className="mb-4"
         >
-          <h2 className="text-2xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <span className="text-3xl">🏥</span>
-            Visits Management
+          <h2 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <span className="text-2xl">📅</span>
+            Appointments Management
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { id: 'add-visit', title: '📝 Add Visit', description: 'Record new patient visit', icon: '📝', color: 'from-emerald-400 to-teal-400', action: () => setShowAddVisitModal(true) },
-              { id: 'view-visits', title: '📋 View Visits', description: 'Browse visit history', icon: '📋', color: 'from-violet-400 to-purple-400', action: () => setShowViewVisitsModal(true) }
+              { id: 'new-appointment', title: '📅 New Appointment', description: 'Book patient appointment', icon: '📅', color: 'from-cyan-400 to-blue-400', action: () => {
+                // Real-time token check - using correct accessToken key
+                const currentToken = localStorage.getItem('accessToken');
+                if (!currentToken) {
+                  setShowNotLoggedInModal(true);
+                } else {
+                  setIsUserLoggedIn(true);
+                  setShowNewAppointmentModal(true);
+                }
+              } },
+              { id: 'view-appointments', title: '📋 View Appointments', description: 'Browse appointments', icon: '📋', color: 'from-purple-400 to-pink-400', action: () => setShowViewAppointmentsModal(true) }
             ].map((tile, index) => (
               <motion.div
                 key={tile.id}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4 + index * 0.05 }}
-                whileHover={{ scale: 1.05, y: -5 }}
+                transition={{ delay: 0.5 + index * 0.05 }}
+                whileHover={{ scale: 1.03, y: -3 }}
                 whileTap={{ scale: 0.98 }}
                 onHoverStart={() => setHoveredCard(tile.id)}
                 onHoverEnd={() => setHoveredCard(null)}
                 onClick={tile.action}
                 className="relative cursor-pointer group"
               >
-                <div className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${tile.color} p-6 shadow-lg hover:shadow-2xl transition-all duration-300`}>
+                <div className={`relative overflow-hidden rounded-lg bg-gradient-to-br ${tile.color} p-4 shadow-md hover:shadow-lg transition-all duration-300`}>
                   <motion.div
                     animate={{
                       x: hoveredCard === tile.id ? ["-100%", "200%"] : "-100%",
@@ -3149,132 +3439,269 @@ export default function Patients() {
 
               {/* Modal Content */}
               <div className="flex-1 overflow-y-auto p-6">
-                {/* Patient Search */}
-                <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border-2 border-purple-200">
-                  <h3 className="text-lg font-semibold text-purple-900 mb-3">Search Patient Visits</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      value={visitSearchQuery}
-                      onChange={(e) => setVisitSearchQuery(e.target.value)}
-                      placeholder="Enter Patient ID"
-                      className="px-3 py-2 text-sm border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-400"
-                    />
+                {/* Filter Section */}
+                <div className="mb-6 p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border-2 border-purple-200">
+                  <h3 className="text-lg font-semibold text-purple-900 mb-4 flex items-center gap-2">
+                    <span>🔍</span>
+                    Filter Visits
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {/* Clinic ID */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-purple-800 flex items-center gap-2">
+                        <span>🏥</span> Clinic ID
+                      </label>
+                      <input
+                        type="text"
+                        value={visitFilters.clinicId}
+                        onChange={(e) => setVisitFilters({ ...visitFilters, clinicId: e.target.value })}
+                        className="w-full px-4 py-2 rounded-lg border-2 border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 outline-none transition-all"
+                        placeholder="Enter Clinic ID"
+                      />
+                    </div>
+
+                    {/* Patient ID */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-purple-800 flex items-center gap-2">
+                        <span>👤</span> Patient ID
+                      </label>
+                      <input
+                        type="number"
+                        value={visitFilters.patientId}
+                        onChange={(e) => setVisitFilters({ ...visitFilters, patientId: e.target.value })}
+                        className="w-full px-4 py-2 rounded-lg border-2 border-pink-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 outline-none transition-all"
+                        placeholder="Enter Patient ID"
+                      />
+                    </div>
+
+                    {/* Visit Date */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-purple-800 flex items-center gap-2">
+                        <span>📅</span> Visit Date
+                      </label>
+                      <input
+                        type="date"
+                        value={visitFilters.visitDate}
+                        onChange={(e) => setVisitFilters({ ...visitFilters, visitDate: e.target.value })}
+                        className="w-full px-4 py-2 rounded-lg border-2 border-indigo-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Filter Buttons */}
+                  <div className="flex gap-3">
                     <button
-                      type="button"
-                      onClick={async () => {
-                        if (!visitSearchQuery.trim()) {
-                          alert("Please enter a patient ID");
-                          return;
-                        }
-                        
-                        setLoadingVisits(true);
-                        try {
-                          const patientId = parseInt(visitSearchQuery.trim());
-                          const visits = await visitService.getVisitsByPatientId(patientId);
-                          setPatientVisits(visits || []);
-                          
-                          // Also get patient details
-                          const results = await searchPatients({ patientId: visitSearchQuery.trim() });
-                          if (results && results.length > 0) {
-                            setSelectedPatientForVisit(results[0]);
-                          }
-                        } catch (error) {
-                          console.error("Error loading visits:", error);
-                          alert("Error loading visits: " + (error.message || "Unknown error"));
-                          setPatientVisits([]);
-                        } finally {
-                          setLoadingVisits(false);
-                        }
-                      }}
-                      className="px-4 py-2 text-sm bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-indigo-700"
+                      onClick={handleFilterVisits}
+                      disabled={!visitFilters.clinicId && !visitFilters.patientId && !visitFilters.visitDate}
+                      className={`flex-1 px-6 py-3 rounded-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2 ${
+                        visitFilters.clinicId || visitFilters.patientId || visitFilters.visitDate
+                          ? 'bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:from-purple-700 hover:via-pink-700 hover:to-indigo-700 text-white'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
                     >
-                      {loadingVisits ? "⏳ Loading..." : "🔍 Search"}
+                      <span>🔍</span>
+                      <span>{loadingVisits ? 'Searching...' : 'Search Visits'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleResetVisitFilters}
+                      className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold shadow-lg transition-all flex items-center gap-2"
+                    >
+                      <span>🔄</span>
+                      <span>Reset</span>
                     </button>
                   </div>
-                  
-                  {selectedPatientForVisit && (
-                    <div className="mt-3 p-3 bg-white rounded-lg border-2 border-purple-300">
-                      <p className="text-sm font-semibold text-purple-900">
-                        Patient: {selectedPatientForVisit.patientFirstName} {selectedPatientForVisit.patientLastName} (ID: {selectedPatientForVisit.patientId})
-                      </p>
-                    </div>
+
+                  {!visitFilters.clinicId && !visitFilters.patientId && !visitFilters.visitDate && (
+                    <p className="text-sm text-amber-600 mt-3 flex items-center gap-2">
+                      <span>⚠️</span>
+                      <span>At least one filter is required to search</span>
+                    </p>
                   )}
                 </div>
 
-                {/* Visits List */}
-                {loadingVisits ? (
-                  <div className="text-center py-12">
-                    <div className="text-6xl mb-4">⏳</div>
-                    <p className="text-slate-600">Loading visits...</p>
+                {/* Loading State */}
+                {loadingVisits && (
+                  <div className="text-center py-16">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600 mx-auto mb-4"></div>
+                    <p className="text-purple-600 font-bold">Loading visits...</p>
                   </div>
-                ) : patientVisits.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="text-6xl mb-4">📋</div>
-                    <p className="text-slate-600">No visits found. Search for a patient to view their visit history.</p>
+                )}
+
+                {/* Results Summary */}
+                {!loadingVisits && filteredVisits.length > 0 && (
+                  <div className="mb-6 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-lg p-4 shadow-lg">
+                    <div className="flex items-center justify-between text-white">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-emerald-600 font-bold text-xl shadow-md">
+                          {filteredVisits.length}
+                        </div>
+                        <div>
+                          <p className="font-bold">Search Results</p>
+                          <p className="text-sm opacity-90">
+                            {filteredVisits.length} visit{filteredVisits.length !== 1 ? 's' : ''} found
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right text-sm">
+                        {visitFilters.clinicId && <p>🏥 Clinic: {visitFilters.clinicId}</p>}
+                        {visitFilters.patientId && <p>👤 Patient: {visitFilters.patientId}</p>}
+                        {visitFilters.visitDate && <p>📅 Date: {visitFilters.visitDate}</p>}
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-bold text-slate-800">Visit History ({patientVisits.length})</h3>
-                    {patientVisits.map((visit, idx) => (
-                      <motion.div
-                        key={visit.visitId}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.1 }}
-                        className="bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-xl p-4"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h4 className="text-lg font-bold text-purple-900">{visit.reasonForVisit}</h4>
-                            <p className="text-sm text-slate-600">
-                              📅 {new Date(visit.visitDate).toLocaleDateString()} • 👨‍⚕️ {visit.attendingPhysician}
-                            </p>
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                            visit.paymentStatus === "Paid" ? "bg-green-100 text-green-700" :
-                            visit.paymentStatus === "Partial" ? "bg-yellow-100 text-yellow-700" :
-                            "bg-red-100 text-red-700"
-                          }`}>
-                            {visit.paymentStatus}
-                          </span>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <p className="font-semibold text-purple-900">Diagnoses:</p>
-                            <p className="text-slate-700">{visit.diagnoses}</p>
-                          </div>
-                          <div>
-                            <p className="font-semibold text-purple-900">Treatments:</p>
-                            <p className="text-slate-700">{visit.treatments}</p>
-                          </div>
-                          {visit.prescriptions && (
-                            <div className="md:col-span-2">
-                              <p className="font-semibold text-purple-900">Prescriptions:</p>
-                              <p className="text-slate-700">{visit.prescriptions}</p>
+                )}
+
+                {/* Visit Tiles */}
+                {!loadingVisits && filteredVisits.length > 0 ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {filteredVisits.map((visit, index) => {
+                      const colors = [
+                        { bg: 'from-purple-400 to-purple-600', card: 'bg-purple-50', border: 'border-purple-400', text: 'text-purple-700' },
+                        { bg: 'from-pink-400 to-pink-600', card: 'bg-pink-50', border: 'border-pink-400', text: 'text-pink-700' },
+                        { bg: 'from-orange-400 to-orange-600', card: 'bg-orange-50', border: 'border-orange-400', text: 'text-orange-700' },
+                        { bg: 'from-blue-400 to-blue-600', card: 'bg-blue-50', border: 'border-blue-400', text: 'text-blue-700' },
+                        { bg: 'from-emerald-400 to-emerald-600', card: 'bg-emerald-50', border: 'border-emerald-400', text: 'text-emerald-700' },
+                        { bg: 'from-rose-400 to-rose-600', card: 'bg-rose-50', border: 'border-rose-400', text: 'text-rose-700' },
+                        { bg: 'from-cyan-400 to-cyan-600', card: 'bg-cyan-50', border: 'border-cyan-400', text: 'text-cyan-700' },
+                        { bg: 'from-indigo-400 to-indigo-600', card: 'bg-indigo-50', border: 'border-indigo-400', text: 'text-indigo-700' }
+                      ];
+                      const colorScheme = colors[index % colors.length];
+                      const visitDate = new Date(visit.visitDate);
+
+                      return (
+                        <motion.div
+                          key={visit.visitId}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: index * 0.05, type: "spring", stiffness: 200 }}
+                          whileHover={{ scale: 1.03, y: -5 }}
+                          className={`${colorScheme.card} border-2 ${colorScheme.border} rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer`}
+                        >
+                          {/* Gradient Header */}
+                          <div className={`h-2 bg-gradient-to-r ${colorScheme.bg}`}></div>
+
+                          <div className="p-4">
+                            {/* Visit ID Badge */}
+                            <div className="flex items-center justify-between mb-3">
+                              <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${colorScheme.bg} text-white font-bold text-xs shadow-md`}>
+                                🆔 Visit #{visit.visitId}
+                              </div>
+                              <div className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                visit.paymentStatus === 'Paid' 
+                                  ? 'bg-green-100 text-green-700 border border-green-300'
+                                  : 'bg-amber-100 text-amber-700 border border-amber-300'
+                              }`}>
+                                {visit.paymentStatus === 'Paid' ? '✅ Paid' : '⏳ Pending'}
+                              </div>
                             </div>
-                          )}
-                          {visit.notes && visit.notes !== "N/A" && (
-                            <div className="md:col-span-2">
-                              <p className="font-semibold text-purple-900">Notes:</p>
-                              <p className="text-slate-700">{visit.notes}</p>
+
+                            {/* Visit Details */}
+                            <div className="space-y-2">
+                              <div className="bg-white rounded-lg p-2 shadow-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-lg">👤</span>
+                                  <p className="text-xs text-gray-500 font-semibold">Patient ID</p>
+                                </div>
+                                <p className="text-sm font-bold text-gray-800 ml-6">{visit.patientId}</p>
+                              </div>
+
+                              <div className="bg-white rounded-lg p-2 shadow-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-lg">📅</span>
+                                  <p className="text-xs text-gray-500 font-semibold">Visit Date</p>
+                                </div>
+                                <p className="text-xs font-bold text-gray-800 ml-6">
+                                  {visitDate.toLocaleDateString('en-US', { 
+                                    weekday: 'short',
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </p>
+                              </div>
+
+                              <div className="bg-white rounded-lg p-2 shadow-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-lg">🩺</span>
+                                  <p className="text-xs text-gray-500 font-semibold">Reason</p>
+                                </div>
+                                <p className="text-xs font-bold text-gray-800 ml-6 truncate">
+                                  {visit.reasonForVisit || 'N/A'}
+                                </p>
+                              </div>
+
+                              {visit.diagnoses && (
+                                <div className="bg-white rounded-lg p-2 shadow-sm">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-lg">🔬</span>
+                                    <p className="text-xs text-gray-500 font-semibold">Diagnosis</p>
+                                  </div>
+                                  <p className="text-xs text-gray-700 ml-6 line-clamp-2">
+                                    {visit.diagnoses}
+                                  </p>
+                                </div>
+                              )}
+
+                              {visit.attendingPhysician && (
+                                <div className="bg-white rounded-lg p-2 shadow-sm">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-lg">👨‍⚕️</span>
+                                    <p className="text-xs text-gray-500 font-semibold">Doctor</p>
+                                  </div>
+                                  <p className="text-xs font-bold text-gray-800 ml-6">
+                                    {visit.attendingPhysician}
+                                  </p>
+                                </div>
+                              )}
+
+                              {visit.billingAmount != null && (
+                                <div className="bg-white rounded-lg p-2 shadow-sm">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-lg">💰</span>
+                                    <p className="text-xs text-gray-500 font-semibold">Billing</p>
+                                  </div>
+                                  <p className="text-sm font-bold text-gray-800 ml-6">
+                                    ₹{visit.billingAmount.toLocaleString()}
+                                  </p>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        
-                        <div className="mt-3 pt-3 border-t border-purple-200 flex items-center justify-between text-sm">
-                          <span className="text-slate-600">
-                            💰 Billing: <span className="font-bold">${visit.billingAmount.toFixed(2)}</span>
-                          </span>
-                          {visit.nextAppointmentDate && (
-                            <span className="text-slate-600">
-                              📅 Next: <span className="font-bold">{new Date(visit.nextAppointmentDate).toLocaleDateString()}</span>
-                            </span>
-                          )}
-                        </div>
-                      </motion.div>
-                    ))}
+
+                            {/* Hover hint */}
+                            <div className={`mt-3 pt-3 border-t border-gray-200 text-xs font-bold ${colorScheme.text} text-center`}>
+                              Click for full details →
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                ) : !loadingVisits && filteredVisits.length === 0 && (visitFilters.clinicId || visitFilters.patientId || visitFilters.visitDate) ? (
+                  <div className="text-center py-16">
+                    <div className="text-6xl mb-4">📭</div>
+                    <h3 className="text-2xl font-bold text-gray-700 mb-2">No Visits Found</h3>
+                    <p className="text-gray-500">Try adjusting your search filters</p>
+                  </div>
+                ) : !loadingVisits && (
+                  <div className="text-center py-16">
+                    <motion.div
+                      animate={{
+                        scale: [1, 1.1, 1],
+                        rotate: [0, 5, -5, 0]
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        repeatDelay: 1
+                      }}
+                      className="text-8xl mb-4"
+                    >
+                      🔍
+                    </motion.div>
+                    <h3 className="text-2xl font-bold text-purple-700 mb-2">Ready to Search!</h3>
+                    <p className="text-gray-600">Enter at least one filter above to view patient visits</p>
                   </div>
                 )}
               </div>
@@ -3849,6 +4276,2183 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
               {/* ViewPatients Component */}
               <div className="h-full overflow-y-auto">
                 <ViewPatients />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* New Appointment Modal */}
+      <AnimatePresence>
+        {showNewAppointmentModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            onClick={() => setShowNewAppointmentModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-3xl bg-gradient-to-br from-cyan-50 via-blue-50 to-indigo-50 rounded-3xl shadow-2xl overflow-hidden relative"
+            >
+              {/* Header with Calendar Navigation Button */}
+              <div className="bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center text-3xl">
+                      📅
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-bold text-white">Book New Appointment</h3>
+                      <p className="text-cyan-100">Schedule a patient appointment</p>
+                    </div>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setShowNewAppointmentModal(false);
+                      navigate('/calendar');
+                    }}
+                    className="px-4 py-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-xl font-semibold shadow-lg transition-all flex items-center gap-2"
+                  >
+                    <span>📆</span>
+                    <span>Full Calendar</span>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowNewAppointmentModal(false)}
+                className="absolute top-4 right-4 z-50 w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-full flex items-center justify-center shadow-lg transition-all"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </motion.button>
+
+              {/* Form */}
+              <div className="p-8 max-h-[70vh] overflow-y-auto">
+                {/* Patient Search Section */}
+                <div className="mb-8 p-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border-2 border-indigo-200">
+                  <h4 className="text-xl font-bold text-indigo-800 mb-4 flex items-center gap-2">
+                    <span>🔍</span> Search Patient
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-400 mb-2 flex items-center gap-2">
+                        <span>🏥</span> Clinic (Disabled for now)
+                      </label>
+                      <select
+                        disabled
+                        value={patientSearchForm.clinicId}
+                        onChange={(e) => setPatientSearchForm({ ...patientSearchForm, clinicId: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed outline-none"
+                      >
+                        <option value="">Select Clinic</option>
+                        {clinicsList.map(clinic => (
+                          <option key={clinic.clinicId} value={clinic.clinicId}>
+                            {clinic.clinicName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                        <span>🆔</span> Patient ID
+                      </label>
+                      <input
+                        type="number"
+                        value={patientSearchForm.patientId}
+                        onChange={(e) => setPatientSearchForm({ ...patientSearchForm, patientId: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
+                        placeholder="Enter Patient ID"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                        <span>👤</span> First Name
+                      </label>
+                      <input
+                        type="text"
+                        value={patientSearchForm.firstName}
+                        onChange={(e) => setPatientSearchForm({ ...patientSearchForm, firstName: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
+                        placeholder="Enter First Name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                        <span>👤</span> Last Name
+                      </label>
+                      <input
+                        type="text"
+                        value={patientSearchForm.lastName}
+                        onChange={(e) => setPatientSearchForm({ ...patientSearchForm, lastName: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
+                        placeholder="Enter Last Name"
+                      />
+                    </div>
+                  </div>
+                  
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={patientSearchLoading || (!patientSearchForm.patientId && !patientSearchForm.firstName && !patientSearchForm.lastName)}
+                    onClick={async () => {
+                      setPatientSearchLoading(true);
+                      setPatientNotFound(false);
+                      setSearchedPatient(null);
+                      
+                      try {
+                        const searchParams = {};
+                        if (patientSearchForm.patientId) searchParams.patientId = parseInt(patientSearchForm.patientId);
+                        if (patientSearchForm.firstName) searchParams.firstName = patientSearchForm.firstName;
+                        if (patientSearchForm.lastName) searchParams.lastName = patientSearchForm.lastName;
+                        
+                        const results = await searchPatients(searchParams);
+                        
+                        if (results && results.length > 0) {
+                          const patient = results[0];
+                          setSearchedPatient(patient);
+                          setPatientNotFound(false);
+                          setBookingWithoutRegistration(false);
+                          
+                          // Auto-fill appointment form - API returns direct patient object
+                          setAppointmentForm({
+                            ...appointmentForm,
+                            firstName: patient.patientFirstName || '',
+                            lastName: patient.patientLastName || '',
+                            phoneNumber: patient.patientPhone || '',
+                            email: patient.patientEmail || ''
+                          });
+                        } else {
+                          setPatientNotFound(true);
+                          setSearchedPatient(null);
+                          setBookingWithoutRegistration(false);
+                        }
+                      } catch (error) {
+                        console.error('Patient search error:', error);
+                        setPatientNotFound(true);
+                        setSearchedPatient(null);
+                      } finally {
+                        setPatientSearchLoading(false);
+                      }
+                    }}
+                    className={`w-full px-6 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 ${
+                      patientSearchLoading || (!patientSearchForm.patientId && !patientSearchForm.firstName && !patientSearchForm.lastName)
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white'
+                    }`}
+                  >
+                    {patientSearchLoading ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        <span>Searching...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🔍</span>
+                        <span>Search Patient</span>
+                      </>
+                    )}
+                  </motion.button>
+                  
+                  {/* Patient Found Message */}
+                  {searchedPatient && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-4 p-4 bg-emerald-50 border-2 border-emerald-300 rounded-xl"
+                    >
+                      <div className="flex items-center gap-2 text-emerald-700 font-bold mb-2">
+                        <span>✅</span>
+                        <span>Patient Found!</span>
+                      </div>
+                      <p className="text-sm text-emerald-600">
+                        {searchedPatient.patientFirstName} {searchedPatient.patientLastName} - 
+                        ID: {searchedPatient.patientId} | DOB: {searchedPatient.patientDOB ? new Date(searchedPatient.patientDOB).toLocaleDateString() : 'N/A'} | Gender: {searchedPatient.patientGender || 'N/A'}
+                      </p>
+                    </motion.div>
+                  )}
+                  
+                  {/* Patient Not Found Message */}
+                  {patientNotFound && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-4 p-4 bg-rose-50 border-2 border-rose-300 rounded-xl"
+                    >
+                      <div className="flex items-center gap-2 text-rose-700 font-bold mb-3">
+                        <span>❌</span>
+                        <span>Patient Not Found</span>
+                      </div>
+                      <p className="text-sm text-rose-600 mb-3">
+                        No patient found with the provided search criteria.
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            setShowNewAppointmentModal(false);
+                            setActiveView('register');
+                          }}
+                          className="px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
+                        >
+                          <span>➕</span>
+                          <span>Register Patient</span>
+                        </motion.button>
+                        <motion.button
+                          type="button"
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            setBookingWithoutRegistration(true);
+                            setPatientNotFound(false);
+                            // Clear the form for manual entry
+                            setAppointmentForm({
+                              firstName: "",
+                              lastName: "",
+                              phoneNumber: "",
+                              email: "",
+                              date: "",
+                              startTime: "",
+                              endTime: "",
+                              durationMinutes: "",
+                              appointmentType: "",
+                              reasonForVisit: "",
+                              notes: "",
+                              roomNumber: "",
+                              telehealthLink: "",
+                              attendingPhysician: "",
+                              status: "Scheduled",
+                              isConfirmed: false,
+                              billableAmount: "",
+                              paidAmount: "",
+                              pendingAmount: "",
+                              paymentStatus: "Pending",
+                              doctorId: ""
+                            });
+                          }}
+                          className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
+                        >
+                          <span>📝</span>
+                          <span>Book Without Registration</span>
+                        </motion.button>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  
+                  try {
+                    // Get default clinic ID (you may want to make this selectable)
+                    const defaultClinicId = parseInt(localStorage.getItem('clinicId') || '1');
+                    const enterpriseId = parseInt(localStorage.getItem('enterpriseId') || '1');
+                    const userId = parseInt(localStorage.getItem('userId') || '1');
+                    
+                    // Convert time format from HH:mm to HH:mm:ss for TimeSpan
+                    const startTimeSpan = appointmentForm.startTime ? `${appointmentForm.startTime}:00` : null;
+                    const endTimeSpan = appointmentForm.endTime ? `${appointmentForm.endTime}:00` : null;
+                    
+                    // Calculate duration in minutes if both times are provided and not manually entered
+                    let durationMinutes = appointmentForm.durationMinutes || null;
+                    if (!durationMinutes && appointmentForm.startTime && appointmentForm.endTime) {
+                      const [startHour, startMin] = appointmentForm.startTime.split(':').map(Number);
+                      const [endHour, endMin] = appointmentForm.endTime.split(':').map(Number);
+                      durationMinutes = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+                    }
+                    
+                    // Build appointment model matching backend AppointmentsModel
+                    const appointmentPayload = {
+                      // References
+                      enterpriseId: enterpriseId,
+                      patientId: searchedPatient ? searchedPatient.patientId : 0, // 0 for walk-in/non-registered
+                      clinicId: defaultClinicId,
+                      doctorId: appointmentForm.doctorId ? parseInt(appointmentForm.doctorId) : null,
+                      attendingPhysician: appointmentForm.attendingPhysician || null,
+                      // Patient details (stored in appointments row)
+                      firstName: appointmentForm.firstName || null,
+                      lastName: appointmentForm.lastName || null,
+                      phoneNumber: appointmentForm.phoneNumber || null,
+                      email: appointmentForm.email || null,
+                      // Scheduling
+                      appointmentDate: appointmentForm.date,
+                      startTime: startTimeSpan,
+                      endTime: endTimeSpan,
+                      durationMinutes: durationMinutes ? parseInt(durationMinutes) : null,
+                      // Details
+                      appointmentType: appointmentForm.appointmentType || "Consultation",
+                      reasonForVisit: appointmentForm.reasonForVisit || "",
+                      notes: appointmentForm.notes || "",
+                      roomNumber: appointmentForm.roomNumber || null,
+                      telehealthLink: appointmentForm.telehealthLink || null,
+                      // Status & billing
+                      status: appointmentForm.status || "Scheduled",
+                      isConfirmed: appointmentForm.isConfirmed || false,
+                      billableAmount: appointmentForm.billableAmount ? parseFloat(appointmentForm.billableAmount) : null,
+                      paidAmount: appointmentForm.paidAmount ? parseFloat(appointmentForm.paidAmount) : null,
+                      pendingAmount: appointmentForm.pendingAmount ? parseFloat(appointmentForm.pendingAmount) : null,
+                      paymentStatus: appointmentForm.paymentStatus || "Pending",
+                      // Audit
+                      createdBy: userId
+                    };
+                    
+                    // Call API
+                    const result = await createAppointment(appointmentPayload);
+                    
+                    // Store appointment data and show success modal
+                    setCreatedAppointment({
+                      ...result,
+                      firstName: appointmentForm.firstName,
+                      lastName: appointmentForm.lastName,
+                      phoneNumber: appointmentForm.phoneNumber,
+                      email: appointmentForm.email
+                    });
+                    setShowNewAppointmentModal(false);
+                    setShowAppointmentSuccessModal(true);
+                    setAppointmentForm({
+                      firstName: "",
+                      lastName: "",
+                      phoneNumber: "",
+                      email: "",
+                      date: "",
+                      startTime: "",
+                      endTime: "",
+                      durationMinutes: "",
+                      appointmentType: "",
+                      reasonForVisit: "",
+                      notes: "",
+                      roomNumber: "",
+                      telehealthLink: "",
+                      attendingPhysician: "",
+                      status: "Scheduled",
+                      isConfirmed: false,
+                      billableAmount: "",
+                      paidAmount: "",
+                      pendingAmount: "",
+                      paymentStatus: "Pending",
+                      doctorId: ""
+                    });
+                    setPatientSearchForm({
+                      clinicId: "",
+                      patientId: "",
+                      firstName: "",
+                      lastName: ""
+                    });
+                    setSearchedPatient(null);
+                    setPatientNotFound(false);
+                    setBookingWithoutRegistration(false);
+                  } catch (error) {
+                    console.error('Failed to create appointment:', error);
+                    alert('❌ Failed to book appointment. Please try again.');
+                  }
+                }} className="space-y-6">
+                  {/* Patient Info */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>👤</span> First Name * {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        readOnly={searchedPatient ? true : false}
+                        value={appointmentForm.firstName}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, firstName: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : searchedPatient ? 'border-gray-300 bg-gray-50 text-gray-700 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                        placeholder="John"
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>👤</span> Last Name * {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        readOnly={searchedPatient ? true : false}
+                        value={appointmentForm.lastName}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, lastName: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : searchedPatient ? 'border-gray-300 bg-gray-50 text-gray-700 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                        placeholder="Doe"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>📞</span> Phone Number * {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.phoneNumber}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, phoneNumber: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                        placeholder="555-0123"
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>📧</span> Email Address {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <input
+                        type="email"
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.email}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, email: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                        placeholder="patient@email.com"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Date & Time */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>📅</span> Date * {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.date}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, date: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>⏰</span> Start Time * {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <select
+                        required
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.startTime}
+                        onChange={(e) => {
+                          const newStartTime = e.target.value;
+                          let calculatedDuration = appointmentForm.durationMinutes;
+                          
+                          // Auto-calculate duration if end time is set
+                          if (newStartTime && appointmentForm.endTime) {
+                            const [startHour, startMin] = newStartTime.split(':').map(Number);
+                            const [endHour, endMin] = appointmentForm.endTime.split(':').map(Number);
+                            calculatedDuration = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+                          }
+                          
+                          setAppointmentForm({ ...appointmentForm, startTime: newStartTime, durationMinutes: calculatedDuration });
+                        }}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                      >
+                        <option value="">Select time</option>
+                        {["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00"].map(time => (
+                          <option key={time} value={time}>{time}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>⏰</span> End Time * {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <select
+                        required
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.endTime}
+                        onChange={(e) => {
+                          const newEndTime = e.target.value;
+                          let calculatedDuration = appointmentForm.durationMinutes;
+                          
+                          // Auto-calculate duration if start time is set
+                          if (appointmentForm.startTime && newEndTime) {
+                            const [startHour, startMin] = appointmentForm.startTime.split(':').map(Number);
+                            const [endHour, endMin] = newEndTime.split(':').map(Number);
+                            calculatedDuration = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+                          }
+                          
+                          setAppointmentForm({ ...appointmentForm, endTime: newEndTime, durationMinutes: calculatedDuration });
+                        }}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                      >
+                        <option value="">Select time</option>
+                        {["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00"].map(time => (
+                          <option key={time} value={time}>{time}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Appointment Type & Doctor */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>🦷</span> Appointment Type * {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <select
+                        required
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.appointmentType}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, appointmentType: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                      >
+                        <option value="">Select type</option>
+                        {["Consultation", "Follow-up", "Telehealth", "Emergency", "Routine Checkup", "Treatment", "Surgery"].map(type => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>👨‍⚕️</span> Doctor ID {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <input
+                        type="number"
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.doctorId}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, doctorId: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                        placeholder="Enter doctor ID (optional)"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Attending Physician & Room Number */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>🩺</span> Attending Physician {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.attendingPhysician}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, attendingPhysician: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                        placeholder="Dr. Smith"
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>🚪</span> Room Number {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <input
+                        type="text"
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.roomNumber}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, roomNumber: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                        placeholder="Room 101"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Duration (Auto-calculated) */}
+                  <div>
+                    <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                      <span>⏱️</span> Duration (minutes) - Auto-calculated {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                    </label>
+                    <input
+                      type="number"
+                      readOnly
+                      disabled={!searchedPatient && !bookingWithoutRegistration}
+                      value={appointmentForm.durationMinutes || ''}
+                      className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-gray-200 bg-gray-50 text-gray-700 cursor-not-allowed'}`}
+                      placeholder="Select start and end time"
+                    />
+                  </div>
+
+                  {/* Reason for Visit */}
+                  <div>
+                    <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                      <span>🩺</span> Reason for Visit * {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      disabled={!searchedPatient && !bookingWithoutRegistration}
+                      value={appointmentForm.reasonForVisit}
+                      onChange={(e) => setAppointmentForm({ ...appointmentForm, reasonForVisit: e.target.value })}
+                      className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                      placeholder="E.g., Tooth pain, Routine cleaning, Follow-up"
+                    />
+                  </div>
+
+                  {/* Status & Payment - Animated Selectors */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className={`block text-sm font-bold mb-3 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>📊</span> Appointment Status {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <div className={`grid grid-cols-2 md:grid-cols-4 gap-3 ${!searchedPatient && !bookingWithoutRegistration ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {[
+                          { value: 'Scheduled', icon: '📅', color: 'from-blue-400 to-blue-600', ring: 'ring-blue-300' },
+                          { value: 'Completed', icon: '✅', color: 'from-green-400 to-green-600', ring: 'ring-green-300' },
+                          { value: 'Cancelled', icon: '❌', color: 'from-red-400 to-red-600', ring: 'ring-red-300' },
+                          { value: 'NoShow', icon: '👻', color: 'from-gray-400 to-gray-600', ring: 'ring-gray-300' }
+                        ].map((statusOpt) => (
+                          <motion.button
+                            key={statusOpt.value}
+                            type="button"
+                            disabled={!searchedPatient && !bookingWithoutRegistration}
+                            whileHover={searchedPatient || bookingWithoutRegistration ? { scale: 1.05, y: -3 } : {}}
+                            whileTap={searchedPatient || bookingWithoutRegistration ? { scale: 0.95 } : {}}
+                            onClick={() => setAppointmentForm({ ...appointmentForm, status: statusOpt.value })}
+                            className={`relative p-4 rounded-xl font-bold text-white transition-all duration-300 ${
+                              appointmentForm.status === statusOpt.value
+                                ? `bg-gradient-to-br ${statusOpt.color} ring-4 ${statusOpt.ring} shadow-xl`
+                                : 'bg-gradient-to-br from-slate-200 to-slate-300 text-slate-600 hover:from-slate-300 hover:to-slate-400'
+                            }`}
+                          >
+                            {appointmentForm.status === statusOpt.value && (
+                              <motion.div
+                                layoutId="newAppointmentStatusSelector"
+                                className="absolute inset-0 bg-white/20 rounded-xl"
+                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                              />
+                            )}
+                            <div className="relative flex flex-col items-center gap-1">
+                              <motion.span 
+                                className="text-2xl"
+                                animate={appointmentForm.status === statusOpt.value ? { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] } : {}}
+                                transition={{ duration: 0.5 }}
+                              >
+                                {statusOpt.icon}
+                              </motion.span>
+                              <span className="text-xs">{statusOpt.value}</span>
+                            </div>
+                          </motion.button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-bold mb-3 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>💳</span> Payment Status {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <div className={`grid grid-cols-2 md:grid-cols-4 gap-3 ${!searchedPatient && !bookingWithoutRegistration ? 'opacity-50 pointer-events-none' : ''}`}>
+                        {[
+                          { value: 'Pending', icon: '⏳', color: 'from-amber-400 to-orange-500', ring: 'ring-amber-300' },
+                          { value: 'Paid', icon: '💚', color: 'from-green-400 to-emerald-600', ring: 'ring-green-300' },
+                          { value: 'Partial', icon: '💛', color: 'from-yellow-400 to-amber-500', ring: 'ring-yellow-300' },
+                          { value: 'Invoice', icon: '📄', color: 'from-blue-400 to-indigo-500', ring: 'ring-blue-300' }
+                        ].map((paymentOpt) => (
+                          <motion.button
+                            key={paymentOpt.value}
+                            type="button"
+                            disabled={!searchedPatient && !bookingWithoutRegistration}
+                            whileHover={searchedPatient || bookingWithoutRegistration ? { scale: 1.05, y: -3 } : {}}
+                            whileTap={searchedPatient || bookingWithoutRegistration ? { scale: 0.95 } : {}}
+                            onClick={() => setAppointmentForm({ ...appointmentForm, paymentStatus: paymentOpt.value })}
+                            className={`relative p-4 rounded-xl font-bold text-white transition-all duration-300 ${
+                              appointmentForm.paymentStatus === paymentOpt.value
+                                ? `bg-gradient-to-br ${paymentOpt.color} ring-4 ${paymentOpt.ring} shadow-xl`
+                                : 'bg-gradient-to-br from-slate-200 to-slate-300 text-slate-600 hover:from-slate-300 hover:to-slate-400'
+                            }`}
+                          >
+                            {appointmentForm.paymentStatus === paymentOpt.value && (
+                              <motion.div
+                                layoutId="newAppointmentPaymentSelector"
+                                className="absolute inset-0 bg-white/20 rounded-xl"
+                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                              />
+                            )}
+                            <div className="relative flex flex-col items-center gap-1">
+                              <motion.span 
+                                className="text-2xl"
+                                animate={appointmentForm.paymentStatus === paymentOpt.value ? { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] } : {}}
+                                transition={{ duration: 0.5 }}
+                              >
+                                {paymentOpt.icon}
+                              </motion.span>
+                              <span className="text-xs">{paymentOpt.value}</span>
+                            </div>
+                          </motion.button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Amounts */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>💳</span> Billable Amount (₹) {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.billableAmount}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, billableAmount: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>💰</span> Paid Amount (₹) {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.paidAmount}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, paidAmount: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                        placeholder="0.00"
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                        <span>💵</span> Pending Amount (₹) {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        value={appointmentForm.pendingAmount}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, pendingAmount: e.target.value })}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Telehealth Link (only for Telehealth appointments) */}
+                  <div>
+                    <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${(!searchedPatient && !bookingWithoutRegistration) || appointmentForm.appointmentType !== 'Telehealth' ? 'text-slate-400' : 'text-slate-700'}`}>
+                      <span>🔗</span> Telehealth Link {appointmentForm.appointmentType !== 'Telehealth' && '(Only for Telehealth appointments)'} {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                    </label>
+                    <input
+                      type="url"
+                      disabled={(!searchedPatient && !bookingWithoutRegistration) || appointmentForm.appointmentType !== 'Telehealth'}
+                      value={appointmentForm.telehealthLink}
+                      onChange={(e) => setAppointmentForm({ ...appointmentForm, telehealthLink: e.target.value })}
+                      className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${(!searchedPatient && !bookingWithoutRegistration) || appointmentForm.appointmentType !== 'Telehealth' ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                      placeholder={appointmentForm.appointmentType === 'Telehealth' ? 'https://meet.example.com/...' : 'Select Telehealth appointment type'}
+                    />
+                  </div>
+
+                  {/* Confirmation Status */}
+                  <div>
+                    <label className={`flex items-center gap-3 cursor-pointer ${!searchedPatient && !bookingWithoutRegistration ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                      <input
+                        type="checkbox"
+                        disabled={!searchedPatient && !bookingWithoutRegistration}
+                        checked={appointmentForm.isConfirmed}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, isConfirmed: e.target.checked })}
+                        className="w-5 h-5 rounded border-2 border-cyan-300 text-cyan-600 focus:ring-4 focus:ring-cyan-100"
+                      />
+                      <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                        <span>✅</span> Mark as Confirmed
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Notes */}
+                  <div>
+                    <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                      <span>📝</span> Additional Notes {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                    </label>
+                    <textarea
+                      disabled={!searchedPatient && !bookingWithoutRegistration}
+                      value={appointmentForm.notes}
+                      onChange={(e) => setAppointmentForm({ ...appointmentForm, notes: e.target.value })}
+                      rows={3}
+                      className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all resize-none ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                      placeholder="Any additional notes or special instructions..."
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-4 pt-4">
+                    <motion.button
+                      type="submit"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex-1 px-6 py-4 bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 hover:from-cyan-600 hover:via-blue-600 hover:to-indigo-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                    >
+                      ✅ Book Appointment
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setShowNewAppointmentModal(false)}
+                      className="px-6 py-4 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold shadow-md hover:shadow-lg transition-all"
+                    >
+                      Cancel
+                    </motion.button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* View Appointments Modal */}
+      <AnimatePresence>
+        {showViewAppointmentsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            onClick={() => setShowViewAppointmentsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full h-[90vh] max-w-6xl bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 rounded-3xl shadow-2xl overflow-hidden relative"
+            >
+              {/* Close Button */}
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowViewAppointmentsModal(false)}
+                className="absolute top-6 right-6 z-50 w-12 h-12 bg-white hover:bg-red-50 text-red-600 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+                title="Close"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </motion.button>
+
+              {/* Appointments Content */}
+              <div className="h-full overflow-y-auto p-8">
+                {/* Header */}
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-8"
+                >
+                  <h2 className="text-4xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent mb-2 flex items-center gap-3">
+                    <span className="text-5xl">📅</span>
+                    Appointments Overview
+                  </h2>
+                  <p className="text-slate-600 text-lg">View and manage all scheduled appointments</p>
+                </motion.div>
+
+                {/* Filter Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white rounded-2xl p-6 shadow-lg mb-6"
+                >
+                  <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <span>🔍</span>
+                    Filter Appointments
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {/* Clinic ID - Mandatory */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
+                        <span>🏥</span> Clinic ID *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={appointmentFilter.clinicId}
+                        onChange={(e) => setAppointmentFilter({ ...appointmentFilter, clinicId: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                        placeholder="Enter Clinic ID"
+                      />
+                    </div>
+
+                    {/* First Name */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
+                        <span>👤</span> First Name
+                      </label>
+                      <input
+                        type="text"
+                        value={appointmentFilter.firstName}
+                        onChange={(e) => setAppointmentFilter({ ...appointmentFilter, firstName: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                        placeholder="Patient's first name"
+                      />
+                    </div>
+
+                    {/* Last Name */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
+                        <span>👤</span> Last Name
+                      </label>
+                      <input
+                        type="text"
+                        value={appointmentFilter.lastName}
+                        onChange={(e) => setAppointmentFilter({ ...appointmentFilter, lastName: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                        placeholder="Patient's last name"
+                      />
+                    </div>
+
+                    {/* Doctor ID */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
+                        <span>👨‍⚕️</span> Doctor ID
+                      </label>
+                      <input
+                        type="number"
+                        value={appointmentFilter.doctorId}
+                        onChange={(e) => setAppointmentFilter({ ...appointmentFilter, doctorId: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                        placeholder="Doctor ID"
+                      />
+                    </div>
+
+                    {/* Appointment Date */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
+                        <span>📅</span> Appointment Date
+                      </label>
+                      <input
+                        type="date"
+                        value={appointmentFilter.appointmentDate}
+                        onChange={(e) => setAppointmentFilter({ ...appointmentFilter, appointmentDate: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Filter Buttons */}
+                  <div className="flex gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={filterAppointments}
+                      disabled={!appointmentFilter.clinicId}
+                      className={`flex-1 px-6 py-3 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2 ${
+                        appointmentFilter.clinicId
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white cursor-pointer'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <span>🔍</span>
+                      <span>Search Appointments</span>
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={resetAppointmentFilters}
+                      className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold shadow-md transition-all flex items-center justify-center gap-2"
+                    >
+                      <span>🔄</span>
+                      <span>Reset</span>
+                    </motion.button>
+                  </div>
+
+                  {/* Info message */}
+                  {!appointmentFilter.clinicId && (
+                    <p className="text-sm text-amber-600 mt-3 flex items-center gap-2">
+                      <span>⚠️</span>
+                      <span>Clinic ID is required to search appointments</span>
+                    </p>
+                  )}
+                </motion.div>
+
+                {/* Loading State */}
+                {loadingAppointments && (
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600 mb-4"></div>
+                    <p className="text-slate-600 font-medium">Loading appointments...</p>
+                  </div>
+                )}
+
+                {/* Results Summary */}
+                {!loadingAppointments && filteredAppointmentsList.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-4 flex items-center justify-between bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border border-blue-200"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-lg">
+                        {filteredAppointmentsList.length}
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-600 font-medium">Search Results</p>
+                        <p className="text-xs text-slate-500">
+                          {filteredAppointmentsList.length} appointment{filteredAppointmentsList.length !== 1 ? 's' : ''} found
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <span>🏥</span>
+                      <span className="font-medium">Clinic ID: {appointmentFilter.clinicId}</span>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Appointments Grid - Enhanced Design */}
+                {!loadingAppointments && filteredAppointmentsList.length > 0 && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {filteredAppointmentsList.map((appointment, index) => {
+                      const colors = [
+                        { name: 'emerald', from: 'from-emerald-400', to: 'to-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-400', text: 'text-emerald-700' },
+                        { name: 'rose', from: 'from-rose-400', to: 'to-rose-600', bg: 'bg-rose-50', border: 'border-rose-400', text: 'text-rose-700' },
+                        { name: 'blue', from: 'from-blue-400', to: 'to-blue-600', bg: 'bg-blue-50', border: 'border-blue-400', text: 'text-blue-700' },
+                        { name: 'amber', from: 'from-amber-400', to: 'to-amber-600', bg: 'bg-amber-50', border: 'border-amber-400', text: 'text-amber-700' },
+                        { name: 'violet', from: 'from-violet-400', to: 'to-violet-600', bg: 'bg-violet-50', border: 'border-violet-400', text: 'text-violet-700' },
+                        { name: 'cyan', from: 'from-cyan-400', to: 'to-cyan-600', bg: 'bg-cyan-50', border: 'border-cyan-400', text: 'text-cyan-700' },
+                        { name: 'pink', from: 'from-pink-400', to: 'to-pink-600', bg: 'bg-pink-50', border: 'border-pink-400', text: 'text-pink-700' },
+                        { name: 'indigo', from: 'from-indigo-400', to: 'to-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-400', text: 'text-indigo-700' }
+                      ];
+                      const colorScheme = colors[index % colors.length];
+                      const firstName = appointment.firstName;
+                      const lastName = appointment.lastName;
+                      const patientName = (firstName && lastName) ? `${firstName} ${lastName}` : 
+                                         (firstName || lastName || 'Walk-in Patient');
+                      const initials = (firstName && lastName) ? `${firstName[0]}${lastName[0]}`.toUpperCase() : 
+                                      (firstName ? firstName[0].toUpperCase() : 'W');
+                      const appointmentDate = new Date(appointment.appointmentDate);
+                      const startTime = appointment.startTime ? appointment.startTime.substring(0, 5) : 'N/A';
+                      const endTime = appointment.endTime ? appointment.endTime.substring(0, 5) : 'N/A';
+                      const duration = appointment.durationMinutes || 
+                                      (appointment.startTime && appointment.endTime ? 
+                                        (() => {
+                                          const [sh, sm] = appointment.startTime.split(':').map(Number);
+                                          const [eh, em] = appointment.endTime.split(':').map(Number);
+                                          return (eh * 60 + em) - (sh * 60 + sm);
+                                        })() : 0);
+                      
+                      return (
+                        <motion.div
+                          key={appointment.appointmentId}
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: index * 0.05, type: "spring", stiffness: 200 }}
+                          whileHover={{ scale: 1.03, y: -5, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}
+                          onClick={() => setSelectedAppointmentDetails(appointment)}
+                          className={`${colorScheme.bg} border-2 ${colorScheme.border} rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer relative group`}
+                        >
+                          {/* Decorative top stripe */}
+                          <div className={`h-2 bg-gradient-to-r ${colorScheme.from} ${colorScheme.to}`}></div>
+                          
+                          <div className="p-6">
+                            {/* Header with Avatar and Status */}
+                            <div className="flex items-start justify-between mb-5">
+                              <div className="flex items-center gap-4">
+                                <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${colorScheme.from} ${colorScheme.to} flex items-center justify-center text-white font-bold text-2xl shadow-xl transform group-hover:scale-110 transition-transform`}>
+                                  {initials}
+                                </div>
+                                <div>
+                                  <h3 className="text-xl font-bold text-slate-800 mb-1">{patientName}</h3>
+                                  <div className="flex flex-col gap-1 text-xs text-slate-600">
+                                    {appointment.phoneNumber && (
+                                      <div className="flex items-center gap-1">
+                                        <span>📞</span>
+                                        <span className="font-medium">{appointment.phoneNumber}</span>
+                                      </div>
+                                    )}
+                                    {appointment.email && (
+                                      <div className="flex items-center gap-1">
+                                        <span>📧</span>
+                                        <span className="font-medium truncate max-w-[180px]">{appointment.email}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <span className={`px-4 py-2 rounded-xl text-xs font-bold shadow-md ${
+                                appointment.status === 'Confirmed' || appointment.isConfirmed
+                                  ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white' 
+                                  : 'bg-gradient-to-r from-amber-400 to-orange-500 text-white'
+                              }`}>
+                                {appointment.status === 'Confirmed' || appointment.isConfirmed ? '✅ Confirmed' : '⏳ Pending'}
+                              </span>
+                            </div>
+
+                            {/* Appointment Details Grid */}
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="bg-white rounded-xl p-3 shadow-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xl">📅</span>
+                                  <p className="text-xs text-slate-500 font-semibold">Date</p>
+                                </div>
+                                <p className="text-sm font-bold text-slate-800 ml-7">
+                                  {appointmentDate.toLocaleDateString('en-US', { 
+                                    weekday: 'short',
+                                    month: 'short', 
+                                    day: 'numeric',
+                                    year: 'numeric'
+                                  })}
+                                </p>
+                              </div>
+
+                              <div className="bg-white rounded-xl p-3 shadow-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xl">⏰</span>
+                                  <p className="text-xs text-slate-500 font-semibold">Time</p>
+                                </div>
+                                <p className="text-sm font-bold text-slate-800 ml-7">{startTime} - {endTime}</p>
+                              </div>
+
+                              <div className="bg-white rounded-xl p-3 shadow-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xl">🦷</span>
+                                  <p className="text-xs text-slate-500 font-semibold">Treatment</p>
+                                </div>
+                                <p className="text-sm font-bold text-slate-800 ml-7 truncate">
+                                  {appointment.appointmentType || appointment.reasonForVisit || 'General'}
+                                </p>
+                              </div>
+
+                              <div className="bg-white rounded-xl p-3 shadow-sm">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xl">⏱️</span>
+                                  <p className="text-xs text-slate-500 font-semibold">Duration</p>
+                                </div>
+                                <p className="text-sm font-bold text-slate-800 ml-7">{duration} min</p>
+                              </div>
+                            </div>
+
+                            {/* Appointment ID Footer */}
+                            <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <span>🆔</span>
+                                <span className="font-semibold">ID: #{appointment.appointmentId}</span>
+                              </div>
+                              <div className={`text-xs font-bold ${colorScheme.text} opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1`}>
+                                <span>Click for details</span>
+                                <span>→</span>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Empty State */}
+                {!loadingAppointments && filteredAppointmentsList.length === 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center py-16"
+                  >
+                    <div className="text-8xl mb-4">📅</div>
+                    <h3 className="text-2xl font-bold text-slate-700 mb-2">No Appointments Yet</h3>
+                    <p className="text-slate-500 mb-6">Schedule your first appointment to get started</p>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        setShowViewAppointmentsModal(false);
+                        navigate('/calendar');
+                      }}
+                      className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                    >
+                      📅 Book New Appointment
+                    </motion.button>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Appointment Success Modal */}
+      <AnimatePresence>
+        {showAppointmentSuccessModal && createdAppointment && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[110] flex items-center justify-center p-4"
+            onClick={() => setShowAppointmentSuccessModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0, y: 50 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+            >
+              {/* Success Animation Header - Compact */}
+              <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-6 text-center">
+                <motion.div
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg"
+                >
+                  <span className="text-4xl">✅</span>
+                </motion.div>
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-2xl font-bold text-white"
+                >
+                  Appointment Booked!
+                </motion.h2>
+              </div>
+
+              {/* Appointment Details - Compact */}
+              <div className="p-5 space-y-3">
+                {/* Row 1: ID & Patient */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-50 p-3 rounded-lg">
+                    <p className="text-xs text-slate-500 font-medium">ID</p>
+                    <p className="text-sm font-bold text-slate-800">#{createdAppointment.appointmentId}</p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-lg">
+                    <p className="text-xs text-slate-500 font-medium">Patient</p>
+                    <p className="text-sm font-bold text-slate-800 truncate">{createdAppointment.patientName || 'Walk-in'}</p>
+                  </div>
+                </div>
+
+                {/* Row 2: Date & Time */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-50 p-3 rounded-lg">
+                    <p className="text-xs text-slate-500 font-medium">📅 Date</p>
+                    <p className="text-sm font-bold text-slate-800">
+                      {new Date(createdAppointment.appointmentDate).toLocaleDateString('en-US', { 
+                        month: 'short', 
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-lg">
+                    <p className="text-xs text-slate-500 font-medium">⏰ Time</p>
+                    <p className="text-sm font-bold text-slate-800">
+                      {createdAppointment.startTime?.substring(0, 5)} - {createdAppointment.endTime?.substring(0, 5)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Row 3: Type & Duration */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-50 p-3 rounded-lg">
+                    <p className="text-xs text-slate-500 font-medium">🦷 Type</p>
+                    <p className="text-sm font-bold text-slate-800">{createdAppointment.appointmentType || 'General'}</p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-lg">
+                    <p className="text-xs text-slate-500 font-medium">⏱️ Duration</p>
+                    <p className="text-sm font-bold text-slate-800">{createdAppointment.durationMinutes || 0}m</p>
+                  </div>
+                </div>
+
+                {/* Contact if available */}
+                {createdAppointment.patientPhone && (
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-xs text-slate-500 font-medium">📞 Contact</p>
+                    <p className="text-sm font-bold text-slate-800">{createdAppointment.patientPhone}</p>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setShowAppointmentSuccessModal(false);
+                      setShowViewAppointmentsModal(true);
+                    }}
+                    className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm rounded-lg font-bold shadow-md hover:shadow-lg transition-all"
+                  >
+                    📅 View All
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowAppointmentSuccessModal(false)}
+                    className="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm rounded-lg font-bold shadow-sm hover:shadow-md transition-all"
+                  >
+                    Done
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Appointment Details Modal with Edit */}
+      <AnimatePresence>
+        {selectedAppointmentDetails && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[120] flex items-center justify-center p-4"
+            onClick={() => {
+              setSelectedAppointmentDetails(null);
+              setIsEditingAppointment(false);
+              setEditAppointmentForm(null);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-3xl shadow-2xl relative"
+            >
+              {/* Close Button */}
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => {
+                  setSelectedAppointmentDetails(null);
+                  setIsEditingAppointment(false);
+                  setEditAppointmentForm(null);
+                }}
+                className="absolute top-6 right-6 z-50 w-12 h-12 bg-white hover:bg-red-50 text-red-600 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
+                title="Close"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </motion.button>
+
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 p-8 text-white sticky top-0 z-40">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-xl">
+                      <span className="text-3xl">📋</span>
+                    </div>
+                    <div>
+                      <h2 className="text-3xl font-bold">
+                        {isEditingAppointment ? 'Edit Appointment' : 'Appointment Details'}
+                      </h2>
+                      <p className="text-blue-100">ID: #{selectedAppointmentDetails.appointmentId}</p>
+                    </div>
+                  </div>
+                  {!isEditingAppointment && (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        setIsEditingAppointment(true);
+                        setEditAppointmentForm({
+                          ...selectedAppointmentDetails,
+                          date: selectedAppointmentDetails.appointmentDate?.split('T')[0] || '',
+                          startTime: selectedAppointmentDetails.startTime?.substring(0, 5) || '',
+                          endTime: selectedAppointmentDetails.endTime?.substring(0, 5) || '',
+                          appointmentType: selectedAppointmentDetails.appointmentType || 'Consultation',
+                          status: selectedAppointmentDetails.status || 'Scheduled',
+                          paymentStatus: selectedAppointmentDetails.paymentStatus || 'Pending',
+                          firstName: selectedAppointmentDetails.firstName || '',
+                          lastName: selectedAppointmentDetails.lastName || '',
+                          phoneNumber: selectedAppointmentDetails.phoneNumber || '',
+                          email: selectedAppointmentDetails.email || '',
+                          doctorId: selectedAppointmentDetails.doctorId || '',
+                          reasonForVisit: selectedAppointmentDetails.reasonForVisit || '',
+                          notes: selectedAppointmentDetails.notes || '',
+                          roomNumber: selectedAppointmentDetails.roomNumber || '',
+                          attendingPhysician: selectedAppointmentDetails.attendingPhysician || '',
+                          telehealthLink: selectedAppointmentDetails.telehealthLink || '',
+                          paidAmount: selectedAppointmentDetails.paidAmount || 0,
+                          pendingAmount: selectedAppointmentDetails.pendingAmount || 0,
+                          isConfirmed: selectedAppointmentDetails.isConfirmed || false,
+                          durationMinutes: selectedAppointmentDetails.durationMinutes || 0
+                        });
+                      }}
+                      className="px-6 py-3 bg-white/20 hover:bg-white/30 rounded-xl font-bold flex items-center gap-2 transition-all"
+                    >
+                      <span>✏️</span>
+                      <span>Edit</span>
+                    </motion.button>
+                  )}
+                </div>
+                <div className={`inline-block px-4 py-2 rounded-full text-sm font-bold ${
+                  selectedAppointmentDetails.status === 'Confirmed' || selectedAppointmentDetails.isConfirmed
+                    ? 'bg-green-400 text-green-900' 
+                    : 'bg-yellow-400 text-yellow-900'
+                }`}>
+                  {selectedAppointmentDetails.status === 'Confirmed' || selectedAppointmentDetails.isConfirmed ? '✅ Confirmed' : '⏳ Pending'}
+                </div>
+              </div>
+
+              {/* Content - Combined View/Edit Form */}
+              <div className="p-8">
+                <form className="space-y-6" onSubmit={(e) => {
+                  e.preventDefault();
+                  if (isEditingAppointment) {
+                    alert('Save functionality to be implemented');
+                  }
+                }}>
+                  {/* Patient Information */}
+                  <div className="bg-white rounded-2xl p-6 shadow-lg">
+                    <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <span>👤</span>
+                      Patient Information
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">First Name</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="text"
+                            value={editAppointmentForm?.firstName || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, firstName: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                            placeholder="Enter first name"
+                          />
+                        ) : (
+                          <p className="text-lg font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.firstName || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Last Name</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="text"
+                            value={editAppointmentForm?.lastName || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, lastName: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                            placeholder="Enter last name"
+                          />
+                        ) : (
+                          <p className="text-lg font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.lastName || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Phone Number</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="tel"
+                            value={editAppointmentForm?.phoneNumber || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, phoneNumber: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                            placeholder="Enter phone number"
+                          />
+                        ) : (
+                          <p className="text-base font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.phoneNumber || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Email</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="email"
+                            value={editAppointmentForm?.email || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, email: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                            placeholder="Enter email"
+                          />
+                        ) : (
+                          <p className="text-base font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.email || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Patient ID</label>
+                        <p className="text-base font-bold text-slate-800 px-4 py-2 bg-slate-50 rounded-lg">#{selectedAppointmentDetails.patientId || 0}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Doctor ID</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="number"
+                            value={editAppointmentForm?.doctorId || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, doctorId: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                            placeholder="Enter doctor ID"
+                          />
+                        ) : (
+                          <p className="text-base font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.doctorId || 'N/A'}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Appointment Scheduling */}
+                  <div className="bg-white rounded-2xl p-6 shadow-lg">
+                    <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <span>📅</span>
+                      Scheduling Details
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Date</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="date"
+                            value={editAppointmentForm?.date || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, date: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                          />
+                        ) : (
+                          <p className="text-lg font-bold text-slate-800 px-4 py-2">
+                            {new Date(selectedAppointmentDetails.appointmentDate).toLocaleDateString('en-US', { 
+                              weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
+                            })}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Start Time</label>
+                        {isEditingAppointment ? (
+                          <select
+                            value={editAppointmentForm?.startTime || ''}
+                            onChange={(e) => {
+                              const newStartTime = e.target.value;
+                              let calculatedDuration = editAppointmentForm?.durationMinutes;
+                              if (newStartTime && editAppointmentForm?.endTime) {
+                                const [sh, sm] = newStartTime.split(':').map(Number);
+                                const [eh, em] = editAppointmentForm.endTime.split(':').map(Number);
+                                calculatedDuration = (eh * 60 + em) - (sh * 60 + sm);
+                              }
+                              setEditAppointmentForm({...editAppointmentForm, startTime: newStartTime, durationMinutes: calculatedDuration});
+                            }}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                          >
+                            <option value="">Select time</option>
+                            {["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00"].map(time => (
+                              <option key={time} value={time}>{time}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <p className="text-base font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.startTime?.substring(0, 5) || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">End Time</label>
+                        {isEditingAppointment ? (
+                          <select
+                            value={editAppointmentForm?.endTime || ''}
+                            onChange={(e) => {
+                              const newEndTime = e.target.value;
+                              let calculatedDuration = editAppointmentForm?.durationMinutes;
+                              if (editAppointmentForm?.startTime && newEndTime) {
+                                const [sh, sm] = editAppointmentForm.startTime.split(':').map(Number);
+                                const [eh, em] = newEndTime.split(':').map(Number);
+                                calculatedDuration = (eh * 60 + em) - (sh * 60 + sm);
+                              }
+                              setEditAppointmentForm({...editAppointmentForm, endTime: newEndTime, durationMinutes: calculatedDuration});
+                            }}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                          >
+                            <option value="">Select time</option>
+                            {["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00"].map(time => (
+                              <option key={time} value={time}>{time}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <p className="text-base font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.endTime?.substring(0, 5) || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Duration</label>
+                        <p className="text-base font-bold text-slate-800 px-4 py-2 bg-slate-50 rounded-lg">
+                          {isEditingAppointment ? (editAppointmentForm?.durationMinutes || 0) : (selectedAppointmentDetails.durationMinutes || 0)} minutes
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Appointment Type</label>
+                        {isEditingAppointment ? (
+                          <select
+                            value={editAppointmentForm?.appointmentType || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, appointmentType: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                          >
+                            <option value="">Select type</option>
+                            {["Consultation", "Follow-up", "Telehealth", "Emergency", "Routine Checkup", "Treatment", "Surgery"].map(type => (
+                              <option key={type} value={type}>{type}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <p className="text-base font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.appointmentType || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Room Number</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="text"
+                            value={editAppointmentForm?.roomNumber || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, roomNumber: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                            placeholder="Room number"
+                          />
+                        ) : (
+                          <p className="text-base font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.roomNumber || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Attending Physician</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="text"
+                            value={editAppointmentForm?.attendingPhysician || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, attendingPhysician: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                            placeholder="Dr. Name"
+                          />
+                        ) : (
+                          <p className="text-base font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.attendingPhysician || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm text-slate-500 font-medium mb-2">Status</label>
+                        {isEditingAppointment ? (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {[
+                              { value: 'Scheduled', icon: '📅', color: 'from-blue-400 to-blue-600', ring: 'ring-blue-400' },
+                              { value: 'Completed', icon: '✅', color: 'from-green-400 to-green-600', ring: 'ring-green-400' },
+                              { value: 'Cancelled', icon: '❌', color: 'from-red-400 to-red-600', ring: 'ring-red-400' },
+                              { value: 'NoShow', icon: '👻', color: 'from-gray-400 to-gray-600', ring: 'ring-gray-400' }
+                            ].map((statusOption) => (
+                              <motion.button
+                                key={statusOption.value}
+                                type="button"
+                                whileHover={{ scale: 1.05, y: -2 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setEditAppointmentForm({...editAppointmentForm, status: statusOption.value})}
+                                className={`relative p-4 rounded-xl font-bold text-white transition-all duration-300 ${
+                                  editAppointmentForm?.status === statusOption.value
+                                    ? `bg-gradient-to-br ${statusOption.color} ring-4 ${statusOption.ring} shadow-xl scale-105`
+                                    : 'bg-gradient-to-br from-slate-200 to-slate-300 text-slate-600 hover:from-slate-300 hover:to-slate-400'
+                                }`}
+                              >
+                                {editAppointmentForm?.status === statusOption.value && (
+                                  <motion.div
+                                    layoutId="statusSelector"
+                                    className="absolute inset-0 bg-white/20 rounded-xl"
+                                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                  />
+                                )}
+                                <div className="relative flex flex-col items-center gap-1">
+                                  <span className="text-2xl">{statusOption.icon}</span>
+                                  <span className="text-xs">{statusOption.value}</span>
+                                </div>
+                              </motion.button>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold">
+                            <span className="text-xl">
+                              {selectedAppointmentDetails.status === 'Scheduled' ? '📅' :
+                               selectedAppointmentDetails.status === 'Completed' ? '✅' :
+                               selectedAppointmentDetails.status === 'Cancelled' ? '❌' : '👻'}
+                            </span>
+                            <p className="text-base text-slate-800">{selectedAppointmentDetails.status || 'N/A'}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Treatment Details */}
+                  <div className="bg-white rounded-2xl p-6 shadow-lg">
+                    <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <span>🦷</span>
+                      Treatment Details
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Reason for Visit</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="text"
+                            value={editAppointmentForm?.reasonForVisit || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, reasonForVisit: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                            placeholder="Reason for visit"
+                          />
+                        ) : (
+                          <p className="text-base text-slate-700 px-4 py-2">{selectedAppointmentDetails.reasonForVisit || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Notes</label>
+                        {isEditingAppointment ? (
+                          <textarea
+                            value={editAppointmentForm?.notes || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, notes: e.target.value})}
+                            rows={3}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
+                            placeholder="Additional notes"
+                          />
+                        ) : (
+                          <p className="text-base text-slate-700 px-4 py-2 whitespace-pre-wrap">{selectedAppointmentDetails.notes || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Telehealth Link</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="url"
+                            value={editAppointmentForm?.telehealthLink || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, telehealthLink: e.target.value})}
+                            disabled={editAppointmentForm?.appointmentType !== 'Telehealth'}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                            placeholder={editAppointmentForm?.appointmentType === 'Telehealth' ? 'https://meet.example.com/...' : 'Only for Telehealth appointments'}
+                          />
+                        ) : (
+                          <p className="text-base text-slate-700 px-4 py-2">{selectedAppointmentDetails.telehealthLink || 'N/A'}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Billing Information */}
+                  <div className="bg-white rounded-2xl p-6 shadow-lg">
+                    <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <span>💰</span>
+                      Billing Information
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Paid Amount</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editAppointmentForm?.paidAmount || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, paidAmount: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                            placeholder="0.00"
+                          />
+                        ) : (
+                          <p className="text-xl font-bold text-green-600 px-4 py-2">₹{selectedAppointmentDetails.paidAmount || 0}</p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Pending Amount</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editAppointmentForm?.pendingAmount || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, pendingAmount: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                            placeholder="0.00"
+                          />
+                        ) : (
+                          <p className="text-xl font-bold text-amber-600 px-4 py-2">₹{selectedAppointmentDetails.pendingAmount || 0}</p>
+                        )}
+                      </div>
+                      <div className="md:col-span-3">
+                        <label className="block text-sm text-slate-500 font-medium mb-2">Payment Status</label>
+                        {isEditingAppointment ? (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            {[
+                              { value: 'Pending', icon: '⏳', color: 'from-amber-400 to-orange-500', ring: 'ring-amber-400' },
+                              { value: 'Paid', icon: '💚', color: 'from-green-400 to-emerald-600', ring: 'ring-green-400' },
+                              { value: 'Partial', icon: '💛', color: 'from-yellow-400 to-amber-500', ring: 'ring-yellow-400' },
+                              { value: 'Invoice', icon: '📄', color: 'from-blue-400 to-indigo-500', ring: 'ring-blue-400' }
+                            ].map((paymentOption) => (
+                              <motion.button
+                                key={paymentOption.value}
+                                type="button"
+                                whileHover={{ scale: 1.05, y: -2 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setEditAppointmentForm({...editAppointmentForm, paymentStatus: paymentOption.value})}
+                                className={`relative p-4 rounded-xl font-bold text-white transition-all duration-300 ${
+                                  editAppointmentForm?.paymentStatus === paymentOption.value
+                                    ? `bg-gradient-to-br ${paymentOption.color} ring-4 ${paymentOption.ring} shadow-xl scale-105`
+                                    : 'bg-gradient-to-br from-slate-200 to-slate-300 text-slate-600 hover:from-slate-300 hover:to-slate-400'
+                                }`}
+                              >
+                                {editAppointmentForm?.paymentStatus === paymentOption.value && (
+                                  <motion.div
+                                    layoutId="paymentSelector"
+                                    className="absolute inset-0 bg-white/20 rounded-xl"
+                                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                  />
+                                )}
+                                <div className="relative flex flex-col items-center gap-1">
+                                  <span className="text-2xl">{paymentOption.icon}</span>
+                                  <span className="text-xs">{paymentOption.value}</span>
+                                </div>
+                              </motion.button>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
+                            selectedAppointmentDetails.paymentStatus === 'Paid'
+                              ? 'bg-green-100 text-green-700 border border-green-300'
+                              : selectedAppointmentDetails.paymentStatus === 'Partial'
+                              ? 'bg-yellow-100 text-yellow-700 border border-yellow-300'
+                              : 'bg-amber-100 text-amber-700 border border-amber-300'
+                          }`}>
+                            <span className="text-base">
+                              {selectedAppointmentDetails.paymentStatus === 'Paid' ? '💚' :
+                               selectedAppointmentDetails.paymentStatus === 'Partial' ? '💛' :
+                               selectedAppointmentDetails.paymentStatus === 'Invoice' ? '📄' : '⏳'}
+                            </span>
+                            {selectedAppointmentDetails.paymentStatus || 'Pending'}
+                          </span>
+                        )}
+                      </div>
+                      {isEditingAppointment && (
+                        <div className="md:col-span-3 mt-4">
+                          <motion.label 
+                            whileHover={{ scale: 1.02 }}
+                            className="flex items-center gap-3 cursor-pointer p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 hover:border-blue-400 transition-all"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={editAppointmentForm?.isConfirmed || false}
+                              onChange={(e) => setEditAppointmentForm({...editAppointmentForm, isConfirmed: e.target.checked})}
+                              className="w-6 h-6 rounded-lg border-2 border-blue-300 text-blue-600 focus:ring-4 focus:ring-blue-100 cursor-pointer"
+                            />
+                            <span className="text-base font-bold text-slate-700 flex items-center gap-2">
+                              <span className="text-xl">✅</span>
+                              <span>Confirmed Appointment</span>
+                            </span>
+                          </motion.label>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </form>
+              </div>
+
+              {/* Footer Action Buttons */}
+              <div className="sticky bottom-0 bg-gradient-to-r from-slate-50 to-blue-50 px-8 py-6 border-t-2 border-slate-200 flex gap-4">
+                {isEditingAppointment ? (
+                  <>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setIsEditingAppointment(false);
+                        setEditAppointmentForm(null);
+                      }}
+                      type="button"
+                      className="flex-1 px-6 py-4 bg-white hover:bg-slate-100 border-2 border-slate-300 text-slate-700 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                    >
+                      ✖️ Cancel
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={async () => {
+                        try {
+                          const userId = localStorage.getItem('userId');
+                          const enterpriseId = localStorage.getItem('enterpriseId');
+                          const clinicId = localStorage.getItem('clinicId');
+                          
+                          // Prepare complete appointment payload matching backend model
+                          const updatedAppointment = {
+                            appointmentId: selectedAppointmentDetails.appointmentId,
+                            patientId: parseInt(selectedAppointmentDetails.patientId) || parseInt(editAppointmentForm.patientId) || 0,
+                            clinicId: parseInt(clinicId) || 0,
+                            doctorId: parseInt(editAppointmentForm.doctorId) || parseInt(selectedAppointmentDetails.doctorId) || 0,
+                            attendingPhysician: editAppointmentForm.attendingPhysician || '',
+                            enterpriseId: parseInt(enterpriseId) || 0,
+                            firstName: editAppointmentForm.firstName || '',
+                            lastName: editAppointmentForm.lastName || '',
+                            phoneNumber: editAppointmentForm.phoneNumber || '',
+                            email: editAppointmentForm.email || '',
+                            appointmentDate: editAppointmentForm.date,
+                            startTime: `${editAppointmentForm.startTime}:00`,
+                            endTime: `${editAppointmentForm.endTime}:00`,
+                            durationMinutes: parseInt(editAppointmentForm.durationMinutes) || 0,
+                            appointmentType: editAppointmentForm.appointmentType || 'Consultation',
+                            reasonForVisit: editAppointmentForm.reasonForVisit || '',
+                            notes: editAppointmentForm.notes || '',
+                            roomNumber: editAppointmentForm.roomNumber || '',
+                            telehealthLink: editAppointmentForm.telehealthLink || '',
+                            status: editAppointmentForm.status || 'Scheduled',
+                            isConfirmed: editAppointmentForm.isConfirmed || false,
+                            paidAmount: parseFloat(editAppointmentForm.paidAmount) || 0,
+                            pendingAmount: parseFloat(editAppointmentForm.pendingAmount) || 0,
+                            paymentStatus: editAppointmentForm.paymentStatus || 'Pending',
+                            createdAt: selectedAppointmentDetails.createdAt,
+                            updatedAt: new Date().toISOString(),
+                            createdBy: parseInt(selectedAppointmentDetails.createdBy) || 0,
+                            updatedBy: parseInt(userId) || 0
+                          };
+                          
+                          console.log('Updating appointment with payload:', updatedAppointment);
+                          
+                          // Call update API with just the appointment object
+                          const response = await updateAppointment(updatedAppointment);
+                          console.log('Update response:', response);
+                          
+                          // Update the selected details
+                          setSelectedAppointmentDetails({
+                            ...selectedAppointmentDetails,
+                            ...updatedAppointment
+                          });
+                          
+                          // Update the list
+                          setFilteredAppointmentsList(prev => 
+                            prev.map(apt => 
+                              apt.appointmentId === selectedAppointmentDetails.appointmentId 
+                                ? { ...apt, ...updatedAppointment }
+                                : apt
+                            )
+                          );
+                          
+                          // Exit edit mode
+                          setIsEditingAppointment(false);
+                          setEditAppointmentForm(null);
+                          
+                          // Show success popup
+                          setShowAppointmentUpdateSuccess(true);
+                          setTimeout(() => setShowAppointmentUpdateSuccess(false), 4000);
+                        } catch (error) {
+                          console.error('Error updating appointment:', error);
+                          alert('❌ Oops! Something went wrong. Even dentists make mistakes! 🦷💥');
+                        }
+                      }}
+                      type="button"
+                      className="flex-1 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                    >
+                      ✅ Update Appointment
+                    </motion.button>
+                  </>
+                ) : (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setSelectedAppointmentDetails(null);
+                      setIsEditingAppointment(false);
+                      setEditAppointmentForm(null);
+                    }}
+                    type="button"
+                    className="flex-1 px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                  >
+                    Close
+                  </motion.button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Appointment Update Success Popup */}
+      <AnimatePresence>
+        {showAppointmentUpdateSuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[150] p-4"
+          >
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 0, rotate: 180 }}
+              transition={{ type: "spring", stiffness: 200, damping: 15 }}
+              className="bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 rounded-3xl shadow-2xl max-w-lg w-full p-8 relative overflow-hidden"
+            >
+              {/* Animated Background Confetti */}
+              {[...Array(20)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ y: -100, x: Math.random() * 400 - 200, opacity: 1 }}
+                  animate={{ 
+                    y: 600,
+                    rotate: Math.random() * 720,
+                    opacity: 0
+                  }}
+                  transition={{ 
+                    duration: 2 + Math.random() * 2,
+                    delay: Math.random() * 0.5,
+                    ease: "easeIn"
+                  }}
+                  className="absolute w-3 h-3 rounded-full"
+                  style={{
+                    backgroundColor: ['#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#8b5cf6'][i % 5],
+                    left: `${Math.random() * 100}%`
+                  }}
+                />
+              ))}
+
+              {/* Success Icon with Animation */}
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.3, type: "spring", stiffness: 300 }}
+                className="text-center mb-6"
+              >
+                <motion.div
+                  animate={{ 
+                    rotate: [0, -10, 10, -10, 10, 0],
+                    scale: [1, 1.1, 1, 1.1, 1]
+                  }}
+                  transition={{ 
+                    duration: 0.8,
+                    delay: 0.5,
+                    repeat: 1
+                  }}
+                  className="inline-block text-9xl mb-4"
+                >
+                  🎉
+                </motion.div>
+              </motion.div>
+
+              {/* Funny Message */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+                className="text-center space-y-4"
+              >
+                <h2 className="text-4xl font-black bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                  Boom! Updated! 💥
+                </h2>
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.8 }}
+                  className="text-lg text-slate-700 font-semibold"
+                >
+                  That appointment got a glow-up! ✨
+                </motion.p>
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 1 }}
+                  className="bg-white/80 backdrop-blur rounded-2xl p-6 border-2 border-green-200 shadow-lg"
+                >
+                  <p className="text-2xl font-bold text-slate-800 mb-2">
+                    🦷 Appointment #{selectedAppointmentDetails?.appointmentId}
+                  </p>
+                  <p className="text-sm text-slate-600 italic">
+                    "Thanks for keeping me up to date! My teeth are smiling! 😁"
+                  </p>
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1.2 }}
+                  className="flex items-center justify-center gap-2 text-sm text-slate-500"
+                >
+                  <span className="animate-pulse">✅</span>
+                  <span>Changes saved faster than you can say "cheese"!</span>
+                  <span className="animate-pulse">🧀</span>
+                </motion.div>
+              </motion.div>
+
+              {/* Auto-close indicator */}
+              <motion.div
+                initial={{ scaleX: 1 }}
+                animate={{ scaleX: 0 }}
+                transition={{ duration: 4, ease: "linear" }}
+                className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 w-full origin-left"
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Not Logged In Modal - Funny Message */}
+      <AnimatePresence>
+        {showNotLoggedInModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowNotLoggedInModal(false)}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.5, opacity: 0, y: 50 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gradient-to-br from-orange-50 via-red-50 to-pink-50 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border-3 border-orange-300"
+            >
+              {/* Colorful Header */}
+              <div className="bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 p-8 text-center relative overflow-hidden">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                  className="text-6xl mb-4"
+                >
+                  🔐
+                </motion.div>
+                <h3 className="text-3xl font-bold text-white mb-2">Oops! 🚫</h3>
+                <p className="text-orange-50 font-semibold">You need to login first!</p>
+              </div>
+
+              {/* Funny Message */}
+              <div className="p-8 text-center space-y-6">
+                <motion.div
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="text-5xl"
+                >
+                  😅
+                </motion.div>
+
+                <div className="space-y-3">
+                  <p className="text-slate-700 text-lg font-bold">
+                    "Hold up! We can't let you book appointments while flying under the radar!"
+                  </p>
+                  <p className="text-slate-600 text-sm">
+                    It's like trying to book a dental appointment without showing your teeth! 🦷
+                  </p>
+                </div>
+
+                <div className="bg-yellow-100 border-2 border-yellow-400 rounded-xl p-4 text-left">
+                  <p className="text-yellow-800 font-semibold text-sm">
+                    💡 <span className="font-bold">Pro Tip:</span> Login to unlock the magic of appointment scheduling!
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setShowNotLoggedInModal(false);
+                      navigate("/login");
+                    }}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>🔓</span>
+                    <span>Login Now</span>
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowNotLoggedInModal(false)}
+                    className="flex-1 px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded-xl font-bold shadow-md transition-all"
+                  >
+                    Close
+                  </motion.button>
+                </div>
+
+                <p className="text-xs text-slate-500 italic">
+                  "We're just trying to keep the teeth thieves away! 😄"
+                </p>
               </div>
             </motion.div>
           </motion.div>

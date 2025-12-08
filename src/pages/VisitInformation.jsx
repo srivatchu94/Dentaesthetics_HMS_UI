@@ -21,6 +21,15 @@ export default function VisitInformation() {
   const [showAddVisitForm, setShowAddVisitForm] = useState(false);
   const [patientVisits, setPatientVisits] = useState([]);
   
+  // Visit filter states
+  const [visitFilters, setVisitFilters] = useState({
+    clinicId: "",
+    patientId: "",
+    visitDate: ""
+  });
+  const [filteredVisits, setFilteredVisits] = useState([]);
+  const [loadingVisits, setLoadingVisits] = useState(false);
+  
   // New visit form state
   const [newVisit, setNewVisit] = useState({
     patientId: "",
@@ -100,6 +109,58 @@ export default function VisitInformation() {
         paymentStatus: "Pending"
       });
     }
+  };
+
+  const handleFilterVisits = async () => {
+    if (!visitFilters.clinicId && !visitFilters.patientId && !visitFilters.visitDate) {
+      alert("⚠️ Please enter at least one filter criteria (Clinic ID, Patient ID, or Visit Date)");
+      return;
+    }
+
+    setLoadingVisits(true);
+    try {
+      let visits = [];
+      
+      // Priority: Patient ID > Clinic ID > Date
+      if (visitFilters.patientId) {
+        visits = await visitService.getVisitsByPatientId(parseInt(visitFilters.patientId));
+      } else if (visitFilters.clinicId) {
+        visits = await visitService.getVisitsByClinicId(parseInt(visitFilters.clinicId));
+      } else if (visitFilters.visitDate) {
+        const endDate = visitFilters.visitDate; // Same date for single day
+        visits = await visitService.getVisitsByDateRange(visitFilters.visitDate, endDate);
+      }
+      
+      // Apply additional filters if multiple criteria provided
+      let filtered = visits;
+      if (visitFilters.clinicId && visitFilters.patientId) {
+        filtered = filtered.filter(v => v.clinicId === parseInt(visitFilters.clinicId));
+      }
+      if (visitFilters.visitDate) {
+        filtered = filtered.filter(v => v.visitDate.split('T')[0] === visitFilters.visitDate);
+      }
+      
+      setFilteredVisits(filtered);
+      
+      if (filtered.length === 0) {
+        alert('ℹ️ No visits found matching the search criteria');
+      }
+    } catch (error) {
+      console.error('Failed to fetch visits:', error);
+      alert('❌ Failed to fetch visits. Please try again.');
+      setFilteredVisits([]);
+    } finally {
+      setLoadingVisits(false);
+    }
+  };
+
+  const handleResetVisitFilters = () => {
+    setVisitFilters({
+      clinicId: "",
+      patientId: "",
+      visitDate: ""
+    });
+    setFilteredVisits([]);
   };
 
   const handleSaveVisit = async () => {
@@ -804,28 +865,319 @@ export default function VisitInformation() {
   // === VIEW VIEW ===
   if (currentView === "view") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-8">
+      <div className="min-h-screen bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
         >
           <button
             onClick={() => setCurrentView("home")}
-            className="mb-6 flex items-center gap-2 px-6 py-3 bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-gray-700 font-semibold"
+            className="mb-6 flex items-center gap-2 px-6 py-3 bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 text-gray-700 font-semibold hover:scale-105"
           >
             <span>←</span>
             <span>Back to Home</span>
           </button>
 
           <div className="bg-white rounded-3xl shadow-2xl p-8 mb-8">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
-              View Visit History
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 bg-clip-text text-transparent mb-2 flex items-center gap-3">
+              <span className="text-6xl">🏥</span>
+              View Patient Visits
             </h1>
-            <p className="text-gray-600">Search for patients and view their complete visit records</p>
+            <p className="text-gray-600 text-lg">Search by clinic, patient, or date to view visit records</p>
           </div>
 
-          {renderSearchForm('purple')}
-          {renderSearchResults('👁️ View Visit History', 'purple', handleViewVisits)}
+          {/* Filter Section */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-3xl shadow-2xl p-8 mb-8"
+          >
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+              <span>🔍</span>
+              Filter Visits
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              {/* Clinic ID */}
+              <div>
+                <label className="block text-sm font-bold mb-2 text-gray-700 flex items-center gap-2">
+                  <span>🏥</span> Clinic ID
+                </label>
+                <input
+                  type="text"
+                  value={visitFilters.clinicId}
+                  onChange={(e) => setVisitFilters({ ...visitFilters, clinicId: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                  placeholder="Enter Clinic ID"
+                />
+              </div>
+
+              {/* Patient ID */}
+              <div>
+                <label className="block text-sm font-bold mb-2 text-gray-700 flex items-center gap-2">
+                  <span>👤</span> Patient ID
+                </label>
+                <input
+                  type="number"
+                  value={visitFilters.patientId}
+                  onChange={(e) => setVisitFilters({ ...visitFilters, patientId: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-pink-200 focus:border-pink-500 focus:ring-4 focus:ring-pink-100 outline-none transition-all"
+                  placeholder="Enter Patient ID"
+                />
+              </div>
+
+              {/* Visit Date */}
+              <div>
+                <label className="block text-sm font-bold mb-2 text-gray-700 flex items-center gap-2">
+                  <span>📅</span> Visit Date
+                </label>
+                <input
+                  type="date"
+                  value={visitFilters.visitDate}
+                  onChange={(e) => setVisitFilters({ ...visitFilters, visitDate: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-orange-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-100 outline-none transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Filter Buttons */}
+            <div className="flex gap-4">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleFilterVisits}
+                disabled={!visitFilters.clinicId && !visitFilters.patientId && !visitFilters.visitDate}
+                className={`flex-1 px-8 py-4 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 ${
+                  visitFilters.clinicId || visitFilters.patientId || visitFilters.visitDate
+                    ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 hover:from-purple-600 hover:via-pink-600 hover:to-orange-600 text-white'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                <span>🔍</span>
+                <span>Search Visits</span>
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleResetVisitFilters}
+                className="px-8 py-4 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-bold shadow-lg transition-all flex items-center gap-2"
+              >
+                <span>🔄</span>
+                <span>Reset</span>
+              </motion.button>
+            </div>
+
+            {!visitFilters.clinicId && !visitFilters.patientId && !visitFilters.visitDate && (
+              <p className="text-sm text-amber-600 mt-4 flex items-center gap-2">
+                <span>⚠️</span>
+                <span>At least one filter is required to search</span>
+              </p>
+            )}
+          </motion.div>
+
+          {/* Loading State */}
+          {loadingVisits && (
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="animate-spin rounded-full h-20 w-20 border-b-4 border-purple-600 mb-4"></div>
+              <p className="text-white text-lg font-bold">Loading visits...</p>
+            </div>
+          )}
+
+          {/* Results Summary */}
+          {!loadingVisits && filteredVisits.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-2xl p-6 shadow-xl"
+            >
+              <div className="flex items-center justify-between text-white">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-emerald-600 font-bold text-2xl shadow-lg">
+                    {filteredVisits.length}
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold">Search Results</p>
+                    <p className="text-sm opacity-90">
+                      {filteredVisits.length} visit{filteredVisits.length !== 1 ? 's' : ''} found
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  {visitFilters.clinicId && <p className="text-sm">🏥 Clinic: {visitFilters.clinicId}</p>}
+                  {visitFilters.patientId && <p className="text-sm">👤 Patient: {visitFilters.patientId}</p>}
+                  {visitFilters.visitDate && <p className="text-sm">📅 Date: {visitFilters.visitDate}</p>}
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Visit Tiles Grid */}
+          {!loadingVisits && filteredVisits.length > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filteredVisits.map((visit, index) => {
+                const colors = [
+                  { bg: 'from-purple-400 to-purple-600', card: 'bg-purple-50', border: 'border-purple-400', text: 'text-purple-700' },
+                  { bg: 'from-pink-400 to-pink-600', card: 'bg-pink-50', border: 'border-pink-400', text: 'text-pink-700' },
+                  { bg: 'from-orange-400 to-orange-600', card: 'bg-orange-50', border: 'border-orange-400', text: 'text-orange-700' },
+                  { bg: 'from-blue-400 to-blue-600', card: 'bg-blue-50', border: 'border-blue-400', text: 'text-blue-700' },
+                  { bg: 'from-emerald-400 to-emerald-600', card: 'bg-emerald-50', border: 'border-emerald-400', text: 'text-emerald-700' },
+                  { bg: 'from-rose-400 to-rose-600', card: 'bg-rose-50', border: 'border-rose-400', text: 'text-rose-700' },
+                  { bg: 'from-cyan-400 to-cyan-600', card: 'bg-cyan-50', border: 'border-cyan-400', text: 'text-cyan-700' },
+                  { bg: 'from-indigo-400 to-indigo-600', card: 'bg-indigo-50', border: 'border-indigo-400', text: 'text-indigo-700' }
+                ];
+                const colorScheme = colors[index % colors.length];
+                const visitDate = new Date(visit.visitDate);
+
+                return (
+                  <motion.div
+                    key={visit.visitId}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05, type: "spring", stiffness: 200 }}
+                    whileHover={{ scale: 1.05, y: -8, boxShadow: "0 25px 50px rgba(0,0,0,0.2)" }}
+                    className={`${colorScheme.card} border-2 ${colorScheme.border} rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer relative group`}
+                  >
+                    {/* Gradient Header */}
+                    <div className={`h-3 bg-gradient-to-r ${colorScheme.bg}`}></div>
+
+                    <div className="p-6">
+                      {/* Visit ID Badge */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div className={`px-4 py-2 rounded-full bg-gradient-to-r ${colorScheme.bg} text-white font-bold text-sm shadow-md`}>
+                          🆔 Visit #{visit.visitId}
+                        </div>
+                        <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          visit.paymentStatus === 'Paid' 
+                            ? 'bg-green-100 text-green-700 border border-green-300'
+                            : 'bg-amber-100 text-amber-700 border border-amber-300'
+                        }`}>
+                          {visit.paymentStatus === 'Paid' ? '✅ Paid' : '⏳ Pending'}
+                        </div>
+                      </div>
+
+                      {/* Visit Details */}
+                      <div className="space-y-3">
+                        <div className="bg-white rounded-xl p-3 shadow-sm">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xl">👤</span>
+                            <p className="text-xs text-gray-500 font-semibold">Patient ID</p>
+                          </div>
+                          <p className="text-lg font-bold text-gray-800 ml-7">{visit.patientId}</p>
+                        </div>
+
+                        <div className="bg-white rounded-xl p-3 shadow-sm">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xl">📅</span>
+                            <p className="text-xs text-gray-500 font-semibold">Visit Date</p>
+                          </div>
+                          <p className="text-sm font-bold text-gray-800 ml-7">
+                            {visitDate.toLocaleDateString('en-US', { 
+                              weekday: 'short',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
+
+                        <div className="bg-white rounded-xl p-3 shadow-sm">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xl">🩺</span>
+                            <p className="text-xs text-gray-500 font-semibold">Reason</p>
+                          </div>
+                          <p className="text-sm font-bold text-gray-800 ml-7 truncate">
+                            {visit.reasonForVisit || 'N/A'}
+                          </p>
+                        </div>
+
+                        {visit.diagnoses && (
+                          <div className="bg-white rounded-xl p-3 shadow-sm">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xl">🔬</span>
+                              <p className="text-xs text-gray-500 font-semibold">Diagnosis</p>
+                            </div>
+                            <p className="text-xs text-gray-700 ml-7 line-clamp-2">
+                              {visit.diagnoses}
+                            </p>
+                          </div>
+                        )}
+
+                        {visit.attendingPhysician && (
+                          <div className="bg-white rounded-xl p-3 shadow-sm">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xl">👨‍⚕️</span>
+                              <p className="text-xs text-gray-500 font-semibold">Doctor</p>
+                            </div>
+                            <p className="text-sm font-bold text-gray-800 ml-7">
+                              {visit.attendingPhysician}
+                            </p>
+                          </div>
+                        )}
+
+                        {visit.billingAmount && (
+                          <div className="bg-white rounded-xl p-3 shadow-sm">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xl">💰</span>
+                              <p className="text-xs text-gray-500 font-semibold">Billing</p>
+                            </div>
+                            <p className="text-lg font-bold text-gray-800 ml-7">
+                              ₹{visit.billingAmount.toLocaleString()}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Hover hint */}
+                      <div className={`mt-4 pt-4 border-t border-gray-200 text-xs font-bold ${colorScheme.text} opacity-0 group-hover:opacity-100 transition-opacity text-center`}>
+                        Click for full details →
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Empty State - No Search Done Yet */}
+          {!loadingVisits && filteredVisits.length === 0 && !visitFilters.clinicId && !visitFilters.patientId && !visitFilters.visitDate && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center py-20"
+            >
+              <motion.div
+                animate={{
+                  scale: [1, 1.1, 1],
+                  rotate: [0, 5, -5, 0]
+                }}
+                transition={{
+                  duration: 2,
+                  repeat: Infinity,
+                  repeatDelay: 1
+                }}
+                className="text-9xl mb-6"
+              >
+                🔍
+              </motion.div>
+              <h3 className="text-4xl font-bold text-white mb-3">Ready to Search!</h3>
+              <p className="text-xl text-white opacity-90 mb-2">Enter at least one filter above to view patient visits</p>
+              <p className="text-lg text-white opacity-75">Use Clinic ID, Patient ID, or Visit Date</p>
+            </motion.div>
+          )}
+
+          {/* Empty State - No Results After Search */}
+          {!loadingVisits && filteredVisits.length === 0 && (visitFilters.clinicId || visitFilters.patientId || visitFilters.visitDate) && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="text-center py-16 text-white"
+            >
+              <div className="text-8xl mb-4">📭</div>
+              <h3 className="text-3xl font-bold mb-2">No Visits Found</h3>
+              <p className="text-lg opacity-90">Try adjusting your search filters</p>
+            </motion.div>
+          )}
         </motion.div>
       </div>
     );

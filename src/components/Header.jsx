@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { registerUser, loginUser, getUserByUsername } from "../services/authService";
+import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, getUserAccess, setSelectedAccess, getSelectedAccess } from "../services/authService";
 import { listDoctorProfiles } from "../services/doctorService";
 
 const TABS = [
@@ -55,6 +55,9 @@ export default function Header(){
     username: "",
     emailid: "",
     mobileNumber: "",
+    firstName: "",
+    lastName: "",
+    roleId: "",
     password: ""
   });
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -127,7 +130,17 @@ export default function Header(){
       
       setLoading(true);
       try {
-        const response = await registerUser(formData);
+        // Build registration model matching backend
+        const registrationModel = {
+          Username: formData.username,
+          Password: formData.password,
+          EmailId: formData.emailid,
+          MobileNumber: formData.mobileNumber,
+          ...(formData.firstName && { FirstName: formData.firstName }),
+          ...(formData.lastName && { LastName: formData.lastName }),
+          ...(formData.roleId && { RoleId: parseInt(formData.roleId) })
+        };
+        const response = await registerUser(registrationModel);
         console.log("Registration successful:", response);
         
         const funnyMessages = [
@@ -149,7 +162,7 @@ export default function Header(){
         setTimeout(() => {
           setShowSuccessModal(false);
           setIsSignUp(false);
-          setFormData({ username: "", emailid: "", mobileNumber: "", password: "" });
+          setFormData({ username: "", emailid: "", mobileNumber: "", firstName: "", lastName: "", roleId: "", password: "" });
           setConfirmPassword("");
           setPasswordMatchWarning("");
           setShowLoginModal(true);
@@ -222,10 +235,16 @@ export default function Header(){
   };
 
   const handleLogout = () => {
+    // Clear token and user data from storage
+    logoutUser();
+    
+    // Clear local state
     setIsLoggedIn(false);
     setShowWelcome(false);
     setUserInfo({ name: "", role: "" });
     setDoctorName("");
+    
+    console.log('🔓 Logged out - token cleared from all tabs');
   };
 
   const handleInputChange = (e) => {
@@ -432,7 +451,7 @@ export default function Header(){
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setShowLoginModal(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -440,7 +459,7 @@ export default function Header(){
               exit={{ scale: 0.9, opacity: 0, y: 20 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden relative"
+              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden relative"
             >
               {/* Animated Background Gradient */}
               <motion.div
@@ -460,223 +479,213 @@ export default function Header(){
               {/* Close Button */}
               <button
                 onClick={() => setShowLoginModal(false)}
-                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10"
+                className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors z-20 bg-white/80 rounded-full p-1 hover:bg-white"
               >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                   <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
               </button>
 
-              <div className="relative p-8">
-                {/* Header with Icon */}
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                  className="flex justify-center mb-6"
-                >
-                  <div className="w-20 h-20 bg-gradient-to-br from-coral-500 to-teal-500 rounded-full flex items-center justify-center shadow-coral">
-                    <motion.span
-                      animate={{ rotate: [0, 360] }}
-                      transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                      className="text-4xl"
-                    >
-                      🦷
-                    </motion.span>
+              {/* Content */}
+              <div className="relative px-6 py-4">
+                {/* Compact Header */}
+                <div className="flex items-center justify-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-coral-500 to-teal-500 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-2xl">🦷</span>
                   </div>
-                </motion.div>
-
-                {/* Title */}
-                <motion.h2
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="text-3xl font-bold text-center bg-gradient-to-r from-coral-600 to-teal-600 bg-clip-text text-transparent mb-2"
-                >
-                  {isSignUp ? "Create Account" : "Welcome Back"}
-                </motion.h2>
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4 }}
-                  className="text-center text-gray-600 mb-6"
-                >
-                  {isSignUp ? "Join our dental community" : "Sign in to continue to your dashboard"}
-                </motion.p>
+                  <div>
+                    <h2 className="text-2xl font-bold bg-gradient-to-r from-coral-600 to-teal-600 bg-clip-text text-transparent">
+                      {isSignUp ? "Create Account" : "Welcome Back"}
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      {isSignUp ? "Join our dental community" : "Sign in to continue"}
+                    </p>
+                  </div>
+                </div>
 
                 {/* Form */}
-                <form onSubmit={handleFormSubmit} className="space-y-4">
+                <form onSubmit={handleFormSubmit} className="space-y-2">
                   {/* Error Alert */}
                   {authError && (
-                    <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-lg">
-                      <p className="text-red-800 text-sm flex items-center gap-2">
+                    <div className="bg-red-50 border-l-4 border-red-500 p-2 rounded">
+                      <p className="text-red-800 text-sm flex items-center gap-1">
                         <span>⚠️</span>
                         {authError}
                       </p>
                     </div>
                   )}
 
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.5 }}
-                  >
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Username</label>
                     <input
                       type="text"
                       name="username"
                       required
                       value={formData.username}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
-                      placeholder="Enter your username"
+                      className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
+                      placeholder="Enter username"
                     />
-                  </motion.div>
+                  </div>
 
                   {isSignUp && (
                     <>
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.6 }}
-                      >
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Email ID</label>
-                        <input
-                          type="email"
-                          name="emailid"
-                          required
-                          value={formData.emailid}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
-                          placeholder="your.email@example.com"
-                        />
-                      </motion.div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">First Name</label>
+                          <input
+                            type="text"
+                            name="firstName"
+                            value={formData.firstName}
+                            onChange={handleInputChange}
+                            className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
+                            placeholder="First"
+                            maxLength={128}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">Last Name</label>
+                          <input
+                            type="text"
+                            name="lastName"
+                            value={formData.lastName}
+                            onChange={handleInputChange}
+                            className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
+                            placeholder="Last"
+                            maxLength={128}
+                          />
+                        </div>
+                      </div>
 
-                      <motion.div
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.7 }}
-                      >
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Mobile Number</label>
-                        <input
-                          type="tel"
-                          name="mobileNumber"
-                          required
-                          value={formData.mobileNumber}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                          <input
+                            type="email"
+                            name="emailid"
+                            required
+                            value={formData.emailid}
+                            onChange={handleInputChange}
+                            className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
+                            placeholder="email@example.com"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">Mobile</label>
+                          <input
+                            type="tel"
+                            name="mobileNumber"
+                            required
+                            value={formData.mobileNumber}
+                            onChange={handleInputChange}
+                            className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
+                            placeholder="1234567890"
+                            maxLength={10}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
+                        <select
+                          name="roleId"
+                          value={formData.roleId}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
-                          placeholder="1234567890"
-                          maxLength={10}
-                        />
-                      </motion.div>
+                          className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
+                        >
+                          <option value="">Select Role (Optional)</option>
+                          <option value="1">Admin</option>
+                          <option value="2">Doctor</option>
+                          <option value="3">Receptionist</option>
+                          <option value="4">Staff</option>
+                        </select>
+                      </div>
                     </>
                   )}
 
-                  <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: isSignUp ? 0.8 : 0.6 }}
-                  >
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
-                    <input
-                      type="password"
-                      name="password"
-                      required
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 transition-all outline-none"
-                      placeholder="••••••••"
-                      minLength={6}
-                    />
-                  </motion.div>
-
-                  {isSignUp && (
-                    <motion.div
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.9 }}
-                    >
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Confirm Password</label>
-                      <input
-                        type="password"
-                        name="confirmPassword"
-                        required
-                        value={confirmPassword}
-                        onChange={handleInputChange}
-                        className={`w-full px-4 py-3 rounded-xl border-2 transition-all outline-none ${
-                          passwordMatchWarning 
-                            ? 'border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100' 
-                            : 'border-gray-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100'
-                        }`}
-                        placeholder="Confirm your password"
-                      />
+                  {isSignUp ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
+                        <input
+                          type="password"
+                          name="password"
+                          required
+                          value={formData.password}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
+                          placeholder="••••••••"
+                          minLength={6}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm</label>
+                        <input
+                          type="password"
+                          name="confirmPassword"
+                          required
+                          value={confirmPassword}
+                          onChange={handleInputChange}
+                          className={`w-full px-3 py-2 text-base rounded-lg border transition-all outline-none ${
+                            passwordMatchWarning 
+                              ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-100' 
+                              : 'border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200'
+                          }`}
+                          placeholder="••••••••"
+                        />
+                      </div>
                       {passwordMatchWarning && (
-                        <p className="text-yellow-600 font-semibold text-xs mt-1 animate-pulse">
+                        <p className="text-yellow-600 font-semibold text-sm col-span-2 -mt-1 animate-pulse">
                           {passwordMatchWarning}
                         </p>
                       )}
-                    </motion.div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
+                      <input
+                        type="password"
+                        name="password"
+                        required
+                        value={formData.password}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
+                        placeholder="••••••••"
+                        minLength={6}
+                      />
+                    </div>
                   )}
 
                   {/* Submit Button */}
-                  <motion.button
+                  <button
                     type="submit"
                     disabled={loading}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: isSignUp ? 1.0 : 0.7 }}
-                    whileHover={{ scale: loading ? 1 : 1.02, boxShadow: loading ? "none" : "0 20px 40px rgba(139, 92, 246, 0.3)" }}
-                    whileTap={{ scale: loading ? 1 : 0.98 }}
-                    className="w-full py-4 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-bold text-lg shadow-coral hover:shadow-2xl transition-all mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full py-3 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-lg font-bold text-base shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <span className="flex items-center justify-center gap-2">
-                        <span className="animate-spin">⏳</span> {isSignUp ? "Creating Account..." : "Signing In..."}
+                        <span className="animate-spin">⏳</span> {isSignUp ? "Creating..." : "Signing In..."}
                       </span>
                     ) : (
-                      isSignUp ? "Create Account" : "Sign In"
+                      isSignUp ? "🚀 Create Account" : "👋 Sign In"
                     )}
-                  </motion.button>
+                  </button>
 
-                  {/* Preview Error Page Button (Testing) */}
-                  {!isSignUp && (
-                    <motion.button
-                      type="button"
-                      onClick={() => navigate('/error-preview')}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.8 }}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className="w-full py-3 bg-gradient-to-r from-gray-400 to-gray-500 text-white rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all mt-3"
-                    >
-                      🎭 Preview Error Page (Testing)
-                    </motion.button>
-                  )}
                 </form>
 
                 {/* Toggle Sign In/Sign Up */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: isSignUp ? 1.2 : 0.8 }}
-                  className="mt-6 text-center"
-                >
-                  <p className="text-gray-600">
+                <div className="mt-3 text-center pb-3">
+                  <p className="text-gray-600 text-sm">
                     {isSignUp ? "Already have an account?" : "Don't have an account?"}
                     <button
                       type="button"
                       onClick={() => setIsSignUp(!isSignUp)}
-                      className="ml-2 text-purple-600 font-bold hover:text-purple-700 transition-colors"
+                      className="ml-2 text-purple-600 font-bold hover:text-purple-700 transition-colors text-sm"
                     >
                       {isSignUp ? "Sign In" : "Sign Up"}
                     </button>
                   </p>
-                </motion.div>
-
-                {/* Decorative Elements */}
-                <div className="absolute top-0 left-0 w-32 h-32 bg-purple-200 rounded-full blur-3xl opacity-20 -z-10"></div>
-                <div className="absolute bottom-0 right-0 w-32 h-32 bg-pink-200 rounded-full blur-3xl opacity-20 -z-10"></div>
+                </div>
               </div>
             </motion.div>
           </motion.div>
