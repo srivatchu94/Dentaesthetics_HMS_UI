@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { getCalendarAppointments, updateAppointment } from "../services/appointmentService";
+import { getCalendarAppointments, updateAppointment, createAppointment } from "../services/appointmentService";
 
 // Time slots for booking
 const TIME_SLOTS = [
@@ -31,6 +31,9 @@ export default function Calendar() {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [showDoubleBookingModal, setShowDoubleBookingModal] = useState(false);
   const [pendingAppointment, setPendingAppointment] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [isBookingLoading, setIsBookingLoading] = useState(false);
   const [isEditingAppointment, setIsEditingAppointment] = useState(false);
   const [editFormData, setEditFormData] = useState({
     patient: "",
@@ -59,9 +62,19 @@ export default function Calendar() {
     date: "",
     startTime: "",
     endTime: "",
+    durationMinutes: 30,
     type: "",
     doctor: "Dr. Smith",
-    notes: patientFromNav ? `Patient ID: ${patientFromNav.patientId} | DOB: ${patientFromNav.patientDOB ? new Date(patientFromNav.patientDOB).toLocaleDateString() : 'N/A'} | Gender: ${patientFromNav.patientGender || 'N/A'}` : ""
+    reasonForVisit: "",
+    notes: patientFromNav ? `Patient ID: ${patientFromNav.patientId} | DOB: ${patientFromNav.patientDOB ? new Date(patientFromNav.patientDOB).toLocaleDateString() : 'N/A'} | Gender: ${patientFromNav.patientGender || 'N/A'}` : "",
+    billableAmount: 0,
+    paidAmount: 0,
+    pendingAmount: 0,
+    roomNumber: "",
+    telehealthLink: "",
+    appointmentStatus: "Scheduled",
+    paymentStatus: "Pending",
+    isConfirmed: false
   });
   
   // Auto-open booking modal if patient data is provided
@@ -299,23 +312,113 @@ export default function Calendar() {
     }
   };
   
-  const confirmBooking = (appointment) => {
-    setAppointments([...appointments, appointment]);
-    setShowBookingModal(false);
-    setShowDoubleBookingModal(false);
-    setPendingAppointment(null);
-    setBookingForm({
-      patientName: "",
-      patientPhone: "",
-      patientEmail: "",
-      date: "",
-      startTime: "",
-      endTime: "",
-      type: "",
-      doctor: "Dr. Smith",
-      notes: ""
-    });
-    alert("✅ Appointment booked successfully!");
+  const confirmBooking = async (appointment) => {
+    try {
+      setIsBookingLoading(true);
+
+      // Get patient ID from navigation or form
+      const patientId = patientFromNav?.patientId || 0;
+      const clinicId = localStorage.getItem('clinicId') ? parseInt(localStorage.getItem('clinicId')) : 0;
+      
+      // Convert time format from HH:mm to HH:mm:ss (TimeSpan format)
+      const convertTimeToTimeSpan = (time) => {
+        if (!time) return null;
+        // If already in HH:mm:ss format, return as is
+        if (time.split(':').length === 3) return time;
+        // If in HH:mm format, add :00
+        return `${time}:00`;
+      };
+      
+      // Prepare appointment payload matching AppointmentsModel
+      const appointmentPayload = {
+        patientId: patientId,
+        clinicId: clinicId,
+        firstName: bookingForm.patientName.split(' ')[0] || '',
+        lastName: bookingForm.patientName.split(' ').slice(1).join(' ') || '',
+        phoneNumber: bookingForm.patientPhone,
+        email: bookingForm.patientEmail,
+        appointmentDate: bookingForm.date,
+        startTime: convertTimeToTimeSpan(bookingForm.startTime),
+        endTime: convertTimeToTimeSpan(bookingForm.endTime),
+        durationMinutes: bookingForm.durationMinutes,
+        appointmentType: bookingForm.type,
+        reasonForVisit: bookingForm.reasonForVisit,
+        status: bookingForm.appointmentStatus,
+        notes: bookingForm.notes,
+        billableAmount: bookingForm.billableAmount,
+        paidAmount: bookingForm.paidAmount,
+        pendingAmount: bookingForm.billableAmount - bookingForm.paidAmount,
+        roomNumber: bookingForm.roomNumber || null,
+        telehealthLink: bookingForm.telehealthLink || null,
+        paymentStatus: bookingForm.paymentStatus,
+        isConfirmed: bookingForm.isConfirmed,
+        attendingPhysician: bookingForm.doctor || null
+      };
+
+      console.log('📤 Sending appointment to API:', appointmentPayload);
+      console.log('⏰ Start Time Format:', appointmentPayload.startTime);
+      console.log('⏰ End Time Format:', appointmentPayload.endTime);
+
+      // Call API to create appointment
+      const createdAppointment = await createAppointment(appointmentPayload);
+      
+      console.log('✅ Appointment created successfully:', createdAppointment);
+
+      // Show success modal with funny message
+      const funnyMessages = [
+        `Great! ${bookingForm.patientName}'s teeth are about to get some VIP treatment! 😁`,
+        `Boom! 💥 ${bookingForm.patientName} just secured a spot on our calendar. Time to shine those pearly whites! ✨`,
+        `${bookingForm.patientName} is now scheduled for ultimate dental excellence! Your smile is going to be 🔥`,
+        `Success! ${bookingForm.patientName} will be flashing those teeth like a Hollywood star soon! 🌟`,
+        `Ding ding ding! 🔔 ${bookingForm.patientName}'s appointment is locked and loaded!`,
+        `Plot twist: ${bookingForm.patientName} just booked an appointment and their smile is ALREADY getting better! 😄`,
+        `${bookingForm.patientName} is now officially our VIP patient for that slot! Let the magic happen! 🪄`,
+        `Appointment saved! ${bookingForm.patientName}, get ready to have the best smile in town! 👑`
+      ];
+
+      const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
+      setSuccessMessage(randomMessage);
+      setShowSuccessModal(true);
+
+      // Reset modals
+      setShowBookingModal(false);
+      setShowDoubleBookingModal(false);
+      setPendingAppointment(null);
+
+      // Reset form after 3 seconds and redirect
+      setTimeout(() => {
+        setShowSuccessModal(false);
+        setBookingForm({
+          patientName: "",
+          patientPhone: "",
+          patientEmail: "",
+          date: "",
+          startTime: "",
+          endTime: "",
+          durationMinutes: 30,
+          type: "",
+          doctor: "Dr. Smith",
+          reasonForVisit: "",
+          notes: "",
+          billableAmount: 0,
+          paidAmount: 0,
+          pendingAmount: 0,
+          roomNumber: "",
+          telehealthLink: "",
+          appointmentStatus: "Scheduled",
+          paymentStatus: "Pending",
+          isConfirmed: false
+        });
+        // Redirect to calendar
+        navigate("/calendar");
+      }, 3000);
+
+    } catch (error) {
+      console.error("❌ Error booking appointment:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      alert(`❌ Error booking appointment: ${errorMessage}`);
+      setIsBookingLoading(false);
+    }
   };
   
   const cancelDoubleBooking = () => {
@@ -329,9 +432,19 @@ export default function Calendar() {
       date: "",
       startTime: "",
       endTime: "",
+      durationMinutes: 30,
       type: "",
       doctor: "Dr. Smith",
-      notes: ""
+      reasonForVisit: "",
+      notes: "",
+      billableAmount: 0,
+      paidAmount: 0,
+      pendingAmount: 0,
+      roomNumber: "",
+      telehealthLink: "",
+      appointmentStatus: "Scheduled",
+      paymentStatus: "Pending",
+      isConfirmed: false
     });
   };
 
@@ -652,7 +765,7 @@ export default function Calendar() {
           </motion.div>
         )}
 
-        {/* Booking Modal */}
+        {/* Booking Modal - BEAUTIFUL PROFESSIONAL DESIGN */}
         <AnimatePresence>
           {showBookingModal && (
             <motion.div
@@ -660,190 +773,216 @@ export default function Calendar() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowBookingModal(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4"
             >
               <motion.div
-                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                initial={{ scale: 0.8, opacity: 0, y: 30 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                exit={{ scale: 0.8, opacity: 0, y: 30 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-8 max-h-[90vh] overflow-y-auto"
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col border border-slate-100"
               >
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-3xl font-bold bg-gradient-to-r from-coral-600 to-peach-600 bg-clip-text text-transparent">
-                    Book New Appointment
-                  </h3>
-                  <button
-                    onClick={() => setShowBookingModal(false)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                {/* Header with Gradient */}
+                <div className="bg-gradient-to-r from-teal-600 via-cyan-500 to-blue-500 px-8 py-6 rounded-t-2xl flex items-center justify-between border-b border-teal-400/30">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                      <span className="text-3xl">📅</span> New Appointment
+                    </h2>
+                    <p className="text-teal-100 text-sm mt-0.5">Enter patient and appointment details</p>
+                  </div>
+                  <motion.button 
+                    onClick={() => setShowBookingModal(false)} 
+                    whileHover={{ rotate: 90, scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2.5 rounded-lg transition"
                   >
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                  </button>
+                  </motion.button>
                 </div>
 
-                {/* Patient Info Banner (if coming from patient search) */}
-                {patientFromNav && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-6 p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 border-2 border-emerald-300 rounded-xl"
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-full flex items-center justify-center text-white font-bold">
-                        {patientFromNav.patientFirstName?.charAt(0)}{patientFromNav.patientLastName?.charAt(0)}
+                {/* Content */}
+                <div className="px-8 py-6 overflow-y-auto flex-1 bg-gradient-to-b from-white to-slate-50">
+                  <form onSubmit={handleBookingSubmit} className="space-y-6">
+                    
+                    {/* Section 1: Patient Information */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition">
+                      <div className="bg-gradient-to-r from-teal-50 to-cyan-50 px-5 py-3 border-b border-slate-200">
+                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                          <span className="text-lg">👤</span> Patient Information
+                        </h3>
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-emerald-900">Booking for Patient:</p>
-                        <p className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-700 to-teal-700">
-                          {patientFromNav.patientName}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="bg-white/60 px-3 py-1.5 rounded-lg">
-                        <span className="text-emerald-700 font-semibold">ID:</span> {patientFromNav.patientId}
-                      </div>
-                      {patientFromNav.patientGender && (
-                        <div className="bg-white/60 px-3 py-1.5 rounded-lg">
-                          <span className="text-emerald-700 font-semibold">Gender:</span> {patientFromNav.patientGender}
+                      <div className="p-5 grid grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Full Name *</label>
+                          <input type="text" required value={bookingForm.patientName} onChange={(e) => setBookingForm({ ...bookingForm, patientName: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="John Doe" />
                         </div>
-                      )}
-                      {patientFromNav.patientBloodType && (
-                        <div className="bg-white/60 px-3 py-1.5 rounded-lg">
-                          <span className="text-emerald-700 font-semibold">Blood:</span> {patientFromNav.patientBloodType}
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Phone *</label>
+                          <input type="tel" required value={bookingForm.patientPhone} onChange={(e) => setBookingForm({ ...bookingForm, patientPhone: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="(555) 000-0000" />
                         </div>
-                      )}
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
+                          <input type="email" value={bookingForm.patientEmail} onChange={(e) => setBookingForm({ ...bookingForm, patientEmail: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="john@example.com" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Room Number</label>
+                          <input type="text" value={bookingForm.roomNumber} onChange={(e) => setBookingForm({ ...bookingForm, roomNumber: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="A-101" />
+                        </div>
+                      </div>
                     </div>
-                  </motion.div>
-                )}
 
-                <form onSubmit={handleBookingSubmit} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Patient Name *</label>
-                      <input
-                        type="text"
-                        required
-                        value={bookingForm.patientName}
-                        onChange={(e) => setBookingForm({ ...bookingForm, patientName: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
-                        placeholder="John Doe"
-                      />
+                    {/* Section 2: Appointment Schedule */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition">
+                      <div className="bg-gradient-to-r from-blue-50 to-cyan-50 px-5 py-3 border-b border-slate-200">
+                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                          <span className="text-lg">⏰</span> Schedule
+                        </h3>
+                      </div>
+                      <div className="p-5 grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Date *</label>
+                          <input type="date" required value={bookingForm.date} onChange={(e) => setBookingForm({ ...bookingForm, date: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Start Time *</label>
+                          <select required value={bookingForm.startTime} onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white">
+                            <option value="">Select time</option>
+                            {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">End Time *</label>
+                          <select required value={bookingForm.endTime} onChange={(e) => setBookingForm({ ...bookingForm, endTime: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white">
+                            <option value="">Select time</option>
+                            {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Duration (min)</label>
+                          <input type="number" min="15" step="15" value={bookingForm.durationMinutes} onChange={(e) => setBookingForm({ ...bookingForm, durationMinutes: parseInt(e.target.value) || 30 })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Number *</label>
-                      <input
-                        type="tel"
-                        required
-                        value={bookingForm.patientPhone}
-                        onChange={(e) => setBookingForm({ ...bookingForm, patientPhone: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
-                        placeholder="555-0123"
-                      />
-                    </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
-                    <input
-                      type="email"
-                      value={bookingForm.patientEmail}
-                      onChange={(e) => setBookingForm({ ...bookingForm, patientEmail: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
-                      placeholder="patient@email.com"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Date *</label>
-                      <input
-                        type="date"
-                        required
-                        value={bookingForm.date}
-                        onChange={(e) => setBookingForm({ ...bookingForm, date: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
-                      />
+                    {/* Section 3: Treatment Details */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition">
+                      <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-5 py-3 border-b border-slate-200">
+                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                          <span className="text-lg">🦷</span> Treatment Details
+                        </h3>
+                      </div>
+                      <div className="p-5 grid grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Treatment Type *</label>
+                          <select required value={bookingForm.type} onChange={(e) => setBookingForm({ ...bookingForm, type: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white">
+                            <option value="">Select type</option>
+                            {TREATMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Doctor</label>
+                          <input type="text" value={bookingForm.doctor} onChange={(e) => setBookingForm({ ...bookingForm, doctor: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="Dr. Smith" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Reason for Visit</label>
+                          <input type="text" value={bookingForm.reasonForVisit} onChange={(e) => setBookingForm({ ...bookingForm, reasonForVisit: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="Checkup, Pain, etc." />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Start Time *</label>
-                      <select
-                        required
-                        value={bookingForm.startTime}
-                        onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+
+                    {/* Section 4: Financial Information */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition">
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-5 py-3 border-b border-slate-200">
+                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                          <span className="text-lg">💰</span> Financial Information
+                        </h3>
+                      </div>
+                      <div className="p-5 grid grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Billable Amount ($)</label>
+                          <input type="number" min="0" step="0.01" value={bookingForm.billableAmount} onChange={(e) => setBookingForm({ ...bookingForm, billableAmount: parseFloat(e.target.value) || 0 })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="0.00" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Paid Amount ($)</label>
+                          <input type="number" min="0" step="0.01" value={bookingForm.paidAmount} onChange={(e) => setBookingForm({ ...bookingForm, paidAmount: parseFloat(e.target.value) || 0 })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="0.00" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Pending Amount ($)</label>
+                          <div className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg bg-gradient-to-r from-yellow-50 to-yellow-100 font-semibold text-slate-700">
+                            ${(bookingForm.billableAmount - bookingForm.paidAmount).toFixed(2)}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Payment Status</label>
+                          <select value={bookingForm.paymentStatus} onChange={(e) => setBookingForm({ ...bookingForm, paymentStatus: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white">
+                            <option>Pending</option>
+                            <option>Paid</option>
+                            <option>Partial</option>
+                            <option>Invoice</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 5: Status & Additional */}
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition">
+                      <div className="bg-gradient-to-r from-orange-50 to-red-50 px-5 py-3 border-b border-slate-200">
+                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                          <span className="text-lg">✓</span> Status & Additional Info
+                        </h3>
+                      </div>
+                      <div className="p-5 space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Appointment Status</label>
+                            <select value={bookingForm.appointmentStatus} onChange={(e) => setBookingForm({ ...bookingForm, appointmentStatus: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white">
+                              <option>Scheduled</option>
+                              <option>Completed</option>
+                              <option>Cancelled</option>
+                              <option>NoShow</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Telehealth Link</label>
+                            <input type="url" value={bookingForm.telehealthLink} onChange={(e) => setBookingForm({ ...bookingForm, telehealthLink: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="https://..." />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Notes</label>
+                          <textarea value={bookingForm.notes} onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })} rows={2} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition resize-none" placeholder="Additional notes or special requests..." />
+                        </div>
+                        <label className="flex items-center gap-3 p-3 bg-teal-50 rounded-lg border border-teal-200 cursor-pointer hover:bg-teal-100 transition">
+                          <input type="checkbox" checked={bookingForm.isConfirmed} onChange={(e) => setBookingForm({ ...bookingForm, isConfirmed: e.target.checked })} className="w-5 h-5 text-teal-600 rounded focus:ring-2 focus:ring-teal-500" />
+                          <span className="font-semibold text-slate-700">Mark as Confirmed</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 pt-4">
+                      <motion.button 
+                        type="button"
+                        onClick={() => setShowBookingModal(false)}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="flex-1 py-3 bg-slate-200 text-slate-700 rounded-lg font-bold text-sm shadow-sm hover:shadow-md hover:bg-slate-300 transition"
                       >
-                        <option value="">Select</option>
-                        {TIME_SLOTS.map(time => (
-                          <option key={time} value={time}>{time}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">End Time *</label>
-                      <select
-                        required
-                        value={bookingForm.endTime}
-                        onChange={(e) => setBookingForm({ ...bookingForm, endTime: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                        ✕ Cancel
+                      </motion.button>
+                      <motion.button 
+                        type="submit"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="flex-1 py-3 bg-gradient-to-r from-teal-600 to-cyan-500 text-white rounded-lg font-bold text-sm shadow-lg hover:shadow-xl hover:from-teal-700 hover:to-cyan-600 transition flex items-center justify-center gap-2"
                       >
-                        <option value="">Select</option>
-                        {TIME_SLOTS.map(time => (
-                          <option key={time} value={time}>{time}</option>
-                        ))}
-                      </select>
+                        <span>✓</span> Book Appointment
+                      </motion.button>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Treatment Type *</label>
-                      <select
-                        required
-                        value={bookingForm.type}
-                        onChange={(e) => setBookingForm({ ...bookingForm, type: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
-                      >
-                        <option value="">Select treatment</option>
-                        {TREATMENT_TYPES.map(type => (
-                          <option key={type} value={type}>{type}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Doctor</label>
-                      <input
-                        type="text"
-                        value={bookingForm.doctor}
-                        onChange={(e) => setBookingForm({ ...bookingForm, doctor: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
-                        placeholder="Dr. Smith"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
-                    <textarea
-                      value={bookingForm.notes}
-                      onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })}
-                      rows={3}
-                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 outline-none transition-all resize-none"
-                      placeholder="Any special notes or requirements..."
-                    />
-                  </div>
-
-                  <motion.button
-                    type="submit"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full py-4 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-bold text-lg shadow-coral hover:shadow-2xl transition-all"
-                  >
-                    Book Appointment
-                  </motion.button>
-                </form>
+                  </form>
+                </div>
               </motion.div>
             </motion.div>
           )}
@@ -1324,11 +1463,103 @@ export default function Calendar() {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => confirmBooking(pendingAppointment)}
-                    className="flex-1 py-3 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-semibold shadow-coral hover:shadow-xl transition-all"
+                    disabled={isBookingLoading}
+                    className="flex-1 py-3 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-semibold shadow-coral hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
-                    Yes, Double Book
+                    {isBookingLoading ? (
+                      <>
+                        <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                        Booking...
+                      </>
+                    ) : (
+                      "Yes, Double Book"
+                    )}
                   </motion.button>
                 </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Success Modal */}
+        <AnimatePresence>
+          {showSuccessModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-md z-[110] flex items-center justify-center p-4"
+            >
+              <motion.div
+                initial={{ scale: 0.5, opacity: 0, y: 50 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.5, opacity: 0, y: 50 }}
+                transition={{ type: "spring", damping: 20, stiffness: 300 }}
+                className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-3xl shadow-2xl max-w-md w-full p-8 border-2 border-teal-200 text-center"
+              >
+                {/* Animated Success Icon */}
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] }}
+                  transition={{ repeat: Infinity, duration: 0.6 }}
+                  className="text-6xl mb-4"
+                >
+                  🎉
+                </motion.div>
+
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent mb-4">
+                  Appointment Booked!
+                </h2>
+
+                <p className="text-gray-700 text-base leading-relaxed mb-6 font-medium">
+                  {successMessage}
+                </p>
+
+                {/* Confetti Animation */}
+                <div className="mb-6 h-12 flex items-center justify-center">
+                  <motion.div
+                    animate={{ y: -20, opacity: 0 }}
+                    transition={{ repeat: Infinity, duration: 1 }}
+                    className="absolute text-2xl"
+                  >
+                    ✨
+                  </motion.div>
+                  <motion.div
+                    animate={{ y: -20, opacity: 0 }}
+                    transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
+                    className="absolute text-2xl"
+                  >
+                    🎊
+                  </motion.div>
+                  <motion.div
+                    animate={{ y: -20, opacity: 0 }}
+                    transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
+                    className="absolute text-2xl"
+                  >
+                    🌟
+                  </motion.div>
+                </div>
+
+                <div className="bg-white rounded-xl p-4 mb-6 border border-teal-100">
+                  <p className="text-sm text-gray-600 mb-2">Redirecting to calendar in...</p>
+                  <motion.div
+                    initial={{ width: "100%" }}
+                    animate={{ width: "0%" }}
+                    transition={{ duration: 3, ease: "linear" }}
+                    className="h-1 bg-gradient-to-r from-teal-500 to-cyan-500 rounded-full"
+                  />
+                </div>
+
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setShowSuccessModal(false);
+                    navigate("/calendar");
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-teal-600 to-cyan-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                >
+                  ✓ Go to Calendar Now
+                </motion.button>
               </motion.div>
             </motion.div>
           )}
@@ -1337,3 +1568,5 @@ export default function Calendar() {
     </div>
   );
 }
+
+

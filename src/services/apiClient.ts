@@ -12,6 +12,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   
   // Get selected enterprise/clinic from localStorage
   const selectedAccess = getSelectedAccess();
+  console.log('📥 getSelectedAccess() returned:', selectedAccess);
   
   // Check if user is authenticated
   if (!token) {

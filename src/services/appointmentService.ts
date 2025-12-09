@@ -74,41 +74,102 @@ export function getAppointmentsByClinicEnterprise(): Promise<AppointmentsModel[]
 }
 
 // Get calendar appointments for the current user's clinic and enterprise
-// The apiClient automatically adds X-Enterprise-Id and X-Clinic-Id headers
+// Pass enterpriseId and clinicId as query parameters from token
 export function getCalendarAppointments(): Promise<AppointmentsModel[]> {
   console.log('🔍 getCalendarAppointments() called');
+  console.log('⏰ Timestamp:', new Date().toISOString());
   
   try {
-    // Get selectedAccess to verify we have context
-    const selectedAccess = getSelectedAccess();
-    console.log('📦 selectedAccess from getSelectedAccess():', selectedAccess);
-    
-    if (!selectedAccess) {
-      console.warn('❌ No selectedAccess found');
-      throw new Error('AUTH_TOKEN_NOT_FOUND');
+    // Debug: Show all localStorage keys
+    console.log('📍 All localStorage keys:', Object.keys(localStorage));
+    console.log('📍 localStorage contents:');
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        const value = localStorage.getItem(key);
+        console.log(`   ${key}:`, value ? value.substring(0, 100) : 'null');
+      }
     }
     
-    const enterpriseId = selectedAccess.enterpriseId;
-    const clinicId = selectedAccess.clinicId;
+    // Get selectedAccess from token/localStorage
+    const selectedAccess = getSelectedAccess();
+    console.log('📦 getSelectedAccess() returned:', selectedAccess);
+    
+    // If getSelectedAccess returned null, try direct localStorage access as fallback
+    let enterpriseId, clinicId;
+    
+    if (selectedAccess?.enterpriseId && selectedAccess?.clinicId) {
+      enterpriseId = selectedAccess.enterpriseId;
+      clinicId = selectedAccess.clinicId;
+      console.log('✅ Using selectedAccess from getSelectedAccess()');
+    } else {
+      // Fallback: Try to get from localStorage directly with different key names
+      console.warn('⚠️ selectedAccess is null, trying fallback keys...');
+      
+      // Try key: 'selectedAccess'
+      let data = localStorage.getItem('selectedAccess');
+      if (data) {
+        console.log('✅ Found in localStorage key "selectedAccess":', data);
+        try {
+          const parsed = JSON.parse(data);
+          enterpriseId = parsed.enterpriseId;
+          clinicId = parsed.clinicId;
+        } catch (e) {
+          console.error('❌ Failed to parse "selectedAccess":', e);
+        }
+      }
+      
+      // Try other possible keys
+      if (!enterpriseId || !clinicId) {
+        data = localStorage.getItem('selected_access');
+        if (data) {
+          console.log('✅ Found in localStorage key "selected_access":', data);
+          try {
+            const parsed = JSON.parse(data);
+            enterpriseId = parsed.enterpriseId;
+            clinicId = parsed.clinicId;
+          } catch (e) {
+            console.error('❌ Failed to parse "selected_access":', e);
+          }
+        }
+      }
+      
+      // Try another key
+      if (!enterpriseId || !clinicId) {
+        data = localStorage.getItem('access');
+        if (data) {
+          console.log('✅ Found in localStorage key "access":', data);
+          try {
+            const parsed = JSON.parse(data);
+            enterpriseId = parsed[0]?.enterpriseId;
+            clinicId = parsed[0]?.clinicId;
+          } catch (e) {
+            console.error('❌ Failed to parse "access":', e);
+          }
+        }
+      }
+    }
+    
+    if (!enterpriseId || !clinicId) {
+      console.error('❌ CRITICAL: Missing enterpriseId or clinicId');
+      console.error('   enterpriseId:', enterpriseId);
+      console.error('   clinicId:', clinicId);
+      console.error('   selectedAccess:', selectedAccess);
+      throw new Error('Enterprise ID or Clinic ID not found in user token. Make sure you logged in and selected a clinic.');
+    }
     
     console.log('🏢 Enterprise ID:', enterpriseId);
     console.log('🏥 Clinic ID:', clinicId);
     
-    if (!enterpriseId || !clinicId) {
-      console.warn('❌ Enterprise ID or Clinic ID not found');
-      throw new Error('TOKEN_MISSING_IDS');
-    }
-    
+    // Construct API URL with query parameters
     const apiUrl = `/Appointments/CalendarAppointments?enterpriseId=${enterpriseId}&clinicId=${clinicId}`;
-    console.log(`📅 Loading calendar appointments from: ${apiUrl}`);
-    console.log(`📤 Query params - Enterprise: ${enterpriseId}, Clinic: ${clinicId}`);
+    console.log(`📅 API URL: ${apiUrl}`);
+    console.log('🚀 Calling API with enterpriseId and clinicId as query parameters...');
     
-    // Call the CalendarAppointments endpoint
-    // apiClient will automatically add X-Enterprise-Id and X-Clinic-Id headers
     return request<AppointmentsModel[]>(apiUrl);
   } catch (error) {
     console.error('❌ Error in getCalendarAppointments:', error);
-    console.log('🔗 Error message:', (error as Error).message);
+    console.error('🔗 Error message:', (error as Error).message);
     throw error;
   }
 }

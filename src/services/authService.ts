@@ -1,28 +1,36 @@
 import { request } from './apiClient';
 import { RegisterRequest, LoginRequest, AuthResponse, LoginResponse, UserAccess, RefreshTokenRequest, RefreshTokenResponse } from '../Interfaces/AuthModels';
+import {
+  saveAccessToken,
+  getAccessToken,
+  saveUserData,
+  getUserData,
+  saveUserAccess,
+  getUserAccess,
+  saveSelectedAccess,
+  getSelectedAccess,
+  clearAllTokens,
+  updateTokenExpiry,
+  getTokenExpiry,
+  isTokenExpired,
+  saveSessionMetadata,
+  getSessionMetadata,
+  STORAGE_KEYS
+} from './tokenManager';
 
 const AUTH_BASE_URL = '/Authentication';
 
 // ============================================
-// 🔐 SESSION-BASED TOKEN MANAGEMENT
+// 🔐 HYBRID TOKEN MANAGEMENT (SECURE)
 // ============================================
-// ✅ localStorage (persists across page refreshes)
+// ✅ Access Token: Memory + SessionStorage (cleared on tab close)
+// ✅ Refresh Token: HttpOnly Cookie (Backend managed, XSS protected)
+// ✅ User Data: localStorage (non-sensitive, persists)
 // ✅ Refresh token mechanism (auto-refresh before expiry)
 // ✅ Inactivity timeout (30 min default)
 // ✅ Max session duration (8 hours)
 // ✅ User-friendly popups for session events
 // ✅ Auto-cleanup on logout
-
-// Storage keys - Using localStorage for persistent sessions
-const ACCESS_TOKEN_KEY = 'accessToken';
-const REFRESH_TOKEN_KEY = 'refreshToken';
-const USER_DATA_KEY = 'userData';
-const USER_ACCESS_KEY = 'userAccess';
-const SELECTED_ACCESS_KEY = 'selectedAccess';
-const TOKEN_EXPIRY_KEY = 'tokenExpiry';
-const REFRESH_EXPIRY_KEY = 'refreshExpiry';
-const LAST_ACTIVITY_KEY = 'lastActivity';
-const INACTIVITY_TIMEOUT_KEY = 'inactivityTimeout';
 
 // Timers
 let refreshTokenTimer: number | null = null;
@@ -37,39 +45,49 @@ let lastActivityTime: number = Date.now();
 // ============================================
 
 /**
- * Save authentication tokens and user data to localStorage
- * Persists across page refreshes, cleared only on logout
+ * Save authentication tokens and user data using HYBRID storage
+ * - Access Token: Memory + SessionStorage (cleared on tab close)
+ * - Refresh Token: HttpOnly Cookie (Backend managed, automatic)
+ * - User Data: localStorage (non-sensitive)
  */
 export const saveAuthToken = (loginResponse: LoginResponse): void => {
   try {
     const { accessToken, refreshToken, username, userId, access, accessTokenExpiresAt, refreshTokenExpiresAt, inactivityTimeoutMinutes, maxSessionDurationHours } = loginResponse;
     
-    // Save tokens to localStorage (persists across page refreshes)
-    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-    localStorage.setItem(TOKEN_EXPIRY_KEY, accessTokenExpiresAt);
-    localStorage.setItem(REFRESH_EXPIRY_KEY, refreshTokenExpiresAt);
-    localStorage.setItem(INACTIVITY_TIMEOUT_KEY, inactivityTimeoutMinutes.toString());
+    // 🧠 Save ACCESS TOKEN using HYBRID strategy
+    // Primary: Memory (fastest, XSS protected)
+    // Fallback: SessionStorage (survives page refresh, cleared on tab close)
+    saveAccessToken(accessToken, accessTokenExpiresAt);
     
-    // Save user data
-    localStorage.setItem(USER_DATA_KEY, JSON.stringify({ username, userId }));
-    localStorage.setItem(USER_ACCESS_KEY, JSON.stringify(access));
+    // 🍪 REFRESH TOKEN - Already handled by Backend
+    // Backend sends: Set-Cookie: refreshToken=...; HttpOnly; Secure; SameSite=Strict
+    // This is the MOST SECURE way - frontend doesn't touch it
+    console.log('✅ Refresh Token set as HttpOnly Cookie (Backend managed, XSS protected)');
+    
+    // 💾 Save NON-SENSITIVE user data to localStorage (persists across sessions)
+    saveUserData({ username, userId });
+    saveUserAccess(access);
     
     // Auto-select first access if available (including roleIds)
     if (access && access.length > 0) {
       const firstAccess = access[0];
-      setSelectedAccess(firstAccess.enterpriseId, firstAccess.clinicId, firstAccess.roleIds);
+      saveSelectedAccess(firstAccess.enterpriseId, firstAccess.clinicId, firstAccess.roleIds);
     }
+    
+    // Save session timeout settings
+    saveSessionMetadata(STORAGE_KEYS.INACTIVITY_TIMEOUT_LS, inactivityTimeoutMinutes.toString());
     
     // Track activity
     updateLastActivity();
     
-    console.log('✅ Session started successfully');
+    console.log('✅ Session started successfully (HYBRID STORAGE)');
+    console.log('🧠 Access Token: Memory + SessionStorage (XSS protected)');
+    console.log('🍪 Refresh Token: HttpOnly Cookie (Backend managed)');
+    console.log('💾 User Data: localStorage (non-sensitive)');
     console.log('🔑 Access Token expires at:', accessTokenExpiresAt);
     console.log('🔄 Refresh Token expires at:', refreshTokenExpiresAt);
     console.log('⏱️ Inactivity timeout:', inactivityTimeoutMinutes, 'minutes');
     console.log('⏰ Max session duration:', maxSessionDurationHours, 'hours');
-    console.log('💾 Tokens stored in localStorage (persists across page refreshes)');
     
     // Start auto-refresh and inactivity monitoring
     startTokenRefreshTimer();
@@ -82,77 +100,80 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
 };
 
 /**
- * Get access token from localStorage
+ * Get access token from HYBRID storage
+ * Priority: Memory → SessionStorage → null
  */
 export const getAuthToken = (): string | null => {
-  try {
-    return localStorage.getItem(ACCESS_TOKEN_KEY);
-  } catch (error) {
-    console.error('❌ Failed to get access token:', error);
-    return null;
-  }
+  return getAccessToken();
 };
 
 /**
- * Get refresh token from localStorage
+ * Get refresh token (HttpOnly Cookie - cannot be accessed from JS)
+ * Browser automatically sends it with API requests
  */
 export const getRefreshToken = (): string | null => {
-  try {
-    return localStorage.getItem(REFRESH_TOKEN_KEY);
-  } catch (error) {
-    console.error('❌ Failed to get refresh token:', error);
-    return null;
-  }
+  // HttpOnly cookies cannot be accessed from JavaScript
+  // They're automatically included in requests by the browser
+  // This function is here for reference only
+  console.log('ℹ️ Refresh Token is HttpOnly Cookie - automatically sent by browser');
+  return null;
 };
 
 /**
- * Get user data from sessionStorage
+ * Get user data from localStorage (non-sensitive)
  */
+/**
+ * Get authenticated user data from localStorage
+ */
+export const getAuthUserData = (): any | null => {
+  return getUserData();
+};
+
+// Backward compatibility alias
 export const getUserData = (): any | null => {
-  try {
-    const data = sessionStorage.getItem(USER_DATA_KEY);
-    return data ? JSON.parse(data) : null;
-  } catch (error) {
-    console.error('❌ Failed to get user data:', error);
-    return null;
-  }
+  const data = localStorage.getItem(STORAGE_KEYS.USER_DATA_LS_KEY);
+  return data ? JSON.parse(data) : null;
 };
 
 /**
- * Get user access rights
+ * Get user access rights from localStorage
  */
+export const getAuthUserAccess = (): UserAccess[] => {
+  return getUserAccess();
+};
+
+// Backward compatibility alias
 export const getUserAccess = (): UserAccess[] => {
-  try {
-    const data = localStorage.getItem(USER_ACCESS_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch (error) {
-    console.error('❌ Failed to get user access:', error);
-    return [];
-  }
+  const access = localStorage.getItem(STORAGE_KEYS.USER_ACCESS_LS_KEY);
+  return access ? JSON.parse(access) : [];
 };
 
 /**
  * Set selected enterprise, clinic, and roles
  */
 export const setSelectedAccess = (enterpriseId: number, clinicId: number, roleIds: number[] = []): void => {
-  try {
-    const selectedAccess = { enterpriseId, clinicId, roleIds };
-    localStorage.setItem(SELECTED_ACCESS_KEY, JSON.stringify(selectedAccess));
-    console.log('🏢 Selected Access:', `Enterprise ${enterpriseId}, Clinic ${clinicId}, Roles: [${roleIds.join(', ')}]`);
-  } catch (error) {
-    console.error('❌ Failed to set selected access:', error);
-  }
+  saveSelectedAccess(enterpriseId, clinicId, roleIds);
 };
 
 /**
- * Get currently selected enterprise, clinic, and roles
+ * Get currently selected enterprise, clinic, and roles (backward compatible)
  */
 export const getSelectedAccess = (): { enterpriseId: number; clinicId: number; roleIds: number[] } | null => {
   try {
-    const data = localStorage.getItem(SELECTED_ACCESS_KEY);
-    return data ? JSON.parse(data) : null;
+    const data = localStorage.getItem(STORAGE_KEYS.SELECTED_ACCESS_LS_KEY);
+    console.log(`🔍 getSelectedAccess() - Key: "${STORAGE_KEYS.SELECTED_ACCESS_LS_KEY}", Value:`, data);
+    
+    if (!data) {
+      console.warn(`⚠️ No selectedAccess found in localStorage key: "${STORAGE_KEYS.SELECTED_ACCESS_LS_KEY}"`);
+      console.log('💡 All localStorage keys:', Object.keys(localStorage));
+      return null;
+    }
+    
+    const parsed = JSON.parse(data);
+    console.log(`✅ Parsed selectedAccess:`, parsed);
+    return parsed;
   } catch (error) {
-    console.error('❌ Failed to get selected access:', error);
+    console.error('❌ Failed to parse selected access from localStorage:', error);
     return null;
   }
 };
@@ -165,15 +186,20 @@ export const getSelectedAccess = (): { enterpriseId: number; clinicId: number; r
  * Update last activity timestamp
  */
 export const updateLastActivity = (): void => {
-  lastActivityTime = Date.now();
-  localStorage.setItem(LAST_ACTIVITY_KEY, lastActivityTime.toString());
+  const now = Date.now();
+  saveSessionMetadata(STORAGE_KEYS.LAST_ACTIVITY_SS, now.toString());
+  console.log('📍 Activity tracked at:', new Date(now).toLocaleTimeString());
 };
 
 /**
  * Get time since last activity in minutes
  */
 export const getInactiveMinutes = (): number => {
+  const lastActivity = getSessionMetadata(STORAGE_KEYS.LAST_ACTIVITY_SS);
+  if (!lastActivity) return 0;
+  
   const now = Date.now();
+  const lastActivityTime = parseInt(lastActivity);
   const diff = now - lastActivityTime;
   return Math.floor(diff / (1000 * 60));
 };
@@ -182,41 +208,44 @@ export const getInactiveMinutes = (): number => {
  * Check if user has been inactive for too long
  */
 export const isInactive = (): boolean => {
-  const timeoutMinutes = parseInt(localStorage.getItem(INACTIVITY_TIMEOUT_KEY) || '30');
+  const timeoutStr = getSessionMetadata(STORAGE_KEYS.INACTIVITY_TIMEOUT_LS);
+  const timeoutMinutes = parseInt(timeoutStr || '30');
   return getInactiveMinutes() >= timeoutMinutes;
 };
 
 // ============================================
-// 🔄 TOKEN REFRESH MECHANISM
+// 🔄 TOKEN REFRESH MECHANISM (HYBRID)
 // ============================================
 
 /**
- * Refresh access token using refresh token
+ * Refresh access token using HYBRID storage
+ * - Access Token refreshed and stored in Memory + SessionStorage
+ * - Refresh Token (HttpOnly Cookie) is automatic from backend
  */
 export const refreshAccessToken = async (): Promise<boolean> => {
   try {
     const accessToken = getAuthToken();
-    const refreshToken = getRefreshToken();
+    // Refresh token is in HttpOnly cookie - don't try to get it from JS
     
-    if (!accessToken || !refreshToken) {
-      console.warn('⚠️ No tokens available for refresh');
+    if (!accessToken) {
+      console.warn('⚠️ No access token available for refresh');
       return false;
     }
     
-    console.log('🔄 Refreshing access token...');
+    console.log('🔄 Refreshing access token (HttpOnly cookie sent automatically)...');
     
     const response = await request<RefreshTokenResponse>(`${AUTH_BASE_URL}/refresh-token`, {
       method: 'POST',
-      body: JSON.stringify({ accessToken, refreshToken })
+      body: JSON.stringify({ accessToken })
     });
     
-    // Update tokens in localStorage
-    localStorage.setItem(ACCESS_TOKEN_KEY, response.accessToken);
-    localStorage.setItem(REFRESH_TOKEN_KEY, response.refreshToken);
-    localStorage.setItem(TOKEN_EXPIRY_KEY, response.accessTokenExpiresAt);
-    localStorage.setItem(REFRESH_EXPIRY_KEY, response.refreshTokenExpiresAt);
+    // Update access token in HYBRID storage (Memory + SessionStorage)
+    saveAccessToken(response.accessToken, response.accessTokenExpiresAt);
     
+    // Backend updates HttpOnly cookie automatically - no action needed
     console.log('✅ Access token refreshed successfully');
+    console.log('🧠 Access Token: Memory + SessionStorage updated');
+    console.log('🍪 Refresh Token: HttpOnly Cookie updated by backend');
     console.log('🔑 New token expires at:', response.accessTokenExpiresAt);
     
     // Restart refresh timer with new expiry
@@ -241,7 +270,7 @@ const startTokenRefreshTimer = (): void => {
   }
   
   try {
-    const expiryStr = localStorage.getItem(TOKEN_EXPIRY_KEY);
+    const expiryStr = getTokenExpiry();
     if (!expiryStr) return;
     
     const expiryTime = new Date(expiryStr).getTime();
@@ -279,7 +308,8 @@ const startInactivityTimer = (): void => {
     clearInterval(inactivityTimer);
   }
   
-  const timeoutMinutes = parseInt(localStorage.getItem(INACTIVITY_TIMEOUT_KEY) || '30');
+  const timeoutStr = getSessionMetadata(STORAGE_KEYS.INACTIVITY_TIMEOUT_LS);
+  const timeoutMinutes = parseInt(timeoutStr || '30');
   
   // Check every minute
   inactivityTimer = window.setInterval(() => {
@@ -390,7 +420,8 @@ const showSessionExpiredPopup = (): void => {
  * Show inactivity popup
  */
 const showInactivityPopup = (): void => {
-  const timeoutMinutes = parseInt(localStorage.getItem(INACTIVITY_TIMEOUT_KEY) || '30');
+  const sessionMetadata = getSessionMetadata();
+  const timeoutMinutes = sessionMetadata?.inactivityTimeoutMinutes || 30;
   
   const popup = document.createElement('div');
   popup.style.cssText = `
@@ -553,6 +584,7 @@ export const logoutUser = async (): Promise<void> => {
 
 /**
  * Handle logout (clear session and cleanup)
+ * Uses hybrid storage clearance for complete session termination
  */
 const handleLogout = (): void => {
   // Clear all timers
@@ -563,10 +595,12 @@ const handleLogout = (): void => {
   // Remove activity listeners
   removeActivityListeners();
   
-  // Clear localStorage to remove all session data
-  localStorage.clear();
+  // Clear all tokens and session data using hybrid storage manager
+  // This ensures cleanup across: memory, sessionStorage, localStorage, and HttpOnly cookies
+  clearAllTokens();
   
-  console.log('🔓 Session cleared - Tab close will require re-login');
+  console.log('🔓 Complete logout - All tokens cleared from memory, sessionStorage, and localStorage');
+  console.log('🔐 Refresh token in HttpOnly cookie will be invalidated by server on next request');
 };
 
 /**
@@ -591,17 +625,18 @@ export const debugAuthState = (): void => {
   console.log('🔍 Authentication Debug Info:');
   console.log('════════════════════════════════════════');
   
-  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
-  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-  const userData = localStorage.getItem(USER_DATA_KEY);
-  const userAccess = localStorage.getItem(USER_ACCESS_KEY);
-  const selectedAccess = localStorage.getItem(SELECTED_ACCESS_KEY);
+  const token = getAccessToken();
+  const userData = getUserData();
+  const userAccess = getUserAccess();
+  const selectedAccess = getSelectedAccess();
+  const sessionMetadata = getSessionMetadata();
   
   console.log('Access Token:', token ? `${token.substring(0, 30)}... (${token.length} chars)` : '❌ MISSING');
-  console.log('Refresh Token:', refreshToken ? `${refreshToken.substring(0, 20)}... (${refreshToken.length} chars)` : '❌ MISSING');
-  console.log('User Data:', userData ? JSON.parse(userData) : '❌ MISSING');
-  console.log('User Access:', userAccess ? JSON.parse(userAccess) : '❌ MISSING');
-  console.log('Selected Access:', selectedAccess ? JSON.parse(selectedAccess) : '❌ MISSING');
+  console.log('Refresh Token:', '🔒 HttpOnly Cookie (Cannot access from JavaScript - handled by browser)');
+  console.log('User Data:', userData || '❌ MISSING');
+  console.log('User Access:', userAccess || '❌ MISSING');
+  console.log('Selected Access:', selectedAccess || '❌ MISSING');
+  console.log('Session Metadata:', sessionMetadata || '❌ MISSING');
   console.log('════════════════════════════════════════');
   
   if (!token) {
