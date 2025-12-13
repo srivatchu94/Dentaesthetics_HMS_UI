@@ -4,6 +4,7 @@ import Header from "./components/Header";
 import ErrorPage from "./components/ErrorPage";
 import ErrorBoundary from "./components/ErrorBoundary";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
+import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Clinics from "./pages/Clinics";
 import CreateClinic from "./pages/CreateClinic";
@@ -25,6 +26,10 @@ import ClinicAnalytics from "./pages/ClinicAnalytics";
 import ReportsAnalytics from "./pages/ReportsAnalytics";
 import SalaryManagement from "./pages/SalaryManagement";
 import DoctorSalaryDetails from "./pages/DoctorSalaryDetails";
+import Inventory from "./pages/Inventory.jsx";
+import AddMasterInventory from "./pages/AddMasterInventory.jsx";
+import ViewMasterInventory from "./pages/ViewMasterInventory.jsx";
+import ClinicInventory from "./pages/ClinicInventory.tsx";
 import Footer from "./components/Footer";
 import WhatsAppChatbot from "./components/WhatsAppChatbot";
 
@@ -35,6 +40,7 @@ export default function App(){
         <Header />
         <main>
           <Routes>
+          <Route path="/login" element={<Login />} />
           <Route path="/" element={<div className="max-w-6xl mx-auto"><Home /></div>} />
           <Route path="/clinics" element={<div className="max-w-6xl mx-auto"><Clinics /></div>} />
           <Route path="/clinics/create" element={<div className="max-w-6xl mx-auto"><CreateClinic /></div>} />
@@ -59,6 +65,10 @@ export default function App(){
           <Route path="/reports" element={<ReportsAnalytics />} />
           <Route path="/salary" element={<SalaryManagement />} />
           <Route path="/salary/doctor/:doctorId" element={<DoctorSalaryDetails />} />
+          <Route path="/inventory" element={<Inventory />} />
+          <Route path="/inventory/add-master" element={<AddMasterInventory />} />
+          <Route path="/inventory/view-master" element={<ViewMasterInventory />} />
+          <Route path="/inventory/clinic" element={<ClinicInventory />} />
           <Route path="/error-preview" element={<ErrorPage error={{ message: "This is a preview of the error page for testing purposes!" }} />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           </Routes>

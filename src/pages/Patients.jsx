@@ -230,6 +230,8 @@ export default function Patients() {
     setIsUserLoggedIn(!!token);
     console.log('✅ Initial login check:', !!token);
   }, []);
+
+
   
   // Function to load appointments
   const loadAppointments = async () => {
@@ -445,9 +447,13 @@ export default function Patients() {
     gender: "",
     bloodGroup: "",
     maritalStatus: "",
+    enterpriseId: "",
     clinicId: "",
     isActive: true
   });
+
+  const [allEnterprises, setAllEnterprises] = useState([]);
+  const [clinicList, setClinicList] = useState([]);
 
   const [contactData, setContactData] = useState({
     phoneNumber: "",
@@ -523,6 +529,43 @@ export default function Patients() {
   const [showDeleteSuccessModal, setShowDeleteSuccessModal] = useState(false);
   const [patientToDelete, setPatientToDelete] = useState(null);
   const [deletingPatient, setDeletingPatient] = useState(false);
+
+  // Load enterprises when register patient modal opens
+  useEffect(() => {
+    if (activeView === "register") {
+      fetch("https://localhost:7104/api/Enterprise", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      })
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setAllEnterprises(Array.isArray(data) ? data : []))
+        .catch(err => console.error("Error loading enterprises:", err));
+    }
+  }, [activeView]);
+
+  // Load clinics when enterprise is selected
+  useEffect(() => {
+    if (patientData.enterpriseId) {
+      fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${patientData.enterpriseId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      })
+        .then(res => res.ok ? res.json() : [])
+        .then(data => setClinicList(Array.isArray(data) ? data : []))
+        .catch(err => {
+          console.error("Error loading clinics:", err);
+          setClinicList([]);
+        });
+    } else {
+      setClinicList([]);
+    }
+  }, [patientData.enterpriseId]);
 
   // Mock patient data (replace with API call)
   const mockPatients = [
@@ -1087,15 +1130,39 @@ export default function Patients() {
                   onChange={(e) => setPatientData({ ...patientData, maritalStatus: e.target.value })}
                   options={["Single", "Married", "Divorced", "Widowed"]}
                 />
-                <InputField
-                  label="Clinic ID"
-                  name="clinicId"
-                  type="text"
-                  value={patientData.clinicId}
-                  onChange={(e) => setPatientData({ ...patientData, clinicId: e.target.value })}
-                  required
-                  placeholder="Enter clinic ID"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Enterprise *</label>
+                  <select
+                    value={patientData.enterpriseId}
+                    onChange={(e) => setPatientData({ ...patientData, enterpriseId: e.target.value, clinicId: "" })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Select Enterprise</option>
+                    {allEnterprises.map(ent => (
+                      <option key={ent.enterpriseId} value={ent.enterpriseId}>
+                        {ent.enterpriseName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Clinic *</label>
+                  <select
+                    value={patientData.clinicId}
+                    onChange={(e) => setPatientData({ ...patientData, clinicId: e.target.value })}
+                    required
+                    disabled={!patientData.enterpriseId}
+                    className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none ${patientData.enterpriseId ? 'focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-100 cursor-not-allowed'}`}
+                  >
+                    <option value="">Select Clinic</option>
+                    {clinicList.map(clinic => (
+                      <option key={clinic.clinicId} value={clinic.clinicId}>
+                        {clinic.clinicName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               </motion.div>
             )}

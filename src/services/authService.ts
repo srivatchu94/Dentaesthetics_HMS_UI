@@ -108,6 +108,13 @@ export const getAuthToken = (): string | null => {
 };
 
 /**
+ * Check if access token is expired
+ */
+export const checkTokenExpired = (): boolean => {
+  return isTokenExpired();
+};
+
+/**
  * Get refresh token (HttpOnly Cookie - cannot be accessed from JS)
  * Browser automatically sends it with API requests
  */

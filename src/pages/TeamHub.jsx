@@ -33,6 +33,41 @@ const TeamHub = () => {
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [successMessage, setSuccessMessage] = useState({ name: "", roles: "", count: 0 });
   
+  // Credential Management Modal States
+  const [showCredentialManagementModal, setShowCredentialManagementModal] = useState(false);
+  const [credentialFormData, setCredentialFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    username: "",
+    password: "",
+    confirmPassword: "",
+    enterpriseId: 0,
+    clinicId: 0,
+    roleId: 0
+  });
+  const [allEnterprises, setAllEnterprises] = useState([]);
+  const [credentialClinics, setCredentialClinics] = useState([]);
+  const [credentialLoading, setCredentialLoading] = useState(false);
+  const [credentialError, setCredentialError] = useState("");
+  const [showCredentialSuccess, setShowCredentialSuccess] = useState(false);
+  const [credentialSuccessUsername, setCredentialSuccessUsername] = useState("");
+  
+  // Security Questions Modal States
+  const [showSecurityQuestionsModal, setShowSecurityQuestionsModal] = useState(false);
+  const [securityQuestionStep, setSecurityQuestionStep] = useState('selection'); // selection, questions
+  const [securityQuestionsFormData, setSecurityQuestionsFormData] = useState({
+    enterpriseId: 0,
+    clinicId: 0,
+    doctorId: '',
+    doctorName: '',
+    answers: {}
+  });
+  const [securityQuestionsClinics, setSecurityQuestionsClinics] = useState([]);
+  const [securityQuestionsDoctors, setSecurityQuestionsDoctors] = useState([]);
+  const [securityQuestionsLoading, setSecurityQuestionsLoading] = useState(false);
+  const [securityQuestionsError, setSecurityQuestionsError] = useState("");
+  
   // Roles mapped to backend database (RoleId matches backend)
   const availableRoles = [
     { 
@@ -67,6 +102,15 @@ const TeamHub = () => {
       description: "Limited patient access",
       permissions: ["Personal Records", "Appointments", "Bills", "Notifications"]
     }
+  ];
+  
+  // Standard Security Questions
+  const standardSecurityQuestions = [
+    "What is your mother's maiden name?",
+    "What was the name of your first pet?",
+    "In which city were you born?",
+    "What was the make and model of your first car?",
+    "What is your favorite book?"
   ];
   
   // Sample staff data (would come from API)
@@ -222,6 +266,31 @@ const TeamHub = () => {
           color: "from-violet-500 to-purple-500"
         }
       ]
+    },
+    {
+      id: 'credential-management',
+      title: "🔐 Credential Management",
+      description: "Manage user credentials and authentication",
+      gradient: "from-orange-500 via-red-500 to-rose-600",
+      bgGradient: "from-orange-50 to-rose-50",
+      options: [
+        {
+          id: 'create-credential',
+          title: "🆕 Create Credential",
+          description: "Register new user credentials",
+          path: "#",
+          icon: "🔐",
+          color: "from-orange-500 to-red-500"
+        },
+        {
+          id: 'security-questions',
+          title: "🔒 Security Questions",
+          description: "Set up security questions for verification",
+          path: "#",
+          icon: "❓",
+          color: "from-red-500 to-rose-500"
+        }
+      ]
     }
   ];
 
@@ -232,6 +301,17 @@ const TeamHub = () => {
     }
     if (optionId === 'manage-access') {
       setShowAccessControlModal(true);
+      return;
+    }
+    if (optionId === 'create-credential') {
+      setShowCredentialManagementModal(true);
+      setCredentialError("");
+      loadEnterprises();
+      return;
+    }
+    if (optionId === 'security-questions') {
+      setShowSecurityQuestionsModal(true);
+      loadEnterprises();
       return;
     }
     navigate(path);
@@ -288,7 +368,305 @@ const TeamHub = () => {
       setIsSearching(false);
     }
   };
-  
+
+  // Load enterprises for credential management
+  const loadEnterprises = async () => {
+    try {
+      const response = await fetch("https://localhost:7104/api/Enterprise", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("📊 Enterprises loaded:", data);
+        setAllEnterprises(Array.isArray(data) ? data : data.data || []);
+      }
+    } catch (error) {
+      console.error("Error loading enterprises:", error);
+    }
+  };
+
+  // Load clinics when enterprise is selected
+  const loadClinicsForCredential = async (enterpriseId) => {
+    if (!enterpriseId || enterpriseId === 0) {
+      setCredentialClinics([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${enterpriseId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("🏥 Clinics loaded:", data);
+        setCredentialClinics(Array.isArray(data) ? data : data.data || []);
+      }
+    } catch (error) {
+      console.error("Error loading clinics:", error);
+      setCredentialClinics([]);
+    }
+  };
+
+  // Load clinics for patient registration
+
+  // Handle credential registration
+  const handleCredentialSubmit = async (e) => {
+    e.preventDefault();
+
+    // Validation
+    if (!credentialFormData.firstName?.trim()) {
+      setCredentialError("First name is required");
+      return;
+    }
+    if (!credentialFormData.lastName?.trim()) {
+      setCredentialError("Last name is required");
+      return;
+    }
+    if (!credentialFormData.email?.trim()) {
+      setCredentialError("Email is required");
+      return;
+    }
+    if (!credentialFormData.username?.trim()) {
+      setCredentialError("Username is required");
+      return;
+    }
+    if (!credentialFormData.password?.trim()) {
+      setCredentialError("Password is required");
+      return;
+    }
+    if (credentialFormData.password !== credentialFormData.confirmPassword) {
+      setCredentialError("Passwords do not match");
+      return;
+    }
+    if (credentialFormData.enterpriseId === 0) {
+      setCredentialError("Enterprise selection is required");
+      return;
+    }
+    if (credentialFormData.clinicId === 0) {
+      setCredentialError("Clinic selection is required");
+      return;
+    }
+    if (credentialFormData.roleId === 0) {
+      setCredentialError("Role selection is required");
+      return;
+    }
+
+    setCredentialLoading(true);
+    try {
+      const payload = {
+        firstName: credentialFormData.firstName,
+        lastName: credentialFormData.lastName,
+        emailId: credentialFormData.email,
+        username: credentialFormData.username,
+        password: credentialFormData.password,
+        enterpriseId: parseInt(credentialFormData.enterpriseId),
+        clinicId: parseInt(credentialFormData.clinicId),
+        roleId: parseInt(credentialFormData.roleId)
+      };
+
+      console.log("📝 Registering credential:", payload);
+
+      const response = await fetch("https://localhost:7104/api/Authentication/registerUser", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Credential registered:", data);
+        
+        // Show success modal with username
+        setCredentialSuccessUsername(credentialFormData.username);
+        setShowCredentialSuccess(true);
+        
+        // Reset form
+        setCredentialFormData({
+          firstName: "",
+          lastName: "",
+          email: "",
+          username: "",
+          password: "",
+          confirmPassword: "",
+          enterpriseId: 0,
+          clinicId: 0,
+          roleId: 0
+        });
+
+        // Close modal after success
+        setTimeout(() => {
+          setShowCredentialManagementModal(false);
+          setShowCredentialSuccess(false);
+        }, 2000);
+      } else {
+        const errorData = await response.json();
+        setCredentialError(errorData.message || "Failed to register credential");
+      }
+    } catch (error) {
+      console.error("Error registering credential:", error);
+      setCredentialError("Error registering credential. Please try again.");
+    } finally {
+      setCredentialLoading(false);
+    }
+  };
+
+  // Handle patient registration
+
+
+  // Load clinics when enterprise is selected for security questions
+  const loadClinicsForSecurityQuestions = async (enterpriseId) => {
+    if (!enterpriseId || enterpriseId === 0) {
+      setSecurityQuestionsClinics([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${enterpriseId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("🏥 Clinics loaded for security questions:", data);
+        setSecurityQuestionsClinics(Array.isArray(data) ? data : data.data || []);
+      }
+    } catch (error) {
+      console.error("Error loading clinics:", error);
+      setSecurityQuestionsClinics([]);
+    }
+  };
+
+  // Load recently onboarded doctors for selected clinic
+  const loadDoctorsForSecurityQuestions = async (clinicId) => {
+    if (!clinicId) {
+      setSecurityQuestionsDoctors([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`https://localhost:7104/api/Doctor/GetDoctorsByClinic?clinicId=${clinicId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("🩺 Doctors loaded for security questions:", data);
+        setSecurityQuestionsDoctors(Array.isArray(data) ? data : data.data || []);
+      }
+    } catch (error) {
+      console.error("Error loading doctors:", error);
+      setSecurityQuestionsDoctors([]);
+    }
+  };
+
+  // Handle security questions setup
+  const handleSecurityQuestionsSubmit = async (e) => {
+    e.preventDefault();
+
+    // Validate selection step
+    if (securityQuestionStep === 'selection') {
+      if (!securityQuestionsFormData.enterpriseId) {
+        setSecurityQuestionsError("Please select an enterprise");
+        return;
+      }
+      if (!securityQuestionsFormData.clinicId) {
+        setSecurityQuestionsError("Please select a clinic");
+        return;
+      }
+      if (!securityQuestionsFormData.doctorId) {
+        setSecurityQuestionsError("Please select a doctor");
+        return;
+      }
+
+      setSecurityQuestionStep('questions');
+      setSecurityQuestionsError("");
+      return;
+    }
+
+    // Validate answers step
+    if (securityQuestionStep === 'questions') {
+      for (let i = 0; i < standardSecurityQuestions.length; i++) {
+        if (!securityQuestionsFormData.answers[i] || !securityQuestionsFormData.answers[i].trim()) {
+          setSecurityQuestionsError(`Please answer question ${i + 1}`);
+          return;
+        }
+      }
+
+      // Submit answers
+      setSecurityQuestionsLoading(true);
+      try {
+        const payload = {
+          doctorId: securityQuestionsFormData.doctorId,
+          enterpriseId: securityQuestionsFormData.enterpriseId,
+          clinicId: securityQuestionsFormData.clinicId,
+          securityAnswers: standardSecurityQuestions.map((question, index) => ({
+            question: question,
+            answer: securityQuestionsFormData.answers[index]
+          }))
+        };
+
+        console.log("📝 Submitting security questions:", payload);
+
+        const response = await fetch("https://localhost:7104/api/Authentication/SetSecurityQuestions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+          console.log("✅ Security questions set successfully");
+          setSecurityQuestionsError("");
+          
+          // Show success and close modal
+          setTimeout(() => {
+            setShowSecurityQuestionsModal(false);
+            setSecurityQuestionStep('selection');
+            setSecurityQuestionsFormData({
+              enterpriseId: 0,
+              clinicId: 0,
+              doctorId: '',
+              doctorName: '',
+              answers: {}
+            });
+            alert("✅ Security questions set successfully!");
+          }, 1000);
+        } else {
+          const errorData = await response.json();
+          setSecurityQuestionsError(errorData.message || "Failed to set security questions");
+        }
+      } catch (error) {
+        console.error("Error setting security questions:", error);
+        setSecurityQuestionsError("Error setting security questions. Please try again.");
+      } finally {
+        setSecurityQuestionsLoading(false);
+      }
+    }
+  };
+
   const handleSelectStaff = (staff) => {
     setSelectedStaff(staff);
     setShowRoleManager(true);
@@ -2245,6 +2623,459 @@ const TeamHub = () => {
                 >
                   Awesome! 🎊
                 </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Credential Management Modal */}
+      <AnimatePresence>
+        {showCredentialManagementModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowCredentialManagementModal(false)}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-orange-500 to-red-500 p-6 text-white sticky top-0 z-10">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-2xl font-bold">🔐 Create User Credential</h3>
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowCredentialManagementModal(false)}
+                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center"
+                  >
+                    <span className="text-2xl">×</span>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Form Content */}
+              <div className="p-6">
+                <form onSubmit={handleCredentialSubmit} className="space-y-6">
+                  {/* Organization Assignment - FIRST (Mandatory) */}
+                  <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
+                    <h4 className="text-lg font-bold text-slate-800 mb-4">🏢 Organization Assignment</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Enterprise <span className="text-red-500">*</span></label>
+                        <select
+                          value={credentialFormData.enterpriseId}
+                          onChange={(e) => {
+                            const enterpriseId = parseInt(e.target.value) || 0;
+                            setCredentialFormData(prev => ({
+                              ...prev,
+                              enterpriseId,
+                              clinicId: 0
+                            }));
+                            setCredentialError("");
+                            loadClinicsForCredential(enterpriseId);
+                          }}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                        >
+                          <option value="0">-- Select Enterprise --</option>
+                          {allEnterprises.map((enterprise) => (
+                            <option key={enterprise.enterpriseId} value={enterprise.enterpriseId}>
+                              [{enterprise.enterpriseId}] {enterprise.enterpriseName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Clinic <span className="text-red-500">*</span></label>
+                        <select
+                          value={credentialFormData.clinicId}
+                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, clinicId: parseInt(e.target.value) || 0 }))}
+                          disabled={credentialFormData.enterpriseId === 0}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        >
+                          <option value="0">-- Select Clinic --</option>
+                          {credentialClinics.map((clinic) => (
+                            <option key={clinic.clinicId} value={clinic.clinicId}>
+                              [{clinic.clinicId}] {clinic.clinicName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Personal Information - SECOND */}
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                    <h4 className="text-lg font-bold text-slate-800 mb-4">👤 Personal Information</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">First Name <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={credentialFormData.firstName}
+                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, firstName: e.target.value }))}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                          placeholder="John"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Last Name <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={credentialFormData.lastName}
+                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, lastName: e.target.value }))}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                          placeholder="Doe"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Email <span className="text-red-500">*</span></label>
+                        <input
+                          type="email"
+                          value={credentialFormData.email}
+                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, email: e.target.value }))}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                          placeholder="john@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Username <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={credentialFormData.username}
+                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, username: e.target.value }))}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                          placeholder="johndoe123"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Account Information */}
+                  <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                    <h4 className="text-lg font-bold text-slate-800 mb-4">🔐 Account Information</h4>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Password <span className="text-red-500">*</span></label>
+                        <input
+                          type="password"
+                          value={credentialFormData.password}
+                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, password: e.target.value }))}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                          placeholder="••••••••"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Confirm Password <span className="text-red-500">*</span></label>
+                        <input
+                          type="password"
+                          value={credentialFormData.confirmPassword}
+                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                          placeholder="••••••••"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Role <span className="text-red-500">*</span></label>
+                        <select
+                          value={credentialFormData.roleId}
+                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, roleId: parseInt(e.target.value) || 0 }))}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                        >
+                          <option value="0">-- Select Role --</option>
+                          <option value="1">Admin - Full system access</option>
+                          <option value="2">Doctor - Patient records, treatment plans, prescriptions</option>
+                          <option value="3">Receptionist - Appointments, check-ins, billing</option>
+                          <option value="4">Patient - View records, appointments, bills</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Error Message */}
+                  {credentialError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 bg-red-100 border-2 border-red-300 text-red-700 rounded-lg font-semibold flex items-center gap-2"
+                    >
+                      <span>⚠️</span> {credentialError}
+                    </motion.div>
+                  )}
+
+                  {/* Submit Button */}
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit"
+                    disabled={credentialLoading}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold rounded-lg hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {credentialLoading ? "Registering..." : "🔐 Register Credential"}
+                  </motion.button>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Credential Success Modal */}
+      <AnimatePresence>
+        {showCredentialSuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className="text-6xl mb-4"
+              >
+                ✅
+              </motion.div>
+              <h3 className="text-2xl font-bold text-green-600 mb-2">Success!</h3>
+              <p className="text-slate-600 mb-4">Credential registered successfully</p>
+              <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-6">
+                <p className="text-xs font-semibold text-slate-600 mb-2">USERNAME</p>
+                <p className="text-xl font-bold text-slate-800 break-all">{credentialSuccessUsername}</p>
+              </div>
+              <p className="text-sm text-gray-500">Closing in a moment...</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Security Questions Modal */}
+      <AnimatePresence>
+        {showSecurityQuestionsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowSecurityQuestionsModal(false)}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              <div className="sticky top-0 bg-gradient-to-r from-red-500 to-rose-500 text-white p-6 border-b-4 border-red-600">
+                <h2 className="text-2xl font-bold">🔒 Set Security Questions</h2>
+                <p className="text-red-100 text-sm mt-1">
+                  {securityQuestionStep === 'selection' 
+                    ? 'Select enterprise, clinic, and doctor'
+                    : 'Answer the security questions'}
+                </p>
+              </div>
+
+              <div className="p-8">
+                {/* Error Message */}
+                {securityQuestionsError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm font-semibold"
+                  >
+                    ⚠️ {securityQuestionsError}
+                  </motion.div>
+                )}
+
+                {/* Selection Step */}
+                {securityQuestionStep === 'selection' && (
+                  <form onSubmit={handleSecurityQuestionsSubmit} className="space-y-6">
+                    {/* Enterprise Selection */}
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Enterprise ID <span className="text-red-500">*</span></label>
+                      <select
+                        value={securityQuestionsFormData.enterpriseId}
+                        onChange={(e) => {
+                          const enterpriseId = parseInt(e.target.value);
+                          setSecurityQuestionsFormData(prev => ({ ...prev, enterpriseId, clinicId: 0, doctorId: '', doctorName: '' }));
+                          loadClinicsForSecurityQuestions(enterpriseId);
+                        }}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                      >
+                        <option value="">Select Enterprise</option>
+                        {allEnterprises.map(enterprise => (
+                          <option key={enterprise.enterpriseId} value={enterprise.enterpriseId}>
+                            {enterprise.enterpriseName || enterprise.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Clinic Selection */}
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Clinic ID <span className="text-red-500">*</span></label>
+                      <select
+                        value={securityQuestionsFormData.clinicId}
+                        onChange={(e) => {
+                          const clinicId = parseInt(e.target.value);
+                          setSecurityQuestionsFormData(prev => ({ ...prev, clinicId, doctorId: '', doctorName: '' }));
+                          loadDoctorsForSecurityQuestions(clinicId);
+                        }}
+                        disabled={!securityQuestionsFormData.enterpriseId}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none disabled:bg-gray-100"
+                      >
+                        <option value="">Select Clinic</option>
+                        {securityQuestionsClinics.map(clinic => (
+                          <option key={clinic.clinicId} value={clinic.clinicId}>
+                            {clinic.clinicName || clinic.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Doctor Selection */}
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Select Doctor <span className="text-red-500">*</span></label>
+                      <select
+                        value={securityQuestionsFormData.doctorId}
+                        onChange={(e) => {
+                          const doctorId = e.target.value;
+                          const selectedDoctor = securityQuestionsDoctors.find(d => d.doctorId.toString() === doctorId);
+                          setSecurityQuestionsFormData(prev => ({ 
+                            ...prev, 
+                            doctorId,
+                            doctorName: selectedDoctor ? `${selectedDoctor.firstName} ${selectedDoctor.lastName}` : ''
+                          }));
+                        }}
+                        disabled={!securityQuestionsFormData.clinicId}
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none disabled:bg-gray-100"
+                      >
+                        <option value="">Select Doctor</option>
+                        {securityQuestionsDoctors.map(doctor => (
+                          <option key={doctor.doctorId} value={doctor.doctorId}>
+                            {doctor.firstName} {doctor.lastName} ({doctor.email})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Selected Doctor Info */}
+                    {securityQuestionsFormData.doctorName && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 bg-blue-50 border-2 border-blue-200 rounded-lg"
+                      >
+                        <p className="text-sm font-semibold text-blue-800">
+                          Selected: <span className="text-blue-600">{securityQuestionsFormData.doctorName}</span>
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {/* Buttons */}
+                    <div className="flex gap-4 pt-6 border-t-2 border-gray-200">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        type="submit"
+                        disabled={securityQuestionsLoading || !securityQuestionsFormData.doctorId}
+                        className="flex-1 bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        ➜ Next: Answer Questions
+                      </motion.button>
+
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        type="button"
+                        onClick={() => setShowSecurityQuestionsModal(false)}
+                        className="flex-1 bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg"
+                      >
+                        ❌ Cancel
+                      </motion.button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Questions Step */}
+                {securityQuestionStep === 'questions' && (
+                  <form onSubmit={handleSecurityQuestionsSubmit} className="space-y-6">
+                    {/* Doctor Name Display */}
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-4 bg-blue-50 border-2 border-blue-200 rounded-lg"
+                    >
+                      <p className="text-sm font-semibold text-blue-800">Doctor: <span className="text-blue-600">{securityQuestionsFormData.doctorName}</span></p>
+                    </motion.div>
+
+                    {/* Security Questions */}
+                    <div className="space-y-6">
+                      {standardSecurityQuestions.map((question, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="bg-gray-50 p-4 rounded-lg border border-gray-200"
+                        >
+                          <label className="block text-sm font-bold text-gray-700 mb-3">
+                            Q{index + 1}. {question}
+                          </label>
+                          <motion.input
+                            whileFocus={{ scale: 1.02 }}
+                            type="text"
+                            value={securityQuestionsFormData.answers[index] || ''}
+                            onChange={(e) => {
+                              setSecurityQuestionsFormData(prev => ({
+                                ...prev,
+                                answers: { ...prev.answers, [index]: e.target.value }
+                              }));
+                              setSecurityQuestionsError("");
+                            }}
+                            placeholder="Your answer"
+                            className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
+                          />
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    {/* Buttons */}
+                    <div className="flex gap-4 pt-6 border-t-2 border-gray-200">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        type="button"
+                        onClick={() => setSecurityQuestionStep('selection')}
+                        className="flex-1 bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg"
+                      >
+                        ← Back
+                      </motion.button>
+
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        type="submit"
+                        disabled={securityQuestionsLoading}
+                        className="flex-1 bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {securityQuestionsLoading ? '⏳ Saving...' : '✅ Save Security Answers'}
+                      </motion.button>
+                    </div>
+                  </form>
+                )}
               </div>
             </motion.div>
           </motion.div>

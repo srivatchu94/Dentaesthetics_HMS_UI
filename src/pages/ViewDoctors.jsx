@@ -589,6 +589,10 @@ export default function ViewDoctors() {
                     <span className="text-sm">{doctor.phone}</span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-700">
+                    <span className="font-semibold">👤 Gender:</span>
+                    <span className="text-sm">{doctor.gender || 'N/A'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-700">
                     <span className="font-semibold">🎓 Specialty:</span>
                     <span className="text-sm">ID {doctor.specialtyId}</span>
                   </div>
@@ -598,7 +602,7 @@ export default function ViewDoctors() {
                   </div>
                   <div className="flex items-center gap-2 text-gray-700">
                     <span className="font-semibold">💼 Status:</span>
-                    <span className="text-sm">{doctor.employmentStatus}</span>
+                    <span className="text-sm">{doctor.employmentStatus || 'N/A'}</span>
                   </div>
 
                   <div className="flex gap-2 mt-4">

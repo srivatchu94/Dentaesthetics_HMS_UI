@@ -9,6 +9,7 @@ export * from "./roleService";
 export * from "./patientService";
 export * from "./authService";
 export * from "./accessControlService";
+export * from "./inventoryService";
 
 // Export hooks
 export * from "./hooks";

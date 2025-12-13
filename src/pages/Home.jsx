@@ -173,7 +173,7 @@ export default function Home() {
             <p className="text-base text-slate-600 max-w-2xl mx-auto leading-relaxed mb-6">
               Transforming dental practice management with intuitive technology designed for excellence in patient care
             </p>
-            <div className="flex gap-4 justify-center items-center">
+            <div className="flex gap-4 justify-center items-center flex-wrap">
               <Link to="/doctors">
                 <motion.button
                   whileHover={{ scale: 1.05, y: -2 }}
@@ -182,6 +182,16 @@ export default function Home() {
                 >
                   <span className="text-xl">👨‍⚕️</span>
                   <span>Access Doctor's Space</span>
+                </motion.button>
+              </Link>
+              <Link to="/login">
+                <motion.button
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-8 py-3 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                >
+                  <span className="text-xl">🔐</span>
+                  <span>Login as Doctor/Admin</span>
                 </motion.button>
               </Link>
               <motion.div

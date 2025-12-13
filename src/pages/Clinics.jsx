@@ -48,9 +48,6 @@ export default function Clinics(){
     achievements: "",
     publications: "",
     socialLinks: "",
-    // System tracking
-    branchId: "",
-    role: "Doctor",
     // Enterprise and Clinic assignment
     enterpriseId: 0,
     clinicId: 0
@@ -149,6 +146,93 @@ export default function Clinics(){
   const [selectedClinicView, setSelectedClinicView] = useState(null);
   const [showClinicDetailsModal, setShowClinicDetailsModal] = useState(false);
   
+  // Search Doctors Modal States
+  const [showSearchDoctorsModal, setShowSearchDoctorsModal] = useState(false);
+  const [searchDoctorsParams, setSearchDoctorsParams] = useState({
+    enterpriseId: 0,
+    clinicId: 0
+  });
+  const [searchDoctorsResults, setSearchDoctorsResults] = useState([]);
+  const [searchDoctorsLoading, setSearchDoctorsLoading] = useState(false);
+  const [searchDoctorsError, setSearchDoctorsError] = useState("");
+  const [selectedDoctorView, setSelectedDoctorView] = useState(null);
+  const [showDoctorDetailsModal, setShowDoctorDetailsModal] = useState(false);
+  const [doctorDetailsLoading, setDoctorDetailsLoading] = useState(false);
+  const [isEditingDoctorDetails, setIsEditingDoctorDetails] = useState(false);
+  const [doctorEditFormData, setDoctorEditFormData] = useState(null);
+  const [showDoctorUpdateSuccessModal, setShowDoctorUpdateSuccessModal] = useState(false);
+  const [doctorUpdateSuccessMessage, setDoctorUpdateSuccessMessage] = useState("");
+  const [showDoctorUpdateErrorModal, setShowDoctorUpdateErrorModal] = useState(false);
+  const [doctorUpdateErrorMessage, setDoctorUpdateErrorMessage] = useState("");
+  
+  // Inventory Management States
+  const [showAddInventoryModal, setShowAddInventoryModal] = useState(false);
+  const [showEditInventoryModal, setShowEditInventoryModal] = useState(false);
+  const [showAddToMasterModal, setShowAddToMasterModal] = useState(false);
+  const [masterInventoryItems, setMasterInventoryItems] = useState([]);
+  const [masterItemRows, setMasterItemRows] = useState([
+    {
+      itemName: "",
+      itemCode: "",
+      category: "",
+      subCategory: "",
+      unit: "",
+      isActive: true
+    }
+  ]);
+  const [masterItemLoading, setMasterItemLoading] = useState(false);
+  const [masterItemErrors, setMasterItemErrors] = useState({});
+  const [inventoryFormData, setInventoryFormData] = useState({
+    enterpriseId: 0,
+    clinicId: 0,
+    items: [
+      {
+        inventoryId: 0,
+        itemId: 0,
+        itemName: "",
+        quantityAvailable: 0,
+        reorderLevel: 0,
+        minimumStock: 0,
+        storageLocation: "",
+        status: "Available"
+      }
+    ]
+  });
+  const [inventoryClinics, setInventoryClinics] = useState([]);
+  const [inventoryResults, setInventoryResults] = useState([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState("");
+  const [showInventorySuccess, setShowInventorySuccess] = useState(false);
+  const [inventorySuccessMessage, setInventorySuccessMessage] = useState("");
+  const [editingItemIndex, setEditingItemIndex] = useState(null);
+  const [showMasterSuccess, setShowMasterSuccess] = useState(false);
+  const [masterSuccessMessage, setMasterSuccessMessage] = useState("");
+  
+  // Funny success messages for inventory
+  const funnyInventoryMessages = [
+    "🎉 Boom! Your inventory is now legendary!",
+    "💎 Holy moly! You just became an inventory wizard!",
+    "🌟 Your inventory is so organized, Marie Kondo just called!",
+    "🎊 Bazinga! Your items are perfectly stocked!",
+    "🏆 You deserve a medal! Your inventory is immaculate!",
+    "🚀 Houston, we have perfect inventory!",
+    "💫 Your inventory is chef's kiss!",
+    "🎯 Nailed it! Your inventory is on point!",
+    "✨ Abracadabra! Magic inventory levels detected!"
+  ];
+
+  const funnyMasterMessages = [
+    "🎁 New items unlocked! You're a master now!",
+    "📚 Your master catalog just grew wings!",
+    "🌈 Rainbow of inventory added to the vault!",
+    "🎪 The master inventory circus just got bigger!",
+    "👑 Royal items have entered the kingdom!",
+    "🔥 Master inventory on fire with new items!",
+    "🎨 Your master palette just got more colorful!",
+    "🌺 Beautiful items blooming in the master list!",
+    "⚡ Lightning fast! Master items added!"
+  ];
+  
   // Enterprises list for clinic creation
   const [allEnterprises, setAllEnterprises] = useState([]);
   const [loadingEnterprises, setLoadingEnterprises] = useState(false);
@@ -183,6 +267,38 @@ export default function Clinics(){
 
     loadEnterprisesOnMount();
   }, []);
+
+  // Load master inventory items when modal opens
+  useEffect(() => {
+    if (showAddInventoryModal) {
+      const loadMasterItems = async () => {
+        try {
+          const response = await fetch("https://localhost:7104/api/inventory/GetAllInventoryMasterItems", {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+            }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log("📦 Master inventory items loaded:", data);
+            setMasterInventoryItems(Array.isArray(data) ? data : data.data || []);
+          } else {
+            console.error("Failed to load master inventory items", response.status);
+            setMasterInventoryItems([]);
+          }
+        } catch (error) {
+          console.error("Error loading master inventory items:", error);
+          setMasterInventoryItems([]);
+        }
+      };
+
+      loadMasterItems();
+    }
+  }, [showAddInventoryModal]);
+
   const searchEnterprise = async () => {
     if (!manageEnterpriseSearchId.trim()) {
       setManageEnterpriseError("Please enter an Enterprise ID");
@@ -410,6 +526,40 @@ export default function Clinics(){
     loadClinicsForListModal();
   }, [listClinicsFilters.enterpriseId]);
 
+  // Load clinics for Search Doctors modal when enterprise is selected
+  useEffect(() => {
+    const loadClinicsForSearchDoctors = async () => {
+      if (!searchDoctorsParams.enterpriseId || searchDoctorsParams.enterpriseId === 0) {
+        setDoctorClinics([]);
+        return;
+      }
+      
+      try {
+        const response = await fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${searchDoctorsParams.enterpriseId}`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log("🏥 Clinics loaded for enterprise in Search Doctors:", data);
+          setDoctorClinics(Array.isArray(data) ? data : data.data || []);
+        } else {
+          console.error("Failed to load clinics for Search Doctors");
+          setDoctorClinics([]);
+        }
+      } catch (error) {
+        console.error("Error loading clinics for Search Doctors:", error);
+        setDoctorClinics([]);
+      }
+    };
+    
+    loadClinicsForSearchDoctors();
+  }, [searchDoctorsParams.enterpriseId]);
+
   const isCreateClinicFormValid = () => {
     return (
       createClinicForm.clinicName?.trim() !== "" &&
@@ -472,6 +622,13 @@ export default function Clinics(){
       setShowListClinicsModal(true);
       return; 
     }
+    if (action === "View Doctors") { 
+      setShowSearchDoctorsModal(true);
+      setSearchDoctorsParams({ enterpriseId: 0, clinicId: 0 });
+      setSearchDoctorsResults([]);
+      setSearchDoctorsError("");
+      return;
+    }
     if (action === "Onboard Doctors") { 
       setShowDoctorModal(true);
       setShowDoctorForm(true);
@@ -509,8 +666,12 @@ export default function Clinics(){
       achievements: "",
       publications: "",
       socialLinks: "",
+      // System tracking
       branchId: "",
-      role: "Doctor"
+      role: "Doctor",
+      // Enterprise and Clinic assignment
+      enterpriseId: 0,
+      clinicId: 0
     });
     setActiveTab("personal");
     setShowPreview(false);
@@ -602,6 +763,8 @@ export default function Clinics(){
         socialLinks: doctorFormData.socialLinks || "string",
         branchId: parseInt(doctorFormData.branchId) || 0,
         role: doctorFormData.role || "Doctor",
+        enterpriseId: parseInt(doctorFormData.enterpriseId) || 0,
+        clinicId: parseInt(doctorFormData.clinicId) || 0,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -617,6 +780,516 @@ export default function Clinics(){
     } catch (error) {
       console.error("Error saving doctor:", error);
       alert("Failed to save doctor. Please try again.");
+    }
+  };
+
+  // Search Doctors Handler
+  const handleSearchDoctors = async (e) => {
+    e?.preventDefault();
+    
+    // Validate enterprise ID
+    if (searchDoctorsParams.enterpriseId === 0 || searchDoctorsParams.enterpriseId === "") {
+      setSearchDoctorsError("Please select an Enterprise to search doctors");
+      return;
+    }
+
+    setSearchDoctorsLoading(true);
+    setSearchDoctorsError("");
+    
+    try {
+      // Build query parameters
+      let queryParams = `EnterpriseID=${searchDoctorsParams.enterpriseId}`;
+      if (searchDoctorsParams.clinicId && searchDoctorsParams.clinicId > 0) {
+        queryParams += `&clinicId=${searchDoctorsParams.clinicId}`;
+      }
+
+      const response = await fetch(
+        `https://localhost:7104/api/DoctorProfile/SearchDoctors?${queryParams}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("🩺 Search doctors results:", data);
+        setSearchDoctorsResults(Array.isArray(data) ? data : data.data || []);
+        setSearchDoctorsError("");
+      } else {
+        const errorData = await response.json();
+        setSearchDoctorsError(errorData.message || "Failed to search doctors");
+        setSearchDoctorsResults([]);
+      }
+    } catch (error) {
+      console.error("Error searching doctors:", error);
+      setSearchDoctorsError("Error searching doctors. Please try again.");
+      setSearchDoctorsResults([]);
+    } finally {
+      setSearchDoctorsLoading(false);
+    }
+  };
+
+  // Get Doctor Details
+  const handleViewDoctorDetails = async (doctorId) => {
+    setDoctorDetailsLoading(true);
+    try {
+      const response = await fetch(
+        `https://localhost:7104/api/DoctorProfile/GetDoctorById?id=${doctorId}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("🩺 Doctor details:", data);
+        setSelectedDoctorView(data);
+        setDoctorEditFormData(data);
+        setShowDoctorDetailsModal(true);
+        setIsEditingDoctorDetails(false);
+      } else {
+        alert("Failed to load doctor details");
+      }
+    } catch (error) {
+      console.error("Error loading doctor details:", error);
+      alert("Error loading doctor details. Please try again.");
+    } finally {
+      setDoctorDetailsLoading(false);
+    }
+  };
+
+  // Handle Edit Doctor
+  const handleEditDoctor = () => {
+    setIsEditingDoctorDetails(true);
+  };
+
+  // Handle Cancel Edit
+  const handleCancelEditDoctor = () => {
+    setIsEditingDoctorDetails(false);
+    setDoctorEditFormData(selectedDoctorView);
+  };
+
+  // Handle Update Doctor
+  const handleUpdateDoctor = async () => {
+    try {
+      setDoctorDetailsLoading(true);
+      const payload = {
+        ...doctorEditFormData,
+        dateOfBirth: doctorEditFormData.dateOfBirth ? new Date(doctorEditFormData.dateOfBirth).toISOString() : doctorEditFormData.dateOfBirth,
+        licenseExpiry: doctorEditFormData.licenseExpiry ? new Date(doctorEditFormData.licenseExpiry).toISOString() : doctorEditFormData.licenseExpiry,
+        joiningDate: doctorEditFormData.joiningDate ? new Date(doctorEditFormData.joiningDate).toISOString() : doctorEditFormData.joiningDate,
+      };
+
+      const response = await fetch("https://localhost:7104/api/DoctorProfile/UpdateDoctorProfile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        console.log("✅ Doctor updated successfully");
+        setDoctorUpdateSuccessMessage("Doctor profile updated successfully!");
+        setShowDoctorUpdateSuccessModal(true);
+        setIsEditingDoctorDetails(false);
+        
+        // Update the selected doctor view with new data
+        setSelectedDoctorView(doctorEditFormData);
+        
+        // Refresh search results
+        setTimeout(() => {
+          handleSearchDoctors();
+        }, 1500);
+      } else {
+        const errorData = await response.json();
+        setDoctorUpdateErrorMessage(errorData.message || "Failed to update doctor profile");
+        setShowDoctorUpdateErrorModal(true);
+      }
+    } catch (error) {
+      console.error("Error updating doctor:", error);
+      setDoctorUpdateErrorMessage("Error updating doctor profile. Please try again.");
+      setShowDoctorUpdateErrorModal(true);
+    } finally {
+      setDoctorDetailsLoading(false);
+    }
+  };
+
+  // Inventory Management Handlers
+  const loadClinicsForInventory = async (enterpriseId) => {
+    if (!enterpriseId || enterpriseId === 0) {
+      setInventoryClinics([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${enterpriseId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("🏥 Clinics loaded for inventory:", data);
+        setInventoryClinics(Array.isArray(data) ? data : data.data || []);
+      }
+    } catch (error) {
+      console.error("Error loading clinics for inventory:", error);
+      setInventoryClinics([]);
+    }
+  };
+
+  // Handle Add Inventory Item Row
+  const handleAddInventoryRow = () => {
+    setInventoryFormData(prev => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        {
+          inventoryId: 0,
+          itemId: 0,
+          itemName: "",
+          quantityAvailable: 0,
+          reorderLevel: 0,
+          minimumStock: 0,
+          storageLocation: "",
+          status: "Available"
+        }
+      ]
+    }));
+  };
+
+  // Handle Remove Inventory Item Row
+  const handleRemoveInventoryRow = (index) => {
+    setInventoryFormData(prev => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Handle Inventory Item Change
+  const handleInventoryItemChange = (index, field, value) => {
+    setInventoryFormData(prev => ({
+      ...prev,
+      items: prev.items.map((item, i) =>
+        i === index ? { ...item, [field]: value } : item
+      )
+    }));
+  };
+
+  // Handle Add Inventory Submit
+  const handleAddInventorySubmit = async (e) => {
+    e.preventDefault();
+
+    if (inventoryFormData.enterpriseId === 0) {
+      setInventoryError("Please select an Enterprise");
+      return;
+    }
+    if (inventoryFormData.clinicId === 0) {
+      setInventoryError("Please select a Clinic");
+      return;
+    }
+    if (inventoryFormData.items.length === 0) {
+      setInventoryError("Please add at least one inventory item");
+      return;
+    }
+
+    // Validate all items
+    for (let item of inventoryFormData.items) {
+      if (!item.itemName?.trim()) {
+        setInventoryError("Please fill in all item names");
+        return;
+      }
+      if (item.quantityAvailable <= 0) {
+        setInventoryError("Please enter valid quantities");
+        return;
+      }
+    }
+
+    setInventoryLoading(true);
+    try {
+      // Format items as ClinicInventory objects (matching backend model)
+      const items = inventoryFormData.items.map((item) => ({
+        inventoryId: item.inventoryId || 0,
+        itemId: item.itemId,
+        itemName: item.itemName,
+        enterpriseId: parseInt(inventoryFormData.enterpriseId),
+        clinicId: parseInt(inventoryFormData.clinicId),
+        quantityAvailable: parseInt(item.quantityAvailable) || 0,
+        reorderLevel: parseInt(item.reorderLevel) || 0,
+        minimumStock: parseInt(item.minimumStock) || 0,
+        storageLocation: item.storageLocation || '',
+        status: item.status || 'Available'
+      }));
+
+      const payload = {
+        enterpriseId: parseInt(inventoryFormData.enterpriseId),
+        clinicId: parseInt(inventoryFormData.clinicId),
+        items: items
+      };
+
+      console.log("📦 Adding inventory:", payload);
+
+      // Use the correct API endpoint for adding clinic inventory
+      const response = await fetch("https://localhost:7104/api/inventory/SaveClinicInventoryBatch?enterpriseId=" + payload.enterpriseId + "&clinicId=" + payload.clinicId, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: JSON.stringify(items)
+      });
+
+      console.log("📥 Response status:", response.status);
+
+      if (response.ok) {
+        const responseData = await response.json().catch(() => ({}));
+        console.log("✅ Success response:", responseData);
+        
+        const randomMessage = funnyInventoryMessages[Math.floor(Math.random() * funnyInventoryMessages.length)];
+        setInventorySuccessMessage(randomMessage);
+        setShowInventorySuccess(true);
+        
+        // Reset form
+        setInventoryFormData({
+          enterpriseId: 0,
+          clinicId: 0,
+          items: [
+            {
+              inventoryId: 0,
+              itemId: 0,
+              itemName: "",
+              quantityAvailable: 0,
+              reorderLevel: 0,
+              minimumStock: 0,
+              storageLocation: "",
+              status: "Available"
+            }
+          ]
+        });
+
+        setTimeout(() => {
+          setShowAddInventoryModal(false);
+          setShowInventorySuccess(false);
+        }, 2000);
+      } else {
+        console.error("❌ Error response status:", response.status);
+        const errorText = await response.text();
+        console.error("❌ Error response body:", errorText);
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          setInventoryError(errorData.message || `Failed to add inventory (${response.status})`);
+        } catch (e) {
+          setInventoryError(`Failed to add inventory. Server responded with status ${response.status}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error adding inventory:", error);
+      setInventoryError("Error adding inventory: " + (error.message || "Unknown error"));
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
+
+  // Master Inventory Handlers
+  const handleAddMasterRow = () => {
+    setMasterItemRows([...masterItemRows, {
+      itemName: "",
+      itemCode: "",
+      category: "",
+      subCategory: "",
+      unit: "",
+      isActive: true
+    }]);
+  };
+
+  const handleRemoveMasterRow = (index) => {
+    if (masterItemRows.length > 1) {
+      setMasterItemRows(masterItemRows.filter((_, i) => i !== index));
+      setMasterItemErrors({});
+    }
+  };
+
+  const handleMasterItemChange = (index, field, value) => {
+    const updatedRows = [...masterItemRows];
+    updatedRows[index] = { ...updatedRows[index], [field]: value };
+    setMasterItemRows(updatedRows);
+  };
+
+  const handleAddToMasterSubmit = async (e) => {
+    e.preventDefault();
+
+    // Validate rows
+    const validRows = masterItemRows.filter(row => {
+      return row.itemName.trim() && row.itemCode.trim() && row.category && row.unit;
+    });
+
+    if (validRows.length === 0) {
+      alert("Please fill at least one master item with required fields");
+      return;
+    }
+
+    setMasterItemLoading(true);
+    try {
+      const response = await fetch("https://localhost:7104/api/inventory/AddInventoryMasterItemsBulk", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: JSON.stringify(validRows)
+      });
+
+      if (response.ok) {
+        const randomMessage = funnyMasterMessages[Math.floor(Math.random() * funnyMasterMessages.length)];
+        setMasterSuccessMessage(randomMessage);
+        setShowMasterSuccess(true);
+        
+        // Reload master items
+        const reloadResponse = await fetch("https://localhost:7104/api/inventory/GetAllInventoryMasterItems", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          }
+        });
+
+        if (reloadResponse.ok) {
+          const data = await reloadResponse.json();
+          setMasterInventoryItems(Array.isArray(data) ? data : data.data || []);
+        }
+
+        // Reset form after delay
+        setTimeout(() => {
+          setMasterItemRows([{
+            itemName: "",
+            itemCode: "",
+            category: "",
+            subCategory: "",
+            unit: "",
+            isActive: true
+          }]);
+          setMasterItemErrors({});
+          setShowAddToMasterModal(false);
+          setShowMasterSuccess(false);
+        }, 2000);
+      } else {
+        alert("Failed to add master inventory items");
+      }
+    } catch (error) {
+      console.error("Error adding master items:", error);
+      alert("Error adding master items: " + error.message);
+    } finally {
+      setMasterItemLoading(false);
+    }
+  };
+
+  // Handle Edit Inventory Search
+  const handleSearchEditInventory = async () => {
+    if (inventoryFormData.enterpriseId === 0) {
+      setInventoryError("Please select an Enterprise");
+      return;
+    }
+    if (inventoryFormData.clinicId === 0) {
+      setInventoryError("Please select a Clinic");
+      return;
+    }
+
+    setInventoryLoading(true);
+    try {
+      // Use the correct API endpoint: GetClinicInventoryByClinicId
+      const response = await fetch(
+        `https://localhost:7104/api/Inventory/GetClinicInventoryByClinicId?clinicId=${inventoryFormData.clinicId}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("📦 Inventory items loaded:", data);
+        setInventoryResults(Array.isArray(data) ? data : data.data || []);
+        setInventoryError("");
+      } else {
+        setInventoryError("No inventory items found for this clinic");
+        setInventoryResults([]);
+      }
+    } catch (error) {
+      console.error("Error loading inventory:", error);
+      setInventoryError("Error loading inventory. Please try again.");
+      setInventoryResults([]);
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
+
+  // Handle Save All Inventory Changes
+  const handleSaveInventoryChanges = async () => {
+    setInventoryLoading(true);
+    try {
+      const payload = {
+        enterpriseId: parseInt(inventoryFormData.enterpriseId),
+        clinicId: parseInt(inventoryFormData.clinicId),
+        items: inventoryResults.map((item) => ({
+          inventoryId: item.inventoryId || 0,
+          itemId: item.itemId,
+          itemName: item.itemName,
+          enterpriseId: inventoryFormData.enterpriseId,
+          clinicId: inventoryFormData.clinicId,
+          quantityAvailable: parseInt(item.quantityAvailable) || 0,
+          reorderLevel: parseInt(item.reorderLevel) || 0,
+          minimumStock: parseInt(item.minimumStock) || 0,
+          storageLocation: item.storageLocation || "",
+          status: item.status || "Available"
+        }))
+      };
+
+      console.log("💾 Saving inventory changes:", payload);
+
+      const response = await fetch(`https://localhost:7104/api/inventory/SaveClinicInventoryBatch?enterpriseId=${inventoryFormData.enterpriseId}&clinicId=${inventoryFormData.clinicId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: JSON.stringify(payload.items)
+      });
+
+      if (response.ok) {
+        const randomMessage = funnyInventoryMessages[Math.floor(Math.random() * funnyInventoryMessages.length)];
+        setInventorySuccessMessage(randomMessage);
+        setShowInventorySuccess(true);
+
+        setTimeout(() => {
+          setShowEditInventoryModal(false);
+          setShowInventorySuccess(false);
+        }, 2000);
+      } else {
+        const errorText = await response.text();
+        setInventoryError(errorText || "Failed to update inventory");
+      }
+    } catch (error) {
+      console.error("Error updating inventory:", error);
+      setInventoryError("Error updating inventory. Please try again.");
+    } finally {
+      setInventoryLoading(false);
     }
   };
 
@@ -692,7 +1365,7 @@ export default function Clinics(){
       description: "Search and edit doctors",
       color: "from-violet-400 to-purple-400",
       bgColor: "from-violet-50 to-purple-50",
-      action: () => navigate("/doctors/view")
+      action: () => onAction("View Doctors")
     },
     { 
       title: "Doctor-Clinic Mapping", 
@@ -701,6 +1374,51 @@ export default function Clinics(){
       color: "from-pink-400 to-rose-400",
       bgColor: "from-pink-50 to-rose-50",
       action: () => navigate("/doctors/clinic-mapping")
+    }
+  ];
+
+  // Inventory Management Actions
+  const inventoryActions = [
+    { 
+      title: "Add Inventory", 
+      icon: "📦", 
+      description: "Add new inventory items",
+      color: "from-cyan-400 to-blue-400",
+      bgColor: "from-cyan-50 to-blue-50",
+      action: () => {
+        setShowAddInventoryModal(true);
+        setInventoryError("");
+        setInventoryFormData({
+          enterpriseId: 0,
+          clinicId: 0,
+          items: [
+            {
+              inventoryItemId: 0,
+              itemName: "",
+              quantity: 0,
+              unit: "pcs",
+              description: ""
+            }
+          ]
+        });
+      }
+    },
+    { 
+      title: "Edit Inventory", 
+      icon: "✏️", 
+      description: "Manage existing inventory",
+      color: "from-orange-400 to-amber-400",
+      bgColor: "from-orange-50 to-amber-50",
+      action: () => {
+        setShowEditInventoryModal(true);
+        setInventoryError("");
+        setInventoryResults([]);
+        setInventoryFormData({
+          enterpriseId: 0,
+          clinicId: 0,
+          items: []
+        });
+      }
     }
   ];
 
@@ -960,6 +1678,67 @@ export default function Clinics(){
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.3 + index * 0.05 }}
+                whileHover={{ scale: 1.05, y: -5 }}
+                whileTap={{ scale: 0.98 }}
+                onHoverStart={() => setHoveredCard(action.title)}
+                onHoverEnd={() => setHoveredCard(null)}
+                onClick={action.action}
+                className="relative cursor-pointer group"
+              >
+                <div className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${action.color} p-6 shadow-lg hover:shadow-2xl transition-all duration-300`}>
+                  {/* Animated shine effect */}
+                  <motion.div
+                    animate={{
+                      x: hoveredCard === action.title ? ["-100%", "200%"] : "-100%",
+                    }}
+                    transition={{
+                      duration: 0.6,
+                      ease: "easeInOut"
+                    }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12"
+                  />
+                  
+                  {/* Content */}
+                  <div className="relative z-10">
+                    <motion.div
+                      animate={{
+                        rotate: hoveredCard === action.title ? [0, -10, 10, -10, 0] : 0,
+                      }}
+                      transition={{ duration: 0.5 }}
+                      className="text-5xl mb-3"
+                    >
+                      {action.icon}
+                    </motion.div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      {action.title}
+                    </h3>
+                    <p className="text-white/90 text-sm">
+                      {action.description}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* INVENTORY MANAGEMENT SECTION */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <h2 className="text-2xl font-bold text-slate-800 mb-4 flex items-center gap-3">
+            <span>📦</span>
+            Inventory Management
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {inventoryActions.map((action, index) => (
+              <motion.div
+                key={action.title}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4 + index * 0.05 }}
                 whileHover={{ scale: 1.05, y: -5 }}
                 whileTap={{ scale: 0.98 }}
                 onHoverStart={() => setHoveredCard(action.title)}
@@ -3823,6 +4602,1578 @@ export default function Clinics(){
                   Close
                 </motion.button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Search Doctors Modal */}
+      <AnimatePresence>
+        {showSearchDoctorsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowSearchDoctorsModal(false)}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-6 text-white sticky top-0 z-10">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-2xl font-bold">🔍 Search Doctors</h3>
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowSearchDoctorsModal(false)}
+                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center"
+                  >
+                    <span className="text-2xl">×</span>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Search Criteria */}
+              <div className="p-6 border-b border-gray-200 bg-gray-50">
+                <h4 className="text-lg font-bold text-slate-800 mb-4">Search Criteria</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Enterprise ID */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Enterprise <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={searchDoctorsParams.enterpriseId}
+                      onChange={(e) => {
+                        setSearchDoctorsParams(prev => ({
+                          ...prev,
+                          enterpriseId: parseInt(e.target.value) || 0,
+                          clinicId: 0 // Reset clinic when enterprise changes
+                        }));
+                        setSearchDoctorsError("");
+                      }}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none font-medium bg-white"
+                    >
+                      <option value="0">-- Select Enterprise --</option>
+                      {allEnterprises.map((enterprise) => (
+                        <option key={enterprise.enterpriseId} value={enterprise.enterpriseId}>
+                          [{enterprise.enterpriseId}] {enterprise.enterpriseName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Clinic ID */}
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                      Clinic <span className="text-gray-400">(Optional)</span>
+                    </label>
+                    <select
+                      value={searchDoctorsParams.clinicId}
+                      onChange={(e) =>
+                        setSearchDoctorsParams(prev => ({
+                          ...prev,
+                          clinicId: parseInt(e.target.value) || 0
+                        }))
+                      }
+                      disabled={searchDoctorsParams.enterpriseId === 0}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none font-medium bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="0">-- All Clinics --</option>
+                      {doctorClinics.map((clinic) => (
+                        <option key={clinic.clinicId} value={clinic.clinicId}>
+                          [{clinic.clinicId}] {clinic.clinicName} {clinic.address ? `- ${clinic.address}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Error Message */}
+                {searchDoctorsError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-4 p-3 bg-red-100 border-2 border-red-300 text-red-700 rounded-lg font-semibold flex items-center gap-2"
+                  >
+                    <span>⚠️</span> {searchDoctorsError}
+                  </motion.div>
+                )}
+
+                {/* Search Button */}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleSearchDoctors}
+                  disabled={searchDoctorsLoading}
+                  className="mt-4 w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-lg hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {searchDoctorsLoading ? "Searching..." : "🔍 Search Doctors"}
+                </motion.button>
+              </div>
+
+              {/* Results Section */}
+              <div className="p-6">
+                {searchDoctorsLoading ? (
+                  <div className="flex justify-center items-center h-64">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 2 }}
+                      className="w-12 h-12 border-4 border-purple-200 border-t-purple-500 rounded-full"
+                    />
+                  </div>
+                ) : searchDoctorsResults.length > 0 ? (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-bold text-slate-800 mb-4">
+                      👨‍⚕️ Found {searchDoctorsResults.length} Doctor(s)
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {searchDoctorsResults.map((doctor) => (
+                        <motion.div
+                          key={doctor.doctorId}
+                          whileHover={{ y: -5, boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)" }}
+                          onClick={() => handleViewDoctorDetails(doctor.doctorId)}
+                          className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg cursor-pointer hover:border-purple-400 transition"
+                        >
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <h5 className="text-lg font-bold text-slate-800">
+                                {doctor.firstName} {doctor.lastName}
+                              </h5>
+                              <p className="text-sm text-slate-600">ID: {doctor.doctorId}</p>
+                            </div>
+                            <span className="text-2xl">👨‍⚕️</span>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <p>
+                              <span className="font-semibold text-slate-700">Specialty:</span>{" "}
+                              <span className="text-slate-600">ID {doctor.specialtyId}</span>
+                            </p>
+                            <p>
+                              <span className="font-semibold text-slate-700">Status:</span>{" "}
+                              <span className={doctor.employmentStatus === "Active" ? "text-green-600 font-bold" : "text-orange-600"}>
+                                {doctor.employmentStatus || "Unknown"}
+                              </span>
+                            </p>
+                            <p className="text-xs text-slate-500 pt-2">Click to view details</p>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-slate-600">
+                    <p className="text-lg font-semibold mb-2">No doctors found</p>
+                    <p className="text-sm">Try searching with different criteria</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Doctor Details Modal */}
+      <AnimatePresence>
+        {showDoctorDetailsModal && selectedDoctorView && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => {
+              setShowDoctorDetailsModal(false);
+              setIsEditingDoctorDetails(false);
+            }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-500 p-6 text-white sticky top-0 z-10">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-2xl font-bold">
+                    {selectedDoctorView.firstName} {selectedDoctorView.lastName}
+                  </h3>
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => {
+                      setShowDoctorDetailsModal(false);
+                      setIsEditingDoctorDetails(false);
+                    }}
+                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center"
+                  >
+                    <span className="text-2xl">×</span>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                {doctorDetailsLoading ? (
+                  <div className="flex justify-center items-center h-64">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 2 }}
+                      className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-500 rounded-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Personal Information */}
+                    <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                      <h4 className="text-lg font-bold text-slate-800 mb-4">👤 Personal Information</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">First Name</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="text"
+                              value={doctorEditFormData?.firstName || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, firstName: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.firstName}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Last Name</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="text"
+                              value={doctorEditFormData?.lastName || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, lastName: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.lastName}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Gender</p>
+                          {isEditingDoctorDetails ? (
+                            <select
+                              value={doctorEditFormData?.gender || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, gender: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            >
+                              <option value="">Select</option>
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.gender}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Date of Birth</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="date"
+                              value={doctorEditFormData?.dateOfBirth?.split('T')[0] || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">
+                              {selectedDoctorView.dateOfBirth ? new Date(selectedDoctorView.dateOfBirth).toLocaleDateString() : "N/A"}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Doctor ID</p>
+                          <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.doctorId}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Staff ID</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="text"
+                              value={doctorEditFormData?.staffId || ""}
+                              disabled
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-gray-100 opacity-50 cursor-not-allowed"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.staffId}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contact Information */}
+                    <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                      <h4 className="text-lg font-bold text-slate-800 mb-4">📞 Contact Information</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Email</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="email"
+                              value={doctorEditFormData?.email || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, email: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.email}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Phone</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="tel"
+                              value={doctorEditFormData?.phone || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, phone: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.phone}</p>
+                          )}
+                        </div>
+                        <div className="md:col-span-2">
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Address</p>
+                          {isEditingDoctorDetails ? (
+                            <textarea
+                              value={doctorEditFormData?.address || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, address: e.target.value }))
+                              }
+                              rows="2"
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.address}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Professional Information */}
+                    <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4">
+                      <h4 className="text-lg font-bold text-slate-800 mb-4">🎓 Professional Information</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">License Number</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="text"
+                              value={doctorEditFormData?.licenseNumber || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, licenseNumber: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.licenseNumber}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">License Expiry</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="date"
+                              value={doctorEditFormData?.licenseExpiry?.split('T')[0] || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, licenseExpiry: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">
+                              {selectedDoctorView.licenseExpiry ? new Date(selectedDoctorView.licenseExpiry).toLocaleDateString() : "N/A"}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Specialty ID</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="number"
+                              value={doctorEditFormData?.specialtyId || 0}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, specialtyId: parseInt(e.target.value) || 0 }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.specialtyId}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Years Experience</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="number"
+                              value={doctorEditFormData?.yearsExperience || 0}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, yearsExperience: parseInt(e.target.value) || 0 }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.yearsExperience}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Education</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="text"
+                              value={doctorEditFormData?.education || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, education: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.education}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Certifications</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="text"
+                              value={doctorEditFormData?.certifications || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, certifications: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.certifications}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Employment Information */}
+                    <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
+                      <h4 className="text-lg font-bold text-slate-800 mb-4">💼 Employment Information</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Joining Date</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="date"
+                              value={doctorEditFormData?.joiningDate?.split('T')[0] || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, joiningDate: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">
+                              {selectedDoctorView.joiningDate ? new Date(selectedDoctorView.joiningDate).toLocaleDateString() : "N/A"}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Employment Status</p>
+                          {isEditingDoctorDetails ? (
+                            <select
+                              value={doctorEditFormData?.employmentStatus || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, employmentStatus: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            >
+                              <option value="">Select</option>
+                              <option value="Active">Active</option>
+                              <option value="Inactive">Inactive</option>
+                              <option value="Leave">Leave</option>
+                            </select>
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.employmentStatus}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Branch ID</p>
+                          {isEditingDoctorDetails ? (
+                            <input
+                              type="text"
+                              value={doctorEditFormData?.branchId || ""}
+                              onChange={(e) =>
+                                setDoctorEditFormData(prev => ({ ...prev, branchId: e.target.value }))
+                              }
+                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
+                            />
+                          ) : (
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.branchId}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Organization Information */}
+                    <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4">
+                      <h4 className="text-lg font-bold text-slate-800 mb-4">🏢 Organization Information</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Enterprise ID</p>
+                          <p className="text-slate-800 font-semibold mt-1 bg-gray-100 p-2 rounded opacity-50">
+                            {selectedDoctorView.enterpriseId}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-slate-600 uppercase">Clinic ID</p>
+                          <p className="text-slate-800 font-semibold mt-1 bg-gray-100 p-2 rounded opacity-50">
+                            {selectedDoctorView.clinicId}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-gray-200 p-6 bg-gray-50 flex gap-3 justify-end sticky bottom-0">
+                {isEditingDoctorDetails ? (
+                  <>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleCancelEditDoctor}
+                      className="px-6 py-2 bg-slate-600 text-white rounded-lg font-semibold hover:bg-slate-700 transition"
+                    >
+                      Cancel
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleUpdateDoctor}
+                      disabled={doctorDetailsLoading}
+                      className="px-6 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50"
+                    >
+                      {doctorDetailsLoading ? "Saving..." : "💾 Save Changes"}
+                    </motion.button>
+                  </>
+                ) : (
+                  <>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setShowDoctorDetailsModal(false)}
+                      className="px-6 py-2 bg-slate-600 text-white rounded-lg font-semibold hover:bg-slate-700 transition"
+                    >
+                      Close
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleEditDoctor}
+                      className="px-6 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg font-semibold hover:shadow-lg transition"
+                    >
+                      ✏️ Edit
+                    </motion.button>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Modal - Doctor Update */}
+      <AnimatePresence>
+        {showDoctorUpdateSuccessModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.2, 1] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className="text-6xl mb-4"
+              >
+                ✅
+              </motion.div>
+              <h3 className="text-2xl font-bold text-green-600 mb-2">Success!</h3>
+              <p className="text-slate-600 mb-6">{doctorUpdateSuccessMessage}</p>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  setShowDoctorUpdateSuccessModal(false);
+                  setShowDoctorDetailsModal(false);
+                }}
+                className="w-full px-6 py-3 bg-green-500 text-white rounded-lg font-bold hover:bg-green-600 transition"
+              >
+                OK
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Error Modal - Doctor Update */}
+      <AnimatePresence>
+        {showDoctorUpdateErrorModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center"
+            >
+              <motion.div
+                animate={{ rotate: [0, 10, -10, 0] }}
+                transition={{ repeat: Infinity, duration: 1 }}
+                className="text-6xl mb-4"
+              >
+                ❌
+              </motion.div>
+              <h3 className="text-2xl font-bold text-red-600 mb-2">Error</h3>
+              <p className="text-slate-600 mb-6">{doctorUpdateErrorMessage}</p>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowDoctorUpdateErrorModal(false)}
+                className="w-full px-6 py-3 bg-red-500 text-white rounded-lg font-bold hover:bg-red-600 transition"
+              >
+                OK
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Inventory Modal */}
+      <AnimatePresence>
+        {showAddInventoryModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowAddInventoryModal(false)}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-cyan-500 to-blue-500 p-6 text-white sticky top-0 z-10">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-2xl font-bold">📦 Add Inventory Items</h3>
+                  <div className="flex gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      type="button"
+                      onClick={() => setShowAddToMasterModal(true)}
+                      className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-semibold text-sm transition"
+                    >
+                      ➕ Add to Master
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1, rotate: 90 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setShowAddInventoryModal(false)}
+                      className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center"
+                    >
+                      <span className="text-2xl">×</span>
+                    </motion.button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Content */}
+              <div className="p-6">
+                <form onSubmit={handleAddInventorySubmit} className="space-y-6">
+                  {/* Enterprise & Clinic Selection */}
+                  <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                    <h4 className="text-lg font-bold text-slate-800 mb-4">🏢 Select Location</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Enterprise <span className="text-red-500">*</span></label>
+                        <select
+                          value={inventoryFormData.enterpriseId}
+                          onChange={(e) => {
+                            const enterpriseId = parseInt(e.target.value) || 0;
+                            setInventoryFormData(prev => ({
+                              ...prev,
+                              enterpriseId,
+                              clinicId: 0
+                            }));
+                            setInventoryError("");
+                            loadClinicsForInventory(enterpriseId);
+                          }}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-cyan-500 focus:outline-none"
+                        >
+                          <option value="0">-- Select Enterprise --</option>
+                          {allEnterprises.map((enterprise) => (
+                            <option key={enterprise.enterpriseId} value={enterprise.enterpriseId}>
+                              [{enterprise.enterpriseId}] {enterprise.enterpriseName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Clinic <span className="text-red-500">*</span></label>
+                        <select
+                          value={inventoryFormData.clinicId}
+                          onChange={(e) => setInventoryFormData(prev => ({ ...prev, clinicId: parseInt(e.target.value) || 0 }))}
+                          disabled={inventoryFormData.enterpriseId === 0}
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-cyan-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        >
+                          <option value="0">-- Select Clinic --</option>
+                          {inventoryClinics.map((clinic) => (
+                            <option key={clinic.clinicId} value={clinic.clinicId}>
+                              [{clinic.clinicId}] {clinic.clinicName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Inventory Items */}
+                  {inventoryFormData.enterpriseId > 0 && inventoryFormData.clinicId > 0 && (
+                    <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-lg p-5">
+                      <div className="flex items-center gap-2 mb-4">
+                        <span className="text-2xl">📋</span>
+                        <h4 className="text-lg font-bold text-slate-800">Inventory Items</h4>
+                        <span className="ml-auto text-sm font-semibold text-emerald-700 bg-emerald-200 px-3 py-1 rounded-full">{inventoryFormData.items.length} item{inventoryFormData.items.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="space-y-4">
+                        {inventoryFormData.items.map((item, index) => (
+                          <motion.div
+                            key={index}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white border-2 border-emerald-200 rounded-lg p-4 hover:shadow-md transition"
+                          >
+                            {/* Row Header */}
+                            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-emerald-100">
+                              <span className="font-bold text-emerald-700 bg-emerald-100 w-8 h-8 rounded-full flex items-center justify-center text-sm">#{index + 1}</span>
+                              <span className="text-xs font-semibold text-gray-500">Item Details</span>
+                              {inventoryFormData.items.length > 1 && (
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  type="button"
+                                  onClick={() => handleRemoveInventoryRow(index)}
+                                  className="ml-auto px-3 py-1 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200 transition text-sm"
+                                >
+                                  ✕ Remove
+                                </motion.button>
+                              )}
+                            </div>
+
+                            {/* Main Fields Grid - 2 columns for better organization */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              {/* Item Name Dropdown */}
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">Item Name *</label>
+                                <select
+                                  value={item.itemId || ''}
+                                  onChange={(e) => {
+                                    const itemId = parseInt(e.target.value);
+                                    const selectedMaster = masterInventoryItems.find(m => m.itemId === itemId);
+                                    if (selectedMaster) {
+                                      handleInventoryItemChange(index, "itemId", itemId);
+                                      handleInventoryItemChange(index, "itemName", selectedMaster.itemName);
+                                    }
+                                  }}
+                                  className="w-full px-3 py-2 border-2 border-emerald-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none bg-white"
+                                >
+                                  <option value="">Select from Master</option>
+                                  {masterInventoryItems.map(item => (
+                                    <option key={item.itemId} value={item.itemId}>
+                                      {item.itemName}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Quantity Available */}
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">Quantity Available *</label>
+                                <input
+                                  type="number"
+                                  value={item.quantityAvailable}
+                                  onChange={(e) => handleInventoryItemChange(index, "quantityAvailable", parseInt(e.target.value) || 0)}
+                                  placeholder="0"
+                                  min="0"
+                                  className="w-full px-3 py-2 border-2 border-emerald-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Reorder Level */}
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">Reorder Level</label>
+                                <input
+                                  type="number"
+                                  value={item.reorderLevel}
+                                  onChange={(e) => handleInventoryItemChange(index, "reorderLevel", parseInt(e.target.value) || 0)}
+                                  placeholder="0"
+                                  min="0"
+                                  className="w-full px-3 py-2 border-2 border-emerald-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Minimum Stock */}
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">Minimum Stock</label>
+                                <input
+                                  type="number"
+                                  value={item.minimumStock}
+                                  onChange={(e) => handleInventoryItemChange(index, "minimumStock", parseInt(e.target.value) || 0)}
+                                  placeholder="0"
+                                  min="0"
+                                  className="w-full px-3 py-2 border-2 border-emerald-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Storage Location */}
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">Storage Location</label>
+                                <input
+                                  type="text"
+                                  value={item.storageLocation}
+                                  onChange={(e) => handleInventoryItemChange(index, "storageLocation", e.target.value)}
+                                  placeholder="e.g., Shelf A-1"
+                                  className="w-full px-3 py-2 border-2 border-emerald-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Status */}
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">Status</label>
+                                <select
+                                  value={item.status}
+                                  onChange={(e) => handleInventoryItemChange(index, "status", e.target.value)}
+                                  className="w-full px-3 py-2 border-2 border-emerald-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none bg-white"
+                                >
+                                  <option value="Available">Available</option>
+                                  <option value="LowStock">LowStock</option>
+                                  <option value="OutOfStock">OutOfStock</option>
+                                </select>
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+
+                      {/* Add Another Item Button */}
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        type="button"
+                        onClick={handleAddInventoryRow}
+                        className="mt-5 w-full px-4 py-3 border-2 border-dashed border-emerald-400 text-emerald-600 rounded-lg font-semibold hover:bg-emerald-50 transition bg-emerald-50/50"
+                      >
+                        + Add Another Item
+                      </motion.button>
+                    </div>
+                  )}
+
+                  {/* Error Message */}
+                  {inventoryError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 bg-red-100 border-2 border-red-300 text-red-700 rounded-lg font-semibold flex items-center gap-2"
+                    >
+                      <span>⚠️</span> {inventoryError}
+                    </motion.div>
+                  )}
+
+                  {/* Submit Button */}
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit"
+                    disabled={inventoryLoading || inventoryFormData.enterpriseId === 0 || inventoryFormData.clinicId === 0}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-lg hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {inventoryLoading ? "Adding..." : "✅ Add Inventory Items"}
+                  </motion.button>
+                </form>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Inventory Modal with Innovative Display */}
+      <AnimatePresence>
+        {showEditInventoryModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowEditInventoryModal(false)}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 text-white sticky top-0 z-10">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-2xl font-bold">✏️ Edit Inventory</h3>
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowEditInventoryModal(false)}
+                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center"
+                  >
+                    <span className="text-2xl">×</span>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                {/* Enterprise & Clinic Selection for Search */}
+                {inventoryResults.length === 0 ? (
+                  <div className="space-y-6">
+                    <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4">
+                      <h4 className="text-lg font-bold text-slate-800 mb-4">🏢 Select Location to View Inventory</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Enterprise <span className="text-red-500">*</span></label>
+                          <select
+                            value={inventoryFormData.enterpriseId}
+                            onChange={(e) => {
+                              const enterpriseId = parseInt(e.target.value) || 0;
+                              setInventoryFormData(prev => ({
+                                ...prev,
+                                enterpriseId,
+                                clinicId: 0
+                              }));
+                              setInventoryError("");
+                              loadClinicsForInventory(enterpriseId);
+                            }}
+                            className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                          >
+                            <option value="0">-- Select Enterprise --</option>
+                            {allEnterprises.map((enterprise) => (
+                              <option key={enterprise.enterpriseId} value={enterprise.enterpriseId}>
+                                [{enterprise.enterpriseId}] {enterprise.enterpriseName}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-2">Clinic <span className="text-red-500">*</span></label>
+                          <select
+                            value={inventoryFormData.clinicId}
+                            onChange={(e) => setInventoryFormData(prev => ({ ...prev, clinicId: parseInt(e.target.value) || 0 }))}
+                            disabled={inventoryFormData.enterpriseId === 0}
+                            className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          >
+                            <option value="0">-- Select Clinic --</option>
+                            {inventoryClinics.map((clinic) => (
+                              <option key={clinic.clinicId} value={clinic.clinicId}>
+                                [{clinic.clinicId}] {clinic.clinicName}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Error Message */}
+                    {inventoryError && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-3 bg-red-100 border-2 border-red-300 text-red-700 rounded-lg font-semibold flex items-center gap-2"
+                      >
+                        <span>⚠️</span> {inventoryError}
+                      </motion.div>
+                    )}
+
+                    {/* Search Button */}
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleSearchEditInventory}
+                      disabled={inventoryLoading || inventoryFormData.enterpriseId === 0 || inventoryFormData.clinicId === 0}
+                      className="w-full px-6 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold rounded-lg hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {inventoryLoading ? "Loading..." : "🔍 Load Inventory Items"}
+                    </motion.button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Back Button */}
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setInventoryResults([]);
+                        setInventoryError("");
+                      }}
+                      className="px-4 py-2 bg-gray-400 text-white rounded-lg font-semibold hover:bg-gray-500 transition"
+                    >
+                      ← Back to Search
+                    </motion.button>
+
+                    {/* Innovative Inventory Display - Compact & Beautiful */}
+                    <div className="space-y-3">
+                      <h4 className="text-xl font-bold text-slate-800 mb-4">📦 Inventory Items ({inventoryResults.length})</h4>
+                      
+                      {/* Ultra-Compact Grid Layout - 4-5 columns on large screens */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                        {inventoryResults.map((item, index) => (
+                          <motion.div
+                            key={`inventory-${item.inventoryId || index}`}
+                            initial={{ opacity: 0, scale: 0.7 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: index * 0.03 }}
+                            whileHover={{ y: -8, scale: 1.05 }}
+                            className={`group relative rounded-lg overflow-hidden cursor-pointer shadow-md hover:shadow-xl transition-all ${
+                              item.status === 'Available' 
+                                ? 'bg-gradient-to-br from-emerald-100 via-green-50 to-teal-100 border border-emerald-300' 
+                                : item.status === 'LowStock'
+                                ? 'bg-gradient-to-br from-yellow-100 via-amber-50 to-orange-100 border border-yellow-300'
+                                : 'bg-gradient-to-br from-red-100 via-pink-50 to-rose-100 border border-red-300'
+                            }`}
+                          >
+                            {/* Animated background shimmer */}
+                            <motion.div
+                              animate={{ opacity: [0.3, 0.6, 0.3] }}
+                              transition={{ duration: 3, repeat: Infinity }}
+                              className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-30"
+                            />
+
+                            <div className="relative z-10 p-3">
+                              {/* Status Badge */}
+                              <div className="flex items-center justify-between mb-2">
+                                <motion.div
+                                  animate={{ scale: [1, 1.2, 1] }}
+                                  transition={{ duration: 2, repeat: Infinity }}
+                                  className="text-2xl"
+                                >
+                                  {item.status === 'Available' ? '✅' : item.status === 'LowStock' ? '⚠️' : '❌'}
+                                </motion.div>
+                                <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                                  item.status === 'Available' 
+                                    ? 'bg-emerald-200 text-emerald-800' 
+                                    : item.status === 'LowStock'
+                                    ? 'bg-yellow-200 text-yellow-800'
+                                    : 'bg-red-200 text-red-800'
+                                }`}>
+                                  {item.status}
+                                </span>
+                              </div>
+
+                              {/* Item Name */}
+                              <h5 className="text-sm font-bold text-slate-800 mb-2 line-clamp-2 leading-tight">{item.itemName}</h5>
+
+                              {/* Quick Stats */}
+                              <div className="space-y-1.5 bg-white/60 backdrop-blur-sm rounded-lg p-2.5 mb-2">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-semibold text-slate-600">Qty:</span>
+                                  <span className={`text-sm font-bold ${
+                                    item.status === 'Available' 
+                                      ? 'text-emerald-700' 
+                                      : item.status === 'LowStock'
+                                      ? 'text-amber-700'
+                                      : 'text-red-700'
+                                  }`}>
+                                    {item.quantityAvailable}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-semibold text-slate-600">Min:</span>
+                                  <span className="text-xs font-semibold text-slate-700">{item.minimumStock}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-semibold text-slate-600">Loc:</span>
+                                  <span className="text-xs text-slate-700 text-right line-clamp-1">{item.storageLocation || '—'}</span>
+                                </div>
+                              </div>
+
+                              {/* Edit Button */}
+                              <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.95 }}
+                                type="button"
+                                onClick={() => setEditingItemIndex(editingItemIndex === index ? null : index)}
+                                className="w-full px-2 py-1.5 bg-gradient-to-r from-blue-400 to-cyan-400 text-white rounded font-bold text-xs hover:shadow-lg transition"
+                              >
+                                {editingItemIndex === index ? '✓ Done' : '✏️ Edit'}
+                              </motion.button>
+                            </div>
+
+                            {/* Edit Mode - Overlay */}
+                            <AnimatePresence>
+                              {editingItemIndex === index && (
+                                <motion.div
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                  className="absolute inset-0 bg-black/40 backdrop-blur-sm z-20 flex items-center justify-center p-2"
+                                >
+                                  <motion.div
+                                    initial={{ scale: 0.8 }}
+                                    animate={{ scale: 1 }}
+                                    className="bg-white rounded-lg shadow-2xl p-3 w-full max-h-[90vh] overflow-y-auto"
+                                  >
+                                    <h6 className="font-bold text-slate-800 mb-2 text-sm">Edit {item.itemName}</h6>
+                                    <div className="space-y-2 text-sm">
+                                      <div>
+                                        <label className="text-xs font-semibold text-slate-600">Qty Available</label>
+                                        <input
+                                          type="number"
+                                          value={item.quantityAvailable}
+                                          onChange={(e) => {
+                                            const updated = [...inventoryResults];
+                                            updated[index].quantityAvailable = parseInt(e.target.value) || 0;
+                                            setInventoryResults(updated);
+                                          }}
+                                          className="mt-0.5 w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                          min="0"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-xs font-semibold text-slate-600">Reorder Level</label>
+                                        <input
+                                          type="number"
+                                          value={item.reorderLevel}
+                                          onChange={(e) => {
+                                            const updated = [...inventoryResults];
+                                            updated[index].reorderLevel = parseInt(e.target.value) || 0;
+                                            setInventoryResults(updated);
+                                          }}
+                                          className="mt-0.5 w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                          min="0"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-xs font-semibold text-slate-600">Min Stock</label>
+                                        <input
+                                          type="number"
+                                          value={item.minimumStock}
+                                          onChange={(e) => {
+                                            const updated = [...inventoryResults];
+                                            updated[index].minimumStock = parseInt(e.target.value) || 0;
+                                            setInventoryResults(updated);
+                                          }}
+                                          className="mt-0.5 w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                          min="0"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-xs font-semibold text-slate-600">Location</label>
+                                        <input
+                                          type="text"
+                                          value={item.storageLocation}
+                                          onChange={(e) => {
+                                            const updated = [...inventoryResults];
+                                            updated[index].storageLocation = e.target.value;
+                                            setInventoryResults(updated);
+                                          }}
+                                          className="mt-0.5 w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                          placeholder="Shelf A-1"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-xs font-semibold text-slate-600">Status</label>
+                                        <select
+                                          value={item.status}
+                                          onChange={(e) => {
+                                            const updated = [...inventoryResults];
+                                            updated[index].status = e.target.value;
+                                            setInventoryResults(updated);
+                                          }}
+                                          className="mt-0.5 w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                        >
+                                          <option value="Available">Available</option>
+                                          <option value="LowStock">LowStock</option>
+                                          <option value="OutOfStock">OutOfStock</option>
+                                        </select>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Error Message */}
+                    {inventoryError && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-3 bg-red-100 border-2 border-red-300 text-red-700 rounded-lg font-semibold flex items-center gap-2"
+                      >
+                        <span>⚠️</span> {inventoryError}
+                      </motion.div>
+                    )}
+
+                    {/* Save All Button */}
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleSaveInventoryChanges}
+                      disabled={inventoryLoading || editingItemIndex !== null}
+                      className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-lg hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {inventoryLoading ? "Saving..." : "💾 Save All Changes"}
+                    </motion.button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add to Master Inventory Modal */}
+      <AnimatePresence>
+        {showAddToMasterModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowAddToMasterModal(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 text-white sticky top-0 z-10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">📦</span>
+                    <div>
+                      <h3 className="text-2xl font-bold">Add to Master Inventory</h3>
+                      <p className="text-purple-100 text-sm mt-1">Add new items to your master catalog</p>
+                    </div>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowAddToMasterModal(false)}
+                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center"
+                  >
+                    <span className="text-2xl">×</span>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Form Content */}
+              <form onSubmit={handleAddToMasterSubmit} className="p-6">
+                <div className="space-y-4 mb-6">
+                  {masterItemRows.map((row, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg p-5 hover:shadow-md transition"
+                    >
+                      {/* Row Header */}
+                      <div className="flex items-center gap-2 mb-4 pb-3 border-b border-purple-200">
+                        <span className="font-bold text-purple-700 bg-purple-200 w-8 h-8 rounded-full flex items-center justify-center text-sm">#{index + 1}</span>
+                        <span className="text-xs font-semibold text-gray-600">Item {index + 1}</span>
+                        {masterItemRows.length > 1 && (
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.95 }}
+                            type="button"
+                            onClick={() => handleRemoveMasterRow(index)}
+                            className="ml-auto px-3 py-1 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200 transition text-sm"
+                          >
+                            ✕ Remove
+                          </motion.button>
+                        )}
+                      </div>
+
+                      {/* 2x2 Grid for main fields */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        {/* Item Name */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Item Name *</label>
+                          <input
+                            type="text"
+                            value={row.itemName}
+                            onChange={(e) => handleMasterItemChange(index, "itemName", e.target.value)}
+                            placeholder="e.g., Composite Resin"
+                            className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Item Code */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Item Code/SKU *</label>
+                          <input
+                            type="text"
+                            value={row.itemCode}
+                            onChange={(e) => handleMasterItemChange(index, "itemCode", e.target.value)}
+                            placeholder="e.g., CR-001"
+                            className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Category */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Category *</label>
+                          <select
+                            value={row.category}
+                            onChange={(e) => handleMasterItemChange(index, "category", e.target.value)}
+                            className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none bg-white"
+                          >
+                            <option value="">Select Category</option>
+                            <option value="Consumables">Consumables</option>
+                            <option value="Equipment">Equipment</option>
+                            <option value="Instruments">Instruments</option>
+                            <option value="Medicines">Medicines</option>
+                            <option value="Supplies">Supplies</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+
+                        {/* Sub Category */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Sub Category</label>
+                          <input
+                            type="text"
+                            value={row.subCategory}
+                            onChange={(e) => handleMasterItemChange(index, "subCategory", e.target.value)}
+                            placeholder="e.g., Dental Materials"
+                            className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                          />
+                        </div>
+
+                        {/* Unit */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Unit *</label>
+                          <select
+                            value={row.unit}
+                            onChange={(e) => handleMasterItemChange(index, "unit", e.target.value)}
+                            className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none bg-white"
+                          >
+                            <option value="">Select Unit</option>
+                            <option value="pcs">pcs</option>
+                            <option value="box">box</option>
+                            <option value="dozen">dozen</option>
+                            <option value="kg">kg</option>
+                            <option value="liter">liter</option>
+                            <option value="ml">ml</option>
+                            <option value="tube">tube</option>
+                            <option value="bottle">bottle</option>
+                            <option value="pack">pack</option>
+                          </select>
+                        </div>
+
+                        {/* Active Status */}
+                        <div className="flex items-end">
+                          <label className="flex items-center gap-3 cursor-pointer w-full px-4 py-2 bg-purple-100 rounded-lg border-2 border-purple-200 hover:bg-purple-200 transition">
+                            <input
+                              type="checkbox"
+                              checked={row.isActive}
+                              onChange={(e) => handleMasterItemChange(index, "isActive", e.target.checked)}
+                              className="w-5 h-5 accent-purple-600 rounded"
+                            />
+                            <span className="font-semibold text-slate-700">Mark as Active</span>
+                          </label>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Add Another Row Button */}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  type="button"
+                  onClick={handleAddMasterRow}
+                  className="w-full px-4 py-3 border-2 border-dashed border-purple-400 text-purple-600 rounded-lg font-semibold hover:bg-purple-50 transition mb-6 bg-purple-50/50"
+                >
+                  ➕ Add Another Item
+                </motion.button>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="button"
+                    onClick={() => setShowAddToMasterModal(false)}
+                    className="flex-1 px-6 py-3 bg-gray-200 text-gray-800 font-bold rounded-lg hover:bg-gray-300 transition"
+                  >
+                    ❌ Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit"
+                    disabled={masterItemLoading}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {masterItemLoading ? "⏳ Saving..." : "✅ Save to Master"}
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Inventory Success Modal */}
+      <AnimatePresence>
+        {showInventorySuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, y: 50 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 50 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl shadow-2xl max-w-md w-full p-8 border-2 border-emerald-200"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.3, 1], rotate: [0, 10, -10, 0] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className="text-7xl mb-6 text-center"
+              >
+                🎉
+              </motion.div>
+              <h3 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent mb-4 text-center">Success!</h3>
+              <p className="text-lg font-semibold text-slate-800 mb-4 text-center leading-relaxed">{inventorySuccessMessage}</p>
+              <div className="flex items-center justify-center gap-1 mb-4">
+                <motion.div
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ repeat: Infinity, duration: 1, delay: 0 }}
+                  className="text-2xl"
+                >
+                  ✨
+                </motion.div>
+                <motion.div
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
+                  className="text-2xl"
+                >
+                  ✨
+                </motion.div>
+                <motion.div
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
+                  className="text-2xl"
+                >
+                  ✨
+                </motion.div>
+              </div>
+              <p className="text-sm text-emerald-600 font-semibold text-center">Your inventory has been updated</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Master Inventory Success Modal */}
+      <AnimatePresence>
+        {showMasterSuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, y: 50 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 50 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl shadow-2xl max-w-md w-full p-8 border-2 border-purple-200"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.3, 1], rotate: [0, -10, 10, 0] }}
+                transition={{ repeat: Infinity, duration: 2 }}
+                className="text-7xl mb-6 text-center"
+              >
+                🎁
+              </motion.div>
+              <h3 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-4 text-center">Master Updated!</h3>
+              <p className="text-lg font-semibold text-slate-800 mb-4 text-center leading-relaxed">{masterSuccessMessage}</p>
+              <div className="flex items-center justify-center gap-1 mb-4">
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 1, delay: 0 }}
+                  className="text-2xl"
+                >
+                  🌟
+                </motion.div>
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
+                  className="text-2xl"
+                >
+                  🌟
+                </motion.div>
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
+                  className="text-2xl"
+                >
+                  🌟
+                </motion.div>
+              </div>
+              <p className="text-sm text-purple-600 font-semibold text-center">New items added to your master catalog</p>
             </motion.div>
           </motion.div>
         )}

@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, getUserAccess, setSelectedAccess, getSelectedAccess } from "../services/authService";
+import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, getUserAccess, setSelectedAccess, getSelectedAccess, getAuthToken, checkTokenExpired } from "../services/authService";
 import { listDoctorProfiles } from "../services/doctorService";
+import LoginModal from "./LoginModal";
 
 const TABS = [
   { key: "home", path: "/", label: "Home", bgColor: "from-coral-100 to-peach-100", textColor: "text-coral-800", borderColor: "border-coral-400", hoverBg: "hover:bg-coral-200", icon: "🏠" },
   { key: "clinics", path: "/clinics", label: "Clinics", bgColor: "from-teal-100 to-sage-100", textColor: "text-teal-800", borderColor: "border-teal-400", hoverBg: "hover:bg-teal-200", icon: "🏥" },
   { key: "patients", path: "/patients", label: "Patients", bgColor: "from-peach-100 to-gold-100", textColor: "text-peach-800", borderColor: "border-peach-400", hoverBg: "hover:bg-peach-200", icon: "👥" },
   { key: "services", path: "/services", label: "Services", bgColor: "from-gold-100 to-peach-100", textColor: "text-gold-800", borderColor: "border-gold-400", hoverBg: "hover:bg-gold-200", icon: "🦷" },
+  { key: "inventory", path: "/inventory", label: "Inventory", bgColor: "from-emerald-100 to-teal-100", textColor: "text-emerald-800", borderColor: "border-emerald-400", hoverBg: "hover:bg-emerald-200", icon: "📦" },
   { key: "team-hub", path: "/team-hub", label: "Team Hub", bgColor: "from-indigo-100 to-purple-100", textColor: "text-indigo-800", borderColor: "border-indigo-400", hoverBg: "hover:bg-indigo-200", icon: "🌟" },
 ];
 
@@ -17,6 +19,7 @@ const CRUD_OPERATIONS = {
   clinics: ["create", "view", "update", "delete"],
   patients: ["create", "view", "update", "delete"],
   services: ["create", "view", "update", "delete"],
+  inventory: ["view", "clinic"],
   "team-hub": [],
 };
 
@@ -40,7 +43,8 @@ const SEARCH_DATA = [
   { type: "service", name: "Root Canal", path: "/services", icon: "🛠️", meta: "$500" },
   { type: "team-hub", name: "Team Hub", path: "/team-hub", icon: "🌟", meta: "Doctors & Staff" },
   { type: "doctors", name: "Doctors Lounge", path: "/doctors", icon: "👨‍⚕️", meta: "24 physicians" },
-  { type: "inventory", name: "Inventory Management", path: "/doctors", icon: "📦", meta: "6 items" },
+  { type: "inventory", name: "Inventory Master", path: "/inventory", icon: "📦", meta: "Manage items" },
+  { type: "inventory", name: "Clinic Inventory", path: "/inventory/clinic", icon: "🏥📦", meta: "Per-clinic items" },
 ];
 
 export default function Header(){
@@ -91,6 +95,56 @@ export default function Header(){
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Check authentication status on mount and restore session
+  useEffect(() => {
+    const checkAuthStatus = () => {
+      try {
+        const token = getAuthToken();
+        const userData = getUserData();
+        
+        if (token && !checkTokenExpired()) {
+          // Token exists and is valid - restore user session
+          setIsLoggedIn(true);
+          if (userData) {
+            setUserInfo({
+              name: userData.username || '',
+              role: 'User'
+            });
+            // Try to fetch full doctor name if available
+            listDoctorProfiles()
+              .then(doctors => {
+                const doctor = doctors.find(d => 
+                  d.email?.toLowerCase() === userData.username.toLowerCase() ||
+                  (d.firstName + d.lastName).toLowerCase().replace(/\s/g, '') === userData.username.toLowerCase().replace(/\s/g, '')
+                );
+                if (doctor) {
+                  setDoctorName(`Dr. ${doctor.firstName} ${doctor.lastName}`);
+                }
+              })
+              .catch(err => console.log("Could not fetch doctor profile:", err));
+          }
+        } else if (token && checkTokenExpired()) {
+          // Token expired - logout
+          console.log('⏰ Token expired - logging out');
+          handleLogout();
+        } else {
+          // No token - not logged in
+          setIsLoggedIn(false);
+        }
+      } catch (error) {
+        console.error('Error checking auth status:', error);
+        setIsLoggedIn(false);
+      }
+    };
+    
+    checkAuthStatus();
+    
+    // Check auth status every 10 seconds to handle token expiry
+    const interval = setInterval(checkAuthStatus, 10000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   const filteredSearch = SEARCH_DATA.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.meta.toLowerCase().includes(searchQuery.toLowerCase())
@@ -113,8 +167,7 @@ export default function Header(){
   };
 
   const handleLoginClick = () => {
-    setShowLoginModal(true);
-    setIsSignUp(false);
+    navigate('/login');
   };
 
   const handleFormSubmit = async (e) => {
@@ -287,6 +340,10 @@ export default function Header(){
       navigate("/clinics/view");
     } else if (tabKey === "patients" && operation === "delete") {
       navigate("/patients/delete");
+    } else if (tabKey === "inventory" && operation === "view") {
+      navigate("/inventory/view-master");
+    } else if (tabKey === "inventory" && operation === "clinic") {
+      navigate("/inventory/clinic");
     } else {
       navigate(`/${tabKey}/${operation}`);
     }
@@ -443,254 +500,16 @@ export default function Header(){
         </div>
       </header>
 
-      {/* Login/Signup Modal */}
-      <AnimatePresence>
-        {showLoginModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowLoginModal(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden relative"
-            >
-              {/* Animated Background Gradient */}
-              <motion.div
-                animate={{
-                  background: [
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                    "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-                    "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
-                    "linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)",
-                    "linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                  ]
-                }}
-                transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-0 opacity-10"
-              />
-
-              {/* Close Button */}
-              <button
-                onClick={() => setShowLoginModal(false)}
-                className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors z-20 bg-white/80 rounded-full p-1 hover:bg-white"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </button>
-
-              {/* Content */}
-              <div className="relative px-6 py-4">
-                {/* Compact Header */}
-                <div className="flex items-center justify-center gap-3 mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-coral-500 to-teal-500 rounded-full flex items-center justify-center shadow-lg">
-                    <span className="text-2xl">🦷</span>
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold bg-gradient-to-r from-coral-600 to-teal-600 bg-clip-text text-transparent">
-                      {isSignUp ? "Create Account" : "Welcome Back"}
-                    </h2>
-                    <p className="text-sm text-gray-600">
-                      {isSignUp ? "Join our dental community" : "Sign in to continue"}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Form */}
-                <form onSubmit={handleFormSubmit} className="space-y-2">
-                  {/* Error Alert */}
-                  {authError && (
-                    <div className="bg-red-50 border-l-4 border-red-500 p-2 rounded">
-                      <p className="text-red-800 text-sm flex items-center gap-1">
-                        <span>⚠️</span>
-                        {authError}
-                      </p>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Username</label>
-                    <input
-                      type="text"
-                      name="username"
-                      required
-                      value={formData.username}
-                      onChange={handleInputChange}
-                      className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
-                      placeholder="Enter username"
-                    />
-                  </div>
-
-                  {isSignUp && (
-                    <>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1">First Name</label>
-                          <input
-                            type="text"
-                            name="firstName"
-                            value={formData.firstName}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
-                            placeholder="First"
-                            maxLength={128}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1">Last Name</label>
-                          <input
-                            type="text"
-                            name="lastName"
-                            value={formData.lastName}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
-                            placeholder="Last"
-                            maxLength={128}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
-                          <input
-                            type="email"
-                            name="emailid"
-                            required
-                            value={formData.emailid}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
-                            placeholder="email@example.com"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1">Mobile</label>
-                          <input
-                            type="tel"
-                            name="mobileNumber"
-                            required
-                            value={formData.mobileNumber}
-                            onChange={handleInputChange}
-                            className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
-                            placeholder="1234567890"
-                            maxLength={10}
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
-                        <select
-                          name="roleId"
-                          value={formData.roleId}
-                          onChange={handleInputChange}
-                          className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
-                        >
-                          <option value="">Select Role (Optional)</option>
-                          <option value="1">Admin</option>
-                          <option value="2">Doctor</option>
-                          <option value="3">Receptionist</option>
-                          <option value="4">Staff</option>
-                        </select>
-                      </div>
-                    </>
-                  )}
-
-                  {isSignUp ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
-                        <input
-                          type="password"
-                          name="password"
-                          required
-                          value={formData.password}
-                          onChange={handleInputChange}
-                          className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
-                          placeholder="••••••••"
-                          minLength={6}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm</label>
-                        <input
-                          type="password"
-                          name="confirmPassword"
-                          required
-                          value={confirmPassword}
-                          onChange={handleInputChange}
-                          className={`w-full px-3 py-2 text-base rounded-lg border transition-all outline-none ${
-                            passwordMatchWarning 
-                              ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-100' 
-                              : 'border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200'
-                          }`}
-                          placeholder="••••••••"
-                        />
-                      </div>
-                      {passwordMatchWarning && (
-                        <p className="text-yellow-600 font-semibold text-sm col-span-2 -mt-1 animate-pulse">
-                          {passwordMatchWarning}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
-                      <input
-                        type="password"
-                        name="password"
-                        required
-                        value={formData.password}
-                        onChange={handleInputChange}
-                        className="w-full px-3 py-2 text-base rounded-lg border border-gray-300 focus:border-purple-500 focus:ring-1 focus:ring-purple-200 transition-all outline-none"
-                        placeholder="••••••••"
-                        minLength={6}
-                      />
-                    </div>
-                  )}
-
-                  {/* Submit Button */}
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-3 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-lg font-bold text-base shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <span className="animate-spin">⏳</span> {isSignUp ? "Creating..." : "Signing In..."}
-                      </span>
-                    ) : (
-                      isSignUp ? "🚀 Create Account" : "👋 Sign In"
-                    )}
-                  </button>
-
-                </form>
-
-                {/* Toggle Sign In/Sign Up */}
-                <div className="mt-3 text-center pb-3">
-                  <p className="text-gray-600 text-sm">
-                    {isSignUp ? "Already have an account?" : "Don't have an account?"}
-                    <button
-                      type="button"
-                      onClick={() => setIsSignUp(!isSignUp)}
-                      className="ml-2 text-purple-600 font-bold hover:text-purple-700 transition-colors text-sm"
-                    >
-                      {isSignUp ? "Sign In" : "Sign Up"}
-                    </button>
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Login Modal Component */}
+      <LoginModal 
+        isOpen={showLoginModal} 
+        onClose={() => setShowLoginModal(false)}
+        onLoginSuccess={() => {
+          setIsLoggedIn(true);
+          setShowWelcome(true);
+          setTimeout(() => setShowWelcome(false), 5000);
+        }}
+      />
 
       {/* Welcome Message */}
       <AnimatePresence>
@@ -818,8 +637,9 @@ export default function Header(){
                       view: { bg: "bg-blue-50 hover:bg-blue-100", text: "text-blue-700", icon: "📋" },
                       update: { bg: "bg-yellow-50 hover:bg-yellow-100", text: "text-yellow-700", icon: "✏️" },
                       delete: { bg: "bg-red-50 hover:bg-red-100", text: "text-red-700", icon: "🗑️" },
+                      clinic: { bg: "bg-purple-50 hover:bg-purple-100", text: "text-purple-700", icon: "🏥" },
                     };
-                    const opColor = colors[op];
+                    const opColor = colors[op] || { bg: "bg-gray-50 hover:bg-gray-100", text: "text-gray-700", icon: "⚙️" };
 
                     return (
                       <motion.button
