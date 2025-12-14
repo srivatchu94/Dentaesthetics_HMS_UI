@@ -31,13 +31,78 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
   });
 
   const [forgotPasswordData, setForgotPasswordData] = useState({
-    mobileNumber: '',
-    verificationCode: '',
+    userId: '',
+    selectedQuestions: [null, null, null],
+    answers: ['', '', ''],
     newPassword: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    username: ''
   });
+  const [allUsers, setAllUsers] = useState([]);
+  const [availableSecurityQuestions] = useState([
+    "What is your mother's maiden name?",
+    "What was the name of your first pet?",
+    "In which city were you born?",
+    "What was the make and model of your first car?",
+    "What is your favorite book?",
+    "What was your first job?",
+    "What is the name of the street you grew up on?"
+  ]);
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
 
-  // OTP Timer Effect
+  const resetForm = () => {
+    setUserType(null);
+    setLoginMethod(null);
+    setCredentials({ username: '', password: '' });
+    setOtpState({ 
+      email: '', 
+      otp: '', 
+      step: 'email',
+      otpSent: false,
+      otpSentTime: null,
+      timeRemaining: 0,
+      canResend: false
+    });
+    setShowForgotPassword(false);
+    setForgotPasswordStep('verification');
+    setForgotPasswordData({
+      userId: '',
+      selectedQuestions: [null, null, null],
+      answers: ['', '', ''],
+      newPassword: '',
+      confirmPassword: '',
+      username: ''
+    });
+    setError('');
+    setSuccessMessage('');
+  };
+
+  // Load all users when forgot password modal opens
+  useEffect(() => {
+    if (showForgotPassword && forgotPasswordStep === 'verification') {
+      loadAllUsers();
+    }
+  }, [showForgotPassword]);
+
+  const loadAllUsers = async () => {
+    try {
+      const response = await fetch('https://localhost:7104/api/User/GetAllUsers', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAllUsers(Array.isArray(data) ? data : data.data || []);
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
+
+  // OTP countdown effect
   useEffect(() => {
     if (!otpState.otpSent || !otpState.otpSentTime) return;
 
@@ -78,7 +143,6 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
   const handleCredentialsSubmit = async (e) => {
     e.preventDefault();
-    
     if (!credentials.username.trim() || !credentials.password.trim()) {
       setError('Please enter both username and password');
       return;
@@ -103,11 +167,11 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
           inactivityTimeoutMinutes: response.inactivityTimeoutMinutes || 30,
           maxSessionDurationHours: response.maxSessionDurationHours || 8
         });
-        
+
         localStorage.setItem('userType', userType);
 
         setSuccessMessage(`Welcome ${userType === 'doctor' ? 'Dr.' : 'Admin'} ${credentials.username}! 🎉`);
-        
+
         setTimeout(() => {
           resetForm();
           onClose();
@@ -125,7 +189,6 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
   const handleRequestOtp = async (e) => {
     e.preventDefault();
-    
     if (!otpState.email || !otpState.email.includes('@')) {
       setError('Please enter a valid email address');
       return;
@@ -133,38 +196,35 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
     setLoading(true);
     try {
-      // Call SendOtp API with email and userType
-      const response = await request(`${OTP_BASE_URL}/SendOtp`, {
+      await request(`${OTP_BASE_URL}/SendOtp`, {
         method: 'POST',
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           email: otpState.email,
           userType: userType === 'doctor' ? 'Doctor' : 'Admin'
         })
       });
-      
-      // Set OTP sent state with timestamp
+
       const now = Date.now();
-      setOtpState(prev => ({ 
-        ...prev, 
+      setOtpState(prev => ({
+        ...prev,
         step: 'otp',
         otpSent: true,
         otpSentTime: now,
         timeRemaining: 30,
         canResend: false
       }));
-      
+
       setSuccessMessage(`✅ OTP sent to ${otpState.email}`);
       setTimeout(() => setSuccessMessage(''), 5000);
-      setLoading(false);
     } catch (err) {
       setError(err.message || 'Failed to send OTP. Please try again.');
+    } finally {
       setLoading(false);
     }
   };
 
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
-    
     if (!otpState.otp || otpState.otp.length !== 6) {
       setError('Please enter a valid 6-digit OTP');
       return;
@@ -172,22 +232,21 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
     setLoading(true);
     try {
-      // Call VerifyOtp API
       const response = await request(`${OTP_BASE_URL}/VerifyOtp`, {
         method: 'POST',
-        body: JSON.stringify({ 
-          email: otpState.email, 
-          otp: otpState.otp 
+        body: JSON.stringify({
+          email: otpState.email,
+          otp: otpState.otp,
+          userType: userType === 'doctor' ? 'Doctor' : 'Administrator'
         })
       });
-      
-      // Save auth token from response
+
       saveAuthToken(response);
       localStorage.setItem('userType', userType);
       localStorage.setItem('email', otpState.email);
-      
+
       setSuccessMessage(`Welcome ${userType === 'doctor' ? 'Doctor' : 'Administrator'}! 🎉`);
-      
+
       setTimeout(() => {
         resetForm();
         onClose();
@@ -200,107 +259,163 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
     }
   };
 
-  const resetForm = () => {
-    setUserType(null);
-    setLoginMethod(null);
-    setCredentials({ username: '', password: '' });
-    setOtpState({ 
-      email: '', 
-      otp: '', 
-      step: 'email',
-      otpSent: false,
-      otpSentTime: null,
-      timeRemaining: 0,
-      canResend: false
-    });
-    setShowForgotPassword(false);
-    setForgotPasswordStep('verification');
-    setForgotPasswordData({
-      mobileNumber: '',
-      verificationCode: '',
-      newPassword: '',
-      confirmPassword: ''
-    });
-    setError('');
-    setSuccessMessage('');
+  // Return list of questions excluding ones already chosen in other slots
+  const getAvailableQuestions = (currentIndex) => {
+    const selected = forgotPasswordData.selectedQuestions;
+    return availableSecurityQuestions
+      .map((question, idx) => ({ id: idx, question }))
+      .filter((q) => {
+        const usedElsewhere = selected.some(
+          (sel, selIdx) => sel !== null && selIdx !== currentIndex && sel === q.id
+        );
+        return !usedElsewhere;
+      });
+  };
+
+  const handleSelectQuestion = (questionIndex, selectedQuestion) => {
+    const newSelected = [...forgotPasswordData.selectedQuestions];
+    newSelected[questionIndex] = selectedQuestion;
+    setForgotPasswordData(prev => ({
+      ...prev,
+      selectedQuestions: newSelected
+    }));
+  };
+
+  const handleAnswerChange = (questionIndex, answer) => {
+    const newAnswers = [...forgotPasswordData.answers];
+    newAnswers[questionIndex] = answer;
+    setForgotPasswordData(prev => ({
+      ...prev,
+      answers: newAnswers
+    }));
   };
 
   const handleVerifyForgotPassword = async (e) => {
     e.preventDefault();
-    
-    if (!forgotPasswordData.mobileNumber.trim()) {
-      setError('Please enter your mobile number');
-      return;
+
+    // Step 1: Validate security answers
+    if (forgotPasswordStep === 'verification') {
+      if (!forgotPasswordData.userId) {
+        setError('Please select a user ID');
+        return;
+      }
+
+      // Check if all 3 questions are selected and answered
+      if (forgotPasswordData.selectedQuestions.some(q => q === null)) {
+        setError('Please select all 3 security questions');
+        return;
+      }
+
+      if (forgotPasswordData.answers.some(a => !a.trim())) {
+        setError('Please answer all security questions');
+        return;
+      }
+
+      setForgotPasswordLoading(true);
+      try {
+        // Get username from selected user
+        const selectedUser = allUsers.find(u => u.userId === parseInt(forgotPasswordData.userId));
+        if (!selectedUser) {
+          setError('User not found');
+          return;
+        }
+
+        // Validate answers with backend
+        const response = await fetch('https://localhost:7104/api/Authentication/VerifySecurityAnswers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+          },
+          body: JSON.stringify({
+            userId: parseInt(forgotPasswordData.userId),
+            securityAnswers: forgotPasswordData.selectedQuestions.map((question, index) => ({
+              question: question,
+              answer: forgotPasswordData.answers[index]
+            }))
+          })
+        });
+
+        if (response.ok) {
+          setForgotPasswordData(prev => ({
+            ...prev,
+            username: selectedUser.email || selectedUser.username
+          }));
+          setForgotPasswordStep('reset');
+          setError('');
+        } else {
+          const errorData = await response.json();
+          setError(errorData.message || 'Security answers verification failed');
+        }
+      } catch (error) {
+        console.error('Error verifying security answers:', error);
+        setError('Error verifying security answers. Please try again.');
+      } finally {
+        setForgotPasswordLoading(false);
+      }
     }
+    // Step 2: Reset password
+    else if (forgotPasswordStep === 'reset') {
+      if (!forgotPasswordData.newPassword.trim()) {
+        setError('Please enter a new password');
+        return;
+      }
 
-    setLoading(true);
-    try {
-      // Call verification API with mobile number
-      const response = await request('/Authentication/VerifyMobileForPasswordReset', {
-        method: 'POST',
-        body: JSON.stringify({ 
-          mobileNumber: forgotPasswordData.mobileNumber
-        })
-      });
+      if (forgotPasswordData.newPassword !== forgotPasswordData.confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
 
-      // Show verification code sent message
-      setSuccessMessage('✅ Verification code sent to your registered phone number');
-      setForgotPasswordStep('reset');
-      setTimeout(() => setSuccessMessage(''), 3000);
-      setLoading(false);
-    } catch (err) {
-      setError(err.message || 'Failed to verify mobile number. Please try again.');
-      setLoading(false);
+      if (forgotPasswordData.newPassword.length < 6) {
+        setError('Password must be at least 6 characters');
+        return;
+      }
+
+      setForgotPasswordLoading(true);
+      try {
+        const response = await fetch('https://localhost:7104/api/Authentication/ResetPassword', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+          },
+          body: JSON.stringify({
+            userId: parseInt(forgotPasswordData.userId),
+            newPassword: forgotPasswordData.newPassword
+          })
+        });
+
+        if (response.ok) {
+          setForgotPasswordStep('success');
+          setError('');
+          setSuccessMessage('✅ Password reset successfully!');
+          setTimeout(() => {
+            resetForgotPassword();
+            setShowForgotPassword(false);
+          }, 2000);
+        } else {
+          const errorData = await response.json();
+          setError(errorData.message || 'Failed to reset password');
+        }
+      } catch (error) {
+        console.error('Error resetting password:', error);
+        setError('Error resetting password. Please try again.');
+      } finally {
+        setForgotPasswordLoading(false);
+      }
     }
   };
 
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
-    
-    if (!forgotPasswordData.verificationCode.trim()) {
-      setError('Please enter the verification code');
-      return;
-    }
-
-    if (!forgotPasswordData.newPassword.trim()) {
-      setError('Please enter a new password');
-      return;
-    }
-
-    if (forgotPasswordData.newPassword !== forgotPasswordData.confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (forgotPasswordData.newPassword.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Call password reset API
-      const response = await request('/Authentication/ResetPasswordByMobile', {
-        method: 'POST',
-        body: JSON.stringify({ 
-          mobileNumber: forgotPasswordData.mobileNumber,
-          verificationCode: forgotPasswordData.verificationCode,
-          newPassword: forgotPasswordData.newPassword
-        })
-      });
-
-      setForgotPasswordStep('success');
-      setSuccessMessage('✅ Password reset successfully!');
-      
-      setTimeout(() => {
-        setShowForgotPassword(false);
-        resetForm();
-      }, 3000);
-    } catch (err) {
-      setError(err.message || 'Failed to reset password. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+  const resetForgotPassword = () => {
+    setForgotPasswordStep('verification');
+    setForgotPasswordData({
+      userId: '',
+      selectedQuestions: [null, null, null],
+      answers: ['', '', ''],
+      newPassword: '',
+      confirmPassword: '',
+      username: ''
+    });
   };
 
   const handleClose = () => {
@@ -402,6 +517,228 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
                   </div>
                 </motion.div>
               </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
+  // Forgot Password Modal (always prioritize when triggered)
+  if (isOpen && showForgotPassword) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={() => setShowForgotPassword(false)}
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-700 relative"
+          >
+            {/* Back Button */}
+            <button
+              type="button"
+              onClick={() => setShowForgotPassword(false)}
+              style={{ cursor: 'pointer' }}
+              className="absolute top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-700/60 hover:bg-slate-600/80 text-white rounded-lg font-semibold transition-all hover:scale-105 active:scale-95"
+            >
+              ← Back
+            </button>
+
+            <div className="relative z-10 p-8 pt-16">
+              {/* Header */}
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-white mb-1">🔐 Reset Password</h2>
+                <p className="text-gray-400 text-sm">Recover your account access</p>
+              </div>
+
+              {/* Error */}
+              <AnimatePresence>
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mb-4 p-3 bg-red-500/20 border border-red-500 text-red-200 rounded-lg text-sm font-semibold"
+                  >
+                    ⚠️ {error}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Success Message */}
+              <AnimatePresence>
+                {successMessage && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mb-4 p-3 bg-green-500/20 border border-green-500 text-green-200 rounded-lg text-sm font-semibold"
+                  >
+                    {successMessage}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Verification Step - Security Questions */}
+              {forgotPasswordStep === 'verification' && (
+                <form onSubmit={handleVerifyForgotPassword} className="space-y-6">
+                  {/* User ID Selection */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-300 mb-2">👤 Select User ID</label>
+                    <p className="text-xs text-gray-500 mb-2">Select your username to verify security questions</p>
+                    <motion.select
+                      whileFocus={{ scale: 1.02 }}
+                      value={forgotPasswordData.userId}
+                      onChange={(e) => {
+                        const selected = allUsers.find(u => u.userId === e.target.value);
+                        setForgotPasswordData({
+                          ...forgotPasswordData,
+                          userId: e.target.value,
+                          username: selected?.username || ''
+                        });
+                        setError('');
+                      }}
+                      className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white focus:border-blue-500 focus:outline-none transition"
+                    >
+                      <option value="">-- Select User ID --</option>
+                      {allUsers.map(user => (
+                        <option key={user.userId} value={user.userId}>
+                          {user.username} ({user.email})
+                        </option>
+                      ))}
+                    </motion.select>
+                  </div>
+
+                  {/* Security Questions */}
+                  <div className="bg-slate-700/30 p-4 rounded-lg">
+                    <p className="text-sm font-semibold text-gray-300 mb-4">🔐 Answer 3 Security Questions</p>
+                    {[0, 1, 2].map((index) => (
+                      <div key={index} className="mb-4 last:mb-0">
+                        <label className="block text-sm font-semibold text-gray-300 mb-2">Question {index + 1}</label>
+                        <motion.select
+                          whileFocus={{ scale: 1.02 }}
+                          value={forgotPasswordData.selectedQuestions[index] || ''}
+                          onChange={(e) => handleSelectQuestion(index, parseInt(e.target.value))}
+                          className="w-full px-4 py-2 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white text-sm focus:border-blue-500 focus:outline-none transition mb-2"
+                        >
+                          <option value="">-- Select Question {index + 1} --</option>
+                          {getAvailableQuestions(index).map(q => (
+                            <option key={q.id} value={q.id}>
+                              {q.question}
+                            </option>
+                          ))}
+                        </motion.select>
+
+                        {forgotPasswordData.selectedQuestions[index] !== null && (
+                          <motion.input
+                            whileFocus={{ scale: 1.02 }}
+                            type="text"
+                            value={forgotPasswordData.answers[index]}
+                            onChange={(e) => handleAnswerChange(index, e.target.value)}
+                            placeholder={`Answer to question ${index + 1}`}
+                            className="w-full px-4 py-2 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white text-sm placeholder-gray-500 focus:border-blue-500 focus:outline-none transition"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    disabled={
+                      forgotPasswordLoading ||
+                      !forgotPasswordData.userId ||
+                      forgotPasswordData.selectedQuestions.some(q => q === null) ||
+                      forgotPasswordData.answers.some(a => !a.trim())
+                    }
+                    type="submit"
+                    className="w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {forgotPasswordLoading ? '⏳ Verifying Answers...' : '✅ Verify Answers'}
+                  </motion.button>
+                </form>
+              )}
+
+              {/* Password Reset Step */}
+              {forgotPasswordStep === 'reset' && (
+                <form onSubmit={handleVerifyForgotPassword} className="space-y-6">
+                  <div className="bg-blue-500/10 border-l-4 border-blue-500 p-4 rounded">
+                    <p className="text-sm text-blue-300">
+                      ✓ Resetting password for: <span className="font-bold text-blue-200">{forgotPasswordData.username}</span>
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-300 mb-2">🔑 New Password</label>
+                    <motion.input
+                      whileFocus={{ scale: 1.02 }}
+                      type="password"
+                      value={forgotPasswordData.newPassword}
+                      onChange={(e) => {
+                        setForgotPasswordData({ ...forgotPasswordData, newPassword: e.target.value });
+                        setError('');
+                      }}
+                      placeholder="Enter new password (minimum 6 characters)"
+                      className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-300 mb-2">🔐 Confirm Password</label>
+                    <motion.input
+                      whileFocus={{ scale: 1.02 }}
+                      type="password"
+                      value={forgotPasswordData.confirmPassword}
+                      onChange={(e) => {
+                        setForgotPasswordData({ ...forgotPasswordData, confirmPassword: e.target.value });
+                        setError('');
+                      }}
+                      placeholder="Confirm new password"
+                      className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition"
+                    />
+                  </div>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    disabled={
+                      forgotPasswordLoading ||
+                      !forgotPasswordData.newPassword ||
+                      !forgotPasswordData.confirmPassword
+                    }
+                    type="submit"
+                    className="w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {forgotPasswordLoading ? '⏳ Resetting...' : '🚀 Reset Password'}
+                  </motion.button>
+                </form>
+              )}
+
+              {/* Success Step */}
+              {forgotPasswordStep === 'success' && (
+                <div className="text-center space-y-4 py-8">
+                  <motion.div
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ repeat: Infinity, duration: 0.5 }}
+                    className="text-6xl"
+                  >
+                    ✅
+                  </motion.div>
+                  <h3 className="text-xl font-bold text-green-400">Password Reset Successfully!</h3>
+                  <p className="text-gray-400">Your password has been securely updated.</p>
+                  <p className="text-sm text-gray-500">The login dialog will close in a moment...</p>
+                </div>
+              )}
             </div>
           </motion.div>
         </motion.div>
@@ -985,57 +1322,98 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
                 )}
               </AnimatePresence>
 
-              {/* Verification Step */}
+              {/* Verification Step - Security Questions */}
               {forgotPasswordStep === 'verification' && (
                 <form onSubmit={handleVerifyForgotPassword} className="space-y-6">
+                  {/* User ID Selection */}
                   <div>
-                    <label className="block text-sm font-semibold text-gray-300 mb-2">📱 Mobile Number</label>
-                    <p className="text-xs text-gray-500 mb-2">Enter the mobile number registered with your account</p>
-                    <motion.input
+                    <label className="block text-sm font-semibold text-gray-300 mb-2">👤 Select User ID</label>
+                    <p className="text-xs text-gray-500 mb-2">Select your username to verify security questions</p>
+                    <motion.select
                       whileFocus={{ scale: 1.02 }}
-                      type="tel"
-                      value={forgotPasswordData.mobileNumber}
+                      value={forgotPasswordData.userId}
                       onChange={(e) => {
-                        setForgotPasswordData({ ...forgotPasswordData, mobileNumber: e.target.value });
+                        const selected = allUsers.find(u => u.userId === e.target.value);
+                        setForgotPasswordData({
+                          ...forgotPasswordData,
+                          userId: e.target.value,
+                          username: selected?.username || ''
+                        });
                         setError('');
                       }}
-                      placeholder="+91 XXXXX XXXXX"
-                      className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition"
-                    />
+                      className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white focus:border-blue-500 focus:outline-none transition"
+                    >
+                      <option value="">-- Select User ID --</option>
+                      {allUsers.map(user => (
+                        <option key={user.userId} value={user.userId}>
+                          {user.username} ({user.email})
+                        </option>
+                      ))}
+                    </motion.select>
+                  </div>
+
+                  {/* Security Questions */}
+                  <div className="bg-slate-700/30 p-4 rounded-lg">
+                    <p className="text-sm font-semibold text-gray-300 mb-4">🔐 Answer 3 Security Questions</p>
+                    {[0, 1, 2].map((index) => (
+                      <div key={index} className="mb-4 last:mb-0">
+                        <label className="block text-sm font-semibold text-gray-300 mb-2">Question {index + 1}</label>
+                        <motion.select
+                          whileFocus={{ scale: 1.02 }}
+                          value={forgotPasswordData.selectedQuestions[index] || ''}
+                          onChange={(e) => handleSelectQuestion(index, parseInt(e.target.value))}
+                          className="w-full px-4 py-2 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white text-sm focus:border-blue-500 focus:outline-none transition mb-2"
+                        >
+                          <option value="">-- Select Question {index + 1} --</option>
+                          {getAvailableQuestions(index).map(q => (
+                            <option key={q.id} value={q.id}>
+                              {q.question}
+                            </option>
+                          ))}
+                        </motion.select>
+
+                        {forgotPasswordData.selectedQuestions[index] !== null && (
+                          <motion.input
+                            whileFocus={{ scale: 1.02 }}
+                            type="text"
+                            value={forgotPasswordData.answers[index]}
+                            onChange={(e) => handleAnswerChange(index, e.target.value)}
+                            placeholder={`Answer to question ${index + 1}`}
+                            className="w-full px-4 py-2 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white text-sm placeholder-gray-500 focus:border-blue-500 focus:outline-none transition"
+                          />
+                        )}
+                      </div>
+                    ))}
                   </div>
 
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    disabled={loading || !forgotPasswordData.mobileNumber.trim()}
+                    disabled={
+                      forgotPasswordLoading ||
+                      !forgotPasswordData.userId ||
+                      forgotPasswordData.selectedQuestions.some(q => q === null) ||
+                      forgotPasswordData.answers.some(a => !a.trim())
+                    }
                     type="submit"
                     className="w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {loading ? '⏳ Verifying...' : '📤 Send Verification Code'}
+                    {forgotPasswordLoading ? '⏳ Verifying Answers...' : '✅ Verify Answers'}
                   </motion.button>
                 </form>
               )}
 
               {/* Password Reset Step */}
               {forgotPasswordStep === 'reset' && (
-                <form onSubmit={handleResetPassword} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-300 mb-2">Verification Code</label>
-                    <motion.input
-                      whileFocus={{ scale: 1.02 }}
-                      type="text"
-                      value={forgotPasswordData.verificationCode}
-                      onChange={(e) => {
-                        setForgotPasswordData({ ...forgotPasswordData, verificationCode: e.target.value });
-                        setError('');
-                      }}
-                      placeholder="Enter code from SMS"
-                      className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition"
-                    />
+                <form onSubmit={handleVerifyForgotPassword} className="space-y-6">
+                  <div className="bg-blue-500/10 border-l-4 border-blue-500 p-4 rounded">
+                    <p className="text-sm text-blue-300">
+                      ✓ Resetting password for: <span className="font-bold text-blue-200">{forgotPasswordData.username}</span>
+                    </p>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-300 mb-2">New Password</label>
+                    <label className="block text-sm font-semibold text-gray-300 mb-2">🔑 New Password</label>
                     <motion.input
                       whileFocus={{ scale: 1.02 }}
                       type="password"
@@ -1044,13 +1422,13 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
                         setForgotPasswordData({ ...forgotPasswordData, newPassword: e.target.value });
                         setError('');
                       }}
-                      placeholder="Enter new password"
+                      placeholder="Enter new password (minimum 6 characters)"
                       className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-300 mb-2">Confirm Password</label>
+                    <label className="block text-sm font-semibold text-gray-300 mb-2">🔐 Confirm Password</label>
                     <motion.input
                       whileFocus={{ scale: 1.02 }}
                       type="password"
@@ -1067,18 +1445,22 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    disabled={loading}
+                    disabled={
+                      forgotPasswordLoading ||
+                      !forgotPasswordData.newPassword ||
+                      !forgotPasswordData.confirmPassword
+                    }
                     type="submit"
-                    className="w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {loading ? '⏳ Resetting...' : '✅ Reset Password'}
+                    {forgotPasswordLoading ? '⏳ Resetting...' : '🚀 Reset Password'}
                   </motion.button>
                 </form>
               )}
 
               {/* Success Step */}
               {forgotPasswordStep === 'success' && (
-                <div className="text-center space-y-4 py-6">
+                <div className="text-center space-y-4 py-8">
                   <motion.div
                     animate={{ scale: [1, 1.2, 1] }}
                     transition={{ repeat: Infinity, duration: 0.5 }}
@@ -1087,7 +1469,8 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
                     ✅
                   </motion.div>
                   <h3 className="text-xl font-bold text-green-400">Password Reset Successfully!</h3>
-                  <p className="text-gray-400">You can now login with your new password</p>
+                  <p className="text-gray-400">Your password has been securely updated.</p>
+                  <p className="text-sm text-gray-500">The login dialog will close in a moment...</p>
                 </div>
               )}
             </div>

@@ -553,15 +553,18 @@ const TeamHub = () => {
     }
   };
 
-  // Load recently onboarded doctors for selected clinic
-  const loadDoctorsForSecurityQuestions = async (clinicId) => {
-    if (!clinicId) {
-      setSecurityQuestionsDoctors([]);
-      return;
-    }
-
+  // Load doctors for selected clinic or enterprise
+  const loadDoctorsForSecurityQuestions = async (enterpriseId, clinicId = null) => {
     try {
-      const response = await fetch(`https://localhost:7104/api/Doctor/GetDoctorsByClinic?clinicId=${clinicId}`, {
+      let url;
+      // If clinic is selected, load doctors for that clinic; otherwise load doctors for entire enterprise
+      if (clinicId) {
+        url = `https://localhost:7104/api/Doctor/GetDoctorsByClinic?clinicId=${clinicId}`;
+      } else {
+        url = `https://localhost:7104/api/Doctor/GetDoctorsByEnterpriseID?enterpriseId=${enterpriseId}`;
+      }
+
+      const response = await fetch(url, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -571,14 +574,14 @@ const TeamHub = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("🩺 Doctors loaded for security questions:", data);
+        console.log(`🩺 Doctors loaded for security questions:`, data);
         setSecurityQuestionsDoctors(Array.isArray(data) ? data : data.data || []);
       }
     } catch (error) {
       console.error("Error loading doctors:", error);
       setSecurityQuestionsDoctors([]);
     }
-  };
+  }
 
   // Handle security questions setup
   const handleSecurityQuestionsSubmit = async (e) => {
@@ -590,10 +593,7 @@ const TeamHub = () => {
         setSecurityQuestionsError("Please select an enterprise");
         return;
       }
-      if (!securityQuestionsFormData.clinicId) {
-        setSecurityQuestionsError("Please select a clinic");
-        return;
-      }
+      // Clinic is now optional - if not selected, doctors are loaded from entire enterprise
       if (!securityQuestionsFormData.doctorId) {
         setSecurityQuestionsError("Please select a doctor");
         return;
@@ -2911,6 +2911,8 @@ const TeamHub = () => {
                           const enterpriseId = parseInt(e.target.value);
                           setSecurityQuestionsFormData(prev => ({ ...prev, enterpriseId, clinicId: 0, doctorId: '', doctorName: '' }));
                           loadClinicsForSecurityQuestions(enterpriseId);
+                          // Load doctors from entire enterprise initially
+                          loadDoctorsForSecurityQuestions(enterpriseId, null);
                         }}
                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none"
                       >
@@ -2923,31 +2925,34 @@ const TeamHub = () => {
                       </select>
                     </div>
 
-                    {/* Clinic Selection */}
+                    {/* Clinic Selection - Optional */}
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-2">Clinic ID <span className="text-red-500">*</span></label>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Clinic ID <span className="text-gray-500 text-sm">(Optional)</span></label>
                       <select
                         value={securityQuestionsFormData.clinicId}
                         onChange={(e) => {
-                          const clinicId = parseInt(e.target.value);
+                          const clinicId = parseInt(e.target.value) || 0;
                           setSecurityQuestionsFormData(prev => ({ ...prev, clinicId, doctorId: '', doctorName: '' }));
-                          loadDoctorsForSecurityQuestions(clinicId);
+                          // Load doctors from clinic if selected, otherwise from entire enterprise
+                          loadDoctorsForSecurityQuestions(securityQuestionsFormData.enterpriseId, clinicId || null);
                         }}
                         disabled={!securityQuestionsFormData.enterpriseId}
                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none disabled:bg-gray-100"
                       >
-                        <option value="">Select Clinic</option>
+                        <option value="">-- All Clinics in Enterprise --</option>
                         {securityQuestionsClinics.map(clinic => (
                           <option key={clinic.clinicId} value={clinic.clinicId}>
                             {clinic.clinicName || clinic.name}
                           </option>
                         ))}
                       </select>
+                      <p className="text-xs text-gray-500 mt-1">Leave blank to see doctors from all clinics in this enterprise</p>
                     </div>
 
                     {/* Doctor Selection */}
                     <div>
                       <label className="block text-sm font-bold text-gray-700 mb-2">Select Doctor <span className="text-red-500">*</span></label>
+                      <p className="text-xs text-gray-600 mb-2">From {securityQuestionsFormData.clinicId ? 'selected clinic' : 'enterprise'}</p>
                       <select
                         value={securityQuestionsFormData.doctorId}
                         onChange={(e) => {
@@ -2959,7 +2964,7 @@ const TeamHub = () => {
                             doctorName: selectedDoctor ? `${selectedDoctor.firstName} ${selectedDoctor.lastName}` : ''
                           }));
                         }}
-                        disabled={!securityQuestionsFormData.clinicId}
+                        disabled={!securityQuestionsFormData.enterpriseId}
                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none disabled:bg-gray-100"
                       >
                         <option value="">Select Doctor</option>
