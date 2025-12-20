@@ -11,6 +11,7 @@ const TABS = [
   { key: "patients", path: "/patients", label: "Patients", bgColor: "from-peach-100 to-gold-100", textColor: "text-peach-800", borderColor: "border-peach-400", hoverBg: "hover:bg-peach-200", icon: "👥" },
   { key: "services", path: "/services", label: "Services", bgColor: "from-gold-100 to-peach-100", textColor: "text-gold-800", borderColor: "border-gold-400", hoverBg: "hover:bg-gold-200", icon: "🦷" },
   { key: "inventory", path: "/inventory", label: "Inventory", bgColor: "from-emerald-100 to-teal-100", textColor: "text-emerald-800", borderColor: "border-emerald-400", hoverBg: "hover:bg-emerald-200", icon: "📦" },
+  { key: "analytics", path: "/analytics", label: "Analytics", bgColor: "from-purple-100 to-pink-100", textColor: "text-purple-800", borderColor: "border-purple-400", hoverBg: "hover:bg-purple-200", icon: "📊" },
   { key: "team-hub", path: "/team-hub", label: "Team Hub", bgColor: "from-indigo-100 to-purple-100", textColor: "text-indigo-800", borderColor: "border-indigo-400", hoverBg: "hover:bg-indigo-200", icon: "🌟" },
 ];
 
@@ -20,6 +21,7 @@ const CRUD_OPERATIONS = {
   patients: ["create", "view", "update", "delete"],
   services: ["create", "view", "update", "delete"],
   inventory: ["view", "clinic"],
+  analytics: [],
   "team-hub": [],
 };
 

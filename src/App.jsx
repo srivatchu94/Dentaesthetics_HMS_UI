@@ -30,6 +30,7 @@ import Inventory from "./pages/Inventory.jsx";
 import AddMasterInventory from "./pages/AddMasterInventory.jsx";
 import ViewMasterInventory from "./pages/ViewMasterInventory.jsx";
 import ClinicInventory from "./pages/ClinicInventory.tsx";
+import Analytics from "./pages/Analytics.jsx";
 import Footer from "./components/Footer";
 import WhatsAppChatbot from "./components/WhatsAppChatbot";
 
@@ -69,6 +70,7 @@ export default function App(){
           <Route path="/inventory/add-master" element={<AddMasterInventory />} />
           <Route path="/inventory/view-master" element={<ViewMasterInventory />} />
           <Route path="/inventory/clinic" element={<ClinicInventory />} />
+          <Route path="/analytics" element={<Analytics />} />
           <Route path="/error-preview" element={<ErrorPage error={{ message: "This is a preview of the error page for testing purposes!" }} />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
           </Routes>
