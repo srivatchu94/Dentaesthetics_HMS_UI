@@ -1,11 +1,12 @@
 // Appointments Model matching backend API
 export interface AppointmentsModel {
   appointmentId?: number;
-  
+
   // References
   patientId: number;
   clinicId: number;
   doctorId?: number | null;
+  visitId?: number | null;
   attendingPhysician?: string | null;
   enterpriseId?: number;
 
@@ -30,11 +31,11 @@ export interface AppointmentsModel {
 
   // Status & billing
   status?: string | null;               // e.g., "Scheduled", "Completed", "Cancelled", "NoShow"
-  isConfirmed?: boolean;
+  isConfirmed?: boolean;                // Indicates if the appointment is confirmed
   billableAmount?: number | null;       // Amount to be billed for this appointment
   paidAmount?: number | null;
   pendingAmount?: number | null;
-  paymentStatus?: string | null;       // e.g., "Pending", "Paid", "Invoice", "Partial"
+  paymentStatus?: string | null;        // e.g., "Pending", "Paid", "Invoice", "Partial"
 
   // Audit
   createdAt?: string;                   // DateTime as ISO string

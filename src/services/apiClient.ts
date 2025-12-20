@@ -7,12 +7,33 @@ export const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://
 import { getAuthToken, getSelectedAccess } from './authService';
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  console.log('');
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('🌐 API REQUEST STARTING');
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('📍 Endpoint:', path);
+  console.log('🔧 Method:', options.method || 'GET');
+  
   // Get token from localStorage (persists across page refreshes)
   const token = getAuthToken();
+  console.log('🔑 Token retrieved:', token ? `Yes (${token.length} chars)` : '❌ NO TOKEN');
   
   // Get selected enterprise/clinic from localStorage
   const selectedAccess = getSelectedAccess();
   console.log('📥 getSelectedAccess() returned:', selectedAccess);
+  console.log('   Type:', typeof selectedAccess);
+  console.log('   Is null?', selectedAccess === null);
+  console.log('   Is undefined?', selectedAccess === undefined);
+  
+  if (selectedAccess) {
+    console.log('✅ selectedAccess exists:');
+    console.log('   - enterpriseId:', selectedAccess.enterpriseId, '(type:', typeof selectedAccess.enterpriseId, ')');
+    console.log('   - clinicId:', selectedAccess.clinicId, '(type:', typeof selectedAccess.clinicId, ')');
+    console.log('   - roleIds:', selectedAccess.roleIds);
+  } else {
+    console.error('❌ selectedAccess is NULL or UNDEFINED!');
+    console.error('   This will cause missing headers error!');
+  }
   
   // Check if user is authenticated
   if (!token) {
@@ -29,7 +50,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   // Add Authorization header if token exists
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
-    console.log(`🔑 Token added to request (length: ${token.length} chars)`);
+    console.log(`🔑 ✅ Authorization header added`);
   } else {
     console.error('❌ NO TOKEN AVAILABLE - Request will fail authentication');
   }
@@ -39,30 +60,24 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     headers['X-Enterprise-Id'] = selectedAccess.enterpriseId.toString();
     headers['X-Clinic-Id'] = selectedAccess.clinicId.toString();
     
+    console.log('✅ Headers being added:');
+    console.log('   X-Enterprise-Id:', headers['X-Enterprise-Id']);
+    console.log('   X-Clinic-Id:', headers['X-Clinic-Id']);
+    
     // Add roleIds if they exist (backend might need this for ValidateAccess)
     if (selectedAccess.roleIds && selectedAccess.roleIds.length > 0) {
       headers['X-Role-Ids'] = selectedAccess.roleIds.join(',');
+      console.log('   X-Role-Ids:', headers['X-Role-Ids']);
     }
-    
-    console.log(`🔐 API Request: ${path}`);
-    console.log(`📦 Headers:`, {
-      Authorization: token ? `Bearer ${token.substring(0, 20)}...` : 'MISSING',
-      'X-Enterprise-Id': selectedAccess.enterpriseId,
-      'X-Clinic-Id': selectedAccess.clinicId,
-      'X-Role-Ids': selectedAccess.roleIds ? selectedAccess.roleIds.join(',') : 'N/A'
-    });
   } else {
-    console.warn(`⚠️ API Request: ${path} (No enterprise/clinic context)`);
-    console.log(`📦 Headers:`, {
-      Authorization: token ? `Bearer ${token.substring(0, 20)}...` : 'MISSING'
-    });
+    console.error('❌❌❌ CRITICAL: selectedAccess is NULL/UNDEFINED ❌❌❌');
+    console.error('❌ X-Enterprise-Id and X-Clinic-Id headers will NOT be added!');
+    console.error('❌ This WILL cause a 400 error from backend!');
   }
   
-  console.log(`🌐 Sending request to: ${BASE_URL}${path}`);
-  console.log(`📤 Full URL: ${BASE_URL}${path}`);
-  console.log(`🔧 Method: ${options.method || 'GET'}`);
-  console.log(`📋 Request Headers:`, headers);
-  console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
+  console.log('📋 Final Request Headers:', headers);
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('');
   
   let res;
   try {

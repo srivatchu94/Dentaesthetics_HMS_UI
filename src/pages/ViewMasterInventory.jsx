@@ -426,7 +426,7 @@ export default function ViewMasterInventory() {
               className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-indigo-500 text-white p-6 border-b-4 border-blue-600">
-                <h2 className="text-2xl font-bold">✏️ Edit Inventory Item</h2>
+                <h2 className="text-2xl font-bold">✏️ Manage Inventory Item</h2>
               </div>
 
               <div className="p-8 space-y-6">

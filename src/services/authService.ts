@@ -167,17 +167,34 @@ export const setSelectedAccess = (enterpriseId: number, clinicId: number, roleId
  */
 export const getSelectedAccess = (): { enterpriseId: number; clinicId: number; roleIds: number[] } | null => {
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.SELECTED_ACCESS_LS_KEY);
-    console.log(`🔍 getSelectedAccess() - Key: "${STORAGE_KEYS.SELECTED_ACCESS_LS_KEY}", Value:`, data);
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('🔍 getSelectedAccess() CALLED');
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('📦 Checking key:', STORAGE_KEYS.SELECTED_ACCESS_LS);
+    console.log('📦 All localStorage keys:', Object.keys(localStorage));
+    
+    const data = localStorage.getItem(STORAGE_KEYS.SELECTED_ACCESS_LS);
+    console.log('📦 Raw data from localStorage:', data);
+    console.log('📦 Data type:', typeof data);
+    console.log('📦 Data is null?', data === null);
+    console.log('📦 Data is undefined?', data === undefined);
     
     if (!data) {
-      console.warn(`⚠️ No selectedAccess found in localStorage key: "${STORAGE_KEYS.SELECTED_ACCESS_LS_KEY}"`);
-      console.log('💡 All localStorage keys:', Object.keys(localStorage));
+      console.error('❌ NO selectedAccess found in localStorage!');
+      console.error('❌ Key checked:', STORAGE_KEYS.SELECTED_ACCESS_LS);
+      console.error('💡 Available keys:', Object.keys(localStorage));
+      console.error('💡 Try checking key "selectedAccess":', localStorage.getItem('selectedAccess'));
+      console.log('═══════════════════════════════════════════════════════');
       return null;
     }
     
     const parsed = JSON.parse(data);
-    console.log(`✅ Parsed selectedAccess:`, parsed);
+    console.log('✅ Parsed selectedAccess:', parsed);
+    console.log('   - enterpriseId:', parsed.enterpriseId);
+    console.log('   - clinicId:', parsed.clinicId);
+    console.log('   - roleIds:', parsed.roleIds);
+    console.log('═══════════════════════════════════════════════════════');
+    return parsed;
     return parsed;
   } catch (error) {
     console.error('❌ Failed to parse selected access from localStorage:', error);

@@ -249,68 +249,124 @@ export default function InventoryMaster() {
             </button>
           </motion.div>
         ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
-            {inventoryItems.map((item, index) => (
-              <motion.div
-                key={item.itemId}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-all overflow-hidden border-2 border-emerald-100"
-              >
-                <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-4">
-                  <h3 className="text-lg font-bold text-white">{item.itemName}</h3>
-                  <p className="text-emerald-100 text-sm">SKU: {item.itemCode}</p>
-                </div>
+          <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-stone-200">
+            {/* Table Header */}
+            <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-6 py-4">
+              <div className="grid grid-cols-12 gap-4 text-white font-bold text-sm">
+                <div className="col-span-3">ITEM NAME</div>
+                <div className="col-span-2">CODE</div>
+                <div className="col-span-2">CATEGORY</div>
+                <div className="col-span-2">SUB-CATEGORY</div>
+                <div className="col-span-1">UNIT</div>
+                <div className="col-span-1 text-center">STATUS</div>
+                <div className="col-span-1 text-center">ACTIONS</div>
+              </div>
+            </div>
 
-                <div className="p-6">
-                  <div className="space-y-3">
-                    <div>
-                      <span className="text-xs font-semibold text-gray-600 uppercase">Category</span>
-                      <p className="text-sm text-gray-700">{item.category}</p>
+            {/* Table Body */}
+            <div className="divide-y divide-stone-100">
+              {inventoryItems.map((item, index) => (
+                <motion.div
+                  key={item.itemId}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.02 }}
+                  className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gradient-to-r hover:from-violet-50 hover:via-purple-50 hover:to-indigo-50 transition-all duration-200 group"
+                >
+                  {/* Item Name */}
+                  <div className="col-span-3 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center text-white font-bold shadow-md group-hover:scale-110 transition-transform">
+                      {item.itemName?.charAt(0)?.toUpperCase()}
                     </div>
                     <div>
-                      <span className="text-xs font-semibold text-gray-600 uppercase">Sub Category</span>
-                      <p className="text-sm text-gray-700">{item.subCategory}</p>
+                      <p className="font-bold text-stone-800 group-hover:text-violet-700 transition-colors">
+                        {item.itemName}
+                      </p>
                     </div>
-                    <div>
-                      <span className="text-xs font-semibold text-gray-600 uppercase">Unit</span>
-                      <p className="text-sm text-gray-700">{item.unit}</p>
-                    </div>
-                    <div className="flex items-center gap-2 pt-2">
-                      <span className="text-xs font-semibold text-gray-600 uppercase">Status</span>
-                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        item.isActive 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {item.isActive ? '✅ Active' : '❌ Inactive'}
+                  </div>
+
+                  {/* Item Code */}
+                  <div className="col-span-2 flex items-center">
+                    <span className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg font-mono font-semibold text-xs">
+                      {item.itemCode}
+                    </span>
+                  </div>
+
+                  {/* Category */}
+                  <div className="col-span-2 flex items-center">
+                    <span className="px-3 py-1.5 bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-700 rounded-lg font-semibold text-xs border border-emerald-200">
+                      {item.category}
+                    </span>
+                  </div>
+
+                  {/* Sub-Category */}
+                  <div className="col-span-2 flex items-center">
+                    {item.subCategory ? (
+                      <span className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg font-semibold text-xs">
+                        {item.subCategory}
                       </span>
-                    </div>
+                    ) : (
+                      <span className="text-stone-400 text-xs">—</span>
+                    )}
                   </div>
 
-                  <div className="flex gap-2 mt-6">
-                    <button
-                      onClick={() => openEditModal(item)}
-                      className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-2 rounded-lg font-semibold hover:from-amber-600 hover:to-orange-600 transition-all"
-                    >
-                      ✏️ Edit
-                    </button>
-                    <button
-                      onClick={() => openDeleteModal(item)}
-                      className="flex-1 bg-gradient-to-r from-red-500 to-rose-600 text-white px-3 py-2 rounded-lg font-semibold hover:from-red-600 hover:to-rose-700 transition-all"
-                    >
-                      🗑️ Delete
-                    </button>
+                  {/* Unit */}
+                  <div className="col-span-1 flex items-center">
+                    <span className="px-2 py-1 bg-stone-100 text-stone-700 rounded font-semibold text-xs">
+                      {item.unit}
+                    </span>
                   </div>
-                </div>
-              </motion.div>
-            ))}
-          </motion.div>
+
+                  {/* Status */}
+                  <div className="col-span-1 flex items-center justify-center">
+                    <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
+                      item.isActive 
+                        ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white' 
+                        : 'bg-gradient-to-r from-gray-300 to-stone-400 text-white'
+                    }`}>
+                      {item.isActive ? '✓ Active' : '✗ Inactive'}
+                    </span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="col-span-1 flex items-center justify-center gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => openEditModal(item)}
+                      className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-lg flex items-center justify-center shadow-md hover:shadow-lg transition-all"
+                      title="Edit Item"
+                    >
+                      ✏️
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1, rotate: -5 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => openDeleteModal(item)}
+                      className="w-8 h-8 bg-gradient-to-br from-red-500 to-rose-600 text-white rounded-lg flex items-center justify-center shadow-md hover:shadow-lg transition-all"
+                      title="Delete Item"
+                    >
+                      🗑️
+                    </motion.button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Table Footer with Stats */}
+            <div className="bg-gradient-to-r from-stone-50 to-stone-100 px-6 py-4 border-t-2 border-stone-200">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-stone-600 font-semibold">
+                  Total Items: <span className="text-violet-600 font-bold">{inventoryItems.length}</span>
+                </p>
+                <p className="text-sm text-stone-600 font-semibold">
+                  Active: <span className="text-green-600 font-bold">{inventoryItems.filter(i => i.isActive).length}</span>
+                  {' | '}
+                  Inactive: <span className="text-red-600 font-bold">{inventoryItems.filter(i => !i.isActive).length}</span>
+                </p>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Add Item Modal */}
@@ -455,7 +511,7 @@ export default function InventoryMaster() {
               >
                 <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6">
                   <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                    <span>✏️</span> Edit Inventory Item
+                    <span>✏️</span> Manage Inventory Item
                   </h2>
                 </div>
 

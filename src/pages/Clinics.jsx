@@ -1404,7 +1404,7 @@ export default function Clinics(){
       }
     },
     { 
-      title: "Edit Inventory", 
+      title: "Manage Inventory", 
       icon: "✏️", 
       description: "Manage existing inventory",
       color: "from-orange-400 to-amber-400",
@@ -5559,7 +5559,7 @@ export default function Clinics(){
               {/* Header */}
               <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 text-white sticky top-0 z-10">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold">✏️ Edit Inventory</h3>
+                  <h3 className="text-2xl font-bold">✏️ Manage Inventory</h3>
                   <motion.button
                     whileHover={{ scale: 1.1, rotate: 90 }}
                     whileTap={{ scale: 0.9 }}
