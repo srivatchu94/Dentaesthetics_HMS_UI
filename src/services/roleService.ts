@@ -11,7 +11,9 @@ export interface CreateRoleDto {
 export interface UpdateRoleDto extends Partial<CreateRoleDto> {}
 
 export function listRoles(): Promise<RoleModel[]> {
-  return request<RoleModel[]>("/roles");
+  // 📋 Using RoleMasterController.GetAllRoles() endpoint
+  console.log("📋 Fetching roles from RoleMaster/GetAllRoles API...");
+  return request<RoleModel[]>("/RoleMaster/GetAllRoles");
 }
 
 export function getRole(roleId: number): Promise<RoleModel> {

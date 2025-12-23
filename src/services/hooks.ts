@@ -29,7 +29,8 @@ import type {
 } from "./hmsApi";
 import type { DoctorProfileModel } from "../Interfaces/DoctorProfileModel";
 import type { StaffDetailsModel } from "../Interfaces/StaffDetailsModel";
-import { listDoctorProfiles, getDoctorProfile, listStaffDetails, getStaffDetail, listClinicalSpecialties, getClinicalSpecialty, createClinicalSpecialty, updateClinicalSpecialty, deleteClinicalSpecialty, listRoles, getRole, createRole, updateRole, deleteRole } from "./hmsApi";
+import { listDoctorProfiles, getDoctorProfile, listStaffDetails, getStaffDetail, listClinicalSpecialties, getClinicalSpecialty, createClinicalSpecialty, updateClinicalSpecialty, deleteClinicalSpecialty } from "./hmsApi";
+import { listRoles, getRole, createRole, updateRole, deleteRole } from "./roleService";
 import type { EnterpriseModel } from "../Interfaces";
 
 interface AsyncState<T> {

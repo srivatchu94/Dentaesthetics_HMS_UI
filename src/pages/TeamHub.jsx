@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { createDoctor, searchDoctors } from '../services/doctorService';
 import { bulkAssignRoles } from '../services/accessControlService';
+import { listRoles } from '../services/roleService';
+import { createStaffDetail } from '../services/staffService';
 
 const TeamHub = () => {
   const navigate = useNavigate();
@@ -38,6 +40,8 @@ const TeamHub = () => {
   const [credentialSuccessUsername, setCredentialSuccessUsername] = useState("");
   const [roleOptions, setRoleOptions] = useState([]);
   const [rolesLoading, setRolesLoading] = useState(false);
+  const [availableRolesFromApi, setAvailableRolesFromApi] = useState([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
   
   // Security Questions Modal States
   const [showSecurityQuestionsModal, setShowSecurityQuestionsModal] = useState(false);
@@ -123,7 +127,9 @@ const TeamHub = () => {
     { id: 20, staffId: "S020", firstName: "Simran", lastName: "Khanna", clinicId: "C003", currentRole: "Admin", email: "simran.khanna@dentaesthetics.com" }
   ];
   const [doctorFormData, setDoctorFormData] = useState({
-    staffId: "",
+    staffId: 0,
+    enterpriseId: "",
+    clinicId: "",
     firstName: "",
     lastName: "",
     dateOfBirth: "",
@@ -139,7 +145,7 @@ const TeamHub = () => {
     certifications: "",
     languages: "",
     joiningDate: "",
-    employmentStatus: "",
+    employmentStatus: "Active",
     availability: "",
     insuranceDetails: "",
     emergencyContact: "",
@@ -149,9 +155,29 @@ const TeamHub = () => {
     publications: "",
     socialLinks: "",
     branchId: "",
-    role: "Doctor",
-    roleId: 0
+    role: "",
+    roleId: "",
+    rolesAssigned: ""
   });
+
+  // Load roles from API on component mount
+  useEffect(() => {
+    const fetchRoles = async () => {
+      setLoadingRoles(true);
+      try {
+        const roles = await listRoles();
+        console.log("📋 Roles loaded from API:", roles);
+        setAvailableRolesFromApi(roles);
+        setRoleOptions(roles); // Also set for credential modal compatibility
+      } catch (error) {
+        console.error("❌ Error loading roles:", error);
+        alert("Failed to load roles. Please refresh the page.");
+      } finally {
+        setLoadingRoles(false);
+      }
+    };
+    fetchRoles();
+  }, []);
 
   const sections = [
     {
@@ -787,13 +813,13 @@ const TeamHub = () => {
     const errors = [];
     
     if (tab === "personal") {
-      if (!isReceptionistMode && !doctorFormData.staffId) errors.push("staffId");
-      if (!doctorFormData.branchId) errors.push("branchId");
+      if (!doctorFormData.enterpriseId) errors.push("enterpriseId");
+      if (!doctorFormData.clinicId) errors.push("clinicId");
       if (!doctorFormData.firstName) errors.push("firstName");
       if (!doctorFormData.lastName) errors.push("lastName");
       if (!doctorFormData.dateOfBirth) errors.push("dateOfBirth");
       if (!doctorFormData.gender) errors.push("gender");
-      if (isReceptionistMode && (!doctorFormData.roleId || doctorFormData.roleId === 0)) errors.push("roleId");
+      if (!doctorFormData.roleId || doctorFormData.roleId === "") errors.push("roleId");
     } else if (tab === "contact") {
       if (!doctorFormData.email) errors.push("email");
       if (!doctorFormData.phone) errors.push("phone");
@@ -816,12 +842,13 @@ const TeamHub = () => {
   const validateBeforeSubmit = () => {
     const missing = [];
     // Personal
-    if (!isReceptionistMode && (!doctorFormData.staffId || parseInt(doctorFormData.staffId) <= 0)) missing.push('Staff ID');
-    if (!doctorFormData.branchId || parseInt(doctorFormData.branchId) <= 0) missing.push('Branch ID');
+    if (!doctorFormData.enterpriseId || parseInt(doctorFormData.enterpriseId) <= 0) missing.push('Enterprise ID');
+    if (!doctorFormData.clinicId || parseInt(doctorFormData.clinicId) <= 0) missing.push('Clinic ID');
     if (!doctorFormData.firstName?.trim()) missing.push('First Name');
     if (!doctorFormData.lastName?.trim()) missing.push('Last Name');
     if (!doctorFormData.dateOfBirth) missing.push('Date of Birth');
     if (!doctorFormData.gender) missing.push('Gender');
+    if (!doctorFormData.roleId || doctorFormData.roleId === "") missing.push('Role');
     // Contact
     if (!doctorFormData.email?.trim()) missing.push('Email');
     if (!doctorFormData.phone?.trim()) missing.push('Phone');
@@ -928,118 +955,70 @@ const TeamHub = () => {
         alert(`Please fill required fields: ${missing.join(', ')}`);
         return;
       }
-      const onboardingRole = doctorFormData.role || (isReceptionistMode ? "Receptionist" : "Doctor");
 
-      // Build payloads separately to avoid sending doctor-only fields for receptionist
-      const doctorPayload = {
-        doctorId: 0,
+      // Get selected role name
+      const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId));
+      const roleName = selectedRole?.roleName || "";
+      console.log("🎭 Selected role:", roleName);
+
+      // Build payload for StaffDetail API - matches the C# model exactly
+      const staffDetailPayload = {
         staffId: parseInt(doctorFormData.staffId) || 0,
+        enterpriseId: parseInt(doctorFormData.enterpriseId) || null,
+        clinicId: parseInt(doctorFormData.clinicId) || null,
         firstName: doctorFormData.firstName,
         lastName: doctorFormData.lastName,
-        dateOfBirth: doctorFormData.dateOfBirth ? new Date(doctorFormData.dateOfBirth).toISOString() : new Date().toISOString(),
-        gender: doctorFormData.gender,
-        email: doctorFormData.email,
-        phone: doctorFormData.phone,
-        address: doctorFormData.address || "string",
-        licenseNumber: doctorFormData.licenseNumber,
-        licenseExpiry: doctorFormData.licenseExpiry ? new Date(doctorFormData.licenseExpiry).toISOString() : new Date().toISOString(),
-        specialtyId: parseInt(doctorFormData.specialtyId),
-        yearsExperience: doctorFormData.yearsExperience ? parseInt(doctorFormData.yearsExperience) : 0,
-        education: doctorFormData.education || "string",
-        certifications: doctorFormData.certifications || "string",
-        languages: doctorFormData.languages || "string",
-        joiningDate: doctorFormData.joiningDate ? new Date(doctorFormData.joiningDate).toISOString() : new Date().toISOString(),
-        employmentStatus: doctorFormData.employmentStatus || "string",
-        availability: doctorFormData.availability || "string",
-        insuranceDetails: doctorFormData.insuranceDetails || "string",
-        emergencyContact: doctorFormData.emergencyContact || "string",
-        bio: doctorFormData.bio || "string",
-        profilePhotoUrl: doctorFormData.profilePhotoUrl || "string",
-        achievements: doctorFormData.achievements || "string",
-        publications: doctorFormData.publications || "string",
-        socialLinks: doctorFormData.socialLinks || "string",
-        branchId: parseInt(doctorFormData.branchId) || 0,
-        role: onboardingRole,
-        roleId: doctorFormData.roleId ? parseInt(doctorFormData.roleId) : 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        dateOfBirth: doctorFormData.dateOfBirth ? new Date(doctorFormData.dateOfBirth).toISOString() : null,
+        gender: doctorFormData.gender || null,
+        email: doctorFormData.email || null,
+        phone: doctorFormData.phone || null,
+        address: doctorFormData.address || null,
+        licenseNumber: doctorFormData.licenseNumber || null,
+        licenseExpiry: doctorFormData.licenseExpiry ? new Date(doctorFormData.licenseExpiry).toISOString() : null,
+        specialtyId: doctorFormData.specialtyId ? parseInt(doctorFormData.specialtyId) : null,
+        yearsExperience: doctorFormData.yearsExperience ? parseInt(doctorFormData.yearsExperience) : null,
+        education: doctorFormData.education || null,
+        certifications: doctorFormData.certifications || null,
+        languages: doctorFormData.languages || null,
+        joiningDate: doctorFormData.joiningDate ? new Date(doctorFormData.joiningDate).toISOString() : null,
+        employmentStatus: doctorFormData.employmentStatus || "Active",
+        availability: doctorFormData.availability || null,
+        insuranceDetails: doctorFormData.insuranceDetails || null,
+        emergencyContact: doctorFormData.emergencyContact || null,
+        bio: doctorFormData.bio || null,
+        profilePhotoUrl: doctorFormData.profilePhotoUrl || null,
+        achievements: doctorFormData.achievements || null,
+        publications: doctorFormData.publications || null,
+        socialLinks: doctorFormData.socialLinks || null,
+        rolesAssigned: doctorFormData.roleId ? doctorFormData.roleId.toString() : null // ✅ Convert to string for backend
       };
 
-      const receptionistPayload = {
-        // staffId optional; omit if blank so backend can auto-generate
-        ...(doctorFormData.staffId ? { staffId: parseInt(doctorFormData.staffId) } : {}),
-        firstName: doctorFormData.firstName,
-        lastName: doctorFormData.lastName,
-        dateOfBirth: doctorFormData.dateOfBirth ? new Date(doctorFormData.dateOfBirth).toISOString() : new Date().toISOString(),
-        gender: doctorFormData.gender,
-        email: doctorFormData.email,
-        phone: doctorFormData.phone,
-        emergencyContact: doctorFormData.emergencyContact || "string",
-        branchId: parseInt(doctorFormData.branchId) || 0,
-        role: onboardingRole,
-        roleId: doctorFormData.roleId ? parseInt(doctorFormData.roleId) : 0,
-        joiningDate: doctorFormData.joiningDate ? new Date(doctorFormData.joiningDate).toISOString() : new Date().toISOString(),
-        employmentStatus: doctorFormData.employmentStatus || "Active",
-        address: doctorFormData.address || "string",
-        // Optional fields expected by backend; send null when not provided
-        bio: doctorFormData.bio?.trim() ? doctorFormData.bio : null,
-        education: doctorFormData.education?.trim() ? doctorFormData.education : null,
-        languages: doctorFormData.languages?.trim() ? doctorFormData.languages : null,
-        socialLinks: doctorFormData.socialLinks?.trim() ? doctorFormData.socialLinks : null,
-        achievements: doctorFormData.achievements?.trim() ? doctorFormData.achievements : null,
-        availability: doctorFormData.availability?.trim() ? doctorFormData.availability : null,
-        publications: doctorFormData.publications?.trim() ? doctorFormData.publications : null,
-        licenseNumber: doctorFormData.licenseNumber?.trim() ? doctorFormData.licenseNumber : null,
-        certifications: doctorFormData.certifications?.trim() ? doctorFormData.certifications : null,
-        profilePhotoUrl: doctorFormData.profilePhotoUrl?.trim() ? doctorFormData.profilePhotoUrl : null,
-        insuranceDetails: doctorFormData.insuranceDetails?.trim() ? doctorFormData.insuranceDetails : null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      // Use different endpoint based on mode
-      if (isReceptionistMode) {
-        // For receptionist: hit StaffDetail/CreateStaffDetails with receptionist-specific payload
-        const response = await fetch("https://localhost:7104/api/StaffDetail/CreateStaffDetails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          body: JSON.stringify(receptionistPayload)
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || "Failed to create staff details");
-        }
-        
-        let result = null;
-        try {
-          result = await response.json();
-        } catch {
-          // If backend returns empty body, keep result null
-          result = null;
-        }
-        console.log("✅ Receptionist staff details saved successfully:", result);
-      } else {
-        // For doctor: use createDoctor endpoint
-        await createDoctor(doctorPayload);
-      }
-      
+      // 🔍 DEBUG LOG
+      console.log("=== SENDING TO CreateStaffDetails API ===");
+      console.log("Full Payload:", staffDetailPayload);
+      console.log("Role Name:", roleName);
+      console.log("Role ID (rolesAssigned):", staffDetailPayload.rolesAssigned, "(Type:", typeof staffDetailPayload.rolesAssigned, ")");
+      console.log("License Expiry:", staffDetailPayload.licenseExpiry);
+      console.log("Specialty ID:", staffDetailPayload.specialtyId);
+      console.log("Years Experience:", staffDetailPayload.yearsExperience);
+
+      // Call the createStaffDetail API function
+      const response = await createStaffDetail(staffDetailPayload);
+      console.log("✅ Staff details saved successfully:", response);
+
       setShowPreview(false);
       setShowDoctorModal(false);
       setShowSuccessModal(true);
-      alert(`✅ ${isReceptionistMode ? "Receptionist" : "Doctor"} onboarded successfully!`);
+      alert(`✅ ${roleName} onboarded successfully! (ID: ${response.staffId})`);
       resetDoctorForm();
-      
+
       setTimeout(() => {
         setShowSuccessModal(false);
       }, 3000);
     } catch (error) {
-      console.error("Error saving:", error);
+      console.error("❌ Error saving staff details:", error);
       const backendMessage = (error && (error.response?.data || error.message)) || "Unknown error";
-      alert(`Failed to save ${isReceptionistMode ? "receptionist" : "doctor"}: ${backendMessage}`);
+      alert(`Failed to onboard staff: ${backendMessage}`);
     }
   };
 
@@ -1368,56 +1347,64 @@ const TeamHub = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="block text-sm font-semibold text-purple-900 mb-2">
-                          Staff ID {!isReceptionistMode && <span className="text-red-500">*</span>}
+                          Enterprise ID <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="number"
-                          name="staffId"
-                          value={doctorFormData.staffId}
+                          name="enterpriseId"
+                          value={doctorFormData.enterpriseId}
                           onChange={handleInputChange}
                           className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            validationErrors.includes("staffId") ? "border-red-500 bg-red-50" : "border-purple-300"
+                            validationErrors.includes("enterpriseId") ? "border-red-500 bg-red-50" : "border-purple-300"
                           }`}
-                          placeholder={isReceptionistMode ? "Leave empty for auto-generation" : "Enter staff ID"}
+                          placeholder="Enter enterprise ID"
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-purple-900 mb-2">
-                          Branch ID <span className="text-red-500">*</span>
+                          Clinic ID <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="number"
-                          name="branchId"
-                          value={doctorFormData.branchId}
+                          name="clinicId"
+                          value={doctorFormData.clinicId}
                           onChange={handleInputChange}
                           className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            validationErrors.includes("branchId") ? "border-red-500 bg-red-50" : "border-purple-300"
+                            validationErrors.includes("clinicId") ? "border-red-500 bg-red-50" : "border-purple-300"
                           }`}
-                          placeholder="Enter branch ID"
+                          placeholder="Enter clinic ID"
                         />
                       </div>
-                      {isReceptionistMode && (
-                        <div>
-                          <label className="block text-sm font-semibold text-purple-900 mb-2">
-                            Assign Role <span className="text-red-500">*</span>
-                          </label>
-                          <select
-                            name="roleId"
-                            value={doctorFormData.roleId || 0}
-                            onChange={handleInputChange}
-                            className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                              validationErrors.includes("roleId") ? "border-red-500 bg-red-50" : "border-purple-300"
-                            }`}
-                          >
-                            <option value={0}>{rolesLoading ? "Loading roles..." : "Select role"}</option>
-                            {roleOptions.map((role) => (
-                              <option key={role.roleId || role.id} value={role.roleId || role.id}>
-                                {role.roleName || role.name || role.id}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
+                      <div>
+                        <label className="block text-sm font-semibold text-purple-900 mb-2">
+                          Assign Role <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          name="roleId"
+                          value={doctorFormData.roleId || ""}
+                          onChange={(e) => {
+                            const selectedRoleId = e.target.value;
+                            const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(selectedRoleId));
+                            console.log("🎭 Role selected:", selectedRole);
+                            setDoctorFormData(prev => ({
+                              ...prev,
+                              roleId: selectedRoleId,
+                              role: selectedRole?.roleName || "",
+                              rolesAssigned: selectedRoleId
+                            }));
+                          }}
+                          className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                            validationErrors.includes("roleId") ? "border-red-500 bg-red-50" : "border-purple-300"
+                          }`}
+                        >
+                          <option value="">{loadingRoles ? "Loading roles..." : "Select role"}</option>
+                          {availableRolesFromApi.map((role) => (
+                            <option key={role.roleId} value={role.roleId}>
+                              {role.roleName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1564,104 +1551,145 @@ const TeamHub = () => {
                     animate={{ opacity: 1, x: 0 }}
                     className="space-y-4"
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-purple-900 mb-2">
-                          License Number <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          name="licenseNumber"
-                          value={doctorFormData.licenseNumber}
-                          onChange={handleInputChange}
-                          className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            validationErrors.includes("licenseNumber") ? "border-red-500 bg-red-50" : "border-purple-300"
-                          }`}
-                          placeholder="Medical license number"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-purple-900 mb-2">
-                          License Expiry <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="date"
-                          name="licenseExpiry"
-                          value={doctorFormData.licenseExpiry}
-                          onChange={handleInputChange}
-                          className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            validationErrors.includes("licenseExpiry") ? "border-red-500 bg-red-50" : "border-purple-300"
-                          }`}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-purple-900 mb-2">
-                          Specialty ID <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="number"
-                          name="specialtyId"
-                          value={doctorFormData.specialtyId}
-                          onChange={handleInputChange}
-                          className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            validationErrors.includes("specialtyId") ? "border-red-500 bg-red-50" : "border-purple-300"
-                          }`}
-                          placeholder="Specialty ID"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-purple-900 mb-2">
-                          Years of Experience
-                        </label>
-                        <input
-                          type="number"
-                          name="yearsExperience"
-                          value={doctorFormData.yearsExperience}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder="Years"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-semibold text-purple-900 mb-2">
-                          Education
-                        </label>
-                        <textarea
-                          name="education"
-                          value={doctorFormData.education}
-                          onChange={handleInputChange}
-                          rows={2}
-                          className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder="Educational qualifications"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-semibold text-purple-900 mb-2">
-                          Certifications
-                        </label>
-                        <textarea
-                          name="certifications"
-                          value={doctorFormData.certifications}
-                          onChange={handleInputChange}
-                          rows={2}
-                          className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder="Professional certifications"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-purple-900 mb-2">
-                          Languages
-                        </label>
-                        <input
-                          type="text"
-                          name="languages"
-                          value={doctorFormData.languages}
-                          onChange={handleInputChange}
-                          className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                          placeholder="English, Hindi, etc."
-                        />
-                      </div>
-                    </div>
+                    {/* Check if role requires academic/license fields */}
+                    {(() => {
+                      const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId));
+                      const roleName = selectedRole?.roleName?.toLowerCase() || "";
+                      const requiresAcademic = roleName.includes("doctor") || roleName.includes("nurse");
+                      const isAdmin = roleName.includes("admin");
+
+                      if (isAdmin) {
+                        return (
+                          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6 text-center">
+                            <span className="text-4xl">👑</span>
+                            <h3 className="text-lg font-bold text-yellow-800 mt-2">Admin Role Selected</h3>
+                            <p className="text-yellow-700 mt-1">License and academic credentials are not required for admin roles</p>
+                          </div>
+                        );
+                      }
+
+                      if (!requiresAcademic && !isAdmin) {
+                        return (
+                          <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 text-center">
+                            <span className="text-4xl">ℹ️</span>
+                            <h3 className="text-lg font-bold text-blue-800 mt-2">Non-Clinical Role</h3>
+                            <p className="text-blue-700 mt-1">License and academic credentials are optional for this role</p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <>
+                          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 mb-4">
+                            <p className="text-sm text-green-800 font-semibold">
+                              🩺 Clinical Role: License and academic credentials are <strong>required</strong>
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-semibold text-purple-900 mb-2">
+                                License Number <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                name="licenseNumber"
+                                value={doctorFormData.licenseNumber}
+                                onChange={handleInputChange}
+                                className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                                  validationErrors.includes("licenseNumber") ? "border-red-500 bg-red-50" : "border-purple-300"
+                                }`}
+                                placeholder="Medical license number"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-purple-900 mb-2">
+                                License Expiry <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="date"
+                                name="licenseExpiry"
+                                value={doctorFormData.licenseExpiry}
+                                onChange={handleInputChange}
+                                className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                                  validationErrors.includes("licenseExpiry") ? "border-red-500 bg-red-50" : "border-purple-300"
+                                }`}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-purple-900 mb-2">
+                                Specialty ID <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                name="specialtyId"
+                                value={doctorFormData.specialtyId}
+                                onChange={handleInputChange}
+                                className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                                  validationErrors.includes("specialtyId") ? "border-red-500 bg-red-50" : "border-purple-300"
+                                }`}
+                                placeholder="Specialty ID"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-purple-900 mb-2">
+                                Years of Experience <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                name="yearsExperience"
+                                value={doctorFormData.yearsExperience}
+                                onChange={handleInputChange}
+                                className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                                  validationErrors.includes("yearsExperience") ? "border-red-500 bg-red-50" : "border-purple-300"
+                                }`}
+                                placeholder="Years"
+                              />
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="block text-sm font-semibold text-purple-900 mb-2">
+                                Education <span className="text-red-500">*</span>
+                              </label>
+                              <textarea
+                                name="education"
+                                value={doctorFormData.education}
+                                onChange={handleInputChange}
+                                rows={2}
+                                className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                                  validationErrors.includes("education") ? "border-red-500 bg-red-50" : "border-purple-300"
+                                }`}
+                                placeholder="Educational qualifications"
+                              />
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="block text-sm font-semibold text-purple-900 mb-2">
+                                Certifications
+                              </label>
+                              <textarea
+                                name="certifications"
+                                value={doctorFormData.certifications}
+                                onChange={handleInputChange}
+                                rows={2}
+                                className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                placeholder="Professional certifications"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-purple-900 mb-2">
+                                Languages
+                              </label>
+                              <input
+                                type="text"
+                                name="languages"
+                                value={doctorFormData.languages}
+                                onChange={handleInputChange}
+                                className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                placeholder="English, Hindi, etc."
+                              />
+                            </div>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </motion.div>
                 )}
 
@@ -1886,7 +1914,9 @@ const TeamHub = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="col-span-2"><span className="font-bold">Name:</span> {doctorFormData.firstName} {doctorFormData.lastName}</div>
                   <div><span className="font-bold">Staff ID:</span> {doctorFormData.staffId}</div>
-                  <div><span className="font-bold">Branch ID:</span> {doctorFormData.branchId}</div>
+                  <div><span className="font-bold">Enterprise ID:</span> {doctorFormData.enterpriseId}</div>
+                  <div><span className="font-bold">Clinic ID:</span> {doctorFormData.clinicId}</div>
+                  <div><span className="font-bold">Role:</span> {doctorFormData.role || availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId))?.roleName}</div>
                   <div><span className="font-bold">Email:</span> {doctorFormData.email}</div>
                   <div><span className="font-bold">Phone:</span> {doctorFormData.phone}</div>
                   <div><span className="font-bold">License:</span> {doctorFormData.licenseNumber}</div>

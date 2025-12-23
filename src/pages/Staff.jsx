@@ -16,7 +16,11 @@ export default function Staff(){
     staffType: "doctor",
     fixedSalary: "",
     effectiveDate: new Date().toISOString().split('T')[0],
-    clinicId: ""
+    clinicId: "",
+    // Added missing fields for backend
+    licenseExpiry: "",
+    yearsExperience: "",
+    specialtyId: ""
   });
 
   const onAction = (a) => { 
@@ -33,6 +37,19 @@ export default function Staff(){
       alert("Please fill in required fields (Name and Fixed Salary)");
       return;
     }
+    
+    // 🔍 DEBUG LOGGING - Check form values before sending
+    console.log("=== STAFF FORM SUBMISSION DEBUG ===");
+    console.log("Full Form Data:", staffForm);
+    console.log("License Expiry:", staffForm.licenseExpiry, "Type:", typeof staffForm.licenseExpiry);
+    console.log("Years Experience:", staffForm.yearsExperience, "Type:", typeof staffForm.yearsExperience);
+    console.log("Specialty ID:", staffForm.specialtyId, "Type:", typeof staffForm.specialtyId);
+    
+    // Check if values are empty strings
+    if (staffForm.licenseExpiry === "") console.warn("⚠️ License Expiry is empty string!");
+    if (staffForm.yearsExperience === "") console.warn("⚠️ Years Experience is empty string!");
+    if (staffForm.specialtyId === "") console.warn("⚠️ Specialty ID is empty string!");
+    
     setLog(s => [`Added ${staffForm.name} with fixed salary ₹${parseFloat(staffForm.fixedSalary).toLocaleString('en-IN')} effective from ${staffForm.effectiveDate}`, ...s].slice(0,10));
     setShowAddStaffModal(false);
     setStaffForm({
@@ -41,7 +58,10 @@ export default function Staff(){
       staffType: "doctor",
       fixedSalary: "",
       effectiveDate: new Date().toISOString().split('T')[0],
-      clinicId: ""
+      clinicId: "",
+      licenseExpiry: "",
+      yearsExperience: "",
+      specialtyId: ""
     });
   };
 
@@ -294,6 +314,57 @@ export default function Staff(){
                       onChange={(e) => setStaffForm({...staffForm, specialty: e.target.value})}
                       placeholder="e.g., Orthodontist"
                       className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* 🆕 ADDED: Missing fields for backend */}
+                <div className="grid grid-cols-3 gap-4 bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <div>
+                    <label className="block text-sm font-semibold text-blue-700 mb-2">
+                      License Expiry Date
+                    </label>
+                    <input
+                      type="date"
+                      value={staffForm.licenseExpiry}
+                      onChange={(e) => {
+                        console.log("License Expiry changed to:", e.target.value);
+                        setStaffForm({...staffForm, licenseExpiry: e.target.value});
+                      }}
+                      className="w-full px-4 py-3 rounded-lg border border-blue-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-blue-700 mb-2">
+                      Years of Experience
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      value={staffForm.yearsExperience}
+                      onChange={(e) => {
+                        console.log("Years Experience changed to:", e.target.value);
+                        setStaffForm({...staffForm, yearsExperience: e.target.value});
+                      }}
+                      placeholder="e.g., 5"
+                      className="w-full px-4 py-3 rounded-lg border border-blue-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-blue-700 mb-2">
+                      Specialty ID
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={staffForm.specialtyId}
+                      onChange={(e) => {
+                        console.log("Specialty ID changed to:", e.target.value);
+                        setStaffForm({...staffForm, specialtyId: e.target.value});
+                      }}
+                      placeholder="e.g., 1"
+                      className="w-full px-4 py-3 rounded-lg border border-blue-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none"
                     />
                   </div>
                 </div>
