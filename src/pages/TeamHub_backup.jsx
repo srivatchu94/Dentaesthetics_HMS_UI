@@ -9,7 +9,6 @@ const TeamHub = () => {
   
   // Doctor Onboarding Modal States
   const [showDoctorModal, setShowDoctorModal] = useState(false);
-  const [isReceptionistMode, setIsReceptionistMode] = useState(false);
   const [activeTab, setActiveTab] = useState("personal");
   const [showPreview, setShowPreview] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -33,11 +32,26 @@ const TeamHub = () => {
   const [isAssigningRoles, setIsAssigningRoles] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [successMessage, setSuccessMessage] = useState({ name: "", roles: "", count: 0 });
+  
+  // Credential Management Modal States
   const [showCredentialManagementModal, setShowCredentialManagementModal] = useState(false);
+  const [credentialFormData, setCredentialFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    username: "",
+    password: "",
+    confirmPassword: "",
+    enterpriseId: 0,
+    clinicId: 0,
+    roleId: 0
+  });
+  const [allEnterprises, setAllEnterprises] = useState([]);
+  const [credentialClinics, setCredentialClinics] = useState([]);
+  const [credentialLoading, setCredentialLoading] = useState(false);
+  const [credentialError, setCredentialError] = useState("");
   const [showCredentialSuccess, setShowCredentialSuccess] = useState(false);
   const [credentialSuccessUsername, setCredentialSuccessUsername] = useState("");
-  const [roleOptions, setRoleOptions] = useState([]);
-  const [rolesLoading, setRolesLoading] = useState(false);
   
   // Security Questions Modal States
   const [showSecurityQuestionsModal, setShowSecurityQuestionsModal] = useState(false);
@@ -149,8 +163,7 @@ const TeamHub = () => {
     publications: "",
     socialLinks: "",
     branchId: "",
-    role: "Doctor",
-    roleId: 0
+    role: "Doctor"
   });
 
   const sections = [
@@ -223,7 +236,7 @@ const TeamHub = () => {
           id: 'onboard-receptionist',
           title: "🎭 Onboard Receptionist",
           description: "Add reception team members",
-          path: "/receptionists/onboard",
+          path: "/staff/create?role=receptionist",
           icon: "🔔",
           color: "from-rose-500 to-pink-500"
         },
@@ -283,15 +296,6 @@ const TeamHub = () => {
 
   const handleCardClick = (path, optionId) => {
     if (optionId === 'onboard-doctor') {
-      setIsReceptionistMode(false);
-      setDoctorFormData(prev => ({ ...prev, role: "Doctor" }));
-      setShowDoctorModal(true);
-      return;
-    }
-    if (optionId === 'onboard-receptionist') {
-      setIsReceptionistMode(true);
-      setDoctorFormData(prev => ({ ...prev, role: "Receptionist" }));
-      loadRoles();
       setShowDoctorModal(true);
       return;
     }
@@ -303,7 +307,6 @@ const TeamHub = () => {
       setShowCredentialManagementModal(true);
       setCredentialError("");
       loadEnterprises();
-      loadRoles();
       return;
     }
     if (optionId === 'security-questions') {
@@ -388,31 +391,6 @@ const TeamHub = () => {
   };
 
   // Load clinics when enterprise is selected
-    // Load roles for credential management and receptionist onboarding
-    const loadRoles = async () => {
-      try {
-        setRolesLoading(true);
-        const response = await fetch("https://localhost:7104/RoleMaster/GetAllRolesForStaff", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setRoleOptions(Array.isArray(data) ? data : data.data || []);
-        } else {
-          console.error("Failed to load roles", response.status);
-          setRoleOptions([]);
-        }
-      } catch (error) {
-        console.error("Error loading roles:", error);
-        setRoleOptions([]);
-      } finally {
-        setRolesLoading(false);
-      }
-    };
   const loadClinicsForCredential = async (enterpriseId) => {
     if (!enterpriseId || enterpriseId === 0) {
       setCredentialClinics([]);
@@ -787,58 +765,26 @@ const TeamHub = () => {
     const errors = [];
     
     if (tab === "personal") {
-      if (!isReceptionistMode && !doctorFormData.staffId) errors.push("staffId");
+      if (!doctorFormData.staffId) errors.push("staffId");
       if (!doctorFormData.branchId) errors.push("branchId");
       if (!doctorFormData.firstName) errors.push("firstName");
       if (!doctorFormData.lastName) errors.push("lastName");
       if (!doctorFormData.dateOfBirth) errors.push("dateOfBirth");
       if (!doctorFormData.gender) errors.push("gender");
-      if (isReceptionistMode && (!doctorFormData.roleId || doctorFormData.roleId === 0)) errors.push("roleId");
     } else if (tab === "contact") {
       if (!doctorFormData.email) errors.push("email");
       if (!doctorFormData.phone) errors.push("phone");
       if (!doctorFormData.emergencyContact) errors.push("emergencyContact");
     } else if (tab === "professional") {
-      if (!isReceptionistMode) {
-        if (!doctorFormData.licenseNumber) errors.push("licenseNumber");
-        if (!doctorFormData.licenseExpiry) errors.push("licenseExpiry");
-        if (!doctorFormData.specialtyId) errors.push("specialtyId");
-      }
+      if (!doctorFormData.licenseNumber) errors.push("licenseNumber");
+      if (!doctorFormData.licenseExpiry) errors.push("licenseExpiry");
+      if (!doctorFormData.specialtyId) errors.push("specialtyId");
     } else if (tab === "employment") {
       if (!doctorFormData.joiningDate) errors.push("joiningDate");
       if (!doctorFormData.employmentStatus) errors.push("employmentStatus");
     }
     
     return errors;
-  };
-
-  // Validate all required fields before submit (covers all tabs)
-  const validateBeforeSubmit = () => {
-    const missing = [];
-    // Personal
-    if (!isReceptionistMode && (!doctorFormData.staffId || parseInt(doctorFormData.staffId) <= 0)) missing.push('Staff ID');
-    if (!doctorFormData.branchId || parseInt(doctorFormData.branchId) <= 0) missing.push('Branch ID');
-    if (!doctorFormData.firstName?.trim()) missing.push('First Name');
-    if (!doctorFormData.lastName?.trim()) missing.push('Last Name');
-    if (!doctorFormData.dateOfBirth) missing.push('Date of Birth');
-    if (!doctorFormData.gender) missing.push('Gender');
-    // Contact
-    if (!doctorFormData.email?.trim()) missing.push('Email');
-    if (!doctorFormData.phone?.trim()) missing.push('Phone');
-    if (!doctorFormData.emergencyContact?.trim()) missing.push('Emergency Contact');
-    // Professional
-    if (!isReceptionistMode) {
-      const specId = parseInt(doctorFormData.specialtyId);
-      if (!doctorFormData.licenseNumber?.trim()) missing.push('License Number');
-      if (!doctorFormData.licenseExpiry) missing.push('License Expiry');
-      if (!specId || specId <= 0 || Number.isNaN(specId)) missing.push('Specialty ID');
-    }
-    // Employment
-    if (!doctorFormData.joiningDate) missing.push('Joining Date');
-    if (!doctorFormData.employmentStatus?.trim()) missing.push('Employment Status');
-    // Receptionist-only
-    if (isReceptionistMode && (!doctorFormData.roleId || doctorFormData.roleId === 0)) missing.push('Assigned Role');
-    return missing;
   };
 
   // Navigate to next tab
@@ -922,16 +868,7 @@ const TeamHub = () => {
   // Handle doctor form submit
   const handleDoctorSubmit = async () => {
     try {
-      const missing = validateBeforeSubmit();
-      if (missing.length > 0) {
-        setValidationErrors(prev => prev); // keep current highlights; tabs already mark fields
-        alert(`Please fill required fields: ${missing.join(', ')}`);
-        return;
-      }
-      const onboardingRole = doctorFormData.role || (isReceptionistMode ? "Receptionist" : "Doctor");
-
-      // Build payloads separately to avoid sending doctor-only fields for receptionist
-      const doctorPayload = {
+      const payload = {
         doctorId: 0,
         staffId: parseInt(doctorFormData.staffId) || 0,
         firstName: doctorFormData.firstName,
@@ -941,9 +878,9 @@ const TeamHub = () => {
         email: doctorFormData.email,
         phone: doctorFormData.phone,
         address: doctorFormData.address || "string",
-        licenseNumber: doctorFormData.licenseNumber,
+        licenseNumber: doctorFormData.licenseNumber || "string",
         licenseExpiry: doctorFormData.licenseExpiry ? new Date(doctorFormData.licenseExpiry).toISOString() : new Date().toISOString(),
-        specialtyId: parseInt(doctorFormData.specialtyId),
+        specialtyId: parseInt(doctorFormData.specialtyId) || 0,
         yearsExperience: doctorFormData.yearsExperience ? parseInt(doctorFormData.yearsExperience) : 0,
         education: doctorFormData.education || "string",
         certifications: doctorFormData.certifications || "string",
@@ -959,87 +896,25 @@ const TeamHub = () => {
         publications: doctorFormData.publications || "string",
         socialLinks: doctorFormData.socialLinks || "string",
         branchId: parseInt(doctorFormData.branchId) || 0,
-        role: onboardingRole,
-        roleId: doctorFormData.roleId ? parseInt(doctorFormData.roleId) : 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      const receptionistPayload = {
-        // staffId optional; omit if blank so backend can auto-generate
-        ...(doctorFormData.staffId ? { staffId: parseInt(doctorFormData.staffId) } : {}),
-        firstName: doctorFormData.firstName,
-        lastName: doctorFormData.lastName,
-        dateOfBirth: doctorFormData.dateOfBirth ? new Date(doctorFormData.dateOfBirth).toISOString() : new Date().toISOString(),
-        gender: doctorFormData.gender,
-        email: doctorFormData.email,
-        phone: doctorFormData.phone,
-        emergencyContact: doctorFormData.emergencyContact || "string",
-        branchId: parseInt(doctorFormData.branchId) || 0,
-        role: onboardingRole,
-        roleId: doctorFormData.roleId ? parseInt(doctorFormData.roleId) : 0,
-        joiningDate: doctorFormData.joiningDate ? new Date(doctorFormData.joiningDate).toISOString() : new Date().toISOString(),
-        employmentStatus: doctorFormData.employmentStatus || "Active",
-        address: doctorFormData.address || "string",
-        // Optional fields expected by backend; send null when not provided
-        bio: doctorFormData.bio?.trim() ? doctorFormData.bio : null,
-        education: doctorFormData.education?.trim() ? doctorFormData.education : null,
-        languages: doctorFormData.languages?.trim() ? doctorFormData.languages : null,
-        socialLinks: doctorFormData.socialLinks?.trim() ? doctorFormData.socialLinks : null,
-        achievements: doctorFormData.achievements?.trim() ? doctorFormData.achievements : null,
-        availability: doctorFormData.availability?.trim() ? doctorFormData.availability : null,
-        publications: doctorFormData.publications?.trim() ? doctorFormData.publications : null,
-        licenseNumber: doctorFormData.licenseNumber?.trim() ? doctorFormData.licenseNumber : null,
-        certifications: doctorFormData.certifications?.trim() ? doctorFormData.certifications : null,
-        profilePhotoUrl: doctorFormData.profilePhotoUrl?.trim() ? doctorFormData.profilePhotoUrl : null,
-        insuranceDetails: doctorFormData.insuranceDetails?.trim() ? doctorFormData.insuranceDetails : null,
+        role: "Doctor",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
       
-      // Use different endpoint based on mode
-      if (isReceptionistMode) {
-        // For receptionist: hit StaffDetail/CreateStaffDetails with receptionist-specific payload
-        const response = await fetch("https://localhost:7104/api/StaffDetail/CreateStaffDetails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-          },
-          body: JSON.stringify(receptionistPayload)
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || "Failed to create staff details");
-        }
-        
-        let result = null;
-        try {
-          result = await response.json();
-        } catch {
-          // If backend returns empty body, keep result null
-          result = null;
-        }
-        console.log("✅ Receptionist staff details saved successfully:", result);
-      } else {
-        // For doctor: use createDoctor endpoint
-        await createDoctor(doctorPayload);
-      }
-      
+      await createDoctor(payload);
       setShowPreview(false);
       setShowDoctorModal(false);
       setShowSuccessModal(true);
-      alert(`✅ ${isReceptionistMode ? "Receptionist" : "Doctor"} onboarded successfully!`);
+      alert("✅ Doctor onboarded successfully!");
       resetDoctorForm();
       
       setTimeout(() => {
         setShowSuccessModal(false);
       }, 3000);
     } catch (error) {
-      console.error("Error saving:", error);
+      console.error("Error saving doctor:", error);
       const backendMessage = (error && (error.response?.data || error.message)) || "Unknown error";
-      alert(`Failed to save ${isReceptionistMode ? "receptionist" : "doctor"}: ${backendMessage}`);
+      alert(`Failed to save doctor: ${backendMessage}`);
     }
   };
 
@@ -1312,10 +1187,9 @@ const TeamHub = () => {
                   <div>
                     <h2 className="text-3xl font-bold text-white flex items-center gap-3">
                       <span className="text-4xl">👨‍⚕️</span>
-                      {isReceptionistMode ? "Receptionist" : "Doctor"} Onboarding & Management
+                      Doctor Onboarding & Management
                     </h2>
                     <p className="text-purple-100 mt-1">Complete all required fields to onboard a new doctor</p>
-                    <p className="text-purple-100 mt-1">Complete all required fields to onboard a new {isReceptionistMode ? "receptionist" : "doctor"}</p>
                   </div>
                   <button
                     onClick={() => {
@@ -1364,11 +1238,10 @@ const TeamHub = () => {
                     animate={{ opacity: 1, x: 0 }}
                     className="space-y-4"
                   >
-                    {/* Staff ID, Branch ID, and Role in same row */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-semibold text-purple-900 mb-2">
-                          Staff ID {!isReceptionistMode && <span className="text-red-500">*</span>}
+                          Staff ID <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="number"
@@ -1378,7 +1251,7 @@ const TeamHub = () => {
                           className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                             validationErrors.includes("staffId") ? "border-red-500 bg-red-50" : "border-purple-300"
                           }`}
-                          placeholder={isReceptionistMode ? "Leave empty for auto-generation" : "Enter staff ID"}
+                          placeholder="Enter staff ID"
                         />
                       </div>
                       <div>
@@ -1396,31 +1269,6 @@ const TeamHub = () => {
                           placeholder="Enter branch ID"
                         />
                       </div>
-                      {isReceptionistMode && (
-                        <div>
-                          <label className="block text-sm font-semibold text-purple-900 mb-2">
-                            Assign Role <span className="text-red-500">*</span>
-                          </label>
-                          <select
-                            name="roleId"
-                            value={doctorFormData.roleId || 0}
-                            onChange={handleInputChange}
-                            className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                              validationErrors.includes("roleId") ? "border-red-500 bg-red-50" : "border-purple-300"
-                            }`}
-                          >
-                            <option value={0}>{rolesLoading ? "Loading roles..." : "Select role"}</option>
-                            {roleOptions.map((role) => (
-                              <option key={role.roleId || role.id} value={role.roleId || role.id}>
-                                {role.roleName || role.name || role.id}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-semibold text-purple-900 mb-2">
                           First Name <span className="text-red-500">*</span>
@@ -1943,7 +1791,7 @@ const TeamHub = () => {
               
               <div className="text-center space-y-3">
                 <p className="text-xl font-semibold text-green-800">
-                  {isReceptionistMode ? "Receptionist" : "Doctor"} successfully onboarded! 🏥
+                  Doctor successfully onboarded! 🏥
                 </p>
                 <p className="text-green-700">
                   They're officially part of the team now! Time to save some lives! 💪
@@ -2943,12 +2791,11 @@ const TeamHub = () => {
                           onChange={(e) => setCredentialFormData(prev => ({ ...prev, roleId: parseInt(e.target.value) || 0 }))}
                           className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
                         >
-                          <option value="0">{rolesLoading ? "Loading roles..." : "-- Select Role --"}</option>
-                          {roleOptions.map((role) => (
-                            <option key={role.roleId || role.id} value={role.roleId || role.id}>
-                              {role.roleName || role.name || role.id}
-                            </option>
-                          ))}
+                          <option value="0">-- Select Role --</option>
+                          <option value="1">Admin - Full system access</option>
+                          <option value="2">Doctor - Patient records, treatment plans, prescriptions</option>
+                          <option value="3">Receptionist - Appointments, check-ins, billing</option>
+                          <option value="4">Patient - View records, appointments, bills</option>
                         </select>
                       </div>
                     </div>

@@ -178,6 +178,22 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     throw error;
   }
   
+  // Gracefully handle empty or non-JSON successful responses
   if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  const contentType = res.headers.get('content-type') || '';
+  const rawText = await res.text();
+  const isEmptyBody = !rawText || rawText.trim().length === 0;
+  if (isEmptyBody) return undefined as T;
+  if (contentType.toLowerCase().includes('application/json')) {
+    try {
+      return JSON.parse(rawText) as T;
+    } catch (parseError) {
+      console.error('❌ Failed to parse JSON response body:', parseError);
+      console.error('📝 Raw body:', rawText);
+      // If body is empty-like or parsing fails, return undefined to avoid UI crashes
+      return undefined as T;
+    }
+  }
+  // Non-JSON response: return text as any to avoid hard failures
+  return rawText as unknown as T;
 }

@@ -4718,6 +4718,48 @@ export default function Clinics(){
                 </motion.button>
               </div>
 
+              {/* Enterprise Clinics fetched by Enterprise ID */}
+              {searchDoctorsParams.enterpriseId > 0 && (
+                <div className="px-6">
+                  <div className="mt-6 bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-lg font-bold text-blue-900 flex items-center gap-2">
+                        <span>🏥</span> Enterprise Clinics
+                      </h4>
+                      <span className="text-sm text-blue-700">Enterprise ID: {searchDoctorsParams.enterpriseId}</span>
+                    </div>
+
+                    {loadingDoctorClinics ? (
+                      <div className="flex items-center gap-3 text-blue-700">
+                        <span className="w-4 h-4 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+                        <span>Loading clinics for this enterprise...</span>
+                      </div>
+                    ) : doctorClinics.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {doctorClinics.map((clinic) => (
+                          <div
+                            key={clinic.clinicId}
+                            className="p-3 bg-white rounded-lg border border-blue-200 shadow-sm"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="font-semibold text-blue-900">
+                                [{clinic.clinicId}] {clinic.clinicName || "Clinic"}
+                              </div>
+                              <span className="text-sm text-blue-700">{clinic.clinicCode || ""}</span>
+                            </div>
+                            <p className="text-sm text-slate-600 mt-1">
+                              {clinic.addressLine1 || clinic.address || "No address on file"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-blue-800">No clinics found for this enterprise.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Results Section */}
               <div className="p-6">
                 {searchDoctorsLoading ? (
