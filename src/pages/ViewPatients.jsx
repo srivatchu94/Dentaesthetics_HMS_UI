@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
-import { searchPatients, getPatientsByClinic, getPatientFullProfile } from "../services/patientService";
+import { searchPatients, getPatientsByClinic, getPatientFullProfile, getPatientVisit } from "../services/patientService";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
 import { getAppointmentsByPatient, createAppointment, updateAppointment } from "../services/appointmentService";
 
@@ -36,6 +36,11 @@ export default function ViewPatients() {
   const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState(null);
   const [appointmentForm, setAppointmentForm] = useState({});
+  
+  // Diagnosis states
+  const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
+  const [selectedDiagnosis, setSelectedDiagnosis] = useState(null);
+  const [loadingDiagnosis, setLoadingDiagnosis] = useState(false);
   
   // Custom popup state
   const [showPopup, setShowPopup] = useState(false);
@@ -208,6 +213,24 @@ Click OK after reviewing the console logs.`;
       showCustomPopup('error', 'Oops!', 'Could not load appointment history. Please try again! 📅', '❌');
     } finally {
       setLoadingAppointments(false);
+    }
+  };
+
+  // Load diagnosis details for an appointment
+  const loadDiagnosisDetails = async (appointmentId) => {
+    setLoadingDiagnosis(true);
+    setShowDiagnosisModal(true);
+    try {
+      console.log('📋 Loading diagnosis for appointment ID:', appointmentId);
+      const diagnosisData = await getPatientVisit(appointmentId);
+      console.log('📋 Diagnosis data received:', diagnosisData);
+      setSelectedDiagnosis(diagnosisData);
+    } catch (error) {
+      console.error("Error loading diagnosis:", error);
+      showCustomPopup('error', 'Oops!', 'Could not load diagnosis details. Please try again! 🩺', '❌');
+      setShowDiagnosisModal(false);
+    } finally {
+      setLoadingDiagnosis(false);
     }
   };
 
@@ -1140,21 +1163,34 @@ Click OK after reviewing the console logs.`;
                             )}
                           </div>
 
-                          {/* Edit Button */}
-                          <motion.button
-                            whileHover={{ scale: 1.05, rotate: 5 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => {
-                              setEditingAppointment(appt);
-                              setAppointmentForm(appt);
-                              setShowAppointmentHistory(false);
-                              setShowBookAppointment(true);
-                            }}
-                            className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-amber-500 text-white rounded-xl font-bold shadow-lg hover:shadow-yellow-500/50 transition-all flex items-center gap-2"
-                          >
-                            <span>✏️</span>
-                            <span>Edit</span>
-                          </motion.button>
+                          {/* Action Buttons */}
+                          <div className="flex flex-col gap-2">
+                            <motion.button
+                              whileHover={{ scale: 1.05, rotate: 5 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => {
+                                setEditingAppointment(appt);
+                                setAppointmentForm(appt);
+                                setShowAppointmentHistory(false);
+                                setShowBookAppointment(true);
+                              }}
+                              className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-amber-500 text-white rounded-xl font-bold shadow-lg hover:shadow-yellow-500/50 transition-all flex items-center gap-2"
+                            >
+                              <span>✏️</span>
+                              <span>Edit</span>
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => {
+                                loadDiagnosisDetails(appt.appointmentId);
+                              }}
+                              className="px-4 py-2 bg-gradient-to-r from-teal-400 to-cyan-500 text-white rounded-xl font-bold shadow-lg hover:shadow-teal-500/50 transition-all flex items-center gap-2"
+                            >
+                              <span>🩺</span>
+                              <span>Diagnosis</span>
+                            </motion.button>
+                          </div>
                         </div>
                       </motion.div>
                     ))}
@@ -1429,6 +1465,330 @@ Click OK after reviewing the console logs.`;
                   className="px-8 py-3 bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-600 text-white rounded-xl font-bold shadow-lg shadow-blue-400/60 hover:shadow-blue-400/80 transition-all border-2 border-blue-200"
                 >
                   {editingAppointment ? '💾 Save Changes' : '✨ Book Appointment'}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Diagnosis Details Modal (Read-Only) */}
+      <AnimatePresence mode="wait">
+        {showDiagnosisModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-40 p-4 overflow-y-auto"
+            onClick={() => setShowDiagnosisModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full my-8 border-2 border-teal-400 overflow-hidden"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-teal-500 via-cyan-500 to-blue-600 px-8 py-6 border-b-2 border-teal-400">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <motion.div
+                      animate={{ rotate: [0, 10, -10, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      className="w-14 h-14 bg-white/20 border-2 border-white/50 rounded-2xl flex items-center justify-center shadow-lg"
+                    >
+                      <span className="text-3xl">🩺</span>
+                    </motion.div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-white tracking-tight">
+                        Diagnosis Details
+                      </h2>
+                      <p className="text-white/90 text-sm mt-1">
+                        View & Print
+                      </p>
+                    </div>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowDiagnosisModal(false)}
+                    className="text-white hover:bg-white/20 rounded-xl p-3 transition-all"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="px-8 py-6 max-h-[60vh] overflow-y-auto bg-white" style={{ scrollbarWidth: 'thin', scrollbarColor: '#14b8a6 transparent' }}>
+                {loadingDiagnosis ? (
+                  <div className="text-center py-20">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      className="text-6xl mb-4"
+                    >
+                      ⏳
+                    </motion.div>
+                    <p className="text-teal-700 text-lg font-semibold">Loading diagnosis details...</p>
+                  </div>
+                ) : selectedDiagnosis ? (
+                  <div className="space-y-6">
+                    {/* Visit Information */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-2xl p-6 shadow-md border-2 border-teal-300"
+                    >
+                      <div className="flex items-center gap-3 mb-5 pb-4 border-b-2 border-teal-300">
+                        <div className="w-12 h-12 bg-gradient-to-br from-teal-400 via-cyan-400 to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+                          <span className="text-2xl">📋</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-teal-900">
+                          Visit Information
+                        </h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white p-4 rounded-xl border border-teal-300">
+                          <label className="block text-[10px] font-bold text-teal-600 uppercase tracking-wide mb-2">📅 Visit Date</label>
+                          <p className="text-base font-bold text-teal-900">
+                            {selectedDiagnosis.visitDate ? new Date(selectedDiagnosis.visitDate).toLocaleDateString('en-US', { 
+                              weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+                            }) : 'N/A'}
+                          </p>
+                        </div>
+                        <div className="bg-white p-4 rounded-xl border border-cyan-300">
+                          <label className="block text-[10px] font-bold text-cyan-600 uppercase tracking-wide mb-2">👨‍⚕️ Attending Physician</label>
+                          <p className="text-base font-bold text-cyan-900">{selectedDiagnosis.attendingPhysician || 'N/A'}</p>
+                        </div>
+                        {selectedDiagnosis.nextAppointmentDate && (
+                          <div className="bg-white p-4 rounded-xl border border-blue-300">
+                            <label className="block text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-2">📅 Next Appointment</label>
+                            <p className="text-base font-bold text-blue-900">
+                              {new Date(selectedDiagnosis.nextAppointmentDate).toLocaleDateString('en-US', { 
+                                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+                              })}
+                            </p>
+                          </div>
+                        )}
+                        <div className="bg-white p-4 rounded-xl border border-purple-300">
+                          <label className="block text-[10px] font-bold text-purple-600 uppercase tracking-wide mb-2">💰 Payment Status</label>
+                          <p className="text-base font-bold text-purple-900">{selectedDiagnosis.paymentStatus || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    {/* Reason for Visit */}
+                    {selectedDiagnosis.reasonForVisit && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-2xl p-6 shadow-md border-2 border-cyan-300"
+                      >
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-cyan-300">
+                          <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-xl">📝</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-cyan-900">Reason for Visit</h3>
+                        </div>
+                        <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
+                          {selectedDiagnosis.reasonForVisit}
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {/* Diagnosis */}
+                    {selectedDiagnosis.diagnoses && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 shadow-md border-2 border-blue-300"
+                      >
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-blue-300">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-xl">🩺</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-blue-900">Diagnosis</h3>
+                        </div>
+                        <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
+                          {selectedDiagnosis.diagnoses}
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {/* Treatments */}
+                    {selectedDiagnosis.treatments && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 shadow-md border-2 border-purple-300"
+                      >
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-purple-300">
+                          <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-xl">💉</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-purple-900">Treatments</h3>
+                        </div>
+                        <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
+                          {selectedDiagnosis.treatments}
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {/* Prescriptions */}
+                    {selectedDiagnosis.prescriptions && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-2xl p-6 shadow-md border-2 border-pink-300"
+                      >
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-pink-300">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-pink-400 to-rose-500 rounded-xl flex items-center justify-center shadow-lg">
+                              <span className="text-xl">💊</span>
+                            </div>
+                            <h3 className="text-lg font-bold text-pink-900">Prescriptions & Medications</h3>
+                          </div>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => window.print()}
+                            className="px-4 py-2 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg font-bold hover:from-pink-600 hover:to-rose-600 transition shadow-md text-sm flex items-center gap-2"
+                          >
+                            <span>🖨️</span>
+                            <span>Print</span>
+                          </motion.button>
+                        </div>
+                        {(() => {
+                          try {
+                            const prescriptionData = typeof selectedDiagnosis.prescriptions === 'string' 
+                              ? JSON.parse(selectedDiagnosis.prescriptions) 
+                              : selectedDiagnosis.prescriptions;
+                            
+                            if (Array.isArray(prescriptionData) && prescriptionData.length > 0) {
+                              return (
+                                <div className="space-y-3">
+                                  {prescriptionData.map((med, idx) => (
+                                    <div key={idx} className="bg-white p-4 rounded-xl border border-pink-300">
+                                      <div className="flex items-start gap-3">
+                                        <div className="flex-shrink-0 w-8 h-8 bg-pink-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                                          {idx + 1}
+                                        </div>
+                                        <div className="flex-1 space-y-2">
+                                          <h4 className="text-gray-900 font-bold text-base">{med.medicineName || 'Medication'}</h4>
+                                          <div className="grid grid-cols-2 gap-2 text-sm">
+                                            <div>
+                                              <span className="text-pink-600 font-semibold">Dosage:</span>
+                                              <span className="text-gray-700 ml-2">{med.dosage || 'N/A'}</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-pink-600 font-semibold">Frequency:</span>
+                                              <span className="text-gray-700 ml-2">{med.frequency || 'N/A'}</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-pink-600 font-semibold">Duration:</span>
+                                              <span className="text-gray-700 ml-2">{med.duration || 'N/A'}</span>
+                                            </div>
+                                          </div>
+                                          {med.specialInstructions && (
+                                            <div className="mt-2 p-2 bg-amber-50 rounded-lg border border-amber-300">
+                                              <span className="text-amber-700 font-semibold text-xs">⚠️ Special Instructions: </span>
+                                              <span className="text-gray-800 text-xs">{med.specialInstructions}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {prescriptionData[0]?.generalPrescriptionNotes && (
+                                    <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-300">
+                                      <span className="text-blue-700 font-semibold">📝 General Notes: </span>
+                                      <span className="text-gray-800">{prescriptionData[0].generalPrescriptionNotes}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+                          } catch (e) {
+                            // Fallback to displaying as text if not JSON
+                          }
+                          return (
+                            <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
+                              {selectedDiagnosis.prescriptions}
+                            </p>
+                          );
+                        })()}
+                      </motion.div>
+                    )}
+
+                    {/* Notes */}
+                    {selectedDiagnosis.notes && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl p-6 shadow-md border-2 border-amber-300"
+                      >
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-amber-300">
+                          <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-xl">📄</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-amber-900">Additional Notes</h3>
+                        </div>
+                        <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
+                          {selectedDiagnosis.notes}
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {/* Billing Information */}
+                    {selectedDiagnosis.billingAmount && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6 }}
+                        className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 shadow-md border-2 border-green-300"
+                      >
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-green-300">
+                          <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-xl">💵</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-green-900">Billing Information</h3>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-green-700 font-semibold">Total Amount:</span>
+                          <span className="text-2xl font-bold text-green-900">${selectedDiagnosis.billingAmount}</span>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-20">
+                    <div className="text-6xl mb-4">❌</div>
+                    <p className="text-white text-lg font-semibold">No diagnosis details found</p>
+                    <p className="text-teal-300 text-sm mt-2">This appointment may not have diagnosis information yet.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="bg-gradient-to-r from-gray-100 via-gray-100 to-gray-100 px-8 py-4 flex justify-end border-t-2 border-teal-400">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowDiagnosisModal(false)}
+                  className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition"
+                >
+                  Close
                 </motion.button>
               </div>
             </motion.div>

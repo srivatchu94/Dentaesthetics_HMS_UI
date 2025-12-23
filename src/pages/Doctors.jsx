@@ -4,9 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { getCalendarAppointments, getAppointmentsByDoctorID, getAppointmentsByFilters, createPrescription, getPrescriptionsByAppointment, updateAppointment, addPrescription, updatePrescriptionData, getPrescriptionById, addPatientVisit } from "../services/appointmentService";
 import { visitService, prescriptionService } from "../services/visitService";
 import { createInventoryMaster, listInventoryMasters } from "../services/inventoryService";
+import { getClinic } from "../services/clinicService";
 import PrescriptionWritingModal from "../components/PrescriptionWritingModal";
 import PrescriptionPrint from "../components/PrescriptionPrint";
-import { getPatientFullProfile, getPatientVisit, editPatientVisit } from "../services/patientService";
+import { getPatientFullProfile, getPatientVisit, editPatientVisit, getPatientsByClinic } from "../services/patientService";
 
 // Sample data
 const SAMPLE_CLINIC_DETAILS = {
@@ -147,6 +148,40 @@ export default function Doctors() {
   const [showPrescriptionPrintModal, setShowPrescriptionPrintModal] = useState(false);
   const [prescriptionToPrint, setPrescriptionToPrint] = useState(null);
   const printRef = useRef(null);
+  
+  // Payment management states
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentClinicId, setPaymentClinicId] = useState('');
+  const [paymentAppointments, setPaymentAppointments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [updatingPayment, setUpdatingPayment] = useState(null);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('All'); // New: filter state
+  const [showPaymentSuccessPopup, setShowPaymentSuccessPopup] = useState(false); // New: success popup
+  const [paymentSuccessMessage, setPaymentSuccessMessage] = useState('');
+  
+  // Edit payment modal states
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
+  const [editingPaymentAppointment, setEditingPaymentAppointment] = useState(null);
+  const [editPaymentForm, setEditPaymentForm] = useState({
+    billableAmount: 0,
+    paidAmount: 0,
+    pendingAmount: 0,
+    paymentStatus: 'Pending',
+    appointmentStatus: 'Scheduled'
+  });
+  const [savingPaymentEdit, setSavingPaymentEdit] = useState(false);
+
+  // My Patients states
+  const [myPatients, setMyPatients] = useState([]);
+  const [loadingMyPatients, setLoadingMyPatients] = useState(false);
+  const [myPatientsFilterText, setMyPatientsFilterText] = useState('');
+  const [myPatientsSelectedClinic, setMyPatientsSelectedClinic] = useState('');
+  
+  // Clinic Details states
+  const [doctorClinics, setDoctorClinics] = useState([]);
+  const [selectedClinicForView, setSelectedClinicForView] = useState(null);
+  const [loadingClinicDetails, setLoadingClinicDetails] = useState(false);
+  const [selectedClinicDetails, setSelectedClinicDetails] = useState(null);
   
   // Edit appointment states
   const [showEditModal, setShowEditModal] = useState(false);
@@ -904,9 +939,16 @@ export default function Doctors() {
 
   const handlePrintPrescription = () => {
     if (currentPrescription) {
+      console.group('%c📋 PRINT PRESCRIPTION HANDLER', 'color: blue; font-weight: bold; font-size: 14px');
+      console.log('✅ Current prescription found')
+      console.log('📝 Prescription content length:', currentPrescription.prescriptionContent?.length || 'N/A');
+      console.log('📅 Prescription date:', currentPrescription.prescriptionDate);
+      console.log('Full prescription object:', currentPrescription);
+      console.groupEnd();
       setPrescriptionToPrint(currentPrescription);
       setShowPrescriptionPrintModal(true);
     } else {
+      console.error('%c❌ No prescription found', 'color: red; font-weight: bold');
       alert("❌ No prescription found to print");
     }
   };
@@ -916,8 +958,7 @@ export default function Doctors() {
     { key: "clinic", label: "Clinic Details", icon: "🏥", gradient: "from-teal-500 to-cyan-600" },
     { key: "patients", label: "My Patients", icon: "👥", gradient: "from-blue-500 to-indigo-600" },
     { key: "payments", label: "Payments", icon: "💳", gradient: "from-emerald-500 to-teal-600" },
-    { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-violet-500 to-purple-600" },
-    { key: "inventory", label: "Inventory", icon: "📦", gradient: "from-amber-500 to-orange-600" }
+    { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-violet-500 to-purple-600" }
   ];
 
   const manageClinicTabs = [
@@ -925,6 +966,7 @@ export default function Doctors() {
     { key: "staff", label: "Staff Management", icon: "👔", gradient: "from-blue-500 to-indigo-600" },
     { key: "schedule", label: "Schedule & Hours", icon: "🗓️", gradient: "from-violet-500 to-purple-600" },
     { key: "billing", label: "Billing & Insurance", icon: "💰", gradient: "from-emerald-500 to-teal-600" },
+    { key: "inventory", label: "Inventory", icon: "📦", gradient: "from-amber-500 to-orange-600" },
     { key: "reports", label: "Reports & Analytics", icon: "📈", gradient: "from-orange-500 to-red-600" },
     { key: "equipment", label: "Equipment & Assets", icon: "🔧", gradient: "from-amber-500 to-orange-600" }
   ];
@@ -983,28 +1025,332 @@ export default function Doctors() {
   }, [appointmentDate]); // FIXED: Memoized with appointmentDate dependency
 
   const loadMyAppointments = () => {
-    const clinicId = parseInt(localStorage.getItem('clinicId') || '0');
+    // Get clinic ID from selected access (most reliable source)
+    const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
     const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-    const userName = userData.username || '';
+    
+    const clinicId = selectedAccess.clinicId || parseInt(localStorage.getItem('clinicId') || '0');
+    // For doctors, userId IS the doctorId
+    const doctorId = userData.userId;
 
-    if (!clinicId || !userName) {
-      alert('❌ Unable to load your appointments. Please ensure you are logged in.');
+    console.log('🔍 Loading My Appointments - Using GetAppointmentById API');
+    console.log('   Clinic ID:', clinicId);
+    console.log('   Doctor ID (from userData.userId):', doctorId);
+    console.log('   Date:', appointmentDate);
+
+    if (!clinicId) {
+      alert('❌ Unable to load your appointments. Clinic ID not found. Please ensure you are logged in.');
+      return;
+    }
+
+    if (!doctorId) {
+      console.error('❌ Doctor ID not found');
+      console.error('   userData:', userData);
+      console.error('   selectedAccess:', selectedAccess);
+      alert('❌ Unable to load your appointments. Doctor ID not found. Please ensure you are logged in with a doctor account.');
       return;
     }
 
     setLoadingAppointments(true);
     setViewingMyAppointments(true);
-    getAppointmentsByDoctorID(clinicId, userName, appointmentDate)
+    getAppointmentsByDoctorID(clinicId, doctorId.toString(), appointmentDate)
       .then(data => {
         console.log('👨‍⚕️ Loaded my appointments:', data);
         setRealAppointments(data);
       })
       .catch(err => {
         console.error('Failed to load my appointments:', err);
-        alert('❌ Failed to load your appointments. Please try again.');
+        console.error('Error details:', err.message);
+        alert('❌ Failed to load your appointments: ' + (err.message || 'Unknown error'));
         setRealAppointments([]);
       })
       .finally(() => setLoadingAppointments(false));
+  };
+
+  // Payment management functions
+  const loadPaymentAppointments = async () => {
+    const clinicId = paymentClinicId || parseInt(localStorage.getItem('clinicId') || '0');
+    
+    if (!clinicId) {
+      alert('❌ Please select a clinic to load payments.');
+      return;
+    }
+
+    setLoadingPayments(true);
+    try {
+      const params = {
+        clinicId: clinicId.toString(),
+        appointmentDate: paymentDate
+      };
+      
+      console.log('💳 Loading payment appointments with params:', params);
+      const data = await getAppointmentsByFilters(params);
+      console.log('💳 Loaded appointments for payments:', data);
+      setPaymentAppointments(data || []);
+    } catch (error) {
+      console.error('Failed to load payment appointments:', error);
+      alert('❌ Failed to load payments. Please try again.');
+      setPaymentAppointments([]);
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
+  const handleUpdatePaymentStatus = async (appointmentId, newStatus) => {
+    setUpdatingPayment(appointmentId);
+    try {
+      const appointment = paymentAppointments.find(appt => appt.appointmentId === appointmentId);
+      if (!appointment) return;
+
+      const updatedAppointment = {
+        ...appointment,
+        paymentStatus: newStatus
+      };
+
+      await updateAppointment(updatedAppointment);
+      
+      // Update local state
+      setPaymentAppointments(paymentAppointments.map(appt => 
+        appt.appointmentId === appointmentId 
+          ? updatedAppointment
+          : appt
+      ));
+      
+      // Show funny success popup
+      const statusMessages = {
+        'Paid': [
+          "💸 Ka-ching! Payment marked as PAID! Time to celebrate with confetti!",
+          "🎊 Full payment received! The money fairy is pleased!",
+          "✅ Paid in full! Someone's getting a gold star today!"
+        ],
+        'Partial': [
+          "💰 Partial payment locked in! We're halfway there, living on a prayer!",
+          "⚠️ Part payment recorded! The glass is half full... of money!",
+          "📊 Partial success! Rome wasn't built in a day, neither are full payments!"
+        ],
+        'Pending': [
+          "⏳ Back to pending! The payment train hasn't arrived at the station yet!",
+          "🕐 Pending status activated! Patience is a virtue... especially in payments!",
+          "⌛ Pending mode engaged! Good things come to those who wait!"
+        ]
+      };
+      const messages = statusMessages[newStatus] || statusMessages['Pending'];
+      setPaymentSuccessMessage(messages[Math.floor(Math.random() * messages.length)]);
+      setShowPaymentSuccessPopup(true);
+      setTimeout(() => setShowPaymentSuccessPopup(false), 4000);
+      
+      console.log('✅ Payment status updated successfully');
+    } catch (error) {
+      console.error('Failed to update payment status:', error);
+      setPaymentSuccessMessage('😵 Whoops! The payment status update took a wrong turn! Please try again!');
+      setShowPaymentSuccessPopup(true);
+      setTimeout(() => setShowPaymentSuccessPopup(false), 4000);
+    } finally {
+      setUpdatingPayment(null);
+    }
+  };
+
+  // Open edit payment modal
+  const openEditPaymentModal = (appointment) => {
+    setEditingPaymentAppointment(appointment);
+    setEditPaymentForm({
+      billableAmount: appointment.billableAmount || 0,
+      paidAmount: appointment.paidAmount || 0,
+      pendingAmount: appointment.pendingAmount || 0,
+      paymentStatus: appointment.paymentStatus || 'Pending',
+      appointmentStatus: appointment.appointmentStatus || 'Scheduled'
+    });
+    setShowEditPaymentModal(true);
+  };
+
+  // Save edited payment details
+  const handleSavePaymentEdit = async () => {
+    if (!editingPaymentAppointment) return;
+    
+    setSavingPaymentEdit(true);
+    try {
+      // Ensure amounts make sense
+      const billable = parseFloat(editPaymentForm.billableAmount) || 0;
+      const paid = parseFloat(editPaymentForm.paidAmount) || 0;
+      const pending = billable - paid;
+
+      const updatedAppointment = {
+        ...editingPaymentAppointment,
+        billableAmount: billable,
+        paidAmount: Math.min(paid, billable),
+        pendingAmount: Math.max(pending, 0),
+        paymentStatus: editPaymentForm.paymentStatus,
+        appointmentStatus: editPaymentForm.appointmentStatus
+      };
+
+      await updateAppointment(updatedAppointment);
+      
+      // Update local state
+      setPaymentAppointments(paymentAppointments.map(appt => 
+        appt.appointmentId === editingPaymentAppointment.appointmentId 
+          ? updatedAppointment
+          : appt
+      ));
+
+      // Show funny success popup instead of alert
+      const funnyMessages = [
+        "💰 Cha-ching! Money talk is all sorted! The accountant is doing a happy dance!",
+        "🎉 Payment updated! Even your calculator is impressed with those numbers!",
+        "✨ Boom! Updated like a boss! The payment gods smile upon you!",
+        "🚀 Warp speed payment update complete! Captain's log: Success achieved!",
+        "🎪 And the crowd goes wild! Payment details updated with finesse!",
+        "🦸‍♂️ Super Save! You've rescued another payment from the pending zone!",
+        "🌟 Shazam! Money matters handled like magic! Abracadabra, it's done!",
+        "🎯 Bullseye! Direct hit on the payment update button!",
+        "🏆 Achievement Unlocked: Master Payment Updater! +100 XP!"
+      ];
+      setPaymentSuccessMessage(funnyMessages[Math.floor(Math.random() * funnyMessages.length)]);
+      setShowPaymentSuccessPopup(true);
+      setTimeout(() => setShowPaymentSuccessPopup(false), 5000);
+      
+      setShowEditPaymentModal(false);
+      setEditingPaymentAppointment(null);
+    } catch (error) {
+      console.error('Failed to save payment edit:', error);
+      const errorMessages = [
+        "😱 Oops! The payment gremlins are at it again! Give it another shot!",
+        "🤦‍♂️ Houston, we have a problem! The payment didn't quite make it. Try again?",
+        "🎭 Plot twist! Something went wrong. But hey, second chances are a thing!",
+        "🙈 Awkward... The update decided to take a coffee break. Retry?"
+      ];
+      setPaymentSuccessMessage(errorMessages[Math.floor(Math.random() * errorMessages.length)]);
+      setShowPaymentSuccessPopup(true);
+      setTimeout(() => setShowPaymentSuccessPopup(false), 5000);
+    } finally {
+      setSavingPaymentEdit(false);
+    }
+  };
+
+  // Load payments when tab is active
+  useEffect(() => {
+    if (activeTab === 'payments') {
+      const clinicId = parseInt(localStorage.getItem('clinicId') || '0');
+      if (clinicId) {
+        setPaymentClinicId(clinicId.toString());
+      }
+    }
+  }, [activeTab]);
+
+  // Load my patients when tab is active
+  useEffect(() => {
+    if (activeTab === 'patients') {
+      loadMyPatients();
+    }
+  }, [activeTab, myPatientsSelectedClinic]);
+
+  // Load doctor clinics when clinic tab is active
+  useEffect(() => {
+    if (activeTab === 'clinic' && activeSection === 'dashboard') {
+      loadDoctorClinics();
+    }
+  }, [activeTab, activeSection]);
+
+  // Filter my patients by search text
+  const filteredMyPatients = myPatients.filter(patient => {
+    const searchLower = myPatientsFilterText.toLowerCase();
+    const fullName = `${patient.firstName || ''} ${patient.lastName || ''}`.toLowerCase();
+    return fullName.includes(searchLower) || (patient.patientId?.toString() || '').includes(searchLower);
+  });
+
+  // Load doctor's clinics from API
+  const loadDoctorClinics = async () => {
+    setLoadingClinicDetails(true);
+    try {
+      const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
+      const doctorId = selectedAccess.staffId || parseInt(localStorage.getItem('doctorId') || '0');
+      
+      if (!doctorId) {
+        console.warn('No doctor ID found in localStorage');
+        setDoctorClinics([]);
+        setSelectedClinicForView(null);
+        return;
+      }
+
+      // Get clinic IDs from login token payload
+      const clinicIds = selectedAccess.clinicIds || [];
+      
+      if (Array.isArray(clinicIds) && clinicIds.length > 0) {
+        console.log('📍 Loading clinics from token payload:', clinicIds);
+        // Fetch clinic details for each clinic ID from token
+        const clinicsData = [];
+        for (const clinicId of clinicIds) {
+          try {
+            const clinicData = await getClinic(clinicId);
+            clinicsData.push(clinicData);
+          } catch (error) {
+            console.warn(`Failed to load clinic ${clinicId}:`, error);
+          }
+        }
+        
+        setDoctorClinics(clinicsData);
+        if (clinicsData.length > 0) {
+          setSelectedClinicForView(clinicsData[0].clinicId);
+          setSelectedClinicDetails(clinicsData[0]);
+        }
+      } else {
+        console.log('📍 No clinic IDs in token, fetching from appointments');
+        // Fallback: fetch from the appointment data to get clinic IDs the doctor works with
+        const doctorAppointments = await getAppointmentsByDoctorID(doctorId);
+        
+        if (Array.isArray(doctorAppointments) && doctorAppointments.length > 0) {
+          // Get unique clinic IDs from appointments
+          const uniqueClinicIds = [...new Set(doctorAppointments.map(apt => apt.clinicId).filter(id => id))];
+          
+          // Fetch clinic details for each unique clinic
+          const clinicsData = [];
+          for (const clinicId of uniqueClinicIds) {
+            try {
+              const clinicData = await getClinic(clinicId);
+              clinicsData.push(clinicData);
+            } catch (error) {
+              console.warn(`Failed to load clinic ${clinicId}:`, error);
+            }
+          }
+          
+          setDoctorClinics(clinicsData);
+          if (clinicsData.length > 0) {
+            setSelectedClinicForView(clinicsData[0].clinicId);
+            setSelectedClinicDetails(clinicsData[0]);
+          }
+        } else {
+          setDoctorClinics([]);
+          setSelectedClinicForView(null);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load doctor clinics:', error);
+      setDoctorClinics([]);
+      setSelectedClinicForView(null);
+    } finally {
+      setLoadingClinicDetails(false);
+    }
+  };
+
+  // Load my patients function
+  const loadMyPatients = async () => {
+    const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
+    const clinicId = myPatientsSelectedClinic || selectedAccess.clinicId;
+
+    if (!clinicId) {
+      return;
+    }
+
+    setLoadingMyPatients(true);
+    try {
+      const data = await getPatientsByClinic(parseInt(clinicId));
+      console.log('✅ Loaded patients for clinic:', clinicId, data);
+      setMyPatients(data || []);
+    } catch (error) {
+      console.error('Failed to load patients:', error);
+      setMyPatients([]);
+    } finally {
+      setLoadingMyPatients(false);
+    }
   };
 
   const fetchAppointmentDetails = async (appt) => {
@@ -2024,23 +2370,22 @@ export default function Doctors() {
     // Prescription is tracked at the top level now to avoid focus resets and cross-modal state issues
     
     return (
-      <AnimatePresence mode="wait">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
+        onClick={() => setShowVisitInfoModal(false)}
+      >
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
-          onClick={() => setShowVisitInfoModal(false)}
+          initial={{ scale: 0.95, y: 20, opacity: 0 }}
+          animate={{ scale: 1, y: 0, opacity: 1 }}
+          exit={{ scale: 0.95, y: 20, opacity: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col"
         >
-          <motion.div
-            initial={{ scale: 0.95, y: 20, opacity: 0 }}
-            animate={{ scale: 1, y: 0, opacity: 1 }}
-            exit={{ scale: 0.95, y: 20, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col"
-          >
             {/* Header - Sticky */}
             <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-8 py-6 rounded-t-3xl flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-4">
@@ -2808,7 +3153,6 @@ export default function Doctors() {
             </div>
           </motion.div>
         </motion.div>
-      </AnimatePresence>
     );
   });
 
@@ -5499,89 +5843,183 @@ export default function Doctors() {
               transition={{ duration: 0.3 }}
               className="space-y-6"
             >
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-teal-100/60 p-8">
-                <div className="flex items-center gap-3 mb-8">
-                  <div className="w-14 h-14 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center text-3xl shadow-lg">
-                    🏥
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold bg-gradient-to-r from-teal-700 via-cyan-700 to-blue-700 bg-clip-text text-transparent">
-                      {SAMPLE_CLINIC_DETAILS.clinicName}
-                    </h2>
-                    <p className="text-stone-600 text-sm">Clinic Information & Statistics</p>
+              {loadingClinicDetails ? (
+                <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-teal-100/60 p-8 flex items-center justify-center min-h-96">
+                  <div className="text-center">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      className="text-6xl mb-4"
+                    >
+                      🏥
+                    </motion.div>
+                    <p className="text-teal-700 font-semibold">Loading clinic details...</p>
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-xs font-bold text-teal-700 uppercase tracking-wider mb-4 flex items-center gap-2">
-                        <span className="w-1 h-4 bg-gradient-to-b from-teal-500 to-cyan-600 rounded-full"></span>
-                        Contact Information
-                      </h3>
-                      <div className="space-y-4 text-sm">
-                        <div className="flex items-start gap-3 p-3 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl">
-                          <span className="text-teal-600 text-lg">📍</span>
-                          <span className="text-stone-700 flex-1">{SAMPLE_CLINIC_DETAILS.address}</span>
-                        </div>
-                        <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl">
-                          <span className="text-teal-600 text-lg">📞</span>
-                          <span className="text-stone-700">{SAMPLE_CLINIC_DETAILS.phone}</span>
-                        </div>
-                        <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl">
-                          <span className="text-teal-600 text-lg">✉️</span>
-                          <span className="text-stone-700">{SAMPLE_CLINIC_DETAILS.email}</span>
-                        </div>
-                        <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl">
-                          <span className="text-teal-600 text-lg">🕒</span>
-                          <span className="text-stone-700">{SAMPLE_CLINIC_DETAILS.operatingHours}</span>
+              ) : doctorClinics.length === 0 ? (
+                <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-amber-100/60 p-8">
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-4">⚠️</div>
+                    <h3 className="text-2xl font-bold text-amber-900 mb-2">No Clinics Found</h3>
+                    <p className="text-amber-700 mb-6">You don't have any appointments assigned to clinics yet. Once you have appointments, clinic details will appear here.</p>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setActiveTab("appointments")}
+                      className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all"
+                    >
+                      View Appointments →
+                    </motion.button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Clinic Selector */}
+                  {doctorClinics.length > 1 ? (
+                    <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-teal-100/60 p-6">
+                      <label className="text-sm font-bold text-teal-700 uppercase tracking-wider mb-3 block">
+                        🏥 Select a Clinic
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {doctorClinics.map((clinic) => (
+                          <motion.button
+                            key={clinic.clinicId}
+                            whileHover={{ scale: 1.02, y: -2 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              setSelectedClinicForView(clinic.clinicId);
+                              setSelectedClinicDetails(clinic);
+                            }}
+                            className={`p-4 rounded-xl border-2 transition-all font-semibold ${
+                              selectedClinicForView === clinic.clinicId
+                                ? 'bg-gradient-to-r from-teal-500 to-cyan-600 border-teal-700 text-white shadow-xl'
+                                : 'bg-white border-teal-200 text-teal-700 hover:border-teal-400'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl">🏥</span>
+                              <div className="text-left">
+                                <p className="font-bold text-sm">{clinic.clinicName}</p>
+                                <p className="text-xs opacity-75">ID: {clinic.clinicId} • {clinic.clinicCity}</p>
+                              </div>
+                            </div>
+                          </motion.button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : doctorClinics.length === 1 && (
+                    <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-teal-100/60 p-6">
+                      <label className="text-sm font-bold text-teal-700 uppercase tracking-wider mb-3 block">
+                        🏥 Your Clinic
+                      </label>
+                      <div className="p-6 rounded-xl border-2 border-teal-300 bg-gradient-to-r from-teal-50 to-cyan-50">
+                        <div className="flex items-center gap-4">
+                          <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center text-3xl shadow-lg">
+                            🏥
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-teal-900">{doctorClinics[0].clinicName}</p>
+                            <p className="text-sm text-teal-700">ID: {doctorClinics[0].clinicId} • {doctorClinics[0].clinicCity}</p>
+                            <p className="text-xs text-teal-600 mt-1 italic">This is your only assigned clinic</p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
-                  <div>
-                    <h3 className="text-xs font-bold text-teal-700 uppercase tracking-wider mb-4 flex items-center gap-2">
-                      <span className="w-1 h-4 bg-gradient-to-b from-teal-500 to-sage-500 rounded-full"></span>
-                      Clinic Statistics
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <motion.div
-                        whileHover={{ scale: 1.05, rotate: 1 }}
-                        className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl p-5 border border-teal-200/50 shadow-md"
-                      >
-                        <p className="text-3xl font-bold text-teal-700">{SAMPLE_CLINIC_DETAILS.totalStaff}</p>
-                        <p className="text-xs text-stone-600 mt-2 font-medium">Total Staff</p>
-                      </motion.div>
-                      <motion.div
-                        whileHover={{ scale: 1.05, rotate: 1 }}
-                        className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-200/50 shadow-md"
-                      >
-                        <p className="text-3xl font-bold text-blue-700">{SAMPLE_CLINIC_DETAILS.activeDoctors}</p>
-                        <p className="text-xs text-stone-600 mt-2 font-medium">Active Doctors</p>
-                      </motion.div>
-                      <motion.div
-                        whileHover={{ scale: 1.05, rotate: 1 }}
-                        className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-200/50 shadow-md"
-                      >
-                        <p className="text-3xl font-bold text-indigo-700">{SAMPLE_CLINIC_DETAILS.chairsAvailable}</p>
-                        <p className="text-xs text-stone-600 mt-2 font-medium">Chairs Available</p>
-                      </motion.div>
-                      <motion.div
-                        whileHover={{ scale: 1.05, rotate: 1 }}
-                        className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-200/50 shadow-md"
-                      >
-                        <p className="text-3xl font-bold text-purple-700">{SAMPLE_PATIENTS.length}</p>
-                        <p className="text-xs text-stone-600 mt-2 font-medium">Active Patients</p>
-                      </motion.div>
+                  {/* Clinic Details */}
+                  {selectedClinicDetails && (
+                    <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-teal-100/60 p-8">
+                      <div className="flex items-center gap-3 mb-8">
+                        <div className="w-14 h-14 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center text-3xl shadow-lg">
+                          🏥
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-bold bg-gradient-to-r from-teal-700 via-cyan-700 to-blue-700 bg-clip-text text-transparent">
+                            {selectedClinicDetails.clinicName}
+                          </h2>
+                          <p className="text-stone-600 text-sm">Clinic Information</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-6">
+                          <div>
+                            <h3 className="text-xs font-bold text-teal-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                              <span className="w-1 h-4 bg-gradient-to-b from-teal-500 to-cyan-600 rounded-full"></span>
+                              Contact Information
+                            </h3>
+                            <div className="space-y-4 text-sm">
+                              <div className="flex items-start gap-3 p-3 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl">
+                                <span className="text-teal-600 text-lg">📍</span>
+                                <div className="text-stone-700 flex-1">
+                                  <p className="font-semibold">{selectedClinicDetails.clinicAddress}</p>
+                                  {selectedClinicDetails.clinicCity && (
+                                    <p className="text-xs text-stone-600">{selectedClinicDetails.clinicCity}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl">
+                                <span className="text-teal-600 text-lg">📞</span>
+                                <span className="text-stone-700">{selectedClinicDetails.clinicPhone || 'N/A'}</span>
+                              </div>
+                              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl">
+                                <span className="text-teal-600 text-lg">✉️</span>
+                                <span className="text-stone-700 break-all">{selectedClinicDetails.clinicEmail || 'N/A'}</span>
+                              </div>
+                              <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-xl">
+                                <span className="text-teal-600 text-lg">🕒</span>
+                                <span className="text-stone-700">{selectedClinicDetails.operatingHours || 'Not specified'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h3 className="text-xs font-bold text-teal-700 uppercase tracking-wider mb-4 flex items-center gap-2">
+                            <span className="w-1 h-4 bg-gradient-to-b from-teal-500 to-cyan-600 rounded-full"></span>
+                            Clinic Details
+                          </h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <motion.div
+                              whileHover={{ scale: 1.05, rotate: 1 }}
+                              className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl p-5 border border-teal-200/50 shadow-md"
+                            >
+                              <p className="text-3xl font-bold text-teal-700">{selectedClinicDetails.clinicId || '-'}</p>
+                              <p className="text-xs text-stone-600 mt-2 font-medium">Clinic ID</p>
+                            </motion.div>
+                            <motion.div
+                              whileHover={{ scale: 1.05, rotate: 1 }}
+                              className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-200/50 shadow-md"
+                            >
+                              <p className="text-3xl font-bold text-blue-700">{selectedClinicDetails.enterpriseId || '-'}</p>
+                              <p className="text-xs text-stone-600 mt-2 font-medium">Enterprise ID</p>
+                            </motion.div>
+                            <motion.div
+                              whileHover={{ scale: 1.05, rotate: 1 }}
+                              className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-200/50 shadow-md"
+                            >
+                              <p className="text-lg font-bold text-indigo-700">✅</p>
+                              <p className="text-xs text-stone-600 mt-2 font-medium">Status: Active</p>
+                            </motion.div>
+                            <motion.div
+                              whileHover={{ scale: 1.05, rotate: 1 }}
+                              className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-200/50 shadow-md"
+                            >
+                              <p className="text-lg font-bold text-purple-700">📅</p>
+                              <p className="text-xs text-stone-600 mt-2 font-medium">Your Clinic</p>
+                            </motion.div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </div>
+                  )}
+                </>
+              )}
             </motion.div>
           )}
 
-          {/* Patient Details Tab */}
+          {/* Patient Details Tab - Innovative Grid View */}
           {activeSection === "dashboard" && activeTab === "patients" && (
             <motion.div
               key="patients"
@@ -5589,69 +6027,180 @@ export default function Doctors() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
+              className="space-y-6"
             >
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-blue-100/60 overflow-hidden">
-                <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
-                        👥
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
-                          My Patients
-                        </h2>
-                        <p className="text-sm text-stone-600 mt-0.5">Complete patient registry and records</p>
-                      </div>
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => navigate("/patients?view=list")}
-                      className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+              {/* Header Section */}
+              <div className="bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 rounded-3xl shadow-2xl p-8 text-white overflow-hidden relative">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32 blur-3xl"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-4 mb-6">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                      className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center text-3xl backdrop-blur-md"
                     >
-                      <span>👁️</span>
-                      <span>View All Patients</span>
-                    </motion.button>
+                      👥
+                    </motion.div>
+                    <div>
+                      <h2 className="text-4xl font-bold">My Patients</h2>
+                      <p className="text-blue-100 mt-1">Connected & Care Management System</p>
+                    </div>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-stone-50 border-b border-stone-200">
-                      <tr>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Patient Name</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Status</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Last Visit</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Next Appointment</th>
-                        <th className="px-6 py-3 text-right font-semibold text-stone-700">Balance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {SAMPLE_PATIENTS.map((patient, idx) => (
-                        <motion.tr
-                          key={patient.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className="border-b border-stone-100 hover:bg-teal-50/30 transition"
-                        >
-                          <td className="px-6 py-4 font-medium text-stone-800">{patient.name}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(patient.status)}`}>
-                              {patient.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-stone-600">{patient.lastVisit}</td>
-                          <td className="px-6 py-4 text-stone-600">{patient.nextAppt}</td>
-                          <td className="px-6 py-4 text-right font-semibold text-stone-800">
-                            ₹{patient.balance.toLocaleString('en-IN')}
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
               </div>
+
+              {/* Controls Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Search Bar */}
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <span className="text-2xl">🔍</span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search patients by name or ID..."
+                    value={myPatientsFilterText}
+                    onChange={(e) => setMyPatientsFilterText(e.target.value)}
+                    className="w-full pl-14 pr-4 py-3 border-2 border-stone-300 rounded-2xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 font-medium transition"
+                  />
+                </div>
+
+                {/* Clinic Filter */}
+                <select
+                  value={myPatientsSelectedClinic}
+                  onChange={(e) => setMyPatientsSelectedClinic(e.target.value)}
+                  className="px-4 py-3 border-2 border-stone-300 rounded-2xl focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 font-medium transition bg-white"
+                >
+                  <option value="">Select Clinic</option>
+                  {(doctorClinics || []).map((clinic) => (
+                    <option key={clinic.clinicId} value={clinic.clinicId}>
+                      {clinic.clinicName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Stats Cards */}
+              {myPatients.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <motion.div whileHover={{ y: -4 }} className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-4 border-2 border-blue-200">
+                    <div className="text-3xl mb-2">📊</div>
+                    <div className="text-2xl font-bold text-blue-900">{myPatients.length}</div>
+                    <div className="text-sm text-blue-700">Total Patients</div>
+                  </motion.div>
+                  <motion.div whileHover={{ y: -4 }} className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-4 border-2 border-emerald-200">
+                    <div className="text-3xl mb-2">✅</div>
+                    <div className="text-2xl font-bold text-emerald-900">{filteredMyPatients.length}</div>
+                    <div className="text-sm text-emerald-700">Matching Search</div>
+                  </motion.div>
+                  <motion.div whileHover={{ y: -4 }} className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-4 border-2 border-purple-200">
+                    <div className="text-3xl mb-2">🎯</div>
+                    <div className="text-2xl font-bold text-purple-900">{Math.round((filteredMyPatients.length / Math.max(myPatients.length, 1)) * 100)}%</div>
+                    <div className="text-sm text-purple-700">Match Rate</div>
+                  </motion.div>
+                  <motion.div whileHover={{ y: -4 }} className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-2xl p-4 border-2 border-orange-200">
+                    <div className="text-3xl mb-2">⚡</div>
+                    <div className="text-2xl font-bold text-orange-900">{loadingMyPatients ? '...' : 'Ready'}</div>
+                    <div className="text-sm text-orange-700">Status</div>
+                  </motion.div>
+                </div>
+              )}
+
+              {/* Patients Grid */}
+              {loadingMyPatients ? (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                    className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full mb-4"
+                  ></motion.div>
+                  <p className="text-stone-600 font-semibold text-lg">Loading your patients...</p>
+                </div>
+              ) : filteredMyPatients.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 bg-gradient-to-br from-stone-50 to-stone-100 rounded-2xl border-2 border-dashed border-stone-300">
+                  <div className="text-6xl mb-4">👨‍⚕️</div>
+                  <p className="text-stone-600 font-semibold text-lg mb-2">No Patients Found</p>
+                  <p className="text-stone-500 text-sm">Start by adding patients to your clinic</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredMyPatients.sort((a, b) => (a.patientId || 0) - (b.patientId || 0)).map((patient, idx) => (
+                    <motion.div
+                      key={patient.patientId || idx}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.08 }}
+                      whileHover={{ y: -8, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}
+                      className="group relative bg-white rounded-2xl shadow-lg border-2 border-blue-100 overflow-hidden hover:border-blue-400 transition-all cursor-pointer"
+                    >
+                      {/* Gradient Background */}
+                      <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 group-hover:h-1 transition-all"></div>
+
+                      {/* Avatar Section */}
+                      <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-6 text-white">
+                        <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center text-5xl mb-3 mx-auto backdrop-blur-md">
+                          {patient.firstName?.charAt(0) || 'P'}{patient.lastName?.charAt(0) || 'P'}
+                        </div>
+                        <h3 className="text-center text-xl font-bold">{patient.firstName} {patient.lastName}</h3>
+                        <p className="text-center text-blue-100 text-sm mt-1">ID: #{patient.patientId}</p>
+                      </div>
+
+                      {/* Patient Details */}
+                      <div className="p-6 space-y-4">
+                        {/* Contact & Demographics */}
+                        <div className="space-y-2">
+                          {patient.email && (
+                            <div className="flex items-center gap-3">
+                              <span className="text-xl">📧</span>
+                              <span className="text-sm text-stone-600 break-all">{patient.email}</span>
+                            </div>
+                          )}
+                          {patient.primaryPhoneNumber && (
+                            <div className="flex items-center gap-3">
+                              <span className="text-xl">📱</span>
+                              <span className="text-sm font-semibold text-stone-800">{patient.primaryPhoneNumber}</span>
+                            </div>
+                          )}
+                          {patient.dateOfBirth && (
+                            <div className="flex items-center gap-3">
+                              <span className="text-xl">🎂</span>
+                              <span className="text-sm text-stone-600">{new Date(patient.dateOfBirth).toLocaleDateString()}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Address */}
+                        {(patient.address || patient.city) && (
+                          <div className="bg-blue-50 rounded-xl p-3 border border-blue-200">
+                            <p className="text-xs font-semibold text-blue-900 mb-1">📍 Address</p>
+                            <p className="text-sm text-stone-700">{patient.address || 'N/A'}, {patient.city || ''}</p>
+                          </div>
+                        )}
+
+                        {/* Action Button */}
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => {
+                            // Navigate to view patient details
+                            navigate(`/patients`, { state: { selectedPatient: patient, isModal: true } });
+                          }}
+                          className="w-full mt-4 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group/btn"
+                        >
+                          <span>👁️</span>
+                          <span>View Details</span>
+                          <span className="ml-auto group-hover/btn:translate-x-1 transition">→</span>
+                        </motion.button>
+                      </div>
+
+                      {/* Corner Badge */}
+                      <div className="absolute top-4 right-4 bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold">
+                        Active
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -5665,6 +6214,7 @@ export default function Doctors() {
               transition={{ duration: 0.3 }}
             >
               <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-emerald-100/60 overflow-hidden">
+                {/* Header */}
                 <div className="p-6 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-200">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
@@ -5672,45 +6222,276 @@ export default function Doctors() {
                     </div>
                     <div>
                       <h2 className="text-xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">
-                        Payment Status
+                        Payment Management
                       </h2>
-                      <p className="text-sm text-stone-600 mt-0.5">Track all patient payments and outstanding balances</p>
+                      <p className="text-sm text-stone-600 mt-0.5">Track and manage patient payments and billing status</p>
                     </div>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-stone-50 border-b border-stone-200">
-                      <tr>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Patient</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Date</th>
-                        <th className="px-6 py-3 text-right font-semibold text-stone-700">Amount</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Method</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {SAMPLE_PAYMENTS.map((payment, idx) => (
-                        <motion.tr
-                          key={payment.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className="border-b border-stone-100 hover:bg-teal-50/30 transition"
-                        >
-                          <td className="px-6 py-4 font-medium text-stone-800">{payment.patient}</td>
-                          <td className="px-6 py-4 text-stone-600">{payment.date}</td>
-                          <td className="px-6 py-4 text-right font-semibold text-stone-800">₹{payment.amount.toLocaleString('en-IN')}</td>
-                          <td className="px-6 py-4 text-stone-600">{payment.method}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(payment.status)}`}>
-                              {payment.status}
+
+                {/* Filters */}
+                <div className="px-6 py-4 bg-stone-50 border-b border-stone-200">
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <div>
+                      <label className="text-sm font-semibold text-stone-700 mb-1 block">Date Filter:</label>
+                      <input
+                        type="date"
+                        value={paymentDate}
+                        onChange={(e) => setPaymentDate(e.target.value)}
+                        className="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-[200px]">
+                      <label className="text-sm font-semibold text-stone-700 mb-1 block">Clinic ID:</label>
+                      <input
+                        type="number"
+                        value={paymentClinicId}
+                        onChange={(e) => setPaymentClinicId(e.target.value)}
+                        placeholder="Enter Clinic ID"
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={loadPaymentAppointments}
+                        disabled={loadingPayments}
+                        className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 disabled:opacity-50"
+                      >
+                        <span>🔍</span>
+                        <span>{loadingPayments ? 'Loading...' : 'Search Payments'}</span>
+                      </motion.button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Filter Tabs */}
+                {paymentAppointments.length > 0 && (
+                  <div className="px-6 py-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-200">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-sm font-bold text-stone-700">Filter by Status:</span>
+                      {['All', 'Paid', 'Partial', 'Pending'].map((status) => {
+                        const count = status === 'All' 
+                          ? paymentAppointments.length 
+                          : paymentAppointments.filter(a => a.paymentStatus === status).length;
+                        
+                        return (
+                          <motion.button
+                            key={status}
+                            whileHover={{ scale: 1.05, y: -2 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setPaymentStatusFilter(status)}
+                            className={`px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-md flex items-center gap-2 ${
+                              paymentStatusFilter === status
+                                ? status === 'All' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white ring-4 ring-indigo-200' :
+                                  status === 'Paid' ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white ring-4 ring-emerald-200' :
+                                  status === 'Partial' ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white ring-4 ring-yellow-200' :
+                                  'bg-gradient-to-r from-rose-500 to-red-600 text-white ring-4 ring-rose-200'
+                                : 'bg-white text-stone-700 hover:bg-stone-100 border-2 border-stone-300'
+                            }`}
+                          >
+                            <span>{
+                              status === 'All' ? '📋' :
+                              status === 'Paid' ? '✓' :
+                              status === 'Partial' ? '⚠' : '⏳'
+                            }</span>
+                            <span>{status}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                              paymentStatusFilter === status
+                                ? 'bg-white/30'
+                                : 'bg-stone-200'
+                            }`}>
+                              {count}
                             </span>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Grid */}
+                <div className="p-6">
+                  {loadingPayments ? (
+                    <div className="py-12 text-center">
+                      <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent"></div>
+                      <p className="mt-4 text-stone-600 font-medium">Loading payment information...</p>
+                    </div>
+                  ) : paymentAppointments.length === 0 ? (
+                    <div className="py-12 text-center">
+                      <div className="text-6xl mb-4">💳</div>
+                      <h3 className="text-xl font-bold text-stone-700 mb-2">No Payments Found</h3>
+                      <p className="text-stone-500">Try adjusting your filters to see payment records.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Appointments Table */}
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="bg-gradient-to-r from-emerald-100 to-teal-100 border-b-2 border-emerald-300">
+                              <th className="px-4 py-3 text-left text-xs font-bold text-emerald-900 uppercase tracking-wider">ID</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-emerald-900 uppercase tracking-wider">Patient</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-emerald-900 uppercase tracking-wider">Date</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-emerald-900 uppercase tracking-wider">Type</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-emerald-900 uppercase tracking-wider">Amount</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-emerald-900 uppercase tracking-wider">Paid</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-emerald-900 uppercase tracking-wider">Pending</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-emerald-900 uppercase tracking-wider">Status</th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-emerald-900 uppercase tracking-wider">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paymentAppointments
+                              .filter(appt => paymentStatusFilter === 'All' || appt.paymentStatus === paymentStatusFilter)
+                              .map((appt, idx) => (
+                              <motion.tr
+                                key={appt.appointmentId}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: idx * 0.03 }}
+                                className="border-b border-stone-200 hover:bg-emerald-50/50 transition-colors"
+                              >
+                                <td className="px-4 py-3">
+                                  <span className="font-bold text-stone-700">#{appt.appointmentId}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                                      {appt.firstName?.charAt(0)}{appt.lastName?.charAt(0)}
+                                    </div>
+                                    <div>
+                                      <p className="font-semibold text-stone-800 text-sm">{appt.firstName} {appt.lastName}</p>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <p className="text-sm text-stone-700">
+                                    {new Date(appt.appointmentDate).toLocaleDateString('en-US', { 
+                                      month: 'short', day: 'numeric', year: 'numeric'
+                                    })}
+                                  </p>
+                                  <p className="text-xs text-stone-500">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-sm font-medium text-stone-700">{appt.appointmentType || 'Consultation'}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-base font-bold text-stone-900">₹{(appt.billableAmount || 0).toLocaleString('en-IN')}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-sm font-bold text-emerald-700">₹{(appt.paidAmount || 0).toLocaleString('en-IN')}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-sm font-bold text-rose-700">₹{(appt.pendingAmount || 0).toLocaleString('en-IN')}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex gap-1">
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => handleUpdatePaymentStatus(appt.appointmentId, 'Paid')}
+                                      disabled={updatingPayment === appt.appointmentId}
+                                      className={`px-2 py-1 rounded-lg font-bold text-xs transition-all ${
+                                        appt.paymentStatus === 'Paid'
+                                          ? 'bg-emerald-500 text-white shadow-md'
+                                          : 'bg-white text-emerald-700 hover:bg-emerald-50 border border-emerald-300'
+                                      } disabled:opacity-50`}
+                                      title="Mark as Paid"
+                                    >
+                                      ✓
+                                    </motion.button>
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => handleUpdatePaymentStatus(appt.appointmentId, 'Partial')}
+                                      disabled={updatingPayment === appt.appointmentId}
+                                      className={`px-2 py-1 rounded-lg font-bold text-xs transition-all ${
+                                        appt.paymentStatus === 'Partial'
+                                          ? 'bg-yellow-500 text-white shadow-md'
+                                          : 'bg-white text-yellow-700 hover:bg-yellow-50 border border-yellow-300'
+                                      } disabled:opacity-50`}
+                                      title="Mark as Partial"
+                                    >
+                                      ⚠
+                                    </motion.button>
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => handleUpdatePaymentStatus(appt.appointmentId, 'Pending')}
+                                      disabled={updatingPayment === appt.appointmentId}
+                                      className={`px-2 py-1 rounded-lg font-bold text-xs transition-all ${
+                                        appt.paymentStatus === 'Pending'
+                                          ? 'bg-rose-500 text-white shadow-md'
+                                          : 'bg-white text-rose-700 hover:bg-rose-50 border border-rose-300'
+                                      } disabled:opacity-50`}
+                                      title="Mark as Pending"
+                                    >
+                                      ⏳
+                                    </motion.button>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <motion.button
+                                      whileHover={{ scale: 1.1, rotate: 5 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => openEditPaymentModal(appt)}
+                                      className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold text-xs shadow-md transition-all"
+                                      title="Edit Details"
+                                    >
+                                      ✏️ Edit
+                                    </motion.button>
+                                  </div>
+                                </td>
+                              </motion.tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Summary Stats */}
+                      {paymentAppointments.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t-2 border-emerald-200">
+                          <motion.div
+                            whileHover={{ scale: 1.02, y: -2 }}
+                            className="bg-gradient-to-br from-indigo-50 to-purple-100 rounded-xl p-4 border-2 border-indigo-200 shadow-md"
+                          >
+                            <p className="text-xs font-bold text-indigo-700 uppercase mb-1">Total Appointments</p>
+                            <p className="text-3xl font-bold text-indigo-900">{paymentAppointments.length}</p>
+                          </motion.div>
+                          <motion.div
+                            whileHover={{ scale: 1.02, y: -2 }}
+                            className="bg-gradient-to-br from-emerald-50 to-green-100 rounded-xl p-4 border-2 border-emerald-200 shadow-md"
+                          >
+                            <p className="text-xs font-bold text-emerald-700 uppercase mb-1">Total Collected</p>
+                            <p className="text-3xl font-bold text-emerald-900">
+                              ₹{paymentAppointments.reduce((sum, a) => sum + (a.paidAmount || 0), 0).toLocaleString('en-IN')}
+                            </p>
+                          </motion.div>
+                          <motion.div
+                            whileHover={{ scale: 1.02, y: -2 }}
+                            className="bg-gradient-to-br from-rose-50 to-red-100 rounded-xl p-4 border-2 border-rose-200 shadow-md"
+                          >
+                            <p className="text-xs font-bold text-rose-700 uppercase mb-1">Total Pending</p>
+                            <p className="text-3xl font-bold text-rose-900">
+                              ₹{paymentAppointments.reduce((sum, a) => sum + (a.pendingAmount || 0), 0).toLocaleString('en-IN')}
+                            </p>
+                          </motion.div>
+                          <motion.div
+                            whileHover={{ scale: 1.02, y: -2 }}
+                            className="bg-gradient-to-br from-amber-50 to-yellow-100 rounded-xl p-4 border-2 border-amber-200 shadow-md"
+                          >
+                            <p className="text-xs font-bold text-amber-700 uppercase mb-1">Grand Total</p>
+                            <p className="text-3xl font-bold text-amber-900">
+                              ₹{paymentAppointments.reduce((sum, a) => sum + (a.billableAmount || 0), 0).toLocaleString('en-IN')}
+                            </p>
+                          </motion.div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -6721,7 +7502,9 @@ export default function Doctors() {
       <AppointmentDetailsModal />
       
       {/* Visit Info Modal */}
-      <VisitInfoModal />
+      <AnimatePresence mode="wait">
+        {showVisitInfoModal && <VisitInfoModal />}
+      </AnimatePresence>
       
       {/* Prescription Modal */}
       <PrescriptionModal />
@@ -6881,6 +7664,180 @@ export default function Doctors() {
         )}
       </AnimatePresence>
 
+      {/* Edit Payment Modal */}
+      <AnimatePresence>
+        {showEditPaymentModal && editingPaymentAppointment && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[9999] p-4"
+            onClick={() => setShowEditPaymentModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6 sticky top-0 z-10 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <span>✏️</span> Edit Payment & Appointment
+                </h2>
+                <button
+                  onClick={() => setShowEditPaymentModal(false)}
+                  className="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-xl"
+                >
+                  <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-8 space-y-6">
+                {/* Patient Info */}
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <h3 className="text-sm font-bold text-blue-900 mb-3">👤 Patient Information</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-blue-700 font-semibold">Name:</span>
+                      <p className="text-stone-900">{editingPaymentAppointment.firstName} {editingPaymentAppointment.lastName}</p>
+                    </div>
+                    <div>
+                      <span className="text-blue-700 font-semibold">Date:</span>
+                      <p className="text-stone-900">{new Date(editingPaymentAppointment.appointmentDate).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Billing Information */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+                    <span>💰</span> Billing Information
+                  </h3>
+                  
+                  <div>
+                    <label className="text-sm font-semibold text-stone-700 block mb-2">Total Billable Amount (₹)</label>
+                    <input
+                      type="number"
+                      value={editPaymentForm.billableAmount}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setEditPaymentForm({
+                          ...editPaymentForm,
+                          billableAmount: val,
+                          pendingAmount: Math.max(val - editPaymentForm.paidAmount, 0)
+                        });
+                      }}
+                      className="w-full px-4 py-2 border-2 border-stone-300 rounded-lg focus:border-blue-500 focus:outline-none font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-semibold text-stone-700 block mb-2">Amount Paid (₹)</label>
+                    <input
+                      type="number"
+                      value={editPaymentForm.paidAmount}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        const pending = Math.max(editPaymentForm.billableAmount - val, 0);
+                        setEditPaymentForm({
+                          ...editPaymentForm,
+                          paidAmount: Math.min(val, editPaymentForm.billableAmount),
+                          pendingAmount: pending
+                        });
+                      }}
+                      className="w-full px-4 py-2 border-2 border-stone-300 rounded-lg focus:border-blue-500 focus:outline-none font-semibold"
+                    />
+                  </div>
+
+                  <div className="bg-stone-100 p-4 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-semibold text-stone-700">Pending Amount:</span>
+                      <span className="text-xl font-bold text-rose-600">₹{editPaymentForm.pendingAmount.toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Status */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-stone-900">Payment Status</h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {['Paid', 'Partial', 'Pending'].map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setEditPaymentForm({ ...editPaymentForm, paymentStatus: status })}
+                        className={`px-4 py-3 rounded-lg font-bold transition-all ${
+                          editPaymentForm.paymentStatus === status
+                            ? status === 'Paid' ? 'bg-emerald-500 text-white' : status === 'Partial' ? 'bg-yellow-500 text-white' : 'bg-rose-500 text-white'
+                            : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
+                        }`}
+                      >
+                        {status === 'Paid' ? '✓' : status === 'Partial' ? '⚠' : '⏳'} {status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Appointment Status */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-stone-900">Appointment Status</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['Scheduled', 'Completed', 'Cancelled'].map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setEditPaymentForm({ ...editPaymentForm, appointmentStatus: status })}
+                        className={`px-4 py-3 rounded-lg font-bold text-sm transition-all ${
+                          editPaymentForm.appointmentStatus === status
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-stone-200 text-stone-700 hover:bg-stone-300'
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="bg-stone-100 px-8 py-4 flex justify-end gap-3 border-t border-stone-200 sticky bottom-0">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowEditPaymentModal(false)}
+                  className="px-6 py-2.5 text-stone-700 hover:text-stone-900 font-semibold transition-colors"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSavePaymentEdit}
+                  disabled={savingPaymentEdit}
+                  className="px-8 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  {savingPaymentEdit ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>💾</span>
+                      <span>Save Changes</span>
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Prescription Print Modal */}
       <AnimatePresence>
         {showPrescriptionPrintModal && prescriptionToPrint && (
@@ -6940,7 +7897,25 @@ export default function Doctors() {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => window.print()}
+                  onClick={() => {
+                    console.group('%c🖨️ PRINT BUTTON CLICKED', 'color: red; font-weight: bold; font-size: 16px');
+                    console.log('📋 Current prescription:', prescriptionToPrint);
+                    console.log('👤 Patient details:', selectedAppointmentDetails);
+                    const container = document.querySelector('.prescription-print-container');
+                    console.log('%c📦 Container Check:', 'color: blue; font-weight: bold');
+                    console.log('  - Container found:', !!container);
+                    if (container) {
+                      console.log('  - Container ID:', container.id);
+                      console.log('  - Container classes:', container.className);
+                      console.log('  - Container parent:', container.parentElement?.tagName);
+                      console.log('  - Container grandparent:', container.parentElement?.parentElement?.tagName);
+                      console.log('  - Content visible:', container.style.visibility !== 'hidden');
+                      console.log('  - Display:', window.getComputedStyle(container).display);
+                    }
+                    console.log('%c🎯 Print command executing...', 'color: green; font-weight: bold');
+                    console.groupEnd();
+                    window.print();
+                  }}
                   className="px-8 py-2.5 bg-gradient-to-r from-stone-900 to-stone-800 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                 >
                   <span>🖨️</span>
@@ -7509,6 +8484,81 @@ export default function Doctors() {
                 </motion.button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Payment Success Popup */}
+      <AnimatePresence>
+        {showPaymentSuccessPopup && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5, y: -100 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: -100 }}
+            transition={{ type: "spring", duration: 0.5, bounce: 0.4 }}
+            className="fixed top-20 right-8 z-[99999] max-w-md"
+          >
+            <div className="bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 rounded-2xl shadow-2xl overflow-hidden border-4 border-white">
+              <div className="p-6 relative">
+                {/* Animated background sparkles */}
+                <motion.div
+                  animate={{ 
+                    rotate: [0, 360],
+                    scale: [1, 1.2, 1]
+                  }}
+                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                  className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"
+                />
+                <motion.div
+                  animate={{ 
+                    rotate: [360, 0],
+                    scale: [1, 1.1, 1]
+                  }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+                  className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full blur-xl"
+                />
+                
+                {/* Content */}
+                <div className="relative z-10">
+                  <div className="flex items-start gap-4">
+                    <motion.div
+                      animate={{ 
+                        rotate: [0, -15, 15, -15, 0],
+                        scale: [1, 1.2, 1, 1.2, 1]
+                      }}
+                      transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 2 }}
+                      className="text-6xl"
+                    >
+                      🎉
+                    </motion.div>
+                    <div className="flex-1">
+                      <h3 className="text-white font-bold text-xl mb-2 flex items-center gap-2">
+                        <span>✨</span> Success!
+                      </h3>
+                      <p className="text-white/95 text-sm leading-relaxed">
+                        {paymentSuccessMessage}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowPaymentSuccessPopup(false)}
+                      className="text-white/80 hover:text-white transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  {/* Progress bar */}
+                  <motion.div
+                    initial={{ width: "100%" }}
+                    animate={{ width: "0%" }}
+                    transition={{ duration: 5, ease: "linear" }}
+                    className="absolute bottom-0 left-0 h-1.5 bg-white/40 rounded-full"
+                  />
+                </div>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -201,11 +201,19 @@ export function getAppointmentsByFilters(params: AppointmentFilterParams): Promi
   return request<AppointmentsModel[]>(`/Appointments/GetAppointmentById?${queryParams.toString()}`);
 }
 
-// Get appointments by doctor ID with date filter
-export function getAppointmentsByDoctorID(clinicId: number, userName: string, appointmentDate: string): Promise<AppointmentsModel[]> {
-  return request<AppointmentsModel[]>(
-    `/Appointments/GetAppointmentsByDoctorID?clinicId=${clinicId}&UserName=${encodeURIComponent(userName)}&appointmentDate=${appointmentDate}`
-  );
+// Get appointments by doctor ID with date filter (updated to use GetAppointmentById)
+export function getAppointmentsByDoctorID(clinicId: number, doctorId: string, appointmentDate: string): Promise<AppointmentsModel[]> {
+  const queryParams = new URLSearchParams();
+  queryParams.append('clinicId', clinicId.toString());
+  queryParams.append('doctorId', doctorId);
+  queryParams.append('appointmentDate', appointmentDate);
+  
+  console.log('📅 Loading My Appointments with GetAppointmentById API');
+  console.log('   Clinic ID:', clinicId);
+  console.log('   Doctor ID:', doctorId);
+  console.log('   Date:', appointmentDate);
+  
+  return request<AppointmentsModel[]>(`/Appointments/GetAppointmentById?${queryParams.toString()}`);
 }
 
 // ============= PRESCRIPTION OPERATIONS =============

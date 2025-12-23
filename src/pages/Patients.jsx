@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient, getAllPatientsByClinicID } from "../services/patientService";
+import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient, getAllPatientsByClinicID, getPatientVisit } from "../services/patientService";
 import { visitService } from "../services/visitService";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
 import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment } from "../services/appointmentService";
@@ -153,6 +153,8 @@ export default function Patients() {
     lastName: "",
     phoneNumber: "",
     email: "",
+    dateOfBirth: "",
+    age: "",
     // Scheduling
     date: "",
     startTime: "",
@@ -173,7 +175,9 @@ export default function Patients() {
     pendingAmount: "",
     paymentStatus: "Pending",
     // References
-    doctorId: ""
+    doctorId: "",
+    // Walk-in flag
+    isWalkIn: false
   });
   
   // Patient search state for appointment booking
@@ -200,6 +204,11 @@ export default function Patients() {
   const [showAppointmentUpdateSuccess, setShowAppointmentUpdateSuccess] = useState(false);
   const [showNotLoggedInModal, setShowNotLoggedInModal] = useState(false);
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(!!localStorage.getItem('accessToken'));
+  
+  // Diagnosis modal states
+  const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
+  const [selectedDiagnosis, setSelectedDiagnosis] = useState(null);
+  const [loadingDiagnosis, setLoadingDiagnosis] = useState(false);
   
   // Appointment filter state
   const [appointmentFilter, setAppointmentFilter] = useState({
@@ -310,6 +319,28 @@ export default function Patients() {
       appointmentDate: ""
     });
     setFilteredAppointmentsList(appointmentsList);
+  };
+
+  // Load diagnosis details for an appointment
+  const loadDiagnosisDetails = async (appointmentId) => {
+    if (!appointmentId) {
+      alert('❌ No appointment ID found. Cannot load diagnosis details.');
+      return;
+    }
+    setLoadingDiagnosis(true);
+    setShowDiagnosisModal(true);
+    try {
+      console.log('📋 Loading diagnosis for appointment ID:', appointmentId);
+      const diagnosisData = await getPatientVisit(appointmentId);
+      console.log('📋 Diagnosis data received:', diagnosisData);
+      setSelectedDiagnosis(diagnosisData);
+    } catch (error) {
+      console.error("Error loading diagnosis:", error);
+      alert('❌ Could not load diagnosis details. Please try again! 🩺');
+      setShowDiagnosisModal(false);
+    } finally {
+      setLoadingDiagnosis(false);
+    }
   };
 
   // Handle Visit Filtering
@@ -543,6 +574,7 @@ export default function Patients() {
     maritalStatus: "",
     enterpriseId: "",
     clinicId: "",
+    role: "patient", // New role field
     isActive: true
   });
 
@@ -575,7 +607,10 @@ export default function Patients() {
     exerciseFrequency: "",
     dietaryRestrictions: "",
     lastDentalVisit: "",
-    notes: ""
+    notes: "",
+    license: "",
+    degree: "",
+    specialization: ""
   });
 
   const [insuranceData, setInsuranceData] = useState({
@@ -811,10 +846,13 @@ export default function Patients() {
       setShowSuccessModal(true);
       
       // Clear form after successful submission
-      setPatientData({ firstName: "", lastName: "", dateOfBirth: "", gender: "", bloodGroup: "", maritalStatus: "", isActive: true });
+      setPatientData({ firstName: "", lastName: "", dateOfBirth: "", gender: "", bloodGroup: "", maritalStatus: "", role: "patient", isActive: true });
       setContactData({ phoneNumber: "", alternatePhoneNumber: "", email: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "", emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelation: "" });
-      setMedicalData({ allergies: "", chronicConditions: "", currentMedications: "", pastSurgeries: "", familyMedicalHistory: "", smokingStatus: "", alcoholConsumption: "", exerciseFrequency: "", dietaryRestrictions: "", lastDentalVisit: "", notes: "" });
+      setMedicalData({ allergies: "", chronicConditions: "", currentMedications: "", pastSurgeries: "", familyMedicalHistory: "", smokingStatus: "", alcoholConsumption: "", exerciseFrequency: "", dietaryRestrictions: "", lastDentalVisit: "", notes: "", license: "", degree: "", specialization: "" });
       setInsuranceData({ insuranceProvider: "", policyNumber: "", groupNumber: "", policyHolderName: "", policyHolderRelation: "", coverageStartDate: "", coverageEndDate: "", isPrimaryInsurance: true, copayAmount: "", deductibleAmount: "", coveragePercentage: "", insurancePhone: "", isActive: true });
+      
+      // Close the registration modal
+      setActiveView("list");
     } catch (error) {
       console.error("Error creating patient:", error);
       alert("❌ Error registering patient: " + error.message);
@@ -834,6 +872,39 @@ export default function Patients() {
 
   const isAllTabsValid = () => {
     return isPatientTabValid() && isContactTabValid();
+  };
+
+  // Print-friendly ref for diagnosis modal
+  const diagnosisPrintRef = useRef(null);
+
+  const handlePrintDiagnosis = () => {
+    if (!diagnosisPrintRef.current) return;
+    const printContent = diagnosisPrintRef.current.innerHTML;
+    const printWindow = window.open('', '_blank', 'width=900,height=1200');
+    if (!printWindow) return;
+    printWindow.document.write(`<!doctype html><html><head><title>Diagnosis Details</title><style>
+      body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 24px; color: #0f172a; line-height: 1.6; }
+      h1 { margin: 0 0 8px; font-size: 24px; color: #0f172a; font-weight: bold; }
+      h2 { margin: 16px 0 8px; font-size: 18px; color: #0f172a; font-weight: 600; }
+      h3 { margin: 12px 0 6px; font-size: 16px; color: #0f172a; font-weight: 600; }
+      .border-b { border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 16px; }
+      .text-sm { font-size: 14px; color: #64748b; }
+      .inline-block { display: inline-block; padding: 6px 12px; margin: 4px; border-radius: 8px; font-size: 13px; }
+      .bg-cyan-50 { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
+      .bg-teal-50 { background: #f0fdfa; color: #0f766e; border: 1px solid #99f6e4; }
+      .bg-blue-50 { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      td { padding: 8px 4px; vertical-align: top; font-size: 14px; border-bottom: 1px solid #f1f5f9; }
+      strong, .font-bold { font-weight: 600; color: #0f172a; }
+      p { margin: 8px 0; }
+      @media print { body { margin: 0; padding: 16px; } }
+    </style></head><body>${printContent}</body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
   };
 
   return (
@@ -977,7 +1048,7 @@ export default function Patients() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { id: 'add-visit', title: '🧠 Diagnosis', description: 'Capture visit + prescription', icon: '🧠', color: 'from-emerald-400 to-teal-400', action: () => setShowAddVisitModal(true) },
+              { id: 'add-visit', title: '📝 Add Visit', description: 'Capture visit + prescription', icon: '📝', color: 'from-emerald-400 to-teal-400', action: () => setShowAddVisitModal(true) },
               { id: 'view-visits', title: '📋 View Visits', description: 'Browse visit history', icon: '📋', color: 'from-violet-400 to-purple-400', action: () => setShowViewVisitsModal(true) }
             ].map((tile, index) => (
               <motion.div
@@ -1100,36 +1171,47 @@ export default function Patients() {
         </motion.div>
 
         {/* Registration Modal */}
-        <AnimatePresence>
         {activeView === "register" && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setActiveView(null)}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto"
+            onClick={() => setActiveView("list")}
           >
             <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full h-[90vh] overflow-hidden flex flex-col"
+              className="bg-white rounded-2xl shadow-2xl border-2 border-teal-400 overflow-hidden max-w-5xl w-full my-8"
             >
               {/* Modal Header */}
-              <div className="bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600 p-4 text-white">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold">📝 Register New Patient</h2>
-                  <motion.button
-                    whileHover={{ scale: 1.1, rotate: 90 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setActiveView(null)}
-                    type="button"
-                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center"
+              <div className="bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600 p-6 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <motion.span
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+                    className="text-4xl"
                   >
-                    <span className="text-2xl">×</span>
-                  </motion.button>
+                    📝
+                  </motion.span>
+                  <div>
+                    <h2 className="text-3xl font-bold">Register New Patient</h2>
+                    <p className="text-cyan-100 text-sm mt-1">Fill in the patient information to create a new record</p>
+                  </div>
                 </div>
+                <motion.button
+                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setActiveView("list")}
+                  type="button"
+                  className="text-white hover:bg-white/20 rounded-xl p-3 transition-all"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </motion.button>
               </div>
 
               {/* Tab Navigation */}
@@ -1158,8 +1240,8 @@ export default function Patients() {
                 ))}
               </div>
 
-              {/* Modal Content - Fixed Height */}
-              <div className="h-[calc(90vh-180px)] overflow-y-auto p-4">
+              {/* Content */}
+              <div className="p-6 overflow-y-auto">
                 <form onSubmit={handleSubmit} id="register-patient-form">
             
             {/* Patient Basic Information - Tab */}
@@ -1256,11 +1338,25 @@ export default function Patients() {
                     ))}
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
+                  <select
+                    value={patientData.role}
+                    onChange={(e) => setPatientData({ ...patientData, role: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="patient">Patient</option>
+                    <option value="doctor">Doctor</option>
+                    <option value="nurse">Nurse</option>
+                    <option value="admin">Administrator</option>
+                    <option value="receptionist">Receptionist</option>
+                    <option value="staff">Staff</option>
+                  </select>
+                </div>
               </div>
               </motion.div>
             )}
-
-            {/* Contact Information - Tab */}
             {registerActiveTab === "contact" && (
               <motion.div
                 key="contact-tab"
@@ -1483,6 +1579,36 @@ export default function Patients() {
                   onChange={(e) => setMedicalData({ ...medicalData, notes: e.target.value })}
                   placeholder="Any additional medical information"
                 />
+                
+                {/* Professional Fields - Only for doctor, nurse, admin roles */}
+                {['doctor', 'nurse', 'admin'].includes(patientData.role) && (
+                  <div className="md:col-span-2 border-t-2 border-teal-300 pt-4 mt-4">
+                    <h4 className="text-sm font-bold text-teal-900 mb-3">Professional Information</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <InputField
+                        label="License Number"
+                        name="license"
+                        value={medicalData.license}
+                        onChange={(e) => setMedicalData({ ...medicalData, license: e.target.value })}
+                        placeholder="Professional license number"
+                      />
+                      <InputField
+                        label="Degree/Qualification"
+                        name="degree"
+                        value={medicalData.degree}
+                        onChange={(e) => setMedicalData({ ...medicalData, degree: e.target.value })}
+                        placeholder="e.g., MD, BNS, MBBS"
+                      />
+                      <InputField
+                        label="Specialization"
+                        name="specialization"
+                        value={medicalData.specialization}
+                        onChange={(e) => setMedicalData({ ...medicalData, specialization: e.target.value })}
+                        placeholder="Area of expertise"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
               </motion.div>
             )}
@@ -1601,80 +1727,63 @@ export default function Patients() {
                 </form>
               </div>
 
-              {/* Modal Footer with Tab Navigation */}
-              <div className="bg-slate-100 p-3 border-t-2 border-slate-200 flex justify-between items-center gap-3">
+              {/* Footer with Tab Navigation */}
+              <div className="bg-gradient-to-r from-slate-100 to-blue-50 p-6 border-t-2 border-teal-300 flex justify-between items-center gap-3 rounded-b-2xl">
                 {/* Previous/Next Tab Buttons */}
-                <div className="flex gap-2">
+                <div className="flex gap-3">
                   {registerActiveTab !== "patient" && (
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                       type="button"
                       onClick={() => {
                         const tabs = ["patient", "contact", "medical", "insurance"];
                         const currentIndex = tabs.indexOf(registerActiveTab);
                         if (currentIndex > 0) setRegisterActiveTab(tabs[currentIndex - 1]);
                       }}
-                      className="px-4 py-2 bg-white text-slate-700 rounded-lg font-semibold hover:bg-slate-50 transition border-2 border-slate-300"
+                      className="px-6 py-3 bg-white text-slate-700 rounded-lg font-semibold hover:bg-slate-50 transition border-2 border-slate-300 shadow-md"
                     >
                       ← Previous
                     </motion.button>
                   )}
                   {registerActiveTab !== "insurance" && (
                     <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
                       type="button"
                       onClick={() => {
                         const tabs = ["patient", "contact", "medical", "insurance"];
                         const currentIndex = tabs.indexOf(registerActiveTab);
                         if (currentIndex < tabs.length - 1) setRegisterActiveTab(tabs[currentIndex + 1]);
                       }}
-                      className="px-4 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-semibold hover:from-teal-700 hover:to-cyan-700 transition"
+                      className="px-6 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-semibold hover:from-teal-700 hover:to-cyan-700 transition shadow-md"
                     >
                       Next →
                     </motion.button>
                   )}
                 </div>
 
-                {/* Register Button (only show on last tab when valid) */}
-                <div className="flex gap-2">
-                  {registerActiveTab === "insurance" && (
-                    <motion.button
-                      whileHover={{ scale: isAllTabsValid() ? 1.02 : 1 }}
-                      whileTap={{ scale: isAllTabsValid() ? 0.98 : 1 }}
-                      type="submit"
-                      form="register-patient-form"
-                      disabled={!isAllTabsValid()}
-                      className={`px-8 py-3 rounded-lg font-bold shadow-lg transition ${
-                        isAllTabsValid()
-                          ? "bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white cursor-pointer"
-                          : "bg-slate-300 text-slate-500 cursor-not-allowed opacity-60"
-                      }`}
-                    >
-                      💾 Register Patient
-                    </motion.button>
-                  )}
+                {/* Register Button (available once required tabs are valid) */}
+                <div className="flex gap-3">
+                  <motion.button
+                    whileHover={{ scale: isAllTabsValid() ? 1.05 : 1 }}
+                    whileTap={{ scale: isAllTabsValid() ? 0.95 : 1 }}
+                    type="submit"
+                    form="register-patient-form"
+                    disabled={!isAllTabsValid()}
+                    className={`px-8 py-3 rounded-lg font-bold shadow-lg transition ${
+                      isAllTabsValid()
+                        ? "bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white cursor-pointer"
+                        : "bg-slate-300 text-slate-500 cursor-not-allowed opacity-60"
+                    }`}
+                  >
+                    💾 Register Patient
+                  </motion.button>
                 </div>
               </div>
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
-
-        {/* Patients List View */}
-        {activeView === "list" && (
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-amber-900">Patients List</h2>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowFilters(!showFilters)}
-                className="px-4 py-2 bg-gradient-to-r from-teal-50 to-cyan-50 text-teal-700 rounded-lg font-semibold hover:from-teal-100 hover:to-cyan-100 transition flex items-center gap-2"
-              >
-                {showFilters ? "🔼 Hide Filters" : "🔽 Show Filters"}
-              </motion.button>
             </div>
 
             {/* Global Search Bar */}
@@ -1976,7 +2085,7 @@ export default function Patients() {
                 )}
 
                 {clinicPatients.length > 0 && !loadingClinicPatients && (
-                  <div className="mb-6">
+                  <div className="mb-6 hidden">
                     <motion.div 
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -2194,10 +2303,6 @@ export default function Patients() {
                     </motion.div>
                   </motion.div>
                 )}
-              </div>
-          </div>
-        )}
-      </div>
 
       {/* Success Modal */}
       <AnimatePresence>
@@ -5103,6 +5208,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                               lastName: "",
                               phoneNumber: "",
                               email: "",
+                              dateOfBirth: "",
+                              age: "",
                               date: "",
                               startTime: "",
                               endTime: "",
@@ -5119,13 +5226,14 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                               paidAmount: "",
                               pendingAmount: "",
                               paymentStatus: "Pending",
-                              doctorId: ""
+                              doctorId: "",
+                              isWalkIn: true
                             });
                           }}
                           className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
                         >
                           <span>📝</span>
-                          <span>Book Without Registration</span>
+                          <span>Book Walk-in Appointment</span>
                         </motion.button>
                       </div>
                     </motion.div>
@@ -5271,6 +5379,51 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       />
                     </div>
                   </div>
+
+                  {/* Walk-in patient fields: DOB and Age */}
+                  {bookingWithoutRegistration && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 p-4 rounded-xl border-2 border-blue-200">
+                      <div>
+                        <label className="block text-sm font-bold mb-2 flex items-center gap-2 text-slate-700">
+                          <span>🎂</span> Date of Birth *
+                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={appointmentForm.dateOfBirth}
+                          onChange={(e) => {
+                            const dob = e.target.value;
+                            setAppointmentForm({ ...appointmentForm, dateOfBirth: dob });
+                            // Calculate age
+                            if (dob) {
+                              const birth = new Date(dob);
+                              const today = new Date();
+                              let age = today.getFullYear() - birth.getFullYear();
+                              const monthDiff = today.getMonth() - birth.getMonth();
+                              if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+                                age--;
+                              }
+                              setAppointmentForm(prev => ({ ...prev, age: age.toString() }));
+                            }
+                          }}
+                          className="w-full px-4 py-3 rounded-xl border-2 border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                          placeholder="YYYY-MM-DD"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold mb-2 flex items-center gap-2 text-slate-700">
+                          <span>📊</span> Age (Auto-calculated)
+                        </label>
+                        <input
+                          type="text"
+                          readOnly
+                          value={appointmentForm.age}
+                          className="w-full px-4 py-3 rounded-xl border-2 border-gray-300 bg-gray-100 text-gray-700"
+                          placeholder="Auto-calculated from DOB"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {/* Identifiers (read-only) */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -6872,19 +7025,31 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </motion.button>
                   </>
                 ) : (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      setSelectedAppointmentDetails(null);
-                      setIsEditingAppointment(false);
-                      setEditAppointmentForm(null);
-                    }}
-                    type="button"
-                    className="flex-1 px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
-                  >
-                    Close
-                  </motion.button>
+                  <>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => loadDiagnosisDetails(selectedAppointmentDetails.appointmentId)}
+                      type="button"
+                      className="flex-1 px-6 py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      <span className="text-xl">🩺</span>
+                      <span>View Diagnosis</span>
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setSelectedAppointmentDetails(null);
+                        setIsEditingAppointment(false);
+                        setEditAppointmentForm(null);
+                      }}
+                      type="button"
+                      className="flex-1 px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                    >
+                      Close
+                    </motion.button>
+                  </>
                 )}
               </div>
             </motion.div>
@@ -7097,6 +7262,341 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Diagnosis Modal */}
+      <AnimatePresence>
+        {showDiagnosisModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-gradient-to-br from-teal-700/95 via-cyan-700/95 to-blue-800/95 backdrop-blur-xl flex items-center justify-center z-[130] p-4 overflow-y-auto"
+            onClick={() => setShowDiagnosisModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              onClick={(e) => e.stopPropagation()}
+              className="backdrop-blur-2xl bg-white/10 rounded-3xl shadow-2xl max-w-4xl w-full my-8 border-2 border-teal-400/70 overflow-hidden"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-teal-500/90 via-cyan-500/90 to-blue-600/90 backdrop-blur-xl px-8 py-6 border-b-2 border-teal-400/70">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <motion.div
+                      animate={{ rotate: [0, 10, -10, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                      className="w-14 h-14 bg-gradient-to-br from-teal-300/40 to-cyan-400/50 border-2 border-teal-300/70 rounded-2xl flex items-center justify-center shadow-lg shadow-teal-400/40"
+                    >
+                      <span className="text-3xl">🩺</span>
+                    </motion.div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-white tracking-tight">
+                        Diagnosis Details
+                      </h2>
+                      <p className="text-teal-100 text-sm mt-1">
+                        Read-only view
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={handlePrintDiagnosis}
+                      className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold backdrop-blur-lg border border-white/30 transition-all"
+                    >
+                      🖨️ Print
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1, rotate: 90 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setShowDiagnosisModal(false)}
+                      className="text-white hover:bg-white/20 rounded-xl p-3 transition-all"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </motion.button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="px-8 py-6 max-h-[70vh] overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#14b8a6 transparent' }}>
+                {loadingDiagnosis ? (
+                  <div className="text-center py-20">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      className="text-6xl mb-4"
+                    >
+                      ⏳
+                    </motion.div>
+                    <p className="text-teal-200 text-lg font-semibold">Loading diagnosis details...</p>
+                  </div>
+                ) : selectedDiagnosis ? (
+                  <div className="space-y-6" ref={diagnosisPrintRef}>
+                    <div className="mb-6 pb-4 border-b border-teal-400/50">
+                      <h1 className="text-2xl font-bold text-white mb-1">{selectedDiagnosis.clinicName || selectedDiagnosis.clinic || "Clinic"}</h1>
+                      <div className="text-teal-100 text-sm">Visit summary and prescriptions</div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="inline-block px-3 py-1 bg-white/20 text-white text-sm rounded-lg border border-white/30 backdrop-blur-sm">Patient: {selectedDiagnosis.patientName || selectedDiagnosis.patient || 'N/A'}</span>
+                        <span className="inline-block px-3 py-1 bg-white/20 text-white text-sm rounded-lg border border-white/30 backdrop-blur-sm">Doctor: {selectedDiagnosis.attendingPhysician || 'N/A'}</span>
+                        {selectedDiagnosis.visitDate && (
+                          <span className="inline-block px-3 py-1 bg-white/20 text-white text-sm rounded-lg border border-white/30 backdrop-blur-sm">Date: {new Date(selectedDiagnosis.visitDate).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Visit Information */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-teal-400/50"
+                    >
+                      <div className="flex items-center gap-3 mb-5 pb-4 border-b-2 border-teal-400/50">
+                        <div className="w-12 h-12 bg-gradient-to-br from-teal-400 via-cyan-400 to-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-teal-500/40">
+                          <span className="text-2xl">📋</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white">
+                          Visit Information
+                        </h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="backdrop-blur-lg bg-white/10 p-4 rounded-xl border border-teal-400/30">
+                          <label className="block text-[10px] font-bold text-teal-300 uppercase tracking-wide mb-2">📅 Visit Date</label>
+                          <p className="text-base font-bold text-white">
+                            {selectedDiagnosis.visitDate ? new Date(selectedDiagnosis.visitDate).toLocaleDateString('en-US', { 
+                              weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+                            }) : 'N/A'}
+                          </p>
+                        </div>
+                        <div className="backdrop-blur-lg bg-white/10 p-4 rounded-xl border border-cyan-400/30">
+                          <label className="block text-[10px] font-bold text-cyan-300 uppercase tracking-wide mb-2">👨‍⚕️ Attending Physician</label>
+                          <p className="text-base font-bold text-white">{selectedDiagnosis.attendingPhysician || 'N/A'}</p>
+                        </div>
+                        {selectedDiagnosis.nextAppointmentDate && (
+                          <div className="backdrop-blur-lg bg-white/10 p-4 rounded-xl border border-blue-400/30">
+                            <label className="block text-[10px] font-bold text-blue-300 uppercase tracking-wide mb-2">📅 Next Appointment</label>
+                            <p className="text-base font-bold text-white">
+                              {new Date(selectedDiagnosis.nextAppointmentDate).toLocaleDateString('en-US', { 
+                                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+                              })}
+                            </p>
+                          </div>
+                        )}
+                        <div className="backdrop-blur-lg bg-white/10 p-4 rounded-xl border border-purple-400/30">
+                          <label className="block text-[10px] font-bold text-purple-300 uppercase tracking-wide mb-2">💰 Payment Status</label>
+                          <p className="text-base font-bold text-white">{selectedDiagnosis.paymentStatus || 'N/A'}</p>
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    {/* Reason for Visit */}
+                    {selectedDiagnosis.reasonForVisit && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-cyan-400/50"
+                      >
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-cyan-400/50">
+                          <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-xl">📝</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-white">Reason for Visit</h3>
+                        </div>
+                        <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                          {selectedDiagnosis.reasonForVisit}
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {/* Diagnosis */}
+                    {selectedDiagnosis.diagnoses && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-blue-400/50"
+                      >
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-blue-400/50">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-xl">🩺</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-white">Diagnosis</h3>
+                        </div>
+                        <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                          {selectedDiagnosis.diagnoses}
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {/* Treatments */}
+                    {selectedDiagnosis.treatments && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-purple-400/50"
+                      >
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-purple-400/50">
+                          <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-xl">💉</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-white">Treatments</h3>
+                        </div>
+                        <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                          {selectedDiagnosis.treatments}
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {/* Prescriptions */}
+                    {selectedDiagnosis.prescriptions && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-pink-400/50"
+                      >
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-pink-400/50">
+                          <div className="w-10 h-10 bg-gradient-to-br from-pink-400 to-rose-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-xl">💊</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-white">Prescriptions & Medications</h3>
+                        </div>
+                        {(() => {
+                          try {
+                            const prescriptionData = typeof selectedDiagnosis.prescriptions === 'string' 
+                              ? JSON.parse(selectedDiagnosis.prescriptions) 
+                              : selectedDiagnosis.prescriptions;
+                            
+                            if (Array.isArray(prescriptionData) && prescriptionData.length > 0) {
+                              return (
+                                <div className="space-y-3">
+                                  {prescriptionData.map((med, idx) => (
+                                    <div key={idx} className="backdrop-blur-lg bg-white/10 p-4 rounded-xl border border-pink-300/30">
+                                      <div className="flex items-start gap-3">
+                                        <div className="flex-shrink-0 w-8 h-8 bg-pink-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                                          {idx + 1}
+                                        </div>
+                                        <div className="flex-1 space-y-2">
+                                          <h4 className="text-white font-bold text-base">{med.medicineName || 'Medication'}</h4>
+                                          <div className="grid grid-cols-2 gap-2 text-sm">
+                                            <div>
+                                              <span className="text-pink-300 font-semibold">Dosage:</span>
+                                              <span className="text-white ml-2">{med.dosage || 'N/A'}</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-pink-300 font-semibold">Frequency:</span>
+                                              <span className="text-white ml-2">{med.frequency || 'N/A'}</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-pink-300 font-semibold">Duration:</span>
+                                              <span className="text-white ml-2">{med.duration || 'N/A'}</span>
+                                            </div>
+                                          </div>
+                                          {med.specialInstructions && (
+                                            <div className="mt-2 p-2 bg-amber-500/20 rounded-lg border border-amber-400/30">
+                                              <span className="text-amber-300 font-semibold text-xs">⚠️ Special Instructions: </span>
+                                              <span className="text-white text-xs">{med.specialInstructions}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {prescriptionData[0]?.generalPrescriptionNotes && (
+                                    <div className="mt-4 p-4 bg-blue-500/20 rounded-xl border border-blue-400/30">
+                                      <span className="text-blue-300 font-semibold">📝 General Notes: </span>
+                                      <span className="text-white">{prescriptionData[0].generalPrescriptionNotes}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+                          } catch (e) {
+                            // Fallback to displaying as text if not JSON
+                          }
+                          return (
+                            <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                              {selectedDiagnosis.prescriptions}
+                            </p>
+                          );
+                        })()}
+                      </motion.div>
+                    )}
+
+                    {/* Notes */}
+                    {selectedDiagnosis.notes && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-amber-400/50"
+                      >
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-amber-400/50">
+                          <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-xl">📄</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-white">Additional Notes</h3>
+                        </div>
+                        <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                          {selectedDiagnosis.notes}
+                        </p>
+                      </motion.div>
+                    )}
+
+                    {/* Billing Information */}
+                    {selectedDiagnosis.billingAmount && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6 }}
+                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-green-400/50"
+                      >
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-green-400/50">
+                          <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
+                            <span className="text-xl">💵</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-white">Billing Information</h3>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-green-300 font-semibold">Total Amount:</span>
+                          <span className="text-2xl font-bold text-white">₹{selectedDiagnosis.billingAmount}</span>
+                        </div>
+                      </motion.div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-20">
+                    <div className="text-6xl mb-4">❌</div>
+                    <p className="text-white text-lg font-semibold">No diagnosis details found</p>
+                    <p className="text-teal-300 text-sm mt-2">This appointment may not have diagnosis information yet.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="bg-gradient-to-r from-teal-100 via-cyan-100 to-blue-100 px-8 py-4 flex justify-end border-t-2 border-teal-400/50">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowDiagnosisModal(false)}
+                  className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl font-bold shadow-lg"
+                >
+                  Close
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+  </div>
   );
 }
