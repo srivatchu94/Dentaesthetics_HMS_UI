@@ -15,7 +15,7 @@ export function listAppointments(): Promise<AppointmentsModel[]> {
 }
 
 export function getAppointment(appointmentId: number): Promise<AppointmentsModel> {
-  return request<AppointmentsModel>(`/Appointments/GetAppointmentByID?id=${appointmentId}`);
+  return request<AppointmentsModel>(`/Appointments/GetAppointmentById?id=${appointmentId}`);
 }
 
 export function updateAppointment(appointment: AppointmentsModel): Promise<AppointmentsModel> {
@@ -199,4 +199,206 @@ export function getAppointmentsByFilters(params: AppointmentFilterParams): Promi
   if (params.appointmentDate) queryParams.append('appointmentDate', params.appointmentDate);
   
   return request<AppointmentsModel[]>(`/Appointments/GetAppointmentById?${queryParams.toString()}`);
+}
+
+// Get appointments by doctor ID with date filter
+export function getAppointmentsByDoctorID(clinicId: number, userName: string, appointmentDate: string): Promise<AppointmentsModel[]> {
+  return request<AppointmentsModel[]>(
+    `/Appointments/GetAppointmentsByDoctorID?clinicId=${clinicId}&UserName=${encodeURIComponent(userName)}&appointmentDate=${appointmentDate}`
+  );
+}
+
+// ============= PRESCRIPTION OPERATIONS =============
+
+export interface PrescriptionDto {
+  prescriptionId?: number;
+  visitId: number;
+  patientId: number;
+  doctorId: number;
+  doctorName: string;
+  doctorRegistrationNumber: string;
+  prescriptionDate: string;
+  prescriptionContent: string;
+  notes?: string;
+}
+
+// New prescription request payload matching backend /api/Appointments/AddPrescription
+export interface AddPrescriptionPayload {
+  medicationId: number;
+  enterpriseId: number;
+  clinicId: number;
+  appointmentId: number;
+  visitId: number;
+  doctorId: number;
+  patientId: number;
+  medicineName: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  specialInstructions?: string;
+  generalPrescriptionNotes?: string;
+  createdAt?: string;
+  createdBy?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
+export function createPrescription(payload: PrescriptionDto): Promise<PrescriptionDto> {
+  return request<PrescriptionDto>("/Prescriptions/Create", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+// New endpoint for AddPrescription API
+export function addPrescription(payload: AddPrescriptionPayload): Promise<any> {
+  console.log('═══════════════════════════════════════');
+  console.log('📡 ADDPRESCRIPTION API CALL');
+  console.log('═══════════════════════════════════════');
+  console.log('🔗 Endpoint: /Appointments/AddPrescription');
+  console.log('🔧 Method: POST');
+  console.log('📦 Payload Structure:');
+  console.log({
+    medicationId: typeof payload.medicationId + ' = ' + payload.medicationId,
+    enterpriseId: typeof payload.enterpriseId + ' = ' + payload.enterpriseId,
+    clinicId: typeof payload.clinicId + ' = ' + payload.clinicId,
+    appointmentId: typeof payload.appointmentId + ' = ' + payload.appointmentId,
+    visitId: typeof payload.visitId + ' = ' + payload.visitId,
+    doctorId: typeof payload.doctorId + ' = ' + payload.doctorId,
+    patientId: typeof payload.patientId + ' = ' + payload.patientId,
+    medicineName: typeof payload.medicineName + ' = "' + payload.medicineName + '"',
+    dosage: typeof payload.dosage + ' = "' + payload.dosage + '"',
+    frequency: typeof payload.frequency + ' = "' + payload.frequency + '"',
+    duration: typeof payload.duration + ' = "' + payload.duration + '"',
+    specialInstructions: typeof payload.specialInstructions + ' = "' + payload.specialInstructions + '"',
+    generalPrescriptionNotes: typeof payload.generalPrescriptionNotes + ' = "' + payload.generalPrescriptionNotes + '"',
+    createdAt: typeof payload.createdAt + ' = "' + (payload.createdAt?.substring(0, 20) || 'null') + '..."',
+    createdBy: typeof payload.createdBy + ' = "' + payload.createdBy + '"',
+    updatedAt: typeof payload.updatedAt + ' = "' + (payload.updatedAt?.substring(0, 20) || 'null') + '..."',
+    updatedBy: typeof payload.updatedBy + ' = "' + payload.updatedBy + '"'
+  });
+  console.log('📋 Full Payload:');
+  console.log(payload);
+  console.log('═══════════════════════════════════════');
+  
+  return request<any>("/Appointments/AddPrescription", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  }).catch(error => {
+    console.error('═══════════════════════════════════════');
+    console.error('❌ ADDPRESCRIPTION API ERROR');
+    console.error('═══════════════════════════════════════');
+    console.error('🔗 Endpoint: /Appointments/AddPrescription');
+    console.error('❌ Error:', error.message);
+    if (error.status) {
+      console.error('📊 Status Code:', error.status);
+    }
+    if (error.response && error.response.data) {
+      console.error('📝 Backend Response:', error.response.data);
+    }
+    console.error('📦 Payload that failed:');
+    console.error(payload);
+    console.error('═══════════════════════════════════════');
+    throw error;
+  });
+}
+
+export function updatePrescription(prescriptionId: number, payload: PrescriptionDto): Promise<PrescriptionDto> {
+  return request<PrescriptionDto>(`/Prescriptions/Update?id=${prescriptionId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
+}
+
+// New endpoint for UpdatePrescription API
+export function updatePrescriptionData(payload: AddPrescriptionPayload): Promise<any> {
+  return request<any>("/Appointments/UpdatePrescription", {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function getPrescriptionsByAppointment(appointmentId: number): Promise<PrescriptionDto[]> {
+  return request<PrescriptionDto[]>(`/Appointments/GetPrescriptionsByAppointment?appointmentId=${appointmentId}`)
+    .catch((error: any) => {
+      if (error.status === 404) {
+        console.log('ℹ️ Prescriptions endpoint returned 404, returning empty array');
+        return [];
+      }
+      throw error;
+    });
+}
+
+export function getPrescriptionById(prescriptionId: number): Promise<any> {
+  console.log('📋 Fetching prescription by ID:', prescriptionId);
+  return request<any>(`/Prescriptions/GetPrescriptionById?id=${prescriptionId}`);
+}
+
+export function getPrescription(prescriptionId: number): Promise<PrescriptionDto> {
+  return request<PrescriptionDto>(`/Prescriptions/Get?id=${prescriptionId}`);
+}
+
+export function deletePrescription(prescriptionId: number): Promise<void> {
+  return request<void>(`/Prescriptions/Delete?id=${prescriptionId}`, {
+    method: "DELETE"
+  });
+}
+
+// PatientVisitInformation payload
+export interface PrescriptionModel {
+  medicineName: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  specialInstructions?: string;
+  generalPrescriptionNotes?: string;
+}
+
+export interface PatientVisitPayload {
+  visitId?: number;
+  appointmentId: number;
+  patientId: number;
+  clinicId: number;
+  visitDate: string;
+  reasonForVisit?: string;
+  diagnoses: string;
+  treatments: string;
+  notes?: string;
+  nextAppointmentDate?: string;
+  attendingPhysician: string;
+  billingAmount?: number;
+  paymentStatus?: string;
+  createdBy: string;
+  updatedBy: string;
+  prescriptions: PrescriptionModel[];
+}
+
+export function addPatientVisit(payload: PatientVisitPayload): Promise<any> {
+  console.log('═══════════════════════════════════════');
+  console.log('📡 ADDPATIENTVISIT API CALL');
+  console.log('═══════════════════════════════════════');
+  console.log('🔗 Endpoint: /Patient/AddPatientVisit');
+  console.log('🔧 Method: POST');
+  console.log('📦 Payload:');
+  console.log(payload);
+  console.log('═══════════════════════════════════════');
+  
+  return request<any>("/Patient/AddPatientVisit", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  }).catch(error => {
+    console.error('═══════════════════════════════════════');
+    console.error('❌ ADDPATIENTVISIT API ERROR');
+    console.error('═══════════════════════════════════════');
+    console.error('🔗 Endpoint: /Patient/AddPatientVisit');
+    console.error('❌ Error:', error.message);
+    if (error.status) {
+      console.error('📊 Status Code:', error.status);
+    }
+    if (error.response && error.response.data) {
+      console.error('📝 Backend Response:', error.response.data);
+    }
+    console.error('════════════════════════════════════════');
+    throw error;
+  });
 }

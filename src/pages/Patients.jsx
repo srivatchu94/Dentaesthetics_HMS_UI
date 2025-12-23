@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient } from "../services/patientService";
+import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient, getAllPatientsByClinicID } from "../services/patientService";
 import { visitService } from "../services/visitService";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
 import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment } from "../services/appointmentService";
@@ -188,6 +188,8 @@ export default function Patients() {
   const [patientNotFound, setPatientNotFound] = useState(false);
   const [bookingWithoutRegistration, setBookingWithoutRegistration] = useState(false);
   const [clinicsList, setClinicsList] = useState([]);
+  const [clinicPatientsList, setClinicPatientsList] = useState([]);
+  const [loadingClinicPatients, setLoadingClinicPatients] = useState(false);
   const [showAppointmentSuccessModal, setShowAppointmentSuccessModal] = useState(false);
   const [createdAppointment, setCreatedAppointment] = useState(null);
   const [appointmentsList, setAppointmentsList] = useState([]);
@@ -216,6 +218,25 @@ export default function Patients() {
       .then(clinics => setClinicsList(clinics))
       .catch(err => console.error('Failed to load clinics:', err));
   }, []);
+
+  // Load patients when appointment modal opens
+  useEffect(() => {
+    if (showNewAppointmentModal) {
+      const clinicId = localStorage.getItem('clinicId');
+      if (clinicId) {
+        setLoadingClinicPatients(true);
+        getAllPatientsByClinicID(parseInt(clinicId))
+          .then(patients => {
+            setClinicPatientsList(patients);
+          })
+          .catch(err => {
+            console.error('Failed to load clinic patients:', err);
+            setClinicPatientsList([]);
+          })
+          .finally(() => setLoadingClinicPatients(false));
+      }
+    }
+  }, [showNewAppointmentModal]);
 
   // Check login status on mount and when active view changes
   useEffect(() => {
@@ -423,6 +444,8 @@ export default function Patients() {
   });
   const [savingVisit, setSavingVisit] = useState(false);
   const [visitPatientError, setVisitPatientError] = useState("");
+  const [selectedVisitDetail, setSelectedVisitDetail] = useState(null);
+  const [showVisitDetailModal, setShowVisitDetailModal] = useState(false);
   
   // Prescription Modal States
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
@@ -430,6 +453,75 @@ export default function Patients() {
   const [prescriptionColor, setPrescriptionColor] = useState("#8b5cf6"); // Default purple
   const [patientMedicalInfo, setPatientMedicalInfo] = useState(null);
   const [loadingMedicalInfo, setLoadingMedicalInfo] = useState(false);
+  const [medicationForm, setMedicationForm] = useState({
+    name: "",
+    dosage: "",
+    frequency: "",
+    duration: "",
+    category: "",
+    subCategory: "",
+    instructions: ""
+  });
+  const [medications, setMedications] = useState([]);
+  const [editingMedicationIndex, setEditingMedicationIndex] = useState(null);
+
+  const medicationCategories = {
+    Antibiotic: ["Penicillin", "Cephalosporin", "Macrolide", "Fluoroquinolone", "Nitroimidazole"],
+    Analgesic: ["NSAID", "Opioid", "Acetaminophen", "COX-2 Inhibitor"],
+    "Anti-inflammatory": ["Steroid", "Non-steroidal", "Topical", "Immunomodulator"],
+    Mouthwash: ["Antiseptic", "Fluoride", "Chlorhexidine", "Herbal"],
+    Supplement: ["Vitamin", "Mineral", "Probiotic", "Herbal"],
+    Other: ["General", "Custom"]
+  };
+
+  const emptyMedicationForm = {
+    name: "",
+    dosage: "",
+    frequency: "",
+    duration: "",
+    category: "",
+    subCategory: "",
+    instructions: ""
+  };
+
+  const serializeMedications = (list) => list.map((med, idx) => {
+    const categoryLabel = med.category ? `[${med.category}${med.subCategory ? `/${med.subCategory}` : ''}]` : '';
+    const durationLabel = med.duration ? ` for ${med.duration}` : '';
+    const dosageLabel = med.dosage ? ` (${med.dosage})` : '';
+    const frequencyLabel = med.frequency || "As directed";
+    const instructionsLabel = med.instructions ? ` — ${med.instructions}` : '';
+    return `${idx + 1}. ${med.name}${dosageLabel} – ${frequencyLabel}${durationLabel} ${categoryLabel}${instructionsLabel}`.trim();
+  }).join("\n");
+
+  const handleAddMedication = () => {
+    if (!medicationForm.name.trim()) {
+      alert("Please enter medication name before adding.");
+      return;
+    }
+
+    const nextEntry = { ...medicationForm };
+
+    setMedications((prev) => {
+      if (editingMedicationIndex !== null) {
+        return prev.map((item, idx) => idx === editingMedicationIndex ? nextEntry : item);
+      }
+      return [...prev, nextEntry];
+    });
+
+    setEditingMedicationIndex(null);
+    setMedicationForm(emptyMedicationForm);
+  };
+
+  const handleEditMedication = (index) => {
+    setEditingMedicationIndex(index);
+    setMedicationForm(medications[index]);
+  };
+
+  const handleDeleteMedication = (index) => {
+    setMedications((prev) => prev.filter((_, idx) => idx !== index));
+    setEditingMedicationIndex(null);
+    setMedicationForm(emptyMedicationForm);
+  };
   
   // Doctor information - should come from authentication context
   const CURRENT_DOCTOR = {
@@ -438,6 +530,8 @@ export default function Patients() {
     registrationNumber: "MCI-A-12345-MH",
     specialization: "General Dentistry & Oral Medicine"
   };
+
+  const appointmentTypeOptions = ["Consultation", "Follow-up", "Telehealth", "Emergency", "Routine Checkup", "Treatment", "Surgery"];
 
   // Form state for all four models
   const [patientData, setPatientData] = useState({
@@ -511,7 +605,6 @@ export default function Patients() {
   });
   const [selectedClinicId, setSelectedClinicId] = useState("");
   const [clinicPatientsData, setClinicPatientsData] = useState([]);
-  const [loadingClinicPatients, setLoadingClinicPatients] = useState(false);
   const [clinicError, setClinicError] = useState("");
   const [searchPerformed, setSearchPerformed] = useState(false);
 
@@ -884,7 +977,7 @@ export default function Patients() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { id: 'add-visit', title: '📝 Add Visit', description: 'Record new patient visit', icon: '📝', color: 'from-emerald-400 to-teal-400', action: () => setShowAddVisitModal(true) },
+              { id: 'add-visit', title: '🧠 Diagnosis', description: 'Capture visit + prescription', icon: '🧠', color: 'from-emerald-400 to-teal-400', action: () => setShowAddVisitModal(true) },
               { id: 'view-visits', title: '📋 View Visits', description: 'Browse visit history', icon: '📋', color: 'from-violet-400 to-purple-400', action: () => setShowViewVisitsModal(true) }
             ].map((tile, index) => (
               <motion.div
@@ -3147,7 +3240,7 @@ export default function Patients() {
               {/* Modal Header */}
               <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-4 text-white">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-2xl font-bold">📝 Add Patient Visit</h2>
+                  <h2 className="text-2xl font-bold">🧠 Diagnosis &amp; Visit Info</h2>
                   <motion.button
                     whileHover={{ scale: 1.1, rotate: 90 }}
                     whileTap={{ scale: 0.9 }}
@@ -3373,6 +3466,9 @@ export default function Patients() {
                           onClick={async () => {
                             if (selectedPatientForVisit) {
                               setPrescriptionText(newVisit.prescriptions);
+                              setMedications([]);
+                              setMedicationForm(emptyMedicationForm);
+                              setEditingMedicationIndex(null);
                               setShowPrescriptionModal(true);
                               
                               // Fetch patient medical info
@@ -3395,7 +3491,7 @@ export default function Patients() {
                               : "bg-gray-200 text-gray-400 cursor-not-allowed"
                           }`}
                         >
-                          📝 Write Prescription
+                          📝 Write / Edit Prescription
                         </motion.button>
                       </div>
                     </div>
@@ -3462,7 +3558,7 @@ export default function Patients() {
                       }`}
                       title={!selectedPatientForVisit ? "Please select a patient first" : ""}
                     >
-                      {savingVisit ? "💾 Saving..." : selectedPatientForVisit ? "💾 Save Visit" : "🔒 Select Patient First"}
+                      {savingVisit ? "💾 Saving..." : selectedPatientForVisit ? "💾 Save Diagnosis" : "🔒 Select Patient First"}
                     </button>
                   </div>
                 </form>
@@ -3644,6 +3740,10 @@ export default function Patients() {
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ delay: index * 0.05, type: "spring", stiffness: 200 }}
                           whileHover={{ scale: 1.03, y: -5 }}
+                          onClick={() => {
+                            setSelectedVisitDetail(visit);
+                            setShowVisitDetailModal(true);
+                          }}
                           className={`${colorScheme.card} border-2 ${colorScheme.border} rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 cursor-pointer`}
                         >
                           {/* Gradient Header */}
@@ -3771,6 +3871,179 @@ export default function Patients() {
                     <p className="text-gray-600">Enter at least one filter above to view patient visits</p>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Visit Detail Drawer */}
+      <AnimatePresence>
+        {showVisitDetailModal && selectedVisitDetail && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[120] flex items-center justify-center p-4"
+            onClick={() => {
+              setShowVisitDetailModal(false);
+              setSelectedVisitDetail(null);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.95, y: 20, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 260, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
+            >
+              <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 p-5 text-white flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide opacity-80">Visit #{selectedVisitDetail.visitId}</p>
+                  <h3 className="text-2xl font-bold">Detailed Visit Summary</h3>
+                  <p className="text-sm opacity-90">{new Date(selectedVisitDetail.visitDate || Date.now()).toLocaleString()}</p>
+                </div>
+                <div className="flex gap-2">
+                  <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-semibold">Payment: {selectedVisitDetail.paymentStatus || 'N/A'}</span>
+                  <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-semibold">Billing: {selectedVisitDetail.billingAmount != null ? `₹${selectedVisitDetail.billingAmount}` : 'N/A'}</span>
+                </div>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[75vh] space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                    <p className="text-xs font-semibold text-indigo-700">Patient</p>
+                    <p className="text-base font-bold text-indigo-900">ID: {selectedVisitDetail.patientId}</p>
+                    <p className="text-sm text-indigo-800">Clinic: {selectedVisitDetail.clinicId || 'N/A'}</p>
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                    <p className="text-xs font-semibold text-emerald-700">Doctor</p>
+                    <p className="text-base font-bold text-emerald-900">{selectedVisitDetail.attendingPhysician || 'Not captured'}</p>
+                    {selectedVisitDetail.nextAppointmentDate && (
+                      <p className="text-sm text-emerald-800">Next visit: {selectedVisitDetail.nextAppointmentDate}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white border rounded-xl p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-gray-500 mb-1">Reason for Visit</p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedVisitDetail.reasonForVisit || 'Not provided'}</p>
+                  </div>
+                  <div className="bg-white border rounded-xl p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-gray-500 mb-1">Diagnosis</p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedVisitDetail.diagnoses || 'Not provided'}</p>
+                  </div>
+                </div>
+
+                <div className="bg-white border rounded-xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold text-gray-500 mb-1">Treatments</p>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedVisitDetail.treatments || 'Not provided'}</p>
+                </div>
+
+                <div className="bg-white border rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-gray-500">Prescription</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const patientFallback = {
+                          patientId: selectedVisitDetail.patientId,
+                          patientFirstName: selectedVisitDetail.patientFirstName || 'Patient',
+                          patientLastName: selectedVisitDetail.patientLastName || `#${selectedVisitDetail.patientId}`,
+                          clinicId: selectedVisitDetail.clinicId || '',
+                          patientEmail: selectedVisitDetail.patientEmail || '',
+                          patientPhone: selectedVisitDetail.patientPhone || ''
+                        };
+                        setSelectedPatientForVisit((prev) => prev || patientFallback);
+                        setNewVisit({
+                          ...newVisit,
+                          visitDate: selectedVisitDetail.visitDate?.split('T')[0] || newVisit.visitDate,
+                          reasonForVisit: selectedVisitDetail.reasonForVisit || newVisit.reasonForVisit,
+                          diagnoses: selectedVisitDetail.diagnoses || newVisit.diagnoses,
+                          treatments: selectedVisitDetail.treatments || newVisit.treatments,
+                          prescriptions: selectedVisitDetail.prescriptions || ""
+                        });
+                        setPrescriptionText(selectedVisitDetail.prescriptions || "");
+                        setMedications([]);
+                        setMedicationForm(emptyMedicationForm);
+                        setEditingMedicationIndex(null);
+                        setShowVisitDetailModal(false);
+                        setShowPrescriptionModal(true);
+                      }}
+                      className="text-xs font-semibold px-3 py-1 rounded-lg bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow"
+                    >
+                      Edit / Print Prescription
+                    </button>
+                  </div>
+                  <div className="bg-gray-50 border border-dashed rounded-lg p-3 text-sm text-gray-800 whitespace-pre-wrap">
+                    {selectedVisitDetail.prescriptions || 'No prescription recorded yet.'}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white border rounded-xl p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-gray-500">Billing Amount</p>
+                    <p className="text-lg font-bold text-slate-800">{selectedVisitDetail.billingAmount != null ? `₹${selectedVisitDetail.billingAmount}` : 'Not set'}</p>
+                  </div>
+                  <div className="bg-white border rounded-xl p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-gray-500">Payment Status</p>
+                    <p className="text-sm font-bold text-slate-800">{selectedVisitDetail.paymentStatus || 'Pending'}</p>
+                  </div>
+                  <div className="bg-white border rounded-xl p-4 shadow-sm">
+                    <p className="text-xs font-semibold text-gray-500">Notes</p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedVisitDetail.notes || 'No notes added.'}</p>
+                  </div>
+                </div>
+
+                {/* Keep prescription authoring action inside the visit detail context */}
+                <div className="flex justify-end mt-4">
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => {
+                      const patientFallback = {
+                        patientId: selectedVisitDetail.patientId,
+                        patientFirstName: selectedVisitDetail.patientFirstName || 'Patient',
+                        patientLastName: selectedVisitDetail.patientLastName || `#${selectedVisitDetail.patientId}`,
+                        clinicId: selectedVisitDetail.clinicId || ''
+                      };
+                      setSelectedPatientForVisit((prev) => prev || patientFallback);
+                      setNewVisit({
+                        ...newVisit,
+                        visitDate: selectedVisitDetail.visitDate?.split('T')[0] || newVisit.visitDate,
+                        reasonForVisit: selectedVisitDetail.reasonForVisit || newVisit.reasonForVisit,
+                        diagnoses: selectedVisitDetail.diagnoses || newVisit.diagnoses,
+                        treatments: selectedVisitDetail.treatments || newVisit.treatments,
+                        prescriptions: selectedVisitDetail.prescriptions || ""
+                      });
+                      setPrescriptionText(selectedVisitDetail.prescriptions || "");
+                      setMedications([]);
+                      setMedicationForm(emptyMedicationForm);
+                      setEditingMedicationIndex(null);
+                      setShowVisitDetailModal(false);
+                      setShowPrescriptionModal(true);
+                    }}
+                    className="px-5 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 shadow hover:shadow-lg"
+                  >
+                    📝 Write / Edit Prescription
+                  </motion.button>
+                </div>
+              </div>
+
+              <div className="flex gap-3 p-4 bg-slate-50 border-t">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowVisitDetailModal(false);
+                    setSelectedVisitDetail(null);
+                  }}
+                  className="flex-1 px-4 py-3 rounded-xl font-semibold bg-white border text-slate-700 hover:bg-slate-100"
+                >
+                  Close
+                </button>
               </div>
             </motion.div>
           </motion.div>
@@ -3985,6 +4258,152 @@ export default function Patients() {
                   </div>
                 </div>
 
+                {/* Structured Medication Builder */}
+                <div className="mb-6 bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-base font-bold text-indigo-900 flex items-center gap-2">
+                      <span>💊</span>
+                      Medication Builder (with categories)
+                    </h3>
+                    {editingMedicationIndex !== null && (
+                      <span className="text-xs font-semibold text-amber-700">Editing item #{editingMedicationIndex + 1}</span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                    <input
+                      type="text"
+                      value={medicationForm.name}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, name: e.target.value })}
+                      placeholder="Medication name"
+                      className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-300"
+                    />
+                    <input
+                      type="text"
+                      value={medicationForm.dosage}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, dosage: e.target.value })}
+                      placeholder="Dose (e.g., 500mg)"
+                      className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-300"
+                    />
+                    <input
+                      type="text"
+                      value={medicationForm.frequency}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, frequency: e.target.value })}
+                      placeholder="Frequency (e.g., TID after food)"
+                      className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-300"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                    <div>
+                      <select
+                        value={medicationForm.category}
+                        onChange={(e) => {
+                          const category = e.target.value;
+                          const subCats = medicationCategories[category] || [];
+                          setMedicationForm({
+                            ...medicationForm,
+                            category,
+                            subCategory: subCats[0] || ""
+                          });
+                        }}
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-300"
+                      >
+                        <option value="">Select Category</option>
+                        {Object.keys(medicationCategories).map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <select
+                        value={medicationForm.subCategory}
+                        onChange={(e) => setMedicationForm({ ...medicationForm, subCategory: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-300"
+                      >
+                        <option value="">Select Sub-category</option>
+                        {(medicationCategories[medicationForm.category] || []).map((sub) => (
+                          <option key={sub} value={sub}>{sub}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <input
+                      type="text"
+                      value={medicationForm.duration}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, duration: e.target.value })}
+                      placeholder="Duration (e.g., 5 days)"
+                      className="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-300"
+                    />
+                  </div>
+
+                  <div className="flex flex-col md:flex-row gap-3 mb-3">
+                    <input
+                      type="text"
+                      value={medicationForm.instructions}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, instructions: e.target.value })}
+                      placeholder="Special instructions"
+                      className="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-300"
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMedicationForm(emptyMedicationForm);
+                          setEditingMedicationIndex(null);
+                        }}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold border"
+                      >
+                        Reset
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleAddMedication}
+                        className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-lg text-sm font-semibold shadow"
+                      >
+                        {editingMedicationIndex !== null ? "Update medication" : "Add medication"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {medications.length > 0 && (
+                    <div className="space-y-2">
+                      {medications.map((med, idx) => (
+                        <div
+                          key={`${med.name}-${idx}`}
+                          className="bg-white border rounded-lg p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2 shadow-sm"
+                        >
+                          <div className="text-sm text-slate-800">
+                            <p className="font-bold">{idx + 1}. {med.name} {med.dosage && `(${med.dosage})`}</p>
+                            <p className="text-xs text-slate-600">
+                              {med.frequency || "As directed"}{med.duration && ` • ${med.duration}`}{med.category && ` • ${med.category}${med.subCategory ? `/${med.subCategory}` : ""}`}
+                            </p>
+                            {med.instructions && (
+                              <p className="text-xs text-slate-500">{med.instructions}</p>
+                            )}
+                          </div>
+                          <div className="flex gap-2 text-xs font-semibold">
+                            <button
+                              type="button"
+                              onClick={() => handleEditMedication(idx)}
+                              className="px-3 py-1 rounded bg-blue-100 text-blue-700 border border-blue-200"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMedication(idx)}
+                              className="px-3 py-1 rounded bg-rose-100 text-rose-700 border border-rose-200"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <p className="text-[11px] text-slate-500">All medications will appear in print/export and will be prefixed in the saved prescription text.</p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Prescription Text Area */}
                 <div className="mb-6">
                   <label className="block text-sm font-bold text-gray-700 mb-3">
@@ -4015,6 +4434,30 @@ export default function Patients() {
                       whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         // Print functionality - excludes medical conditions
+                        const medsBlock = medications.length ? serializeMedications(medications) : "";
+                        const medsTable = medications.length ? `
+                              <table class="med-table">
+                                <thead>
+                                  <tr>
+                                    <th>#</th>
+                                    <th>Medication</th>
+                                    <th>Plan</th>
+                                    <th>Category</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  ${medications.map((med, idx) => `
+                                    <tr>
+                                      <td>${idx + 1}</td>
+                                      <td>${med.name}${med.dosage ? ` (${med.dosage})` : ''}</td>
+                                      <td>${med.frequency || 'As directed'}${med.duration ? ` for ${med.duration}` : ''}${med.instructions ? `<br/><span class="note">${med.instructions}</span>` : ''}</td>
+                                      <td>${med.category || ''}${med.subCategory ? ` / ${med.subCategory}` : ''}</td>
+                                    </tr>
+                                  `).join('')}
+                                </tbody>
+                              </table>
+                        ` : '';
+                        const combinedPrescription = [medsBlock, prescriptionText || "No prescription provided"].filter(Boolean).join("\n\nNotes:\n");
                         const printWindow = window.open('', '_blank');
                         const prescriptionContent = `
                           <!DOCTYPE html>
@@ -4089,6 +4532,22 @@ export default function Patients() {
                                   border-top: 2px solid #333;
                                   margin-bottom: 10px;
                                 }
+                                .med-table {
+                                  width: 100%;
+                                  border-collapse: collapse;
+                                  margin-bottom: 16px;
+                                  font-size: 13px;
+                                }
+                                .med-table th, .med-table td {
+                                  border: 1px solid #ddd;
+                                  padding: 8px;
+                                  text-align: left;
+                                }
+                                .med-table thead {
+                                  background: ${prescriptionColor}15;
+                                  color: #222;
+                                }
+                                .note { color: #555; font-style: italic; font-size: 12px; }
                                 @media print {
                                   body { padding: 20px; }
                                 }
@@ -4127,7 +4586,8 @@ export default function Patients() {
 
                               <div class="section">
                                 <div class="section-title">PRESCRIPTION</div>
-                                <div class="prescription-body">${prescriptionText || 'No prescription provided'}</div>
+                                ${medsTable}
+                                <div class="prescription-body">${combinedPrescription}</div>
                               </div>
 
                               <div class="footer">
@@ -4157,6 +4617,7 @@ export default function Patients() {
                       whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         // Download as PDF simulation (would need actual PDF library in production)
+                        const medsBlock = medications.length ? `Medications:\n${serializeMedications(medications)}\n\n` : "";
                         const prescriptionContent = `
 MEDICAL PRESCRIPTION
 ${CURRENT_DOCTOR.name}
@@ -4169,7 +4630,7 @@ Name: ${selectedPatientForVisit?.patientFirstName} ${selectedPatientForVisit?.pa
 Patient ID: ${selectedPatientForVisit?.patientId}
 Visit Date: ${newVisit.visitDate}
 
-PRESCRIPTION
+${medsBlock}PRESCRIPTION
 ${prescriptionText || 'No prescription provided'}
 
 _______________________
@@ -4198,7 +4659,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       onClick={() => {
                         if (selectedPatientForVisit?.patientEmail) {
                           // Simulate email send - would integrate with backend email service
-                          const mailtoLink = `mailto:${selectedPatientForVisit.patientEmail}?subject=Your Medical Prescription from ${CURRENT_DOCTOR.name}&body=Dear ${selectedPatientForVisit.patientFirstName},\n\nPlease find your prescription below:\n\n${prescriptionText}\n\nBest regards,\n${CURRENT_DOCTOR.name}\n${CURRENT_DOCTOR.registrationNumber}`;
+                          const medsBlock = medications.length ? `Medications:\n${serializeMedications(medications)}\n\n` : "";
+                          const mailtoLink = `mailto:${selectedPatientForVisit.patientEmail}?subject=Your Medical Prescription from ${CURRENT_DOCTOR.name}&body=Dear ${selectedPatientForVisit.patientFirstName},\n\nPlease find your prescription below:\n\n${medsBlock}${prescriptionText}\n\nBest regards,\n${CURRENT_DOCTOR.name}\n${CURRENT_DOCTOR.registrationNumber}`;
                           window.location.href = mailtoLink;
                         } else {
                           alert("📧 Patient email not available. Please add email to patient profile.");
@@ -4219,7 +4681,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       onClick={() => {
                         // SMS functionality simulation
                         if (selectedPatientForVisit?.patientPhone) {
-                          const smsText = `Dear ${selectedPatientForVisit.patientFirstName}, your prescription from ${CURRENT_DOCTOR.name}: ${prescriptionText.substring(0, 100)}... Visit our clinic for full details.`;
+                          const medsSnippet = medications.length ? serializeMedications(medications).split('\n')[0] : '';
+                          const smsText = `Dear ${selectedPatientForVisit.patientFirstName}, your prescription from ${CURRENT_DOCTOR.name}: ${medsSnippet || prescriptionText.substring(0, 120)}... Visit our clinic for full details.`;
                           window.open(`sms:${selectedPatientForVisit.patientPhone}?body=${encodeURIComponent(smsText)}`, '_blank');
                         } else {
                           alert("📱 Patient phone number not available.");
@@ -4236,7 +4699,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         // WhatsApp share
-                        const whatsappText = `*Medical Prescription*\n\nFrom: ${CURRENT_DOCTOR.name}\nReg. No: ${CURRENT_DOCTOR.registrationNumber}\n\nPatient: ${selectedPatientForVisit?.patientFirstName} ${selectedPatientForVisit?.patientLastName}\n\n*Prescription:*\n${prescriptionText}`;
+                        const medsBlock = medications.length ? `Medications:\n${serializeMedications(medications)}\n\n` : "";
+                        const whatsappText = `*Medical Prescription*\n\nFrom: ${CURRENT_DOCTOR.name}\nReg. No: ${CURRENT_DOCTOR.registrationNumber}\n\nPatient: ${selectedPatientForVisit?.patientFirstName} ${selectedPatientForVisit?.patientLastName}\n\n${medsBlock}*Prescription:*\n${prescriptionText}`;
                         window.open(`https://wa.me/?text=${encodeURIComponent(whatsappText)}`, '_blank');
                       }}
                       className="px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
@@ -4250,7 +4714,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         // Copy to clipboard
-                        const prescriptionFull = `MEDICAL PRESCRIPTION\n\n${CURRENT_DOCTOR.name}\n${CURRENT_DOCTOR.specialization}\nReg. No: ${CURRENT_DOCTOR.registrationNumber}\n\nPatient: ${selectedPatientForVisit?.patientFirstName} ${selectedPatientForVisit?.patientLastName}\nPatient ID: ${selectedPatientForVisit?.patientId}\nDate: ${newVisit.visitDate}\n\nPRESCRIPTION:\n${prescriptionText}`;
+                        const medsBlock = medications.length ? `Medications:\n${serializeMedications(medications)}\n\n` : "";
+                        const prescriptionFull = `MEDICAL PRESCRIPTION\n\n${CURRENT_DOCTOR.name}\n${CURRENT_DOCTOR.specialization}\nReg. No: ${CURRENT_DOCTOR.registrationNumber}\n\nPatient: ${selectedPatientForVisit?.patientFirstName} ${selectedPatientForVisit?.patientLastName}\nPatient ID: ${selectedPatientForVisit?.patientId}\nDate: ${newVisit.visitDate}\n\n${medsBlock}PRESCRIPTION:\n${prescriptionText}`;
                         navigator.clipboard.writeText(prescriptionFull);
                         alert("✅ Prescription copied to clipboard!");
                       }}
@@ -4279,7 +4744,9 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         // Save prescription to visit and keep modal open for more actions
-                        setNewVisit({ ...newVisit, prescriptions: prescriptionText });
+                        const medsBlock = medications.length ? `Medications:\n${serializeMedications(medications)}` : "";
+                        const combinedPrescription = [medsBlock, prescriptionText].filter(Boolean).join("\n\nNotes:\n");
+                        setNewVisit({ ...newVisit, prescriptions: combinedPrescription });
                         alert("✅ Prescription saved to visit information!");
                       }}
                       className="flex-1 px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all"
@@ -4291,7 +4758,9 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         // Save and close
-                        setNewVisit({ ...newVisit, prescriptions: prescriptionText });
+                        const medsBlock = medications.length ? `Medications:\n${serializeMedications(medications)}` : "";
+                        const combinedPrescription = [medsBlock, prescriptionText].filter(Boolean).join("\n\nNotes:\n");
+                        setNewVisit({ ...newVisit, prescriptions: combinedPrescription });
                         setShowPrescriptionModal(false);
                         alert("✅ Prescription saved successfully!");
                       }}
@@ -4434,22 +4903,55 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                        <span>🆔</span> Patient ID
+                        <span>🆔</span> Select Patient
                       </label>
-                      <input
-                        type="number"
+                      <select
                         value={patientSearchForm.patientId}
-                        onChange={(e) => setPatientSearchForm({ ...patientSearchForm, patientId: e.target.value })}
+                        onChange={async (e) => {
+                          const selectedPatientId = e.target.value;
+                          setPatientSearchForm({ ...patientSearchForm, patientId: selectedPatientId });
+                          
+                          if (selectedPatientId) {
+                            // Find the selected patient and auto-fill the form
+                            const patient = clinicPatientsList.find(p => p.patientId === parseInt(selectedPatientId));
+                            if (patient) {
+                              setSearchedPatient(patient);
+                              setPatientNotFound(false);
+                              setBookingWithoutRegistration(false);
+                              
+                              // Auto-fill appointment form
+                              setAppointmentForm({
+                                ...appointmentForm,
+                                firstName: patient.patientFirstName || '',
+                                lastName: patient.patientLastName || '',
+                                phoneNumber: patient.patientPhone || '',
+                                email: patient.patientEmail || ''
+                              });
+                            }
+                          } else {
+                            setSearchedPatient(null);
+                            setPatientNotFound(false);
+                          }
+                        }}
+                        disabled={loadingClinicPatients}
                         className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
-                        placeholder="Enter Patient ID"
-                      />
+                      >
+                        <option value="">
+                          {loadingClinicPatients ? 'Loading patients...' : 'Select a patient'}
+                        </option>
+                        {clinicPatientsList.map(patient => (
+                          <option key={patient.patientId} value={patient.patientId}>
+                            ID: {patient.patientId} - {patient.patientFirstName} {patient.patientLastName}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                        <span>👤</span> First Name
+                        <span>👤</span> First Name (Optional Search)
                       </label>
                       <input
                         type="text"
@@ -4461,7 +4963,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                        <span>👤</span> Last Name
+                        <span>👤</span> Last Name (Optional Search)
                       </label>
                       <input
                         type="text"
@@ -4473,72 +4975,74 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </div>
                   </div>
                   
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    disabled={patientSearchLoading || (!patientSearchForm.patientId && !patientSearchForm.firstName && !patientSearchForm.lastName)}
-                    onClick={async () => {
-                      setPatientSearchLoading(true);
-                      setPatientNotFound(false);
-                      setSearchedPatient(null);
-                      
-                      try {
-                        const searchParams = {};
-                        if (patientSearchForm.patientId) searchParams.patientId = parseInt(patientSearchForm.patientId);
-                        if (patientSearchForm.firstName) searchParams.firstName = patientSearchForm.firstName;
-                        if (patientSearchForm.lastName) searchParams.lastName = patientSearchForm.lastName;
+                  {/* Search by Name Button - Optional when dropdown selection is not used */}
+                  {(patientSearchForm.firstName || patientSearchForm.lastName) && !searchedPatient && (
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      disabled={patientSearchLoading}
+                      onClick={async () => {
+                        setPatientSearchLoading(true);
+                        setPatientNotFound(false);
+                        setSearchedPatient(null);
                         
-                        const results = await searchPatients(searchParams);
-                        
-                        if (results && results.length > 0) {
-                          const patient = results[0];
-                          setSearchedPatient(patient);
-                          setPatientNotFound(false);
-                          setBookingWithoutRegistration(false);
+                        try {
+                          const searchParams = {};
+                          if (patientSearchForm.firstName) searchParams.firstName = patientSearchForm.firstName;
+                          if (patientSearchForm.lastName) searchParams.lastName = patientSearchForm.lastName;
                           
-                          // Auto-fill appointment form - API returns direct patient object
-                          setAppointmentForm({
-                            ...appointmentForm,
-                            firstName: patient.patientFirstName || '',
-                            lastName: patient.patientLastName || '',
-                            phoneNumber: patient.patientPhone || '',
-                            email: patient.patientEmail || ''
-                          });
-                        } else {
+                          const results = await searchPatients(searchParams);
+                          
+                          if (results && results.length > 0) {
+                            const patient = results[0];
+                            setSearchedPatient(patient);
+                            setPatientNotFound(false);
+                            setBookingWithoutRegistration(false);
+                            
+                            // Auto-fill appointment form - API returns direct patient object
+                            setAppointmentForm({
+                              ...appointmentForm,
+                              firstName: patient.patientFirstName || '',
+                              lastName: patient.patientLastName || '',
+                              phoneNumber: patient.patientPhone || '',
+                              email: patient.patientEmail || ''
+                            });
+                          } else {
+                            setPatientNotFound(true);
+                            setSearchedPatient(null);
+                            setBookingWithoutRegistration(false);
+                          }
+                        } catch (error) {
+                          console.error('Patient search error:', error);
                           setPatientNotFound(true);
                           setSearchedPatient(null);
-                          setBookingWithoutRegistration(false);
+                        } finally {
+                          setPatientSearchLoading(false);
                         }
-                      } catch (error) {
-                        console.error('Patient search error:', error);
-                        setPatientNotFound(true);
-                        setSearchedPatient(null);
-                      } finally {
-                        setPatientSearchLoading(false);
-                      }
-                    }}
-                    className={`w-full px-6 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 ${
-                      patientSearchLoading || (!patientSearchForm.patientId && !patientSearchForm.firstName && !patientSearchForm.lastName)
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white'
-                    }`}
-                  >
-                    {patientSearchLoading ? (
-                      <>
-                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                        <span>Searching...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span>🔍</span>
-                        <span>Search Patient</span>
-                      </>
-                    )}
-                  </motion.button>
+                      }}
+                      className={`w-full px-6 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 mb-4 ${
+                        patientSearchLoading
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white'
+                      }`}
+                    >
+                      {patientSearchLoading ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          <span>Searching...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>🔍</span>
+                          <span>Search by Name</span>
+                        </>
+                      )}
+                    </motion.button>
+                  )}
                   
                   {/* Patient Found Message */}
                   {searchedPatient && (
@@ -4768,6 +5272,40 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </div>
                   </div>
 
+                  {/* Identifiers (read-only) */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700">Patient ID (read-only)</label>
+                      <input
+                        type="text"
+                        value={appointmentForm.patientId || searchedPatient?.patientId || ''}
+                        readOnly
+                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-100 text-gray-700"
+                        placeholder="Auto"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700">Clinic ID</label>
+                      <input
+                        type="text"
+                        value={appointmentForm.clinicId || localStorage.getItem('clinicId') || ''}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, clinicId: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                        placeholder="Clinic ID"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700">Enterprise ID</label>
+                      <input
+                        type="text"
+                        value={appointmentForm.enterpriseId || localStorage.getItem('enterpriseId') || ''}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, enterpriseId: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                        placeholder="Enterprise ID"
+                      />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
@@ -4887,9 +5425,12 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
                       >
                         <option value="">Select type</option>
-                        {["Consultation", "Follow-up", "Telehealth", "Emergency", "Routine Checkup", "Treatment", "Surgery"].map(type => (
+                        {appointmentTypeOptions.map(type => (
                           <option key={type} value={type}>{type}</option>
                         ))}
+                        {appointmentForm.appointmentType && !appointmentTypeOptions.includes(appointmentForm.appointmentType) && (
+                          <option value={appointmentForm.appointmentType}>{appointmentForm.appointmentType} (current)</option>
+                        )}
                       </select>
                     </div>
                     <div>
@@ -5747,6 +6288,10 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                           telehealthLink: selectedAppointmentDetails.telehealthLink || '',
                           paidAmount: selectedAppointmentDetails.paidAmount || 0,
                           pendingAmount: selectedAppointmentDetails.pendingAmount || 0,
+                          billableAmount: selectedAppointmentDetails.billableAmount || 0,
+                          visitId: selectedAppointmentDetails.visitId || '',
+                          clinicId: selectedAppointmentDetails.clinicId || '',
+                          enterpriseId: selectedAppointmentDetails.enterpriseId || '',
                           isConfirmed: selectedAppointmentDetails.isConfirmed || false,
                           durationMinutes: selectedAppointmentDetails.durationMinutes || 0
                         });
@@ -5765,6 +6310,21 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                 }`}>
                   {selectedAppointmentDetails.status === 'Confirmed' || selectedAppointmentDetails.isConfirmed ? '✅ Confirmed' : '⏳ Pending'}
                 </div>
+              </div>
+
+              {/* Meta identifiers */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-6 pb-4">
+                {[{label:"Appointment ID", value:selectedAppointmentDetails.appointmentId},
+                  {label:"Visit ID", value:selectedAppointmentDetails.visitId || '—'},
+                  {label:"Patient ID", value:selectedAppointmentDetails.patientId},
+                  {label:"Clinic ID", value:selectedAppointmentDetails.clinicId || '—'},
+                  {label:"Enterprise ID", value:selectedAppointmentDetails.enterpriseId || '—'},
+                  {label:"Doctor ID", value:selectedAppointmentDetails.doctorId || '—'}].map((item) => (
+                  <div key={item.label} className="bg-white/60 backdrop-blur border border-white/70 rounded-xl px-3 py-2 shadow-sm">
+                    <p className="text-[11px] font-semibold text-slate-500">{item.label}</p>
+                    <p className="text-sm font-bold text-slate-800 truncate">{item.value}</p>
+                  </div>
+                ))}
               </div>
 
               {/* Content - Combined View/Edit Form */}
@@ -5950,9 +6510,12 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                             className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
                           >
                             <option value="">Select type</option>
-                            {["Consultation", "Follow-up", "Telehealth", "Emergency", "Routine Checkup", "Treatment", "Surgery"].map(type => (
+                            {appointmentTypeOptions.map(type => (
                               <option key={type} value={type}>{type}</option>
                             ))}
+                            {editAppointmentForm?.appointmentType && !appointmentTypeOptions.includes(editAppointmentForm.appointmentType) && (
+                              <option value={editAppointmentForm.appointmentType}>{editAppointmentForm.appointmentType} (current)</option>
+                            )}
                           </select>
                         ) : (
                           <p className="text-base font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.appointmentType || 'N/A'}</p>
@@ -6087,6 +6650,28 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         )}
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Visit ID</label>
+                        <p className="text-base font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.visitId || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Billable Amount</label>
+                        <p className="text-base font-bold text-slate-800 px-4 py-2">₹{selectedAppointmentDetails.billableAmount || 0}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Appointment Status</label>
+                        <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${
+                          selectedAppointmentDetails.status === 'Completed' ? 'bg-green-100 text-green-700 border border-green-300' :
+                          selectedAppointmentDetails.status === 'Cancelled' ? 'bg-rose-100 text-rose-700 border border-rose-300' :
+                          selectedAppointmentDetails.status === 'NoShow' ? 'bg-gray-100 text-gray-700 border border-gray-300' :
+                          'bg-blue-100 text-blue-700 border border-blue-300'
+                        }`}>
+                          {selectedAppointmentDetails.status || 'Scheduled'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Billing Information */}
@@ -6096,6 +6681,21 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       Billing Information
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm text-slate-500 font-medium mb-1">Billable Amount</label>
+                        {isEditingAppointment ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={editAppointmentForm?.billableAmount || ''}
+                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, billableAmount: e.target.value})}
+                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
+                            placeholder="0.00"
+                          />
+                        ) : (
+                          <p className="text-xl font-bold text-slate-800 px-4 py-2">₹{selectedAppointmentDetails.billableAmount || 0}</p>
+                        )}
+                      </div>
                       <div>
                         <label className="block text-sm text-slate-500 font-medium mb-1">Paid Amount</label>
                         {isEditingAppointment ? (
@@ -6127,57 +6727,21 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         )}
                       </div>
                       <div className="md:col-span-3">
-                        <label className="block text-sm text-slate-500 font-medium mb-2">Payment Status</label>
-                        {isEditingAppointment ? (
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {[
-                              { value: 'Pending', icon: '⏳', color: 'from-amber-400 to-orange-500', ring: 'ring-amber-400' },
-                              { value: 'Paid', icon: '💚', color: 'from-green-400 to-emerald-600', ring: 'ring-green-400' },
-                              { value: 'Partial', icon: '💛', color: 'from-yellow-400 to-amber-500', ring: 'ring-yellow-400' },
-                              { value: 'Invoice', icon: '📄', color: 'from-blue-400 to-indigo-500', ring: 'ring-blue-400' }
-                            ].map((paymentOption) => (
-                              <motion.button
-                                key={paymentOption.value}
-                                type="button"
-                                whileHover={{ scale: 1.05, y: -2 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => setEditAppointmentForm({...editAppointmentForm, paymentStatus: paymentOption.value})}
-                                className={`relative p-4 rounded-xl font-bold text-white transition-all duration-300 ${
-                                  editAppointmentForm?.paymentStatus === paymentOption.value
-                                    ? `bg-gradient-to-br ${paymentOption.color} ring-4 ${paymentOption.ring} shadow-xl scale-105`
-                                    : 'bg-gradient-to-br from-slate-200 to-slate-300 text-slate-600 hover:from-slate-300 hover:to-slate-400'
-                                }`}
-                              >
-                                {editAppointmentForm?.paymentStatus === paymentOption.value && (
-                                  <motion.div
-                                    layoutId="paymentSelector"
-                                    className="absolute inset-0 bg-white/20 rounded-xl"
-                                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                                  />
-                                )}
-                                <div className="relative flex flex-col items-center gap-1">
-                                  <span className="text-2xl">{paymentOption.icon}</span>
-                                  <span className="text-xs">{paymentOption.value}</span>
-                                </div>
-                              </motion.button>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
-                            selectedAppointmentDetails.paymentStatus === 'Paid'
-                              ? 'bg-green-100 text-green-700 border border-green-300'
-                              : selectedAppointmentDetails.paymentStatus === 'Partial'
-                              ? 'bg-yellow-100 text-yellow-700 border border-yellow-300'
-                              : 'bg-amber-100 text-amber-700 border border-amber-300'
-                          }`}>
-                            <span className="text-base">
-                              {selectedAppointmentDetails.paymentStatus === 'Paid' ? '💚' :
-                               selectedAppointmentDetails.paymentStatus === 'Partial' ? '💛' :
-                               selectedAppointmentDetails.paymentStatus === 'Invoice' ? '📄' : '⏳'}
-                            </span>
-                            {selectedAppointmentDetails.paymentStatus || 'Pending'}
+                        <label className="block text-sm text-slate-500 font-medium mb-2">Payment Status (read-only)</label>
+                        <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
+                          selectedAppointmentDetails.paymentStatus === 'Paid'
+                            ? 'bg-green-100 text-green-700 border border-green-300'
+                            : selectedAppointmentDetails.paymentStatus === 'Partial'
+                            ? 'bg-yellow-100 text-yellow-700 border border-yellow-300'
+                            : 'bg-amber-100 text-amber-700 border-amber-300 border'
+                        }`}>
+                          <span className="text-base">
+                            {selectedAppointmentDetails.paymentStatus === 'Paid' ? '💚' :
+                             selectedAppointmentDetails.paymentStatus === 'Partial' ? '💛' :
+                             selectedAppointmentDetails.paymentStatus === 'Invoice' ? '📄' : '⏳'}
                           </span>
-                        )}
+                          {selectedAppointmentDetails.paymentStatus || 'Pending'}
+                        </span>
                       </div>
                       {isEditingAppointment && (
                         <div className="md:col-span-3 mt-4">
@@ -6223,6 +6787,12 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={async () => {
+                        if (editAppointmentForm?.status === 'Completed' && !((editAppointmentForm?.reasonForVisit || '').trim()) && !((editAppointmentForm?.notes || '').trim())) {
+                          const confirmClose = window.confirm("No diagnosis/visit info is captured. Close this appointment anyway? 🦷🤔");
+                          if (!confirmClose) {
+                            return;
+                          }
+                        }
                         try {
                           const userId = localStorage.getItem('userId');
                           const enterpriseId = localStorage.getItem('enterpriseId');
@@ -6251,9 +6821,11 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                             telehealthLink: editAppointmentForm.telehealthLink || '',
                             status: editAppointmentForm.status || 'Scheduled',
                             isConfirmed: editAppointmentForm.isConfirmed || false,
+                            billableAmount: parseFloat(editAppointmentForm.billableAmount) || 0,
                             paidAmount: parseFloat(editAppointmentForm.paidAmount) || 0,
                             pendingAmount: parseFloat(editAppointmentForm.pendingAmount) || 0,
                             paymentStatus: editAppointmentForm.paymentStatus || 'Pending',
+                            visitId: editAppointmentForm.visitId || selectedAppointmentDetails.visitId || null,
                             createdAt: selectedAppointmentDetails.createdAt,
                             updatedAt: new Date().toISOString(),
                             createdBy: parseInt(selectedAppointmentDetails.createdBy) || 0,

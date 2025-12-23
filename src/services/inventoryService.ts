@@ -15,15 +15,15 @@ import type {
 // ============= INVENTORY MASTER OPERATIONS =============
 
 export function listInventoryMasters(): Promise<InventoryMaster[]> {
-  return request<InventoryMaster[]>("/inventory/GetAllInventoryMasterItems");
+  return request<InventoryMaster[]>("/Inventory/GetAllInventoryMasterItems");
 }
 
 export function getInventoryMaster(itemId: number): Promise<InventoryMaster> {
-  return request<InventoryMaster>(`/InventoryMaster/GetByID?id=${itemId}`);
+  return request<InventoryMaster>(`/Inventory/GetInventoryMasterItemByID?id=${itemId}`);
 }
 
 export function createInventoryMaster(payload: CreateInventoryMasterDto): Promise<InventoryMaster> {
-  return request<InventoryMaster>("/InventoryMaster/Create", {
+  return request<InventoryMaster>("/Inventory/AddInventoryMasterItem", {
     method: "POST",
     body: JSON.stringify(payload)
   });

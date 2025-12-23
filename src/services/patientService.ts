@@ -64,3 +64,20 @@ export function searchPatients(params: {
   
   return request<PatientDataModel[]>(`/Patient/Patientsearch?${queryParams.toString()}`);
 }
+
+export function getAllPatientsByClinicID(clinicId: number): Promise<PatientDataModel[]> {
+  return request<PatientDataModel[]>(`/Patient/clinic/${clinicId}`);
+}
+
+export function getPatientVisit(appointmentId: number): Promise<any> {
+  return request<any>(`/Patient/GetPatientVisit?AppointmentID=${appointmentId}`, {
+    method: "POST"
+  });
+}
+
+export function editPatientVisit(visitData: any): Promise<any> {
+  return request<any>("/Patient/EditPatientVisit", {
+    method: "POST",
+    body: JSON.stringify(visitData)
+  });
+}
