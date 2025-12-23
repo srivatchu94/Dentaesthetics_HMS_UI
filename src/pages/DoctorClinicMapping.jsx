@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { listDoctorProfiles, searchDoctors, mapDoctorToClinics, listClinicalSpecialties, getDoctorsByEnterpriseId, getClinicsByEnterpriseId } from "../services/doctorService";
-import { listClinics } from "../services/clinicService";
+import { listDoctorProfiles, searchDoctors, mapDoctorToClinics, listClinicalSpecialties, getDoctorsByEnterpriseId, getDoctorClinicMappings } from "../services/doctorService";
+import { listClinics, getClinicsByEnterpriseId as getEnterpriseClinics, getClinic as getClinicById } from "../services/clinicService";
 
 export default function DoctorClinicMapping() {
   const [doctors, setDoctors] = useState([]);
   const [clinics, setClinics] = useState([]);
+  const [clinicsLoading, setClinicsLoading] = useState(false);
   const [specialties, setSpecialties] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedClinics, setSelectedClinics] = useState([]);
@@ -32,7 +33,7 @@ export default function DoctorClinicMapping() {
   // Success and Error modals
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
-  const [successData, setSuccessData] = useState({ doctorName: '', clinicCount: 0 });
+  const [successData, setSuccessData] = useState({ doctorName: '', clinicCount: 0, mappedClinics: [], primaryClinics: [] });
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
@@ -79,9 +80,27 @@ export default function DoctorClinicMapping() {
     setSearching(true);
     try {
       const enterpriseId = parseInt(searchFilters.enterpriseId);
+      if (!enterpriseId || Number.isNaN(enterpriseId) || enterpriseId <= 0) {
+        alert("Please enter a valid Enterprise ID (number > 0).");
+        return;
+      }
       
-      // Call GetDoctorsByEnterpriseID API
-      const doctors = await getDoctorsByEnterpriseId(enterpriseId);
+      // Try primary endpoint, then fallback to generic search if it fails
+      let doctors = [];
+      try {
+        doctors = await getDoctorsByEnterpriseId(enterpriseId);
+      } catch (primaryError) {
+        console.warn("Primary GetDoctorsByEnterpriseID failed, attempting fallback SearchDoctors", primaryError);
+        try {
+          doctors = await searchDoctors({ enterpriseId });
+        } catch (fallbackError) {
+          console.error("Both doctor fetch attempts failed:", { primaryError, fallbackError });
+          const msg = fallbackError?.message || primaryError?.message || "Unknown error";
+          alert(`Failed to search doctors. ${msg}`);
+          setDoctors([]);
+          return;
+        }
+      }
       
       let filteredDoctors = doctors || [];
       
@@ -119,19 +138,74 @@ export default function DoctorClinicMapping() {
 
   const handleDoctorSelect = async (doctor) => {
     setSelectedDoctor(doctor);
-    // Pre-select doctor's current clinic
-    setSelectedClinics([doctor.branchId]);
-    
-    // Fetch clinics for the enterprise when doctor is selected
-    if (searchFilters.enterpriseId) {
+    // Gather tagged clinics (doctor mappings) and enterprise clinics, then merge
+    setClinicsLoading(true);
+    try {
+      const enterpriseId = searchFilters.enterpriseId ? parseInt(searchFilters.enterpriseId) : undefined;
+
+      // Fetch doctor's tagged clinic mappings (use doctorId only)
+      let taggedClinicIds = [];
       try {
-        const enterpriseId = parseInt(searchFilters.enterpriseId);
-        const clinics = await getClinicsByEnterpriseId(enterpriseId);
-        setClinics(clinics || []);
-      } catch (error) {
-        console.error("Error fetching clinics for enterprise:", error);
-        alert("Failed to load clinics for this enterprise.");
+        const taggedMappings = await getDoctorClinicMappings(doctor.doctorId);
+        taggedClinicIds = Array.isArray(taggedMappings)
+          ? taggedMappings.map(m => m.clinicId).filter(id => !!id && parseInt(id) > 0)
+          : [];
+      } catch (e) {
+        console.warn('Tagged clinic mappings fetch failed:', e);
       }
+
+      // Pre-select: doctor's current branch and any tagged clinic ids
+      const preselected = [doctor.branchId, ...taggedClinicIds].filter((v, i, a) => v && a.indexOf(v) === i);
+      setSelectedClinics(preselected);
+
+      // Fetch enterprise clinics if enterpriseId available
+      let enterpriseClinics = [];
+      if (enterpriseId) {
+        try {
+          const resp = await getEnterpriseClinics(enterpriseId);
+          // Normalize to array in case API returns single object
+          enterpriseClinics = Array.isArray(resp) ? resp : (resp ? [resp] : []);
+          // Tag source for visual separation
+          enterpriseClinics = enterpriseClinics.map(c => ({ ...c, source: 'enterprise' }));
+        } catch (e) {
+          console.warn('Enterprise clinics fetch failed:', e);
+        }
+      }
+
+      // Ensure all tagged clinics have details; fetch missing ones by ID
+      const enterpriseClinicIds = new Set(enterpriseClinics.map(c => c.clinicId));
+      const missingTaggedIds = taggedClinicIds.filter(id => !enterpriseClinicIds.has(id));
+      const missingTaggedClinics = await Promise.all(
+        missingTaggedIds.map(async (id) => {
+          try {
+            const c = await getClinicById(id);
+            return c;
+          } catch (e) {
+            console.warn('Failed to fetch tagged clinic detail for id', id, e);
+            return null;
+          }
+        })
+      );
+
+      const taggedClinicsDetailed = missingTaggedClinics
+        .filter(Boolean)
+        .map(c => ({ ...c, source: 'tagged' }));
+
+      // Merge enterprise clinics with tagged clinics (unique by clinicId)
+      const mergedById = new Map();
+      [...enterpriseClinics, ...taggedClinicsDetailed].forEach(c => {
+        if (c && c.clinicId) mergedById.set(c.clinicId, c);
+      });
+      const mergedClinics = Array.from(mergedById.values());
+
+      setClinics(mergedClinics);
+      // Set active tab to first preselected clinic for quick configuration
+      setActiveClinicTab(preselected[0] || null);
+    } catch (error) {
+      console.error("Error preparing clinics for doctor selection:", error);
+      // Do not hard-fail; keep current clinics list
+    } finally {
+      setClinicsLoading(false);
     }
   };
 
@@ -141,8 +215,14 @@ export default function DoctorClinicMapping() {
       console.error('Invalid clinic ID:', clinicId);
       return;
     }
+    const clinicMeta = clinics.find(c => c.clinicId === clinicId);
     
     setSelectedClinics(prev => {
+      const isAlreadySelected = prev.includes(clinicId);
+      if (!isAlreadySelected && clinicMeta?.source === 'tagged') {
+        alert('This doctor is already mapped to this clinic. You can update its configuration and save.');
+      }
+      
       if (prev.includes(clinicId)) {
         // Remove clinic and its configuration
         const newMappings = { ...clinicMappings };
@@ -196,6 +276,22 @@ export default function DoctorClinicMapping() {
         });
         setShowPrimaryWarning(true);
         return; // Don't update if there's already a primary clinic
+      }
+    }
+
+    // Prevent end date earlier than start date
+    if (field === 'endDate' && value) {
+      const start = clinicMappings[clinicId]?.startDate;
+      if (start && new Date(value) < new Date(start)) {
+        alert('End date cannot be before start date.');
+        return;
+      }
+    }
+    if (field === 'startDate' && value) {
+      const end = clinicMappings[clinicId]?.endDate;
+      if (end && new Date(end) < new Date(value)) {
+        alert('End date cannot be before start date.');
+        return;
       }
     }
     
@@ -282,11 +378,29 @@ export default function DoctorClinicMapping() {
       
       console.log('API Response:', response);
       
-      // Show success modal and keep selections
-      setSuccessData({
-        doctorName: `${selectedDoctor.firstName} ${selectedDoctor.lastName}`,
-        clinicCount: mappings.length
-      });
+      // Show success modal with mapped clinic details
+      try {
+        const mappedClinics = selectedClinics
+          .map(id => clinics.find(c => c.clinicId === id)?.clinicName || `Clinic ${id}`);
+        const primaryClinics = selectedClinics
+          .filter(id => clinicMappings[id]?.isPrimaryClinic)
+          .map(id => clinics.find(c => c.clinicId === id)?.clinicName || `Clinic ${id}`);
+
+        setSuccessData({
+          doctorName: `${selectedDoctor.firstName} ${selectedDoctor.lastName}`,
+          clinicCount: mappings.length,
+          mappedClinics,
+          primaryClinics
+        });
+      } catch (e) {
+        console.warn('Could not build mapped clinics success details', e);
+        setSuccessData({
+          doctorName: `${selectedDoctor.firstName} ${selectedDoctor.lastName}`,
+          clinicCount: mappings.length,
+          mappedClinics: [],
+          primaryClinics: []
+        });
+      }
       setShowSuccessModal(true);
       
       // Keep selections visible - don't reset
@@ -321,13 +435,13 @@ export default function DoctorClinicMapping() {
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            className={`fixed z-50 ${
-              guidanceStep === 0 ? 'top-32 left-1/2 transform -translate-x-1/2' : // Enterprise ID - near filters
+            className={`fixed z-50 pointer-events-none ${
+              guidanceStep === 0 ? 'top-6 right-6' : // Move away from filters to avoid blocking input
               guidanceStep === 1 ? 'top-1/2 left-8 transform -translate-y-1/2' : // Doctors - left side
               'top-1/2 right-8 transform -translate-y-1/2' // Clinics - right side
             }`}
           >
-            <div className={`bg-gradient-to-r ${guidanceMessages[guidanceStep].color} text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 min-w-[400px]`}>
+            <div className={`pointer-events-auto bg-gradient-to-r ${guidanceMessages[guidanceStep].color} text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 min-w-[400px]`}>
               <span className="text-4xl">{guidanceMessages[guidanceStep].icon}</span>
               <div className="flex-1">
                 <h3 className="font-bold text-lg">{guidanceMessages[guidanceStep].title}</h3>
@@ -465,10 +579,27 @@ export default function DoctorClinicMapping() {
                       <p className="text-gray-600 text-sm">is now mapped to {successData.clinicCount} clinic{successData.clinicCount > 1 ? 's' : ''}!</p>
                     </div>
                   </div>
-                  <div className="bg-white rounded-xl p-4 border border-green-200">
-                    <p className="text-gray-600 text-sm italic">
-                      🎯 "Great! Now patients have more chances to find me... or avoid me, depending on their last visit!" 😄
-                    </p>
+                  <div className="bg-white rounded-xl p-4 border border-green-200 space-y-2">
+                    <p className="text-gray-700 text-sm font-semibold">Mapped clinics</p>
+                    {successData.mappedClinics && successData.mappedClinics.length > 0 ? (
+                      <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                        {successData.mappedClinics.map((name, idx) => (
+                          <li key={`mapped-${idx}`}>{name}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-500">No clinic names available.</p>
+                    )}
+                    <p className="text-gray-700 text-sm font-semibold pt-2">Primary clinic(s)</p>
+                    {successData.primaryClinics && successData.primaryClinics.length > 0 ? (
+                      <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                        {successData.primaryClinics.map((name, idx) => (
+                          <li key={`primary-${idx}`}>{name}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-gray-500">No primary clinic selected.</p>
+                    )}
                   </div>
                 </div>
                 
@@ -600,10 +731,17 @@ export default function DoctorClinicMapping() {
         >
           <div className="flex items-center gap-3">
             <input
-              type="text"
+              type="number"
+              inputMode="numeric"
               placeholder="🏭 Enterprise ID"
               value={searchFilters.enterpriseId}
-              onChange={(e) => setSearchFilters({ ...searchFilters, enterpriseId: e.target.value })}
+              onChange={(e) => {
+                // Allow empty value or digits only
+                const next = e.target.value;
+                if (next === "" || /^\d+$/.test(next)) {
+                  setSearchFilters({ ...searchFilters, enterpriseId: next });
+                }
+              }}
               className="flex-1 px-4 py-2.5 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
             />
             <input
@@ -852,62 +990,137 @@ export default function DoctorClinicMapping() {
 
                 {/* Clinics Display - Chip View */}
                 <div className="max-h-[450px] overflow-y-auto pr-2 mb-6">
-                  {loading ? (
+                  {clinicsLoading ? (
                     <p className="text-center text-gray-500 py-8">Loading clinics...</p>
                   ) : clinics.length === 0 ? (
                     <p className="text-center text-gray-500 py-8">No clinics found</p>
                   ) : (
-                    <div className="flex flex-wrap gap-3">
-                      {clinics.map((clinic, index) => {
-                        const chipGradients = [
-                          "from-violet-500 to-purple-500",
-                          "from-blue-500 to-indigo-500",
-                          "from-emerald-500 to-teal-500",
-                          "from-rose-500 to-pink-500",
-                          "from-amber-500 to-orange-500",
-                          "from-cyan-500 to-sky-500",
-                          "from-fuchsia-500 to-pink-500",
-                          "from-lime-500 to-green-500"
-                        ];
-                        const chipGradient = chipGradients[index % chipGradients.length];
-                        const isSelected = selectedClinics.includes(clinic.clinicId);
-                        
-                        return (
-                          <motion.button
-                            key={clinic.clinicId}
-                            whileHover={{ scale: 1.05, y: -2 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => toggleClinicSelection(clinic.clinicId)}
-                            className={`px-4 py-3 rounded-xl font-semibold transition-all relative ${
-                              isSelected
-                                ? `bg-gradient-to-r ${chipGradient} text-white shadow-2xl ring-4 ring-offset-2 ring-purple-300`
-                                : "bg-white text-gray-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 border-2 border-gray-200 hover:border-purple-300 shadow-md hover:shadow-lg"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              {isSelected ? (
-                                <motion.span
-                                  initial={{ scale: 0, rotate: -180 }}
-                                  animate={{ scale: 1, rotate: 0 }}
-                                  className="text-xl bg-white text-green-500 rounded-full w-6 h-6 flex items-center justify-center font-bold"
+                    <div className="space-y-4">
+                      {/* Tagged Clinics Section */}
+                      {clinics.filter(c => c.source === 'tagged').length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-sm font-bold text-purple-700">Tagged Clinics</span>
+                            <span className="text-xs text-gray-500">(from doctor mappings)</span>
+                          </div>
+                          <div className="flex flex-wrap gap-3">
+                            {clinics.filter(c => c.source === 'tagged').map((clinic, index) => {
+                              const chipGradients = [
+                                "from-violet-500 to-purple-500",
+                                "from-blue-500 to-indigo-500",
+                                "from-emerald-500 to-teal-500",
+                                "from-rose-500 to-pink-500",
+                                "from-amber-500 to-orange-500",
+                                "from-cyan-500 to-sky-500",
+                                "from-fuchsia-500 to-pink-500",
+                                "from-lime-500 to-green-500"
+                              ];
+                              const chipGradient = chipGradients[index % chipGradients.length];
+                              const isSelected = selectedClinics.includes(clinic.clinicId);
+                              const isPrimary = clinicMappings[clinic.clinicId]?.isPrimaryClinic;
+                              return (
+                                <motion.button
+                                  key={`tagged-${clinic.clinicId}`}
+                                  whileHover={{ scale: 1.05, y: -2 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => toggleClinicSelection(clinic.clinicId)}
+                                  className={`px-4 py-3 rounded-xl font-semibold transition-all relative ${
+                                    isSelected
+                                      ? `bg-gradient-to-r ${chipGradient} text-white shadow-2xl ring-4 ring-offset-2 ring-purple-300`
+                                      : "bg-white text-gray-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 border-2 border-gray-200 hover:border-purple-300 shadow-md hover:shadow-lg"
+                                  }`}
                                 >
-                                  ✓
-                                </motion.span>
-                              ) : (
-                                <span className="text-xl">🏥</span>
-                              )}
-                              <div className="text-left">
-                                <div className="text-base font-bold">{clinic.clinicName}</div>
-                                <div className={`text-sm font-medium ${
-                                  isSelected ? "opacity-90" : "opacity-70"
-                                }`}>
-                                  {clinic.clinicAddress || clinic.clinicCity || 'No address'}
-                                </div>
-                              </div>
-                            </div>
-                          </motion.button>
-                        );
-                      })}
+                                  <div className="flex items-center gap-2">
+                                    {isSelected ? (
+                                      <motion.span
+                                        initial={{ scale: 0, rotate: -180 }}
+                                        animate={{ scale: 1, rotate: 0 }}
+                                        className="text-xl bg-white text-green-500 rounded-full w-6 h-6 flex items-center justify-center font-bold"
+                                      >
+                                        ✓
+                                      </motion.span>
+                                    ) : (
+                                      <span className="text-xl">🏥</span>
+                                    )}
+                                    <div className="text-left">
+                                      <div className="text-base font-bold">{clinic.clinicName}</div>
+                                      <div className={`text-sm font-medium ${isSelected ? "opacity-90" : "opacity-70"}`}>
+                                        {clinic.clinicAddress || clinic.clinicCity || 'No address'}
+                                      </div>
+                                    </div>
+                                    {isPrimary && (
+                                      <span className="text-[11px] font-bold bg-white/20 text-white px-2 py-1 rounded-full">Primary</span>
+                                    )}
+                                  </div>
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Clinics for Enterprise Section */}
+                      {clinics.filter(c => c.source !== 'tagged').length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-sm font-bold text-indigo-700">Clinics for Enterprise</span>
+                            <span className="text-xs text-gray-500">(available under selected enterprise)</span>
+                          </div>
+                          <div className="flex flex-wrap gap-3">
+                            {clinics.filter(c => c.source !== 'tagged').map((clinic, index) => {
+                              const chipGradients = [
+                                "from-violet-500 to-purple-500",
+                                "from-blue-500 to-indigo-500",
+                                "from-emerald-500 to-teal-500",
+                                "from-rose-500 to-pink-500",
+                                "from-amber-500 to-orange-500",
+                                "from-cyan-500 to-sky-500",
+                                "from-fuchsia-500 to-pink-500",
+                                "from-lime-500 to-green-500"
+                              ];
+                              const chipGradient = chipGradients[index % chipGradients.length];
+                              const isSelected = selectedClinics.includes(clinic.clinicId);
+                              const isPrimary = clinicMappings[clinic.clinicId]?.isPrimaryClinic;
+                              return (
+                                <motion.button
+                                  key={`enterprise-${clinic.clinicId}`}
+                                  whileHover={{ scale: 1.05, y: -2 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => toggleClinicSelection(clinic.clinicId)}
+                                  className={`px-4 py-3 rounded-xl font-semibold transition-all relative ${
+                                    isSelected
+                                      ? `bg-gradient-to-r ${chipGradient} text-white shadow-2xl ring-4 ring-offset-2 ring-purple-300`
+                                      : "bg-white text-gray-700 hover:bg-gradient-to-r hover:from-purple-50 hover:to-pink-50 border-2 border-gray-200 hover:border-purple-300 shadow-md hover:shadow-lg"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {isSelected ? (
+                                      <motion.span
+                                        initial={{ scale: 0, rotate: -180 }}
+                                        animate={{ scale: 1, rotate: 0 }}
+                                        className="text-xl bg-white text-green-500 rounded-full w-6 h-6 flex items-center justify-center font-bold"
+                                      >
+                                        ✓
+                                      </motion.span>
+                                    ) : (
+                                      <span className="text-xl">🏥</span>
+                                    )}
+                                    <div className="text-left">
+                                      <div className="text-base font-bold">{clinic.clinicName}</div>
+                                      <div className={`text-sm font-medium ${isSelected ? "opacity-90" : "opacity-70"}`}>
+                                        {clinic.clinicAddress || clinic.clinicCity || 'No address'}
+                                      </div>
+                                    </div>
+                                    {isPrimary && (
+                                      <span className="text-[11px] font-bold bg-white/20 text-white px-2 py-1 rounded-full">Primary</span>
+                                    )}
+                                  </div>
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -932,6 +1145,7 @@ export default function DoctorClinicMapping() {
                 <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
                   {selectedClinics.map((clinicId, index) => {
                     const clinic = clinics.find(c => c.clinicId === clinicId);
+                    const config = clinicMappings[clinicId] || {};
                     const tabColors = [
                       "from-pink-500 to-rose-500",
                       "from-blue-500 to-cyan-500",
@@ -956,6 +1170,7 @@ export default function DoctorClinicMapping() {
                         }`}
                       >
                         <span>{clinic?.clinicName}</span>
+                        {config.isPrimaryClinic && <span className="text-xs bg-white/20 px-2 py-1 rounded-full">Primary</span>}
                         {isActive && <span>✨</span>}
                       </motion.button>
                     );
@@ -983,9 +1198,14 @@ export default function DoctorClinicMapping() {
                   return (
                     <div className="space-y-3">
                       {/* Clinic Header */}
-                      <div className={`bg-gradient-to-r ${gradient.from} ${gradient.via} ${gradient.to} p-3 rounded-xl`}>
-                        <h4 className="text-white font-bold text-sm drop-shadow-md">{clinic?.clinicName}</h4>
-                        <p className="text-white/90 text-xs drop-shadow">{clinic?.clinicAddress}</p>
+                      <div className={`bg-gradient-to-r ${gradient.from} ${gradient.via} ${gradient.to} p-3 rounded-xl flex items-center justify-between`}>
+                        <div>
+                          <h4 className="text-white font-bold text-sm drop-shadow-md">{clinic?.clinicName}</h4>
+                          <p className="text-white/90 text-xs drop-shadow">{clinic?.clinicAddress}</p>
+                        </div>
+                        {config.isPrimaryClinic && (
+                          <span className="bg-white/20 text-white text-[11px] font-bold px-3 py-1 rounded-full">Primary</span>
+                        )}
                       </div>
 
                       {/* Configuration Fields - Compact */}

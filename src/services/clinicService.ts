@@ -23,6 +23,12 @@ export function getClinic(clinicId: number): Promise<ClinicModel> {
   return request<ClinicModel>(`/Clinic/GetClinicByID?id=${clinicId}`);
 }
 
+// Get clinics by Enterprise ID
+// Backend endpoint expects `id` query param to be the Enterprise ID
+export function getClinicsByEnterpriseId(enterpriseId: number): Promise<ClinicModel[]> {
+  return request<ClinicModel[]>(`/Clinic/GetClinicByID?id=${enterpriseId}`);
+}
+
 export function createClinic(payload: CreateClinicDto): Promise<ClinicModel> {
   const clinicModel: ClinicModel = {
     clinicId: payload.clinicId,

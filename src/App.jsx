@@ -18,6 +18,7 @@ import TeamHub from "./pages/TeamHub";
 import Doctors from "./pages/Doctors";
 import ViewDoctors from "./pages/ViewDoctors";
 import DoctorClinicMapping from "./pages/DoctorClinicMapping";
+import ReceptionistOnboarding from "./pages/ReceptionistOnboarding";
 import DeletePatients from "./pages/DeletePatients";
 import CrudPage from "./pages/CrudPage";
 import Calendar from "./pages/Calendar";
@@ -60,6 +61,7 @@ export default function App(){
           <Route path="/doctors" element={<Doctors />} />
           <Route path="/doctors/view" element={<ViewDoctors />} />
           <Route path="/doctors/clinic-mapping" element={<DoctorClinicMapping />} />
+          <Route path="/receptionists/onboard" element={<ReceptionistOnboarding />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/visits" element={<VisitInformation />} />
           <Route path="/clinics/analytics" element={<ClinicAnalytics />} />
