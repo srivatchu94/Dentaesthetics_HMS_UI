@@ -50,6 +50,7 @@ const TeamHub = () => {
     roleId: 0
   });
   const [allEnterprises, setAllEnterprises] = useState([]);
+  const [onboardingClinics, setOnboardingClinics] = useState([]);
   const [credentialClinics, setCredentialClinics] = useState([]);
   const [credentialLoading, setCredentialLoading] = useState(false);
   const [credentialError, setCredentialError] = useState("");
@@ -194,6 +195,45 @@ const TeamHub = () => {
     fetchRoles();
   }, []);
 
+  // Fetch clinics when enterprise is selected in onboarding modal
+  useEffect(() => {
+    if (!doctorFormData.enterpriseId || doctorFormData.enterpriseId === "" || doctorFormData.enterpriseId === 0) {
+      setOnboardingClinics([]);
+      return;
+    }
+
+    const fetchOnboardingClinics = async () => {
+      try {
+        const response = await fetch(
+          `https://localhost:7104/api/Clinic/GetClinicByID?id=${doctorFormData.enterpriseId}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const clinicList = Array.isArray(data) ? data : (data?.clinics || [data]);
+          console.log("📋 Clinics loaded for onboarding:", clinicList);
+          setOnboardingClinics(clinicList);
+          // Reset clinicId when enterprise changes
+          setDoctorFormData(prev => ({ ...prev, clinicId: "" }));
+        } else {
+          setOnboardingClinics([]);
+        }
+      } catch (error) {
+        console.error("Error fetching clinics:", error);
+        setOnboardingClinics([]);
+      }
+    };
+
+    fetchOnboardingClinics();
+  }, [doctorFormData.enterpriseId]);
+
   const sections = [
     {
       id: 'doctors-lounge',
@@ -255,8 +295,8 @@ const TeamHub = () => {
     },
     {
       id: 'reception-staff',
-      title: "🎯 Reception Staff",
-      description: "Manage front desk and reception team",
+      title: "Onboard Staff",
+      description: "Recruit and integrate new team members",
       gradient: "from-rose-500 via-pink-500 to-fuchsia-600",
       bgGradient: "from-rose-50 to-pink-50",
       options: [
@@ -326,6 +366,8 @@ const TeamHub = () => {
     if (optionId === 'onboard-doctor') {
       setIsReceptionistMode(false);
       setDoctorFormData(prev => ({ ...prev, role: "Doctor" }));
+      loadRoles();
+      loadEnterprises();
       setShowDoctorModal(true);
       return;
     }
@@ -333,6 +375,7 @@ const TeamHub = () => {
       setIsReceptionistMode(true);
       setDoctorFormData(prev => ({ ...prev, role: "Receptionist" }));
       loadRoles();
+      loadEnterprises();
       setShowDoctorModal(true);
       return;
     }
@@ -418,7 +461,7 @@ const TeamHub = () => {
   // Load enterprises for credential management
   const loadEnterprises = async () => {
     try {
-      const response = await fetch("https://localhost:7104/api/Enterprise", {
+      const response = await fetch("https://localhost:7104/api/Enterprise/GetAllEnterprises", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -1313,10 +1356,9 @@ const TeamHub = () => {
                   <div>
                     <h2 className="text-3xl font-bold text-white flex items-center gap-3">
                       <span className="text-4xl">👨‍⚕️</span>
-                      {isReceptionistMode ? "Receptionist" : "Doctor"} Onboarding & Management
+                      Onboard Staff
                     </h2>
-                    <p className="text-purple-100 mt-1">Complete all required fields to onboard a new doctor</p>
-                    <p className="text-purple-100 mt-1">Complete all required fields to onboard a new {isReceptionistMode ? "receptionist" : "doctor"}</p>
+                    <p className="text-purple-100 mt-1">Fill in all required information to add a new team member to your organization</p>
                   </div>
                   <button
                     onClick={() => {
@@ -1371,31 +1413,48 @@ const TeamHub = () => {
                         <label className="block text-sm font-semibold text-purple-900 mb-2">
                           Enterprise ID <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="number"
+                        <select
                           name="enterpriseId"
                           value={doctorFormData.enterpriseId}
                           onChange={handleInputChange}
                           className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                             validationErrors.includes("enterpriseId") ? "border-red-500 bg-red-50" : "border-purple-300"
                           }`}
-                          placeholder="Enter enterprise ID"
-                        />
+                        >
+                          <option value="">Select enterprise</option>
+                          {allEnterprises.map(enterprise => {
+                            const enterpriseId = enterprise.enterpriseID || enterprise.enterpriseId || enterprise.id;
+                            return (
+                              <option key={enterpriseId} value={enterpriseId}>
+                                {enterprise.enterpriseName || enterprise.name} ({enterpriseId})
+                              </option>
+                            );
+                          })}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-purple-900 mb-2">
                           Clinic ID <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="number"
+                        <select
                           name="clinicId"
                           value={doctorFormData.clinicId}
                           onChange={handleInputChange}
                           className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                             validationErrors.includes("clinicId") ? "border-red-500 bg-red-50" : "border-purple-300"
                           }`}
-                          placeholder="Enter clinic ID"
-                        />
+                          disabled={!doctorFormData.enterpriseId}
+                        >
+                          <option value="">Select clinic</option>
+                          {onboardingClinics.map(clinic => {
+                            const clinicId = clinic.clinicID || clinic.clinicId || clinic.id;
+                            return (
+                              <option key={clinicId} value={clinicId}>
+                                {clinic.clinicName || clinic.name} ({clinicId})
+                              </option>
+                            );
+                          })}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-purple-900 mb-2">

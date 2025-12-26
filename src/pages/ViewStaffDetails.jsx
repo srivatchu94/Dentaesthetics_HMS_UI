@@ -10,7 +10,9 @@ export default function ViewStaffDetails() {
     rolesAssigned: "",
     profileID: "",
     firstName: "",
-    lastName: ""
+    lastName: "",
+    enterpriseId: "",
+    clinicId: ""
   });
 
   // Staff list and UI state
@@ -28,6 +30,12 @@ export default function ViewStaffDetails() {
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   const [isDeletingStaff, setIsDeletingStaff] = useState(false);
 
+  // Enterprise and Clinic state
+  const [enterprises, setEnterprises] = useState([]);
+  const [clinics, setClinics] = useState([]);
+  const [isLoadingEnterprises, setIsLoadingEnterprises] = useState(false);
+  const [isLoadingClinics, setIsLoadingClinics] = useState(false);
+
   // Available roles
   const availableRoles = [
     { id: "entityadmin", name: "Entity Admin" },
@@ -36,6 +44,104 @@ export default function ViewStaffDetails() {
     { id: "Doctor", name: "Doctor" },
     { id: "Nurse", name: "Nurse" }
   ];
+
+  // Fetch all enterprises on component mount
+  useEffect(() => {
+    const fetchEnterprises = async () => {
+      try {
+        setIsLoadingEnterprises(true);
+        const response = await fetch("https://localhost:7104/api/Enterprise/GetAllEnterprises", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const enterpriseList = Array.isArray(data) ? data : (data?.enterprises || []);
+          console.log("📋 Enterprises loaded:", enterpriseList);
+          setEnterprises(enterpriseList);
+        } else {
+          console.error("Failed to fetch enterprises");
+        }
+      } catch (err) {
+        console.error("Error fetching enterprises:", err);
+      } finally {
+        setIsLoadingEnterprises(false);
+      }
+    };
+
+    fetchEnterprises();
+  }, []);
+
+  // Fetch clinics when enterprise is selected
+  useEffect(() => {
+    const fetchClinics = async () => {
+      if (!searchFilters.enterpriseId) {
+        setClinics([]);
+        return;
+      }
+
+      try {
+        setIsLoadingClinics(true);
+        const response = await fetch(
+          `https://localhost:7104/api/Clinic/GetClinicByID?id=${searchFilters.enterpriseId}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const clinicList = Array.isArray(data) ? data : (data?.clinics || [data]);
+          console.log("📋 Clinics loaded:", clinicList);
+          setClinics(clinicList);
+        } else {
+          console.error("Failed to fetch clinics");
+          setClinics([]);
+        }
+      } catch (err) {
+        console.error("Error fetching clinics:", err);
+        setClinics([]);
+      } finally {
+        setIsLoadingClinics(false);
+      }
+    };
+
+    fetchClinics();
+  }, [searchFilters.enterpriseId]);
+
+  // UI helpers
+  const getInitials = (first, last) => {
+    const f = (first || "").trim();
+    const l = (last || "").trim();
+    const initials = `${f.charAt(0)}${l.charAt(0)}`.toUpperCase();
+    return initials || "S";
+  };
+
+  const RoleBadge = ({ role }) => {
+    const r = (role || "").toLowerCase();
+    const styles = {
+      entityadmin: "bg-indigo-50 text-indigo-700 ring-indigo-200",
+      clinicadmin: "bg-sky-50 text-sky-700 ring-sky-200",
+      staff: "bg-slate-50 text-slate-700 ring-slate-200",
+      doctor: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+      nurse: "bg-teal-50 text-teal-700 ring-teal-200",
+      receptionist: "bg-amber-50 text-amber-800 ring-amber-200"
+    };
+    const cls = styles[r] || "bg-slate-50 text-slate-700 ring-slate-200";
+    return (
+      <span className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ring-1 ${cls}`}>
+        {role || "Unknown"}
+      </span>
+    );
+  };
 
   // Search handlers
   const handleSearchChange = (e) => {
@@ -55,7 +161,12 @@ export default function ViewStaffDetails() {
       return;
     }
 
-    // Require at least one optional filter (trim to check for non-empty values)
+    if (!searchFilters.enterpriseId) {
+      setError("Please select an enterprise");
+      return;
+    }
+
+    // All search criteria (Profile ID, First Name, Last Name) are optional
     const hasProfileID = (searchFilters.profileID || "").trim() !== "";
     const hasFirstName = (searchFilters.firstName || "").trim() !== "";
     const hasLastName = (searchFilters.lastName || "").trim() !== "";
@@ -65,18 +176,14 @@ export default function ViewStaffDetails() {
     console.log("  - firstName value:", `'${searchFilters.firstName}'`, "| hasFirstName:", hasFirstName);
     console.log("  - lastName value:", `'${searchFilters.lastName}'`, "| hasLastName:", hasLastName);
     
-    if (!hasProfileID && !hasFirstName && !hasLastName) {
-      setError("Please provide at least one filter: Profile ID, First Name, or Last Name");
-      console.log("❌ Validation failed: No filters provided");
-      return;
-    }
-
-    console.log("✅ Validation passed, proceeding with search...");
+    console.log("✅ Validation passed (all search criteria are optional), proceeding with search...");
 
     try {
       setIsSearching(true);
       const params = new URLSearchParams();
       params.append("rolesAssigned", searchFilters.rolesAssigned);
+      params.append("enterpriseId", searchFilters.enterpriseId);
+      if (searchFilters.clinicId) params.append("clinicId", searchFilters.clinicId);
       if (hasProfileID) params.append("Id", searchFilters.profileID.trim());
       if (hasFirstName) params.append("firstName", searchFilters.firstName.trim());
       if (hasLastName) params.append("lastName", searchFilters.lastName.trim());
@@ -261,16 +368,17 @@ export default function ViewStaffDetails() {
       const responseData = await response.json().catch(() => null);
       console.log("✅ Edit API Success Response:", responseData);
 
-      setSuccessMessage(`✅ Profile for ${editFormData.firstName} ${editFormData.lastName} has been updated successfully`);
-      alert(`Profile for ${editFormData.firstName} ${editFormData.lastName} has been updated successfully`);
+      setSuccessMessage(`Profile for ${editFormData.firstName} ${editFormData.lastName} has been updated successfully`);
       setShowEditModal(false);
 
       // Refresh list: re-run search if filters exist
-      if (searchFilters.rolesAssigned) {
+      if (searchFilters.rolesAssigned && searchFilters.enterpriseId) {
         setIsSearching(true);
         try {
           const searchParams = new URLSearchParams();
           searchParams.append("rolesAssigned", searchFilters.rolesAssigned);
+          searchParams.append("enterpriseId", searchFilters.enterpriseId);
+          if (searchFilters.clinicId) searchParams.append("clinicId", searchFilters.clinicId);
           if ((searchFilters.profileID || "").trim() !== "") searchParams.append("Id", searchFilters.profileID.trim());
           if ((searchFilters.firstName || "").trim() !== "") searchParams.append("firstName", searchFilters.firstName.trim());
           if ((searchFilters.lastName || "").trim() !== "") searchParams.append("lastName", searchFilters.lastName.trim());
@@ -287,14 +395,19 @@ export default function ViewStaffDetails() {
           if (searchResponse.ok) {
             const data = await searchResponse.json();
             const list = Array.isArray(data) ? data : (data?.profiles || []);
-            setStaffList(list);
+            // Ensure profileId is available in the refreshed list
+            const mappedList = list.map(staff => ({
+              ...staff,
+              profileId: staff.profileId || staff.staffId || null
+            }));
+            setStaffList(mappedList);
           }
         } finally {
           setIsSearching(false);
         }
       }
       
-      setTimeout(() => setSuccessMessage(""), 3000);
+      setTimeout(() => setSuccessMessage(""), 4000);
     } catch (err) {
       console.error("❌ Update error:", err);
       setError(err.message || "Something went wrong while updating");
@@ -348,14 +461,12 @@ export default function ViewStaffDetails() {
       });
 
       if (response.ok) {
-        const message = `✅ Staff "${selectedStaff.firstName} ${selectedStaff.lastName}" deleted successfully!`;
+        const message = `Staff "${selectedStaff.firstName} ${selectedStaff.lastName}" deleted successfully!`;
         setSuccessMessage(message);
-        // Toast/alert in addition to inline success message
-        alert(message);
         setShowDeleteConfirm(false);
-        // Remove from list and refresh
+        // Remove from list
         setStaffList(prev => prev.filter(s => s.profileId !== selectedStaff.profileId));
-        setTimeout(() => setSuccessMessage(""), 3000);
+        setTimeout(() => setSuccessMessage(""), 4000);
       } else {
         const errorText = await response.text();
         console.error("❌ Delete API error response:", errorText);
@@ -365,7 +476,8 @@ export default function ViewStaffDetails() {
       console.error("Delete error:", err);
       const errorMessage = `Failed to delete staff: ${err.message}`;
       setError(errorMessage);
-      alert(errorMessage);
+      // Auto-clear error after a short delay
+      setTimeout(() => setError(""), 4000);
     } finally {
       setIsDeletingStaff(false);
     }
@@ -374,6 +486,42 @@ export default function ViewStaffDetails() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-12 px-6">
       <div className="max-w-6xl mx-auto">
+        {/* Success Flyer (Centered) */}
+        <AnimatePresence>
+          {successMessage && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none"
+            >
+              <motion.div
+                className="bg-green-600 text-white px-8 py-4 rounded-2xl shadow-2xl text-center font-semibold pointer-events-auto"
+                transition={{ type: "spring", damping: 15 }}
+              >
+                {successMessage}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {/* Error Toast (Centered) */}
+        <AnimatePresence>
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none"
+            >
+              <motion.div
+                className="bg-red-600 text-white px-8 py-4 rounded-2xl shadow-2xl text-center font-semibold pointer-events-auto"
+                transition={{ type: "spring", damping: 15 }}
+              >
+                {error}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -395,109 +543,153 @@ export default function ViewStaffDetails() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-2xl shadow-lg p-8 mb-8"
         >
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">Search Criteria</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Search Staff</h2>
           
-          <form onSubmit={handleSearch} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Role <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="rolesAssigned"
-                  value={searchFilters.rolesAssigned}
-                  onChange={handleSearchChange}
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  required
-                >
-                  <option value="">Select role</option>
-                  {availableRoles.map(role => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Profile ID</label>
-                <input
-                  type="text"
-                  name="profileID"
-                  value={searchFilters.profileID}
-                  onChange={handleSearchChange}
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="e.g., Profile ID like S001 or 123"
-                />
-              </div>
+          <form onSubmit={handleSearch} className="space-y-6">
+            {/* Required Filters Section */}
+            <div className="bg-gradient-to-r from-indigo-50 to-indigo-50/50 rounded-xl p-5 border border-indigo-100">
+              <h3 className="text-sm font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-xs">*</span>
+                Required Filters
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Role
+                  </label>
+                  <select
+                    name="rolesAssigned"
+                    value={searchFilters.rolesAssigned}
+                    onChange={handleSearchChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                    required
+                  >
+                    <option value="">Select role</option>
+                    {availableRoles.map(role => (
+                      <option key={role.id} value={role.id}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Select the staff role to search for</p>
+                </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">First Name</label>
-                <input
-                  type="text"
-                  name="firstName"
-                  value={searchFilters.firstName}
-                  onChange={handleSearchChange}
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="e.g., John"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Last Name</label>
-                <input
-                  type="text"
-                  name="lastName"
-                  value={searchFilters.lastName}
-                  onChange={handleSearchChange}
-                  className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="e.g., Doe"
-                />
-              </div>
-              <div className="md:col-span-3">
-                <p className="text-xs text-orange-600 font-semibold">Provide at least one: Profile ID, First Name, or Last Name.</p>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Enterprise
+                  </label>
+                  <select
+                    name="enterpriseId"
+                    value={searchFilters.enterpriseId}
+                    onChange={handleSearchChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:bg-gray-100 disabled:text-gray-500"
+                    disabled={isLoadingEnterprises}
+                    required
+                  >
+                    <option value="">Select enterprise</option>
+                    {enterprises.map(enterprise => {
+                      const enterpriseId = enterprise.enterpriseID || enterprise.enterpriseId || enterprise.id;
+                      return (
+                        <option key={enterpriseId} value={enterpriseId}>
+                          {enterprise.enterpriseName || enterprise.name}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Choose the organization to search within</p>
+                </div>
               </div>
             </div>
 
-            {error && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700"
-              >
-                {error}
-              </motion.div>
-            )}
+            {/* Optional Filters Section */}
+            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+              <h3 className="text-sm font-bold text-gray-700 mb-4">Optional Filters</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Clinic
+                  </label>
+                  <select
+                    name="clinicId"
+                    value={searchFilters.clinicId}
+                    onChange={handleSearchChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:bg-gray-100 disabled:text-gray-500"
+                    disabled={isLoadingClinics || !searchFilters.enterpriseId}
+                  >
+                    <option value="">All Clinics</option>
+                    {clinics.map(clinic => {
+                      const clinicId = clinic.clinicID || clinic.clinicId || clinic.id;
+                      return (
+                        <option key={clinicId} value={clinicId}>
+                          {clinic.clinicName || clinic.name}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
 
-            {successMessage && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="p-4 bg-green-50 border border-green-200 rounded-lg text-green-700"
-              >
-                {successMessage}
-              </motion.div>
-            )}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Profile ID</label>
+                  <input
+                    type="text"
+                    name="profileID"
+                    value={searchFilters.profileID}
+                    onChange={handleSearchChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                    placeholder="e.g., S001"
+                  />
+                </div>
 
-            <div className="flex gap-3">
-              <button
-                type="submit"
-                disabled={isSearching}
-                className="px-6 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 font-semibold"
-              >
-                {isSearching ? "Searching..." : "Search"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchFilters({ rolesAssigned: "", profileID: "", firstName: "", lastName: "" });
-                  setStaffList([]);
-                  setShowSearchResult(false);
-                  setError("");
-                }}
-                className="px-6 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border"
-              >
-                Clear
-              </button>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">First Name</label>
+                  <input
+                    type="text"
+                    name="firstName"
+                    value={searchFilters.firstName}
+                    onChange={handleSearchChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                    placeholder="e.g., John"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Last Name</label>
+                  <input
+                    type="text"
+                    name="lastName"
+                    value={searchFilters.lastName}
+                    onChange={handleSearchChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                    placeholder="e.g., Doe"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-xs text-gray-600">Filters marked with <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-600 text-white text-xs mr-1">*</span> are required</p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchFilters({ rolesAssigned: "", profileID: "", firstName: "", lastName: "", enterpriseId: "", clinicId: "" });
+                    setStaffList([]);
+                    setShowSearchResult(false);
+                    setError("");
+                  }}
+                  className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 font-semibold transition"
+                >
+                  Reset
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSearching}
+                  className="px-6 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition"
+                >
+                  {isSearching ? "Searching..." : "Search Staff"}
+                </button>
+              </div>
             </div>
           </form>
         </motion.div>
@@ -511,6 +703,44 @@ export default function ViewStaffDetails() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-4"
             >
+              {/* Results summary */}
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-600">Results: <span className="font-semibold text-gray-800">{staffList.length}</span></p>
+                {isSearching && <p className="text-xs text-gray-500">Loading...</p>}
+              </div>
+
+              {/* Skeletons while searching */}
+              {isSearching && (
+                <div className="space-y-3">
+                  {[1,2,3,4].map(i => (
+                    <div key={`sk-${i}`} className="bg-white rounded-2xl shadow-lg p-6">
+                      <div className="animate-pulse">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-gray-200" />
+                            <div>
+                              <div className="h-4 w-48 bg-gray-200 rounded mb-2" />
+                              <div className="h-3 w-32 bg-gray-100 rounded" />
+                            </div>
+                          </div>
+                          <div className="h-6 w-24 bg-gray-200 rounded-full" />
+                        </div>
+                        <div className="mt-4 flex gap-2">
+                          <div className="h-6 w-24 bg-gray-100 rounded-full" />
+                          <div className="h-6 w-28 bg-gray-100 rounded-full" />
+                          <div className="h-6 w-24 bg-gray-100 rounded-full" />
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          <div className="h-4 w-full bg-gray-100 rounded" />
+                          <div className="h-4 w-full bg-gray-100 rounded" />
+                          <div className="h-4 w-full bg-gray-100 rounded" />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {staffList.length === 0 ? (
                 <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
                   <p className="text-gray-600 text-lg">No {searchFilters.rolesAssigned || "staff"} is working right now</p>
@@ -524,39 +754,40 @@ export default function ViewStaffDetails() {
                     transition={{ delay: index * 0.05 }}
                     className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow"
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <p className="text-xs text-gray-500 font-semibold">Profile ID</p>
-                        <p className="text-lg font-bold text-indigo-700">{staff.profileId || "N/A"}</p>
+                    {/* Header */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold">
+                          {getInitials(staff.firstName, staff.lastName)}
+                        </div>
+                        <div>
+                          <p className="text-lg font-semibold text-gray-900">{staff.firstName} {staff.lastName}</p>
+                          <p className="text-sm text-gray-500">{staff.email || "No email"}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs text-gray-500 font-semibold">Name</p>
-                        <p className="text-lg font-bold text-gray-800">
-                          {staff.firstName} {staff.lastName}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 font-semibold">Email</p>
-                        <p className="text-sm text-gray-700">{staff.email}</p>
-                      </div>
+                      <RoleBadge role={staff.rolesAssigned || searchFilters.rolesAssigned} />
+                    </div>
+
+                    {/* ID chips */}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="px-2 py-1 text-xs rounded-full bg-slate-50 text-slate-700 ring-1 ring-slate-200">Profile: {staff.profileId || "N/A"}</span>
+                      <span className="px-2 py-1 text-xs rounded-full bg-purple-50 text-purple-700 ring-1 ring-purple-200">Enterprise: {staff.enterpriseID || "N/A"}</span>
+                      <span className="px-2 py-1 text-xs rounded-full bg-fuchsia-50 text-fuchsia-700 ring-1 ring-fuchsia-200">Clinic: {staff.clinicID || "N/A"}</span>
+                    </div>
+
+                    {/* Details */}
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div>
                         <p className="text-xs text-gray-500 font-semibold">Phone</p>
                         <p className="text-sm text-gray-700">{staff.phone || "N/A"}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 font-semibold">Role</p>
-                        <p className="text-sm font-semibold text-indigo-600">{staff.rolesAssigned || searchFilters.rolesAssigned || "N/A"}</p>
+                        <p className="text-xs text-gray-500 font-semibold">Gender</p>
+                        <p className="text-sm text-gray-700">{staff.gender || "N/A"}</p>
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 pb-4 border-b">
                       <div>
                         <p className="text-xs text-gray-500 font-semibold">Date of Birth</p>
                         <p className="text-sm text-gray-700">{staff.dateOfBirth ? new Date(staff.dateOfBirth).toLocaleDateString() : "N/A"}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 font-semibold">Gender</p>
-                        <p className="text-sm text-gray-700">{staff.gender || "N/A"}</p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500 font-semibold">Education</p>
@@ -568,9 +799,8 @@ export default function ViewStaffDetails() {
                       </div>
                     </div>
 
-                    {/* Show license info only if available */}
                     {(staff.licenseNumber || staff.licenseExpiry || staff.specialtyId) && (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 pb-4 border-b bg-blue-50 p-3 rounded">
+                      <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 bg-blue-50 p-3 rounded ring-1 ring-blue-100">
                         <div>
                           <p className="text-xs text-gray-500 font-semibold">License Number</p>
                           <p className="text-sm text-gray-700">{staff.licenseNumber || "N/A"}</p>
@@ -586,18 +816,19 @@ export default function ViewStaffDetails() {
                       </div>
                     )}
 
-                    <div className="flex gap-3">
+                    {/* Actions */}
+                    <div className="mt-5 flex items-center justify-end gap-3">
                       <button
                         onClick={() => openEditModal(staff)}
-                        className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 font-semibold text-sm"
+                        className="px-4 py-2 rounded-lg border border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold text-sm"
                       >
-                        ✏️ Edit
+                        Edit
                       </button>
                       <button
                         onClick={() => openDeleteConfirm(staff)}
-                        className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 font-semibold text-sm"
+                        className="px-4 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 font-semibold text-sm"
                       >
-                        🗑️ Delete
+                        Delete
                       </button>
                     </div>
                   </motion.div>
@@ -635,6 +866,57 @@ export default function ViewStaffDetails() {
                 </div>
 
                 <form onSubmit={handleUpdateStaff} className="p-6 space-y-4">
+                  {/* Enterprise and Clinic - Mandatory */}
+                  <div className="bg-purple-50 p-4 rounded-lg space-y-3 border border-purple-200">
+                    <p className="text-sm font-semibold text-purple-900">Enterprise & Clinic Information</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Enterprise ID *
+                        </label>
+                        <select
+                          name="enterpriseID"
+                          value={editFormData.enterpriseID || ""}
+                          onChange={handleEditFormChange}
+                          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          required
+                        >
+                          <option value="">Select enterprise</option>
+                          {enterprises.map(enterprise => {
+                            const enterpriseId = enterprise.enterpriseID || enterprise.enterpriseId || enterprise.id;
+                            return (
+                              <option key={enterpriseId} value={enterpriseId}>
+                                {enterprise.enterpriseName || enterprise.name} ({enterpriseId})
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Clinic ID
+                        </label>
+                        <select
+                          name="clinicID"
+                          value={editFormData.clinicID || ""}
+                          onChange={handleEditFormChange}
+                          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          disabled={!editFormData.enterpriseID}
+                        >
+                          <option value="">Select clinic</option>
+                          {clinics.map(clinic => {
+                            const clinicId = clinic.clinicID || clinic.clinicId || clinic.id;
+                            return (
+                              <option key={clinicId} value={clinicId}>
+                                {clinic.clinicName || clinic.name} ({clinicId})
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Basic Information - Show for all roles */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -773,7 +1055,7 @@ export default function ViewStaffDetails() {
                     (editFormData.rolesAssigned || "").toLowerCase()
                   ) && (
                     <div className="bg-blue-50 p-4 rounded-lg space-y-3 border border-blue-200">
-                      <p className="text-sm font-semibold text-blue-900">🏥 License & Specialty Information</p>
+                      <p className="text-sm font-semibold text-blue-900">License & Specialty Information</p>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-semibold text-gray-700 mb-1">
@@ -845,6 +1127,146 @@ export default function ViewStaffDetails() {
                         className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
+                  </div>
+
+                  {/* Additional Professional Information */}
+                  <div className="bg-green-50 p-4 rounded-lg space-y-3 border border-green-200">
+                    <p className="text-sm font-semibold text-green-900">Additional Information</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Certifications
+                        </label>
+                        <input
+                          type="text"
+                          name="certifications"
+                          value={editFormData.certifications || ""}
+                          onChange={handleEditFormChange}
+                          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Languages
+                        </label>
+                        <input
+                          type="text"
+                          name="languages"
+                          value={editFormData.languages || ""}
+                          onChange={handleEditFormChange}
+                          placeholder="e.g., English, Hindi, Marathi"
+                          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Availability
+                        </label>
+                        <input
+                          type="text"
+                          name="availability"
+                          value={editFormData.availability || ""}
+                          onChange={handleEditFormChange}
+                          placeholder="e.g., Monday-Friday 9AM-5PM"
+                          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Emergency Contact
+                        </label>
+                        <input
+                          type="tel"
+                          name="emergencyContact"
+                          value={editFormData.emergencyContact || ""}
+                          onChange={handleEditFormChange}
+                          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Insurance Details
+                        </label>
+                        <input
+                          type="text"
+                          name="insuranceDetails"
+                          value={editFormData.insuranceDetails || ""}
+                          onChange={handleEditFormChange}
+                          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">
+                          Profile Photo URL
+                        </label>
+                        <input
+                          type="url"
+                          name="profilePhotoUrl"
+                          value={editFormData.profilePhotoUrl || ""}
+                          onChange={handleEditFormChange}
+                          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bio and Other Details */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Bio
+                    </label>
+                    <textarea
+                      name="bio"
+                      value={editFormData.bio || ""}
+                      onChange={handleEditFormChange}
+                      className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      rows="3"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Achievements
+                      </label>
+                      <input
+                        type="text"
+                        name="achievements"
+                        value={editFormData.achievements || ""}
+                        onChange={handleEditFormChange}
+                        className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">
+                        Publications
+                      </label>
+                      <input
+                        type="text"
+                        name="publications"
+                        value={editFormData.publications || ""}
+                        onChange={handleEditFormChange}
+                        className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Social Links
+                    </label>
+                    <input
+                      type="text"
+                      name="socialLinks"
+                      value={editFormData.socialLinks || ""}
+                      onChange={handleEditFormChange}
+                      placeholder="e.g., LinkedIn, Twitter profiles"
+                      className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
                   </div>
 
                   <div className="flex gap-3 pt-4">
