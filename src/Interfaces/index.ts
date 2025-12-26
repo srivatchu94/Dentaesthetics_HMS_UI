@@ -24,6 +24,9 @@ export type { Prescription } from "./PrescriptionModel";
 export type { DoctorSalaryInfo, PatientTreatmentRecord, SalaryCalculation, SalaryPaymentRecord, SalaryHistoryRecord } from "./SalaryModel";
 export type { AppointmentsModel } from "./AppointmentsModel";
 
+// Staff Detail API models
+export type { CreateRoleBasedProfileRequest, RoleBasedProfile, RoleBasedProfilesResponse, RoleType } from "./StaffDetailAPIModel";
+
 // Inventory models
 export type { 
   InventoryMaster, 

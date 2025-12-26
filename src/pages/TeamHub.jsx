@@ -38,6 +38,21 @@ const TeamHub = () => {
   const [showCredentialManagementModal, setShowCredentialManagementModal] = useState(false);
   const [showCredentialSuccess, setShowCredentialSuccess] = useState(false);
   const [credentialSuccessUsername, setCredentialSuccessUsername] = useState("");
+  const [credentialFormData, setCredentialFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    username: "",
+    password: "",
+    confirmPassword: "",
+    enterpriseId: 0,
+    clinicId: 0,
+    roleId: 0
+  });
+  const [allEnterprises, setAllEnterprises] = useState([]);
+  const [credentialClinics, setCredentialClinics] = useState([]);
+  const [credentialLoading, setCredentialLoading] = useState(false);
+  const [credentialError, setCredentialError] = useState("");
   const [roleOptions, setRoleOptions] = useState([]);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [availableRolesFromApi, setAvailableRolesFromApi] = useState([]);
@@ -247,7 +262,7 @@ const TeamHub = () => {
       options: [
         {
           id: 'onboard-receptionist',
-          title: "🎭 Onboard Receptionist",
+          title: "🎭 Onboard Staff",
           description: "Add reception team members",
           path: "/receptionists/onboard",
           icon: "🔔",
@@ -255,9 +270,9 @@ const TeamHub = () => {
         },
         {
           id: 'view-receptionists',
-          title: "📞 View Receptionists",
-          description: "Manage reception staff",
-          path: "/staff/view?role=receptionist",
+          title: "👁️ View Staff Details",
+          description: "Search and manage reception staff",
+          path: "/staff/details",
           icon: "💬",
           color: "from-pink-500 to-fuchsia-500"
         }
@@ -319,6 +334,14 @@ const TeamHub = () => {
       setDoctorFormData(prev => ({ ...prev, role: "Receptionist" }));
       loadRoles();
       setShowDoctorModal(true);
+      return;
+    }
+    if (optionId === 'create-staff-profile') {
+      navigate('/staff/onboard');
+      return;
+    }
+    if (optionId === 'view-staff-profiles') {
+      navigate('/staff/details');
       return;
     }
     if (optionId === 'manage-access') {
@@ -956,14 +979,13 @@ const TeamHub = () => {
         return;
       }
 
-      // Get selected role name
+      // Get selected role name from the role ID
       const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId));
       const roleName = selectedRole?.roleName || "";
       console.log("🎭 Selected role:", roleName);
 
       // Build payload for StaffDetail API - matches the C# model exactly
       const staffDetailPayload = {
-        staffId: parseInt(doctorFormData.staffId) || 0,
         enterpriseId: parseInt(doctorFormData.enterpriseId) || null,
         clinicId: parseInt(doctorFormData.clinicId) || null,
         firstName: doctorFormData.firstName,
@@ -990,14 +1012,14 @@ const TeamHub = () => {
         achievements: doctorFormData.achievements || null,
         publications: doctorFormData.publications || null,
         socialLinks: doctorFormData.socialLinks || null,
-        rolesAssigned: doctorFormData.roleId ? doctorFormData.roleId.toString() : null // ✅ Convert to string for backend
+        rolesAssigned: roleName // ✅ Send role name, not ID
       };
 
       // 🔍 DEBUG LOG
-      console.log("=== SENDING TO CreateStaffDetails API ===");
+      console.log("=== SENDING TO CreateRoleBasedProfile API ===");
       console.log("Full Payload:", staffDetailPayload);
       console.log("Role Name:", roleName);
-      console.log("Role ID (rolesAssigned):", staffDetailPayload.rolesAssigned, "(Type:", typeof staffDetailPayload.rolesAssigned, ")");
+      console.log("Role Name (rolesAssigned):", staffDetailPayload.rolesAssigned, "(Type:", typeof staffDetailPayload.rolesAssigned, ")");
       console.log("License Expiry:", staffDetailPayload.licenseExpiry);
       console.log("Specialty ID:", staffDetailPayload.specialtyId);
       console.log("Years Experience:", staffDetailPayload.yearsExperience);
@@ -1009,7 +1031,7 @@ const TeamHub = () => {
       setShowPreview(false);
       setShowDoctorModal(false);
       setShowSuccessModal(true);
-      alert(`✅ ${roleName} onboarded successfully! (ID: ${response.staffId})`);
+      alert(`✅ ${roleName} onboarded successfully!`);
       resetDoctorForm();
 
       setTimeout(() => {
@@ -1557,75 +1579,75 @@ const TeamHub = () => {
                       const roleName = selectedRole?.roleName?.toLowerCase() || "";
                       const requiresAcademic = roleName.includes("doctor") || roleName.includes("nurse");
                       const isAdmin = roleName.includes("admin");
-
-                      if (isAdmin) {
-                        return (
-                          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6 text-center">
-                            <span className="text-4xl">👑</span>
-                            <h3 className="text-lg font-bold text-yellow-800 mt-2">Admin Role Selected</h3>
-                            <p className="text-yellow-700 mt-1">License and academic credentials are not required for admin roles</p>
-                          </div>
-                        );
-                      }
-
-                      if (!requiresAcademic && !isAdmin) {
-                        return (
-                          <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 text-center">
-                            <span className="text-4xl">ℹ️</span>
-                            <h3 className="text-lg font-bold text-blue-800 mt-2">Non-Clinical Role</h3>
-                            <p className="text-blue-700 mt-1">License and academic credentials are optional for this role</p>
-                          </div>
-                        );
-                      }
+                      const disableClinicalFields = !requiresAcademic || isAdmin;
+                      const disabledClass = disableClinicalFields ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "";
 
                       return (
                         <>
-                          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 mb-4">
-                            <p className="text-sm text-green-800 font-semibold">
-                              🩺 Clinical Role: License and academic credentials are <strong>required</strong>
-                            </p>
-                          </div>
+                          {isAdmin && (
+                            <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6 text-center mb-4">
+                              <span className="text-4xl">👑</span>
+                              <h3 className="text-lg font-bold text-yellow-800 mt-2">Admin Role Selected</h3>
+                              <p className="text-yellow-700 mt-1">License and academic credentials are not required for admin roles</p>
+                            </div>
+                          )}
+                          {!requiresAcademic && !isAdmin && (
+                            <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-4 text-center">
+                              <span className="text-2xl">ℹ️</span>
+                              <p className="text-blue-700 mt-1">Non-clinical role: license and specialty are optional</p>
+                            </div>
+                          )}
+                          {requiresAcademic && !isAdmin && (
+                            <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 mb-4">
+                              <p className="text-sm text-green-800 font-semibold">
+                                🩺 Clinical Role: License and academic credentials are <strong>required</strong>
+                              </p>
+                            </div>
+                          )}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <label className="block text-sm font-semibold text-purple-900 mb-2">
-                                License Number <span className="text-red-500">*</span>
+                                License Number {requiresAcademic && !isAdmin ? <span className="text-red-500">*</span> : null}
                               </label>
                               <input
                                 type="text"
                                 name="licenseNumber"
                                 value={doctorFormData.licenseNumber}
                                 onChange={handleInputChange}
+                                disabled={disableClinicalFields}
                                 className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                                  validationErrors.includes("licenseNumber") ? "border-red-500 bg-red-50" : "border-purple-300"
+                                  disableClinicalFields ? "border-gray-200 " + disabledClass : validationErrors.includes("licenseNumber") ? "border-red-500 bg-red-50" : "border-purple-300"
                                 }`}
                                 placeholder="Medical license number"
                               />
                             </div>
                             <div>
                               <label className="block text-sm font-semibold text-purple-900 mb-2">
-                                License Expiry <span className="text-red-500">*</span>
+                                License Expiry {requiresAcademic && !isAdmin ? <span className="text-red-500">*</span> : null}
                               </label>
                               <input
                                 type="date"
                                 name="licenseExpiry"
                                 value={doctorFormData.licenseExpiry}
                                 onChange={handleInputChange}
+                                disabled={disableClinicalFields}
                                 className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                                  validationErrors.includes("licenseExpiry") ? "border-red-500 bg-red-50" : "border-purple-300"
+                                  disableClinicalFields ? "border-gray-200 " + disabledClass : validationErrors.includes("licenseExpiry") ? "border-red-500 bg-red-50" : "border-purple-300"
                                 }`}
                               />
                             </div>
                             <div>
                               <label className="block text-sm font-semibold text-purple-900 mb-2">
-                                Specialty ID <span className="text-red-500">*</span>
+                                Specialty ID {requiresAcademic && !isAdmin ? <span className="text-red-500">*</span> : null}
                               </label>
                               <input
                                 type="number"
                                 name="specialtyId"
                                 value={doctorFormData.specialtyId}
                                 onChange={handleInputChange}
+                                disabled={disableClinicalFields}
                                 className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                                  validationErrors.includes("specialtyId") ? "border-red-500 bg-red-50" : "border-purple-300"
+                                  disableClinicalFields ? "border-gray-200 " + disabledClass : validationErrors.includes("specialtyId") ? "border-red-500 bg-red-50" : "border-purple-300"
                                 }`}
                                 placeholder="Specialty ID"
                               />
