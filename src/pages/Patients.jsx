@@ -323,19 +323,27 @@ export default function Patients() {
 
   // Load diagnosis details for an appointment
   const loadDiagnosisDetails = async (appointmentId) => {
+    console.log('🔍 loadDiagnosisDetails called with appointmentId:', appointmentId);
+    console.log('📊 Current showDiagnosisModal state:', showDiagnosisModal);
+    
     if (!appointmentId) {
+      console.warn('⚠️ No appointment ID found');
       alert('❌ No appointment ID found. Cannot load diagnosis details.');
       return;
     }
+    
+    console.log('📋 Setting loading state to true and opening diagnosis modal...');
     setLoadingDiagnosis(true);
     setShowDiagnosisModal(true);
+    console.log('📋 showDiagnosisModal state setter called - should update to true');
+    
     try {
       console.log('📋 Loading diagnosis for appointment ID:', appointmentId);
       const diagnosisData = await getPatientVisit(appointmentId);
-      console.log('📋 Diagnosis data received:', diagnosisData);
+      console.log('✅ Diagnosis data received:', diagnosisData);
       setSelectedDiagnosis(diagnosisData);
     } catch (error) {
-      console.error("Error loading diagnosis:", error);
+      console.error("❌ Error loading diagnosis:", error);
       alert('❌ Could not load diagnosis details. Please try again! 🩺');
       setShowDiagnosisModal(false);
     } finally {
@@ -4538,6 +4546,13 @@ export default function Patients() {
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => {
+                        console.group('%c🖨️ PRINT BUTTON CLICKED (Patients Page)', 'color: red; font-weight: bold; font-size: 16px');
+                        console.log('%c📋 Print Preparation Data:', 'color: blue; font-weight: bold');
+                        console.log('Medications count:', medications.length);
+                        console.log('Medications:', medications);
+                        console.log('Patient:', selectedPatientForVisit);
+                        console.log('Prescription text length:', prescriptionText?.length || 0);
+                        
                         // Print functionality - excludes medical conditions
                         const medsBlock = medications.length ? serializeMedications(medications) : "";
                         const medsTable = medications.length ? `
@@ -4563,80 +4578,35 @@ export default function Patients() {
                               </table>
                         ` : '';
                         const combinedPrescription = [medsBlock, prescriptionText || "No prescription provided"].filter(Boolean).join("\n\nNotes:\n");
+                        
+                        console.log('%c📦 Content Preparation:', 'color: green; font-weight: bold');
+                        console.log('medsTable HTML length:', medsTable.length);
+                        console.log('combinedPrescription length:', combinedPrescription.length);
+                        
                         const printWindow = window.open('', '_blank');
+                        
+                        console.log('%c🪟 Print Window Status:', 'color: purple; font-weight: bold');
+                        console.log('Window opened:', !!printWindow);
+                        if (!printWindow) {
+                          console.error('❌ BLOCKED: Print window could not be opened. Check popup blocker!');
+                        }
+                        
                         const prescriptionContent = `
                           <!DOCTYPE html>
                           <html>
                             <head>
                               <title>Prescription - ${selectedPatientForVisit?.patientFirstName} ${selectedPatientForVisit?.patientLastName}</title>
                               <style>
-                                body {
-                                  font-family: 'Times New Roman', serif;
-                                  padding: 40px;
-                                  max-width: 800px;
-                                  margin: 0 auto;
-                                }
-                                .header {
-                                  text-align: center;
-                                  border-bottom: 3px double #333;
-                                  padding-bottom: 20px;
-                                  margin-bottom: 30px;
-                                }
-                                .header h1 {
-                                  margin: 0;
-                                  color: ${prescriptionColor};
-                                  font-size: 28px;
-                                }
-                                .header p {
-                                  margin: 5px 0;
-                                  color: #666;
-                                }
-                                .section {
-                                  margin-bottom: 20px;
-                                }
-                                .section-title {
-                                  font-weight: bold;
-                                  color: ${prescriptionColor};
-                                  border-bottom: 1px solid #ddd;
-                                  padding-bottom: 5px;
-                                  margin-bottom: 10px;
-                                  font-size: 16px;
-                                }
-                                .patient-info {
-                                  display: grid;
-                                  grid-template-columns: 1fr 1fr;
-                                  gap: 10px;
-                                  margin-bottom: 20px;
-                                }
-                                .info-item {
-                                  padding: 5px 0;
-                                }
-                                .info-label {
-                                  font-weight: bold;
-                                  color: #333;
-                                }
-                                .prescription-body {
-                                  white-space: pre-wrap;
-                                  font-family: 'Courier New', monospace;
-                                  background: #f9f9f9;
-                                  padding: 20px;
-                                  border-radius: 8px;
-                                  border-left: 4px solid ${prescriptionColor};
-                                  min-height: 200px;
-                                }
-                                .footer {
-                                  margin-top: 60px;
-                                  text-align: right;
-                                }
-                                .signature {
-                                  display: inline-block;
-                                  text-align: center;
-                                }
-                                .signature-line {
-                                  width: 250px;
-                                  border-top: 2px solid #333;
-                                  margin-bottom: 10px;
-                                }
+                                * { font-family: Arial, sans-serif; }
+                                body { margin: 0; padding: 16px; background: white; }
+                                .header { text-align: center; border-bottom: 3px solid #333; padding-bottom: 16px; margin-bottom: 16px; }
+                                .header h1 { margin: 0; font-size: 20px; }
+                                .header p { margin: 4px 0; font-size: 12px; color: #666; }
+                                .section { margin: 20px 0; }
+                                .section-title { font-weight: bold; font-size: 14px; border-bottom: 2px solid #999; padding-bottom: 4px; margin-bottom: 8px; }
+                                .patient-info { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12px; }
+                                .info-item { display: flex; }
+                                .info-label { font-weight: bold; width: 120px; }
                                 .med-table {
                                   width: 100%;
                                   border-collapse: collapse;
@@ -4706,15 +4676,72 @@ export default function Patients() {
                             </body>
                           </html>
                         `;
+                        
+                        console.log('%c📄 HTML Content:', 'color: orange; font-weight: bold');
+                        console.log('Total HTML length:', prescriptionContent.length);
+                        console.log('Content has patient name:', prescriptionContent.includes(selectedPatientForVisit?.patientFirstName));
+                        console.log('Content has medications:', prescriptionContent.includes('med-table') && medications.length > 0);
+                        
                         printWindow.document.write(prescriptionContent);
                         printWindow.document.close();
+                        
+                        console.log('%c🎯 Calling printWindow.focus() and printWindow.print()...', 'color: green; font-weight: bold');
                         printWindow.focus();
-                        printWindow.print();
+                        
+                        setTimeout(() => {
+                          console.log('%c📋 Executing print dialog...', 'color: green; font-weight: bold');
+                          console.log('Window document ready:', printWindow.document.readyState);
+                          console.log('Window document title:', printWindow.document.title);
+                          printWindow.print();
+                          console.log('%c✅ Print dialog executed', 'color: green; font-weight: bold');
+                          console.groupEnd();
+                        }, 250);
                       }}
                       className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
                     >
                       <span className="text-xl">🖨️</span>
                       <span>Print</span>
+                    </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        // Download as PDF simulation (would need actual PDF library in production)
+                        const medsBlock = medications.length ? `Medications:\n${serializeMedications(medications)}\n\n` : "";
+                        const prescriptionContent = `
+MEDICAL PRESCRIPTION
+${CURRENT_DOCTOR.name}
+${CURRENT_DOCTOR.specialization}
+Reg. No: ${CURRENT_DOCTOR.registrationNumber}
+Date: ${new Date().toLocaleDateString('en-IN')}
+
+PATIENT INFORMATION
+Name: ${selectedPatientForVisit?.patientFirstName} ${selectedPatientForVisit?.patientLastName}
+Patient ID: ${selectedPatientForVisit?.patientId}
+Visit Date: ${newVisit.visitDate}
+
+${medsBlock}PRESCRIPTION
+${prescriptionText || 'No prescription provided'}
+
+_______________________
+${CURRENT_DOCTOR.name}
+${CURRENT_DOCTOR.specialization}
+Reg. No: ${CURRENT_DOCTOR.registrationNumber}
+                        `;
+                        
+                        const blob = new Blob([prescriptionContent], { type: 'text/plain' });
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `Prescription_${selectedPatientForVisit?.patientFirstName}_${new Date().toISOString().split('T')[0]}.txt`;
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                      }}
+                      className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                    >
+                      <span className="text-xl">📥</span>
+                      <span>Download</span>
                     </motion.button>
 
                     <motion.button
@@ -7026,12 +7053,13 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                   </>
                 ) : (
                   <>
+
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => loadDiagnosisDetails(selectedAppointmentDetails.appointmentId)}
                       type="button"
-                      className="flex-1 px-6 py-4 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                      className="flex-1 px-6 py-4 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2"
                     >
                       <span className="text-xl">🩺</span>
                       <span>View Diagnosis</span>
@@ -7263,70 +7291,61 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
         )}
       </AnimatePresence>
 
-      {/* Diagnosis Modal */}
+      {/* Diagnosis Details Modal */}
       <AnimatePresence>
         {showDiagnosisModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-gradient-to-br from-teal-700/95 via-cyan-700/95 to-blue-800/95 backdrop-blur-xl flex items-center justify-center z-[130] p-4 overflow-y-auto"
+            transition={{ duration: 0.3 }}
+            className="fixed inset-0 bg-black/30 flex items-center justify-center z-[9999] p-4"
             onClick={() => setShowDiagnosisModal(false)}
+            style={{ overflow: 'auto' }}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
               onClick={(e) => e.stopPropagation()}
-              className="backdrop-blur-2xl bg-white/10 rounded-3xl shadow-2xl max-w-4xl w-full my-8 border-2 border-teal-400/70 overflow-hidden"
+              className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full my-8 border-2 border-yellow-400/70 overflow-hidden"
             >
               {/* Header */}
-              <div className="bg-gradient-to-r from-teal-500/90 via-cyan-500/90 to-blue-600/90 backdrop-blur-xl px-8 py-6 border-b-2 border-teal-400/70">
+              <div className="bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 px-8 py-6 border-b-2 border-yellow-400/70">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <motion.div
                       animate={{ rotate: [0, 10, -10, 0] }}
                       transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                      className="w-14 h-14 bg-gradient-to-br from-teal-300/40 to-cyan-400/50 border-2 border-teal-300/70 rounded-2xl flex items-center justify-center shadow-lg shadow-teal-400/40"
+                      className="w-14 h-14 bg-gradient-to-br from-yellow-300/40 to-amber-400/50 border-2 border-yellow-300/70 rounded-2xl flex items-center justify-center shadow-lg shadow-yellow-400/40"
                     >
                       <span className="text-3xl">🩺</span>
                     </motion.div>
                     <div>
                       <h2 className="text-2xl font-bold text-white tracking-tight">
-                        Diagnosis Details
+                        Diagnosis & Prescription
                       </h2>
-                      <p className="text-teal-100 text-sm mt-1">
-                        Read-only view
+                      <p className="text-yellow-100 text-sm mt-1">
+                        View & Print Complete Report
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={handlePrintDiagnosis}
-                      className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-semibold backdrop-blur-lg border border-white/30 transition-all"
-                    >
-                      🖨️ Print
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.1, rotate: 90 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => setShowDiagnosisModal(false)}
-                      className="text-white hover:bg-white/20 rounded-xl p-3 transition-all"
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </motion.button>
-                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowDiagnosisModal(false)}
+                    className="text-white hover:bg-white/20 rounded-xl p-3 transition-all"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </motion.button>
                 </div>
               </div>
 
               {/* Content */}
-              <div className="px-8 py-6 max-h-[70vh] overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#14b8a6 transparent' }}>
+              <div className="px-8 py-6 max-h-[70vh] overflow-y-auto bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50" style={{ scrollbarWidth: 'thin', scrollbarColor: '#818cf8 transparent' }}>
                 {loadingDiagnosis ? (
                   <div className="text-center py-20">
                     <motion.div
@@ -7336,62 +7355,108 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     >
                       ⏳
                     </motion.div>
-                    <p className="text-teal-200 text-lg font-semibold">Loading diagnosis details...</p>
+                    <p className="text-indigo-700 text-lg font-semibold">Loading diagnosis details...</p>
                   </div>
                 ) : selectedDiagnosis ? (
-                  <div className="space-y-6" ref={diagnosisPrintRef}>
-                    <div className="mb-6 pb-4 border-b border-teal-400/50">
-                      <h1 className="text-2xl font-bold text-white mb-1">{selectedDiagnosis.clinicName || selectedDiagnosis.clinic || "Clinic"}</h1>
-                      <div className="text-teal-100 text-sm">Visit summary and prescriptions</div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <span className="inline-block px-3 py-1 bg-white/20 text-white text-sm rounded-lg border border-white/30 backdrop-blur-sm">Patient: {selectedDiagnosis.patientName || selectedDiagnosis.patient || 'N/A'}</span>
-                        <span className="inline-block px-3 py-1 bg-white/20 text-white text-sm rounded-lg border border-white/30 backdrop-blur-sm">Doctor: {selectedDiagnosis.attendingPhysician || 'N/A'}</span>
-                        {selectedDiagnosis.visitDate && (
-                          <span className="inline-block px-3 py-1 bg-white/20 text-white text-sm rounded-lg border border-white/30 backdrop-blur-sm">Date: {new Date(selectedDiagnosis.visitDate).toLocaleDateString()}</span>
-                        )}
-                      </div>
+                  <div className="space-y-6">
+                    {/* Clinic Header - Only visible in print */}
+                    <div className="hidden print:block text-center border-b-4 border-gray-800 pb-6 mb-6">
+                      <h1 className="text-4xl font-bold text-gray-900 mb-2">Clinic Name</h1>
+                      <p className="text-gray-600 text-sm">Address | Phone | Email</p>
                     </div>
-                    {/* Visit Information */}
+
+                    {/* Patient & Doctor Info Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="bg-white rounded-2xl p-5 border-2 border-blue-400 shadow-md"
+                      >
+                        <div className="flex items-center gap-3 mb-3 pb-3 border-b-2 border-blue-400">
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center">
+                            <span className="text-xl">👤</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-blue-900">Patient Information</h3>
+                        </div>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-xs font-semibold text-blue-700 uppercase">Name</label>
+                            <p className="text-base font-bold text-gray-900">{selectedDiagnosis.patientName || 'N/A'}</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-xs font-semibold text-blue-700 uppercase">Patient ID</label>
+                              <p className="text-sm font-semibold text-gray-800">{selectedDiagnosis.patientId || 'N/A'}</p>
+                            </div>
+                            <div>
+                              <label className="text-xs font-semibold text-blue-700 uppercase">Age/Gender</label>
+                              <p className="text-sm font-semibold text-gray-800">N/A</p>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+
+                      <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="bg-white rounded-2xl p-5 border-2 border-purple-400 shadow-md"
+                      >
+                        <div className="flex items-center gap-3 mb-3 pb-3 border-b-2 border-purple-400">
+                          <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center">
+                            <span className="text-xl">👨‍⚕️</span>
+                          </div>
+                          <h3 className="text-lg font-bold text-purple-900">Doctor Information</h3>
+                        </div>
+                        <div className="space-y-2">
+                          <div>
+                            <label className="text-xs font-semibold text-purple-700 uppercase">Attending Physician</label>
+                            <p className="text-base font-bold text-gray-900">{selectedDiagnosis.attendingPhysician || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <label className="text-xs font-semibold text-purple-700 uppercase">Visit Date</label>
+                            <p className="text-sm font-semibold text-gray-800">
+                              {selectedDiagnosis.visitDate ? new Date(selectedDiagnosis.visitDate).toLocaleDateString('en-US', { 
+                                year: 'numeric', month: 'long', day: 'numeric' 
+                              }) : 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    </div>
+
+                    {/* Visit Details */}
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-teal-400/50"
+                      className="bg-white rounded-2xl p-5 border-2 border-yellow-400 shadow-md"
                     >
-                      <div className="flex items-center gap-3 mb-5 pb-4 border-b-2 border-teal-400/50">
-                        <div className="w-12 h-12 bg-gradient-to-br from-teal-400 via-cyan-400 to-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-teal-500/40">
-                          <span className="text-2xl">📋</span>
+                      <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-yellow-400">
+                        <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center">
+                          <span className="text-xl">📋</span>
                         </div>
-                        <h3 className="text-xl font-bold text-white">
-                          Visit Information
-                        </h3>
+                        <h3 className="text-lg font-bold text-yellow-900">Visit Details</h3>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="backdrop-blur-lg bg-white/10 p-4 rounded-xl border border-teal-400/30">
-                          <label className="block text-[10px] font-bold text-teal-300 uppercase tracking-wide mb-2">📅 Visit Date</label>
-                          <p className="text-base font-bold text-white">
-                            {selectedDiagnosis.visitDate ? new Date(selectedDiagnosis.visitDate).toLocaleDateString('en-US', { 
-                              weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
-                            }) : 'N/A'}
-                          </p>
-                        </div>
-                        <div className="backdrop-blur-lg bg-white/10 p-4 rounded-xl border border-cyan-400/30">
-                          <label className="block text-[10px] font-bold text-cyan-300 uppercase tracking-wide mb-2">👨‍⚕️ Attending Physician</label>
-                          <p className="text-base font-bold text-white">{selectedDiagnosis.attendingPhysician || 'N/A'}</p>
-                        </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {selectedDiagnosis.nextAppointmentDate && (
-                          <div className="backdrop-blur-lg bg-white/10 p-4 rounded-xl border border-blue-400/30">
-                            <label className="block text-[10px] font-bold text-blue-300 uppercase tracking-wide mb-2">📅 Next Appointment</label>
-                            <p className="text-base font-bold text-white">
+                          <div className="bg-white p-3 rounded-xl border border-yellow-400">
+                            <label className="text-xs font-semibold text-yellow-700 uppercase">📅 Next Appointment</label>
+                            <p className="text-sm font-bold text-gray-900 mt-1">
                               {new Date(selectedDiagnosis.nextAppointmentDate).toLocaleDateString('en-US', { 
-                                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+                                month: 'short', day: 'numeric', year: 'numeric' 
                               })}
                             </p>
                           </div>
                         )}
-                        <div className="backdrop-blur-lg bg-white/10 p-4 rounded-xl border border-purple-400/30">
-                          <label className="block text-[10px] font-bold text-purple-300 uppercase tracking-wide mb-2">💰 Payment Status</label>
-                          <p className="text-base font-bold text-white">{selectedDiagnosis.paymentStatus || 'N/A'}</p>
+                        <div className="bg-white p-3 rounded-xl border border-amber-400">
+                          <label className="text-xs font-semibold text-amber-700 uppercase">💰 Payment Status</label>
+                          <p className="text-sm font-bold text-gray-900 mt-1">{selectedDiagnosis.paymentStatus || 'Pending'}</p>
                         </div>
+                        {selectedDiagnosis.billingAmount && (
+                          <div className="bg-white p-3 rounded-xl border border-green-400">
+                            <label className="text-xs font-semibold text-green-700 uppercase">💵 Amount</label>
+                            <p className="text-sm font-bold text-gray-900 mt-1">₹{selectedDiagnosis.billingAmount}</p>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
 
@@ -7401,15 +7466,15 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-cyan-400/50"
+                        className="bg-white rounded-2xl p-5 border-2 border-cyan-400 shadow-md"
                       >
-                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-cyan-400/50">
-                          <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <div className="flex items-center gap-3 mb-3 pb-3 border-b-2 border-cyan-400">
+                          <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-xl flex items-center justify-center">
                             <span className="text-xl">📝</span>
                           </div>
-                          <h3 className="text-lg font-bold text-white">Reason for Visit</h3>
+                          <h3 className="text-base font-bold text-cyan-900">Reason for Visit</h3>
                         </div>
-                        <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                        <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
                           {selectedDiagnosis.reasonForVisit}
                         </p>
                       </motion.div>
@@ -7421,15 +7486,15 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2 }}
-                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-blue-400/50"
+                        className="bg-white rounded-2xl p-5 border-2 border-indigo-400 shadow-md"
                       >
-                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-blue-400/50">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <div className="flex items-center gap-3 mb-3 pb-3 border-b-2 border-indigo-400">
+                          <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-xl flex items-center justify-center">
                             <span className="text-xl">🩺</span>
                           </div>
-                          <h3 className="text-lg font-bold text-white">Diagnosis</h3>
+                          <h3 className="text-base font-bold text-indigo-900">Diagnosis</h3>
                         </div>
-                        <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                        <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
                           {selectedDiagnosis.diagnoses}
                         </p>
                       </motion.div>
@@ -7441,34 +7506,28 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-purple-400/50"
+                        className="bg-white rounded-2xl p-5 border-2 border-green-400 shadow-md"
                       >
-                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-purple-400/50">
-                          <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <div className="flex items-center gap-3 mb-3 pb-3 border-b-2 border-green-400">
+                          <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center">
                             <span className="text-xl">💉</span>
                           </div>
-                          <h3 className="text-lg font-bold text-white">Treatments</h3>
+                          <h3 className="text-base font-bold text-green-900">Treatments Provided</h3>
                         </div>
-                        <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                        <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
                           {selectedDiagnosis.treatments}
                         </p>
                       </motion.div>
                     )}
 
-                    {/* Prescriptions */}
+                    {/* Prescriptions - Main Section with Grid for Print */}
                     {selectedDiagnosis.prescriptions && (
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.4 }}
-                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-pink-400/50"
+                        className="bg-white rounded-2xl p-6 shadow-lg border-2 border-pink-400"
                       >
-                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-pink-400/50">
-                          <div className="w-10 h-10 bg-gradient-to-br from-pink-400 to-rose-500 rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-xl">💊</span>
-                          </div>
-                          <h3 className="text-lg font-bold text-white">Prescriptions & Medications</h3>
-                        </div>
                         {(() => {
                           try {
                             const prescriptionData = typeof selectedDiagnosis.prescriptions === 'string' 
@@ -7477,55 +7536,120 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                             
                             if (Array.isArray(prescriptionData) && prescriptionData.length > 0) {
                               return (
-                                <div className="space-y-3">
-                                  {prescriptionData.map((med, idx) => (
-                                    <div key={idx} className="backdrop-blur-lg bg-white/10 p-4 rounded-xl border border-pink-300/30">
-                                      <div className="flex items-start gap-3">
-                                        <div className="flex-shrink-0 w-8 h-8 bg-pink-500 text-white rounded-full flex items-center justify-center font-bold text-sm">
-                                          {idx + 1}
-                                        </div>
-                                        <div className="flex-1 space-y-2">
-                                          <h4 className="text-white font-bold text-base">{med.medicineName || 'Medication'}</h4>
-                                          <div className="grid grid-cols-2 gap-2 text-sm">
-                                            <div>
-                                              <span className="text-pink-300 font-semibold">Dosage:</span>
-                                              <span className="text-white ml-2">{med.dosage || 'N/A'}</span>
-                                            </div>
-                                            <div>
-                                              <span className="text-pink-300 font-semibold">Frequency:</span>
-                                              <span className="text-white ml-2">{med.frequency || 'N/A'}</span>
-                                            </div>
-                                            <div>
-                                              <span className="text-pink-300 font-semibold">Duration:</span>
-                                              <span className="text-white ml-2">{med.duration || 'N/A'}</span>
-                                            </div>
+                                <div className="space-y-5">
+                                  {/* Prescription Header */}
+                                  <div className="flex items-center justify-between pb-4 border-b-3 border-pink-300">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-12 h-12 bg-gradient-to-br from-pink-400 to-rose-500 rounded-xl flex items-center justify-center shadow-lg">
+                                        <span className="text-2xl">💊</span>
+                                      </div>
+                                      <h3 className="text-xl font-bold text-gray-900">Prescription</h3>
+                                    </div>
+                                    <motion.button
+                                      whileHover={{ scale: 1.05 }}
+                                      whileTap={{ scale: 0.95 }}
+                                      onClick={() => window.print()}
+                                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg transition flex items-center gap-2 print:hidden"
+                                    >
+                                      <span>🖨️</span>
+                                      <span>Print Prescription</span>
+                                    </motion.button>
+                                  </div>
+
+                                  {/* Medications Grid */}
+                                  <div>
+                                    <h4 className="text-sm font-bold text-gray-700 uppercase mb-3 flex items-center gap-2">
+                                      <span>💊</span> Prescribed Medications
+                                    </h4>
+                                    
+                                    {/* Grid Header */}
+                                    <div style={{
+                                      display: 'grid',
+                                      gridTemplateColumns: '40px 1fr 80px 80px 100px',
+                                      gap: '8px',
+                                      backgroundColor: '#1f2937',
+                                      color: 'white',
+                                      padding: '12px',
+                                      borderRadius: '8px 8px 0 0',
+                                      fontWeight: 'bold',
+                                      fontSize: '12px',
+                                      textAlign: 'center'
+                                    }}>
+                                      <div>#</div>
+                                      <div style={{ textAlign: 'left' }}>Medicine Name</div>
+                                      <div>Dosage</div>
+                                      <div>Frequency</div>
+                                      <div>Duration</div>
+                                    </div>
+                                    
+                                    {/* Grid Rows */}
+                                    <div style={{
+                                      border: '2px solid #d1d5db',
+                                      borderRadius: '0 0 8px 8px',
+                                      overflow: 'hidden'
+                                    }}>
+                                      {prescriptionData.map((med, idx) => (
+                                        <div key={idx}>
+                                          <div style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '40px 1fr 80px 80px 100px',
+                                            gap: '8px',
+                                            padding: '12px',
+                                            fontSize: '12px',
+                                            borderBottom: '1px solid #e5e7eb',
+                                            backgroundColor: idx % 2 === 0 ? '#fce7f3' : 'white',
+                                            textAlign: 'center'
+                                          }}>
+                                            <div style={{ fontWeight: 'bold', color: '#be123c' }}>{idx + 1}</div>
+                                            <div style={{ fontWeight: 'bold', color: '#111827', textAlign: 'left' }}>{med.medicineName || 'N/A'}</div>
+                                            <div style={{ color: '#374151' }}>{med.dosage || '-'}</div>
+                                            <div style={{ color: '#374151' }}>{med.frequency || '-'}</div>
+                                            <div style={{ color: '#374151' }}>{med.duration || '-'}</div>
                                           </div>
                                           {med.specialInstructions && (
-                                            <div className="mt-2 p-2 bg-amber-500/20 rounded-lg border border-amber-400/30">
-                                              <span className="text-amber-300 font-semibold text-xs">⚠️ Special Instructions: </span>
-                                              <span className="text-white text-xs">{med.specialInstructions}</span>
+                                            <div style={{
+                                              padding: '8px 12px',
+                                              backgroundColor: '#fef3c7',
+                                              borderBottom: '1px solid #fcd34d',
+                                              fontSize: '12px'
+                                            }}>
+                                              <span style={{ fontWeight: 'bold', color: '#92400e' }}>⚠️ Special Instructions: </span>
+                                              <span style={{ color: '#78350f' }}>{med.specialInstructions}</span>
                                             </div>
                                           )}
                                         </div>
+                                      ))}
+                                    </div>
+                                    
+                                    {/* General Notes */}
+                                    {prescriptionData[0]?.generalPrescriptionNotes && (
+                                      <div className="mt-4 p-4 bg-white rounded-xl border-2 border-indigo-400">
+                                        <span className="text-indigo-900 font-bold text-sm">📝 General Instructions: </span>
+                                        <p className="text-gray-800 text-sm mt-2">{prescriptionData[0].generalPrescriptionNotes}</p>
                                       </div>
-                                    </div>
-                                  ))}
-                                  {prescriptionData[0]?.generalPrescriptionNotes && (
-                                    <div className="mt-4 p-4 bg-blue-500/20 rounded-xl border border-blue-400/30">
-                                      <span className="text-blue-300 font-semibold">📝 General Notes: </span>
-                                      <span className="text-white">{prescriptionData[0].generalPrescriptionNotes}</span>
-                                    </div>
-                                  )}
+                                    )}
+                                  </div>
+
+                                  {/* Footer Note */}
+                                  <div className="pt-4 border-t-2 border-yellow-400 text-center">
+                                    <p className="text-xs text-gray-600">⚕️ This prescription is valid for 90 days from the date of issue.</p>
+                                  </div>
                                 </div>
                               );
                             }
                           } catch (e) {
-                            // Fallback to displaying as text if not JSON
+                            console.error('Error parsing prescription:', e);
                           }
                           return (
-                            <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
-                              {selectedDiagnosis.prescriptions}
-                            </p>
+                            <div className="flex items-center gap-3 pb-3 border-b-2 border-pink-300">
+                              <div className="w-10 h-10 bg-gradient-to-br from-pink-400 to-rose-500 rounded-xl flex items-center justify-center">
+                                <span className="text-xl">💊</span>
+                              </div>
+                              <h3 className="text-base font-bold text-pink-900">Prescription Notes</h3>
+                              <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap mt-3">
+                                {selectedDiagnosis.prescriptions}
+                              </p>
+                            </div>
                           );
                         })()}
                       </motion.div>
@@ -7537,57 +7661,36 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.5 }}
-                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-amber-400/50"
+                        className="bg-white rounded-2xl p-5 border-2 border-orange-400 shadow-md"
                       >
-                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-amber-400/50">
-                          <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <div className="flex items-center gap-3 mb-3 pb-3 border-b-2 border-orange-400">
+                          <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center">
                             <span className="text-xl">📄</span>
                           </div>
-                          <h3 className="text-lg font-bold text-white">Additional Notes</h3>
+                          <h3 className="text-base font-bold text-orange-900">Additional Notes</h3>
                         </div>
-                        <p className="text-white text-sm leading-relaxed whitespace-pre-wrap">
+                        <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
                           {selectedDiagnosis.notes}
                         </p>
-                      </motion.div>
-                    )}
-
-                    {/* Billing Information */}
-                    {selectedDiagnosis.billingAmount && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.6 }}
-                        className="backdrop-blur-xl bg-white/10 rounded-2xl p-6 shadow-lg border-2 border-green-400/50"
-                      >
-                        <div className="flex items-center gap-3 mb-4 pb-3 border-b-2 border-green-400/50">
-                          <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
-                            <span className="text-xl">💵</span>
-                          </div>
-                          <h3 className="text-lg font-bold text-white">Billing Information</h3>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-green-300 font-semibold">Total Amount:</span>
-                          <span className="text-2xl font-bold text-white">₹{selectedDiagnosis.billingAmount}</span>
-                        </div>
                       </motion.div>
                     )}
                   </div>
                 ) : (
                   <div className="text-center py-20">
                     <div className="text-6xl mb-4">❌</div>
-                    <p className="text-white text-lg font-semibold">No diagnosis details found</p>
-                    <p className="text-teal-300 text-sm mt-2">This appointment may not have diagnosis information yet.</p>
+                    <p className="text-gray-700 text-lg font-semibold">No diagnosis details found</p>
+                    <p className="text-gray-500 text-sm mt-2">This appointment may not have diagnosis information yet.</p>
                   </div>
                 )}
               </div>
 
               {/* Footer */}
-              <div className="bg-gradient-to-r from-teal-100 via-cyan-100 to-blue-100 px-8 py-4 flex justify-end border-t-2 border-teal-400/50">
+              <div className="bg-gradient-to-r from-blue-100 via-indigo-100 to-purple-100 px-8 py-4 flex justify-end border-t-2 border-yellow-400/50 print:hidden">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setShowDiagnosisModal(false)}
-                  className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl font-bold shadow-lg"
+                  className="px-6 py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition"
                 >
                   Close
                 </motion.button>

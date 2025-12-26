@@ -641,7 +641,8 @@ export default function ReceptionistOnboarding() {
                     name="specialtyId"
                     value={form.specialtyId}
                     onChange={handleChange}
-                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={form.roleId === "3"}
+                    className={`w-full border rounded-lg px-3 py-2 ${form.roleId === "3" ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60' : ''}`}
                   />
                 </div>
                 <div>
@@ -661,7 +662,8 @@ export default function ReceptionistOnboarding() {
                     name="licenseNumber"
                     value={form.licenseNumber}
                     onChange={handleChange}
-                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={form.roleId === "3"}
+                    className={`w-full border rounded-lg px-3 py-2 ${form.roleId === "3" ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60' : ''}`}
                   />
                 </div>
                 <div>
@@ -671,7 +673,8 @@ export default function ReceptionistOnboarding() {
                     name="licenseExpiry"
                     value={form.licenseExpiry}
                     onChange={handleChange}
-                    className="w-full border rounded-lg px-3 py-2"
+                    disabled={form.roleId === "3"}
+                    className={`w-full border rounded-lg px-3 py-2 ${form.roleId === "3" ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60' : ''}`}
                   />
                 </div>
               </div>

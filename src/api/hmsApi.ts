@@ -334,6 +334,92 @@ export function getClinicPerformance(params: AnalyticsQueryParams): Promise<Clin
   return request<ClinicPerformanceModel[]>(`${endpoint}${suffix}`);
 }
 
+// Inventory by Clinic
+export interface ClinicInventoryModel {
+  inventoryId: number;
+  clinicId: number;
+  itemName: string;
+  category: string;
+  quantityAvailable: number;
+  reorderLevel: number;
+  status: string;
+  storageLocation?: string;
+}
+
+export function getClinicInventoryByClinicId(clinicId: number): Promise<ClinicInventoryModel[]> {
+  console.log('📞 API CALL: getClinicInventoryByClinicId with clinicId:', clinicId);
+  return request<ClinicInventoryModel[]>(`/Inventory/GetClinicInventoryByClinicId?clinicId=${clinicId}`);
+}
+
+// Staff Profile by Clinic
+export interface StaffProfileModel extends StaffModel {
+  role?: string;
+  specialty?: string;
+  experienceYears?: number;
+  licenseNumber?: string;
+}
+
+export function getStaffProfileByClinicId(clinicId: number): Promise<StaffProfileModel[]> {
+  console.log('📞 API CALL: getStaffProfileByClinicId with clinicId:', clinicId);
+  return request<StaffProfileModel[]>(`/StaffDetail/GetStaffProfileByClinicId?clinicId=${clinicId}`);
+}
+
+// Get Clinic Details by Clinic ID List
+// Backend endpoint expects: [FromQuery] List<int> id
+// Format: /Clinic/GetClinicByClinicId?id=1&id=2&id=3
+export function getClinicByClinicIdList(clinicIds: number[]): Promise<ClinicModel[]> {
+  // Create query params in the format: id=1&id=2&id=3
+  // This is the standard way to pass List<int> in ASP.NET from query strings
+  const queryParams = clinicIds.map(id => `id=${id}`).join('&');
+  const endpoint = `/Clinic/GetClinicByClinicId?${queryParams}`;
+  
+  console.log('%c🔗 CLINIC API CALL', 'color: #00AA00; font-weight: bold; font-size: 14px');
+  console.log('📍 Endpoint:', `${endpoint}`);
+  console.log('📋 Clinic IDs:', clinicIds);
+  console.log('📤 Full URL:', endpoint);
+  console.log('Expected Return Type: ClinicModel[]');
+  
+  return request<ClinicModel[]>(endpoint).then(data => {
+    console.log('%c✅ CLINIC API RESPONSE', 'color: #00AA00; font-weight: bold; font-size: 14px');
+    console.log('Return Type:', Array.isArray(data) ? 'Array<ClinicModel>' : typeof data);
+    console.log('Data Count:', Array.isArray(data) ? data.length : 'N/A');
+    console.log('Full Response Data:', JSON.stringify(data, null, 2));
+    if (Array.isArray(data) && data.length > 0) {
+      console.log('📋 Sample Item Structure:', JSON.stringify(data[0], null, 2));
+    }
+    return data;
+  }).catch(error => {
+    console.error('%c❌ CLINIC API ERROR', 'color: #FF0000; font-weight: bold; font-size: 14px');
+    console.error('Error Details:', error);
+    throw error;
+  });
+}
+
 // Example usage (remove when integrating):
 // import { listClinics } from "../api/hmsApi";
 // useEffect(() => { listClinics().then(setClinics).catch(console.error); }, []);
+
+// Update Clinic Inventory
+export interface ClinicInventoryUpdateModel {
+  inventoryId?: number;
+  itemName: string;
+  quantityAvailable: number;
+  reorderLevel: number;
+  category?: string;
+  status?: string;
+  storageLocation?: string;
+}
+
+export function updateClinicInventory(inventoryModel: ClinicInventoryUpdateModel): Promise<any> {
+  console.log('📝 UPDATING INVENTORY:', inventoryModel);
+  return request<any>('/Inventory/UpdateClinicInventory', {
+    method: 'PUT',
+    body: JSON.stringify(inventoryModel)
+  }).then(data => {
+    console.log('✅ INVENTORY UPDATED SUCCESSFULLY:', data);
+    return data;
+  }).catch(error => {
+    console.error('❌ FAILED TO UPDATE INVENTORY:', error);
+    throw error;
+  });
+}

@@ -160,5 +160,7 @@ export function getDoctorsByEnterpriseId(enterpriseId: number): Promise<DoctorPr
 import type { ClinicModel } from '../Interfaces/ClinicModel';
 
 export function getClinicsByEnterpriseId(enterpriseId: number): Promise<ClinicModel[]> {
-  return request<ClinicModel[]>(`/DoctorProfile/GetClinicsByEnterpriseID?enterpriseId=${enterpriseId}`);
+  console.log('📞 API CALL: getClinicsByEnterpriseId with enterpriseId:', enterpriseId);
+  const endpoint = `/Clinic/GetClinicByID?id=${enterpriseId}`;
+  return request<ClinicModel[]>(endpoint);
 }

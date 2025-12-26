@@ -115,3 +115,11 @@ export function updateStaffDetail(staffId: number, payload: Partial<CreateStaffD
     body: JSON.stringify(payload)
   });
 }
+
+// Get staff profile by clinic ID (new endpoint from user requirement)
+// Backend endpoint: GetStaffProfileByClinicId with int ClinicId parameter
+export function getStaffProfileByClinicId(clinicId: number): Promise<StaffDetailsModel[]> {
+  console.log('📞 API CALL: getStaffProfileByClinicId with ClinicId:', clinicId);
+  const endpoint = `/StaffDetail/GetStaffProfileByClinicId?ClinicId=${clinicId}`;
+  return request<StaffDetailsModel[]>(endpoint);
+}

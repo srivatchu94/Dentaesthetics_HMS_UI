@@ -115,7 +115,29 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
       console.log('  - ID:', container.id || 'no-id');
       console.log('  - Classes:', container.className);
       console.log('  - HTML length:', container.outerHTML.length + ' chars');
+      console.log('  - Is visible:', window.getComputedStyle(container).display !== 'none');
+      console.log('  - Z-index:', window.getComputedStyle(container).zIndex);
+      console.log('  - Opacity:', window.getComputedStyle(container).opacity);
+      
+      // Check all children
+      const children = container.querySelectorAll('*');
+      console.log('%c📊 Child Elements:', 'color: #6366f1; font-weight: bold', children.length);
+      if (children.length === 0) {
+        console.warn('⚠️ WARNING: Container has NO child elements!');
+      }
+    } else {
+      console.error('❌ Container NOT FOUND in DOM!');
     }
+    
+    // Try to find in modal
+    const modal = document.querySelector('[role="dialog"]');
+    if (modal) {
+      console.log('%c🗂️ Modal Found:', 'color: #0ea5e9; font-weight: bold');
+      console.log('  - Display:', window.getComputedStyle(modal).display);
+      console.log('  - Visibility:', window.getComputedStyle(modal).visibility);
+      console.log('  - Z-index:', window.getComputedStyle(modal).zIndex);
+    }
+    
     console.groupEnd();
   }, [prescription, medications, patientInfo, doctorInfo, clinicInfo]);
 

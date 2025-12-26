@@ -56,3 +56,11 @@ export function updateClinic(clinicId: number, clinic: ClinicModel): Promise<Cli
 export function deleteClinic(clinicId: number): Promise<void> {
   return request<void>(`/Clinic/${clinicId}`, { method: "DELETE" });
 }
+
+// Get clinic by ClinicId (new endpoint from user requirement)
+// Backend endpoint: GetClinicByClinicId with List<int> id parameter
+export function getClinicByClinicId(clinicIds: number[]): Promise<ClinicModel[]> {
+  const endpoint = `/Clinic/GetClinicByClinicId?${clinicIds.map(id => `id=${id}`).join('&')}`;
+  console.log('📞 API CALL: getClinicByClinicId with IDs:', clinicIds);
+  return request<ClinicModel[]>(endpoint);
+}

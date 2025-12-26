@@ -7,39 +7,9 @@ export const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://
 import { getAuthToken, getSelectedAccess } from './authService';
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  console.log('');
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('🌐 API REQUEST STARTING');
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('📍 Endpoint:', path);
-  console.log('🔧 Method:', options.method || 'GET');
-  
-  // Get token from localStorage (persists across page refreshes)
+  // Get token from localStorage
   const token = getAuthToken();
-  console.log('🔑 Token retrieved:', token ? `Yes (${token.length} chars)` : '❌ NO TOKEN');
-  
-  // Get selected enterprise/clinic from localStorage
   const selectedAccess = getSelectedAccess();
-  console.log('📥 getSelectedAccess() returned:', selectedAccess);
-  console.log('   Type:', typeof selectedAccess);
-  console.log('   Is null?', selectedAccess === null);
-  console.log('   Is undefined?', selectedAccess === undefined);
-  
-  if (selectedAccess) {
-    console.log('✅ selectedAccess exists:');
-    console.log('   - enterpriseId:', selectedAccess.enterpriseId, '(type:', typeof selectedAccess.enterpriseId, ')');
-    console.log('   - clinicId:', selectedAccess.clinicId, '(type:', typeof selectedAccess.clinicId, ')');
-    console.log('   - roleIds:', selectedAccess.roleIds);
-  } else {
-    console.error('❌ selectedAccess is NULL or UNDEFINED!');
-    console.error('   This will cause missing headers error!');
-  }
-  
-  // Check if user is authenticated
-  if (!token) {
-    console.warn('⚠️ No access token found in localStorage. User may need to login.');
-    console.warn('📍 Attempted request:', path);
-  }
   
   // Build headers with token and enterprise/clinic if available
   const headers: Record<string, string> = {
@@ -50,9 +20,6 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   // Add Authorization header if token exists
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
-    console.log(`🔑 ✅ Authorization header added`);
-  } else {
-    console.error('❌ NO TOKEN AVAILABLE - Request will fail authentication');
   }
   
   // Add Enterprise, Clinic, and Role headers if selected
@@ -60,84 +27,39 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     headers['X-Enterprise-Id'] = selectedAccess.enterpriseId.toString();
     headers['X-Clinic-Id'] = selectedAccess.clinicId.toString();
     
-    console.log('✅ Headers being added:');
-    console.log('   X-Enterprise-Id:', headers['X-Enterprise-Id']);
-    console.log('   X-Clinic-Id:', headers['X-Clinic-Id']);
-    
-    // Add roleIds if they exist (backend might need this for ValidateAccess)
     if (selectedAccess.roleIds && selectedAccess.roleIds.length > 0) {
       headers['X-Role-Ids'] = selectedAccess.roleIds.join(',');
-      console.log('   X-Role-Ids:', headers['X-Role-Ids']);
     }
-  } else {
-    console.error('❌❌❌ CRITICAL: selectedAccess is NULL/UNDEFINED ❌❌❌');
-    console.error('❌ X-Enterprise-Id and X-Clinic-Id headers will NOT be added!');
-    console.error('❌ This WILL cause a 400 error from backend!');
   }
   
-  console.log('📋 Final Request Headers:', headers);
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('');
+  console.log(`📞 API CALL: ${options.method || 'GET'} ${path}`);
   
   let res;
   try {
-    console.log(`🚀 FETCH STARTING...`);
     res = await fetch(`${BASE_URL}${path}`, {
       headers,
       ...options
     });
-    console.log(`✅ FETCH COMPLETED`);
-    console.log(`📡 Response status: ${res.status} ${res.statusText}`);
-    console.log(`📥 Response headers:`, Object.fromEntries(res.headers.entries()));
+    console.log(`✅ API RESPONSE: ${res.status} ${res.statusText}`);
   } catch (fetchError) {
-    console.error(`💥 FETCH FAILED - Network error or CORS issue`);
-    console.error(`🔴 Fetch Error:`, fetchError);
-    console.error(`📍 This means the request did NOT reach the backend server`);
-    console.error(`🔍 Possible causes:`);
-    console.error(`   1. Backend server is not running`);
-    console.error(`   2. CORS policy blocking the request`);
-    console.error(`   3. Network connectivity issue`);
-    console.error(`   4. SSL certificate issue (for HTTPS)`);
+    console.error(`❌ API FAILED: Network error - ${fetchError}`);
     throw fetchError;
   }
   
   if (!res.ok) {
-    console.log(`⚠️ Response NOT OK - Reading response body...`);
     const text = await res.text();
-    console.error(`❌ ============ API ERROR RESPONSE ============`);
-    console.error(`📍 Endpoint: ${path}`);
-    console.error(`🔴 Status: ${res.status} ${res.statusText}`);
-    console.error(`📝 Response Body: "${text}"`);
-    console.error(`📏 Response Body Length: ${text.length} characters`);
-    console.error(`🔑 Request Headers:`, headers);
-    console.error(`📥 Response Headers:`, Object.fromEntries(res.headers.entries()));
-    console.error(`✅ THIS PROVES THE BACKEND WAS HIT (you got a response back)`);
+    console.error(`❌ API ERROR: ${res.status} - ${text}`);
     
     const error: any = new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
     error.status = res.status;
     error.response = { status: res.status, statusText: res.statusText, data: text };
     
-    // Log unauthorized errors but DON'T auto-redirect - let the calling code handle it
+    // Log unauthorized errors
     if (res.status === 401 || res.status === 403) {
-      console.error('🚫 UNAUTHORIZED/FORBIDDEN - Possible reasons:');
-      console.error('   1. Token missing or invalid');
-      console.error('   2. Token expired');
-      console.error('   3. User does not have required role (ValidateAccess failed)');
-      console.error('   4. Backend cannot decode JWT token');
-      console.error('   5. CORS headers not properly configured');
+      console.error('🚫 UNAUTHORIZED/FORBIDDEN - Check token or permissions');
       
-      // Show debug info
       const token = getAuthToken();
       const selected = getSelectedAccess();
-      console.error('🔍 Debug Info:');
-      console.error('   Token exists:', !!token);
-      console.error('   Token length:', token?.length || 0);
-      console.error('   Enterprise ID:', selected?.enterpriseId);
-      console.error('   Clinic ID:', selected?.clinicId);
-      console.error('   Role IDs:', selected?.roleIds || 'MISSING ⚠️');
-      console.error('   Full Selected Access:', selected);
-      
-      // Decode JWT token to see what's inside (for debugging)
       if (token) {
         try {
           const base64Url = token.split('.')[1];
@@ -146,33 +68,16 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
             return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
           }).join(''));
           const decoded = JSON.parse(jsonPayload);
-          console.error('🔓 Decoded JWT Token Claims:');
-          console.error('   Full Token:', decoded);
-          console.error('   🆔 User ID Claim:', decoded.userId || decoded.sub || decoded.nameid || decoded.unique_name || 'NOT FOUND');
-          console.error('   👤 Username Claim:', decoded.username || decoded.name || decoded.preferred_username || 'NOT FOUND');
-          console.error('   🏢 Enterprise Claim:', decoded.enterpriseId || decoded.eid || 'NOT FOUND');
-          console.error('   🏥 Clinic Claim:', decoded.clinicId || decoded.cid || 'NOT FOUND');
-          console.error('   👔 Role Claims:', decoded.role || decoded.roles || decoded.roleIds || 'NOT FOUND');
-          console.error('   ⏰ Expiration:', decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'NOT FOUND');
-          console.error('   🔑 Issuer:', decoded.iss || 'NOT FOUND');
-          console.error('   📍 Audience:', decoded.aud || 'NOT FOUND');
-          
-          // Check if token is expired
+          console.error('🔓 Token Expiration:', decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'NOT FOUND');
           if (decoded.exp) {
             const now = Math.floor(Date.now() / 1000);
             const isExpired = decoded.exp < now;
-            console.error('   ⚠️ Token Expired:', isExpired, isExpired ? '← THIS IS THE PROBLEM!' : '✅ Still valid');
-            if (!isExpired) {
-              const timeLeft = decoded.exp - now;
-              console.error('   ⏱️ Time remaining:', Math.floor(timeLeft / 60), 'minutes');
-            }
+            if (isExpired) console.error('⚠️ Token is EXPIRED');
           }
         } catch (e) {
-          console.error('❌ Could not decode JWT token:', e);
+          console.error('❌ Could not decode JWT token');
         }
       }
-      
-      console.error('⚠️ NOT AUTO-REDIRECTING - Check error details above');
     }
     
     throw error;
@@ -183,17 +88,19 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   const contentType = res.headers.get('content-type') || '';
   const rawText = await res.text();
   const isEmptyBody = !rawText || rawText.trim().length === 0;
+  
   if (isEmptyBody) return undefined as T;
+  
   if (contentType.toLowerCase().includes('application/json')) {
     try {
-      return JSON.parse(rawText) as T;
+      const data = JSON.parse(rawText) as T;
+      console.log('📥 API RESULT:', data);
+      return data;
     } catch (parseError) {
-      console.error('❌ Failed to parse JSON response body:', parseError);
-      console.error('📝 Raw body:', rawText);
-      // If body is empty-like or parsing fails, return undefined to avoid UI crashes
+      console.error('❌ JSON parse error:', parseError);
       return undefined as T;
     }
   }
-  // Non-JSON response: return text as any to avoid hard failures
+  
   return rawText as unknown as T;
 }

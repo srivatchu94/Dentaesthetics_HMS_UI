@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { getCalendarAppointments, getAppointmentsByDoctorID, getAppointmentsByFilters, createPrescription, getPrescriptionsByAppointment, updateAppointment, addPrescription, updatePrescriptionData, getPrescriptionById, addPatientVisit } from "../services/appointmentService";
 import { visitService, prescriptionService } from "../services/visitService";
-import { createInventoryMaster, listInventoryMasters } from "../services/inventoryService";
-import { getClinic } from "../services/clinicService";
+import { createInventoryMaster, listInventoryMasters, getClinicInventoryByClinicId, createClinicInventory, updateClinicInventory, deleteClinicInventory } from "../services/inventoryService";
+import { getClinic, getClinicByClinicId } from "../services/clinicService";
+import { getStaffProfileByClinicId } from "../services/staffService";
 import PrescriptionWritingModal from "../components/PrescriptionWritingModal";
 import PrescriptionPrint from "../components/PrescriptionPrint";
 import { getPatientFullProfile, getPatientVisit, editPatientVisit, getPatientsByClinic } from "../services/patientService";
@@ -63,6 +64,7 @@ export default function Doctors() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isDashboardExpanded, setIsDashboardExpanded] = useState(false);
   const [isManageExpanded, setIsManageExpanded] = useState(false);
+  const [isPharmaExpanded, setIsPharmaExpanded] = useState(false);
   
   // Appointments management states
   const [appointments, setAppointments] = useState(SAMPLE_APPOINTMENTS);
@@ -176,6 +178,29 @@ export default function Doctors() {
   const [loadingMyPatients, setLoadingMyPatients] = useState(false);
   const [myPatientsFilterText, setMyPatientsFilterText] = useState('');
   const [myPatientsSelectedClinic, setMyPatientsSelectedClinic] = useState('');
+  
+  // Manage Clinic - Clinic Settings states
+  const [clinicData, setClinicData] = useState(null);
+  const [loadingClinicData, setLoadingClinicData] = useState(false);
+  
+  // Manage Clinic - Staff Management states
+  const [staffList, setStaffList] = useState([]);
+  const [loadingStaffList, setLoadingStaffList] = useState(false);
+  const [selectedStaffForView, setSelectedStaffForView] = useState(null);
+  const [showStaffDetailsModal, setShowStaffDetailsModal] = useState(false);
+  
+  // Manage Clinic - Inventory states
+  const [clinicInventory, setClinicInventory] = useState([]);
+  const [loadingInventory, setLoadingInventory] = useState(false);
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [editingInventoryItem, setEditingInventoryItem] = useState(null);
+  const [inventoryFormData, setInventoryFormData] = useState({
+    name: '',
+    category: '',
+    stock: 0,
+    minStock: 0,
+    unitCost: 0
+  });
   
   // Clinic Details states
   const [doctorClinics, setDoctorClinics] = useState([]);
@@ -432,6 +457,116 @@ export default function Doctors() {
       loadInventoryMedications();
     }
   }, [showVisitInfoModal]);
+
+  // ============ MANAGE CLINIC API FUNCTIONS ============
+  const loadClinicData = async () => {
+    const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
+    const clinicId = selectedAccess.clinicId;
+    if (!clinicId) {
+      console.error('❌ Clinic ID not found');
+      return;
+    }
+    
+    setLoadingClinicData(true);
+    try {
+      const data = await getClinicByClinicId([clinicId]);
+      console.log('✅ Clinic data loaded:', data);
+      setClinicData(data?.[0] || null);
+    } catch (error) {
+      console.error('❌ Failed to load clinic data:', error);
+    } finally {
+      setLoadingClinicData(false);
+    }
+  };
+
+  const loadStaffData = async () => {
+    const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
+    const clinicId = selectedAccess.clinicId;
+    if (!clinicId) {
+      console.error('❌ Clinic ID not found');
+      return;
+    }
+    
+    setLoadingStaffList(true);
+    try {
+      const data = await getStaffProfileByClinicId(clinicId);
+      console.log('✅ Staff data loaded:', data);
+      setStaffList(data || []);
+    } catch (error) {
+      console.error('❌ Failed to load staff data:', error);
+      setStaffList([]);
+    } finally {
+      setLoadingStaffList(false);
+    }
+  };
+
+  const loadInventoryData = async () => {
+    const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
+    const clinicId = selectedAccess.clinicId;
+    if (!clinicId) {
+      console.error('❌ Clinic ID not found');
+      return;
+    }
+    
+    setLoadingInventory(true);
+    try {
+      const data = await getClinicInventoryByClinicId(clinicId);
+      console.log('✅ Inventory data loaded:', data);
+      setClinicInventory(data || []);
+    } catch (error) {
+      console.error('❌ Failed to load inventory data:', error);
+      setClinicInventory([]);
+    } finally {
+      setLoadingInventory(false);
+    }
+  };
+
+  const handleSaveInventoryItem = async () => {
+    const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
+    const clinicId = selectedAccess.clinicId;
+    const enterpriseId = selectedAccess.enterpriseId;
+    
+    try {
+      const payload = {
+        enterpriseId: enterpriseId,
+        clinicId: clinicId,
+        itemName: inventoryFormData.name,
+        categoryName: inventoryFormData.category,
+        stock: inventoryFormData.stock,
+        minimumStock: inventoryFormData.minStock,
+        unitCost: inventoryFormData.unitCost
+      };
+      
+      if (editingInventoryItem?.id) {
+        await updateClinicInventory(editingInventoryItem.id, { ...payload, id: editingInventoryItem.id });
+        console.log('✅ Inventory item updated');
+      } else {
+        await createClinicInventory(payload);
+        console.log('✅ Inventory item added');
+      }
+      
+      setShowInventoryModal(false);
+      setInventoryFormData({ name: '', category: '', stock: 0, minStock: 0, unitCost: 0 });
+      setEditingInventoryItem(null);
+      await loadInventoryData();
+    } catch (error) {
+      console.error('❌ Failed to save inventory item:', error);
+      alert('Failed to save inventory item');
+    }
+  };
+
+  const handleDeleteInventoryItem = async (itemId) => {
+    if (window.confirm('Are you sure you want to delete this inventory item?')) {
+      try {
+        await deleteClinicInventory(itemId);
+        console.log('✅ Inventory item deleted');
+        await loadInventoryData();
+      } catch (error) {
+        console.error('❌ Failed to delete inventory item:', error);
+        alert('Failed to delete inventory item');
+      }
+    }
+  };
 
   const handleAddMedication = useCallback(() => {
     console.log('➕ Attempting to add medication:', currentMedication);
@@ -2036,6 +2171,13 @@ export default function Doctors() {
 
   // Visit Info Modal Component - IMPROVED DIAGNOSIS FORM - FIXED FOCUS LOSS
   // Using React.memo to prevent recreation on every parent re-render (like when typing)
+  // Add parent-level render logging - only on modal visibility changes
+  React.useEffect(() => {
+    if (showVisitInfoModal || showAppointmentDetails) {
+      console.log('👨‍⚕️ DOCTORS COMPONENT RE-RENDERED - Modal active');
+    }
+  }, [showVisitInfoModal, showAppointmentDetails]);
+
   const VisitInfoModal = React.memo(() => {
     if (!showVisitInfoModal || !selectedAppointmentForVisit) return null;
 
@@ -2075,62 +2217,65 @@ export default function Doctors() {
     const setMedicineDropdownOpen = setLocalMedicineDropdownOpen;
     const medicineInputRef = localMedicineInputRef;
 
-    // Load existing visit data if available
+    // Track loaded appointment IDs to prevent duplicate loading
+    const loadedAppointmentRef = useRef(null);
+
+    // Load existing visit data if available - ONLY ONCE per appointment
     useEffect(() => {
-      if (selectedAppointmentForVisit?.existingVisitData) {
-        const existingData = selectedAppointmentForVisit.existingVisitData;
-        console.log('📥 Loading existing visit data into form:', existingData);
-        console.log('📋 Available fields in response:');
-        console.log('   - visitDate:', existingData.visitDate);
-        console.log('   - chiefComplaint:', existingData.chiefComplaint);
-        console.log('   - diagnosis:', existingData.diagnosis);
-        console.log('   - treatmentProvided:', existingData.treatmentProvided);
-        console.log('   - reasonForVisit:', existingData.reasonForVisit);
-        console.log('   - diagnoses:', existingData.diagnoses);
-        console.log('   - treatments:', existingData.treatments);
-        console.log('   - followUpDate:', existingData.followUpDate);
-        console.log('   - notes:', existingData.notes);
-        console.log('   - prescriptions:', existingData.prescriptions);
-        
-        // Check if this is an existing visit (has visitDate data)
-        const hasExistingData = existingData.visitDate || existingData.diagnosis || existingData.reasonForVisit;
-        if (hasExistingData) {
-          setIsExistingVisit(true);
-          console.log('✅ Existing visit detected - will use UPDATE API');
-        }
-        
-        // Load visit form data - handle both old and new field names
-        setVisitForm({
-          visitDate: existingData.visitDate ? existingData.visitDate.split('T')[0] : new Date().toISOString().split('T')[0],
-          chiefComplaint: existingData.chiefComplaint || existingData.reasonForVisit || '',
-          diagnosis: existingData.diagnosis || existingData.diagnoses || '',
-          treatmentProvided: existingData.treatmentProvided || existingData.treatments || '',
-          prescriptions: existingData.prescriptions || '',
-          followUpDate: existingData.followUpDate ? existingData.followUpDate.split('T')[0] : '',
-          notes: existingData.notes || ''
-        });
-        
-        console.log('✅ Form data loaded:');
-        console.log('   - Chief Complaint:', existingData.chiefComplaint || existingData.reasonForVisit);
-        console.log('   - Diagnosis:', existingData.diagnosis || existingData.diagnoses);
-        console.log('   - Treatment Provided:', existingData.treatmentProvided || existingData.treatments);
-        
-        // Load medications if they exist
-        if (existingData.prescriptions && Array.isArray(existingData.prescriptions)) {
-          console.log('💊 Loading existing medications:', existingData.prescriptions);
-          setLocalInlineMedications(existingData.prescriptions.map(med => ({
-            name: med.medicineName || med.name || '',
-            dosage: med.dosage || '',
-            frequency: med.frequency || '',
-            duration: med.duration || '',
-            instructions: med.instructions || ''
-          })));
-        }
-      } else {
+      const appointmentId = selectedAppointmentForVisit?.appointmentId;
+      
+      // If we've already loaded this appointment's data, skip
+      if (loadedAppointmentRef.current === appointmentId) {
+        return;
+      }
+      
+      if (!appointmentId || !selectedAppointmentForVisit?.existingVisitData) {
         console.log('📝 No existing data, initializing empty form');
         setIsExistingVisit(false);
+        return;
       }
-    }, [selectedAppointmentForVisit]);
+
+      // Mark this appointment as loaded
+      loadedAppointmentRef.current = appointmentId;
+      
+      const existingData = selectedAppointmentForVisit.existingVisitData;
+      console.log('📥 Loading existing visit data into form - Appointment:', appointmentId);
+      
+      // Check if this is an existing visit
+      const hasExistingData = existingData.visitDate || existingData.diagnosis || existingData.reasonForVisit;
+      if (hasExistingData) {
+        setIsExistingVisit(true);
+      }
+      
+      // Load visit form data - handle both old and new field names
+      setVisitForm({
+        visitDate: existingData.visitDate ? existingData.visitDate.split('T')[0] : new Date().toISOString().split('T')[0],
+        chiefComplaint: existingData.chiefComplaint || existingData.reasonForVisit || '',
+        diagnosis: existingData.diagnosis || existingData.diagnoses || '',
+        treatmentProvided: existingData.treatmentProvided || existingData.treatments || '',
+        prescriptions: existingData.prescriptions || '',
+        followUpDate: existingData.followUpDate ? existingData.followUpDate.split('T')[0] : '',
+        notes: existingData.notes || ''
+      });
+      
+      // Load medications if they exist
+      if (existingData.prescriptions && Array.isArray(existingData.prescriptions)) {
+        setLocalInlineMedications(existingData.prescriptions.map(med => ({
+          name: med.medicineName || med.name || '',
+          dosage: med.dosage || '',
+          frequency: med.frequency || '',
+          duration: med.duration || '',
+          instructions: med.instructions || ''
+        })));
+      }
+    }, [selectedAppointmentForVisit?.appointmentId]);
+    
+    // Reset the ref when modal closes to allow fresh loads next time
+    useEffect(() => {
+      if (!showVisitInfoModal) {
+        loadedAppointmentRef.current = null;
+      }
+    }, [showVisitInfoModal]);
     
     // Sample medical conditions - in real app this would come from API
     const chronicDiseases = ['Diabetes', 'Hypertension', 'Asthma', 'Heart Disease', 'Kidney Disease'];
@@ -2940,54 +3085,47 @@ export default function Doctors() {
                           ))}
                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <motion.button
-                            whileHover={{ scale: 1.02, y: -2 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => setShowPrescriptionPreview(true)}
-                            className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-bold shadow-xl hover:shadow-2xl transition flex items-center justify-center gap-2"
-                          >
-                            <span>🖨️</span>
-                            <span>Preview & Print</span>
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.02, y: -2 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={handleSaveAllPrescriptions}
-                            className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold shadow-xl hover:shadow-2xl transition flex items-center justify-center gap-2"
-                          >
-                            <span>💾</span>
-                            <span>Save All Prescriptions</span>
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.02, y: -2 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={handlePrintPrescription}
-                            className="px-6 py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-xl font-bold shadow-xl hover:shadow-2xl transition flex items-center justify-center gap-2"
-                          >
-                            <span>🖨️</span>
-                            <span>Print Prescription</span>
-                          </motion.button>
-                          <motion.button
-                            whileHover={{ scale: 1.02, y: -2 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => {
-                              const appointmentDetails = selectedAppointmentForVisit;
-                              const medicationText = inlineMedications
-                                .map(med => `${med.name} - ${med.dosage} ${med.frequency} for ${med.duration}`)
-                                .join('\n');
-                              const mailtoLink = `mailto:${appointmentDetails.patientEmail || ''}?subject=Your Prescription&body=Dear Patient,\n\nHere is your prescription:\n\n${medicationText}\n\nPlease follow the instructions carefully.\n\nBest regards,\nYour Doctor`;
-                              window.location.href = mailtoLink;
-                            }}
-                            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-bold shadow-xl hover:shadow-2xl transition flex items-center justify-center gap-2"
-                          >
-                            <span>📧</span>
-                            <span>Send via Email</span>
-                          </motion.button>
-                        </div>
+                        {/* WhatsApp Button - With Medications Panel */}
+                        <motion.button
+                          whileHover={{ scale: 1.02, y: -2 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            const appointmentDetails = selectedAppointmentForVisit;
+                            const medicationText = inlineMedications
+                              .map((med, i) => `${i+1}. ${med.name}\n   Dosage: ${med.dosage}\n   Frequency: ${med.frequency}\n   Duration: ${med.duration}${med.instructions ? `\n   Instructions: ${med.instructions}` : ''}`)
+                              .join('\n\n');
+                            const message = `Hello, here is the prescription for ${appointmentDetails.firstName} ${appointmentDetails.lastName}:\n\n${medicationText}\n\nPlease follow the instructions carefully.`;
+                            const encodedMessage = encodeURIComponent(message);
+                            const whatsappLink = `https://wa.me/?text=${encodedMessage}`;
+                            window.open(whatsappLink, '_blank');
+                          }}
+                          className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2"
+                        >
+                          <span>💬</span>
+                          <span>Send via WhatsApp</span>
+                        </motion.button>
                       </div>
                     )}
+                  </div>
+
+                  {/* Action Buttons - Only Email */}
+                  <div className="grid grid-cols-1 gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.02, y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        const appointmentDetails = selectedAppointmentForVisit;
+                        const medicationText = inlineMedications
+                          .map(med => `${med.name} - ${med.dosage} ${med.frequency} for ${med.duration}`)
+                          .join('\n');
+                        const mailtoLink = `mailto:${appointmentDetails.patientEmail || ''}?subject=Your Prescription&body=Dear Patient,\n\nHere is your prescription:\n\n${medicationText}\n\nPlease follow the instructions carefully.\n\nBest regards,\nYour Doctor`;
+                        window.location.href = mailtoLink;
+                      }}
+                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-bold shadow-xl hover:shadow-2xl transition flex items-center justify-center gap-2"
+                    >
+                      <span>📧</span>
+                      <span>Send via Email</span>
+                    </motion.button>
                   </div>
 
                   {/* Treatment Provided */}
@@ -3004,97 +3142,18 @@ export default function Doctors() {
                     />
                   </div>
 
-                  {/* Prescriptions & Notes */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md hover:shadow-lg transition-shadow">
-                      <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
-                          <span>💊</span> Added Medications
-                          {inlineMedications && inlineMedications.length > 0 && (
-                            <span className="ml-2 px-3 py-1 bg-indigo-600 text-white rounded-full text-xs font-bold">
-                              {inlineMedications.length}
-                            </span>
-                          )}
-                        </h3>
-                      </div>
-                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
-                        {inlineMedications && inlineMedications.length > 0 ? (
-                          inlineMedications.map((med, idx) => (
-                            <motion.div 
-                              key={idx}
-                              initial={{ opacity: 0, x: -10 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              className="bg-white rounded-xl p-4 border-l-4 border-indigo-500 shadow-sm hover:shadow-md transition-shadow group"
-                            >
-                              <div className="flex justify-between items-start mb-2">
-                                <div className="flex-1">
-                                  <p className="font-bold text-indigo-900 text-sm">{idx + 1}. {med.name}</p>
-                                  <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
-                                    <div className="bg-blue-50 p-2 rounded">
-                                      <p className="text-gray-600 font-semibold">Dosage</p>
-                                      <p className="text-indigo-700 font-bold">{med.dosage || '-'}</p>
-                                    </div>
-                                    <div className="bg-green-50 p-2 rounded">
-                                      <p className="text-gray-600 font-semibold">Frequency</p>
-                                      <p className="text-green-700 font-bold">{med.frequency || '-'}</p>
-                                    </div>
-                                    <div className="bg-purple-50 p-2 rounded">
-                                      <p className="text-gray-600 font-semibold">Duration</p>
-                                      <p className="text-purple-700 font-bold">{med.duration || '-'}</p>
-                                    </div>
-                                  </div>
-                                  {med.instructions && (
-                                    <p className="text-xs text-gray-600 italic mt-2 bg-yellow-50 p-2 rounded">
-                                      📋 {med.instructions}
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <motion.button
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => {
-                                      setCurrentMedication(med);
-                                      setEditingMedicationIndex(idx);
-                                    }}
-                                    className="p-1.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition text-sm"
-                                    title="Edit"
-                                  >
-                                    ✏️
-                                  </motion.button>
-                                  <motion.button
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => handleDeleteMedication(idx)}
-                                    className="p-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition text-sm"
-                                    title="Delete"
-                                  >
-                                    🗑️
-                                  </motion.button>
-                                </div>
-                              </div>
-                            </motion.div>
-                          ))
-                        ) : (
-                          <div className="text-center py-8">
-                            <p className="text-indigo-500 text-sm">📭 No medications added yet</p>
-                            <p className="text-gray-400 text-xs mt-1">Add medications from the form above</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-2xl p-6 border-2 border-gray-200 shadow-md hover:shadow-lg transition-shadow">
-                      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                        <span>📝</span> Additional Notes
-                      </h3>
-                      <textarea
-                        value={visitForm.notes}
-                        onChange={(e) => handleVisitFormChange('notes', e.target.value)}
-                        placeholder="Any additional observations or follow-up instructions..."
-                        rows={3}
-                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition resize-none text-sm"
-                      />
-                    </div>
+                  {/* Notes Section - Single */}
+                  <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-2xl p-7 border-2 border-gray-300 shadow-md">
+                    <h3 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-3 pb-3 border-b-2 border-gray-200">
+                      <span className="text-2xl">📝</span> Additional Notes
+                    </h3>
+                    <textarea
+                      value={visitForm.notes}
+                      onChange={(e) => handleVisitFormChange('notes', e.target.value)}
+                      placeholder="Document any additional observations or follow-up instructions..."
+                      rows={5}
+                      className="w-full px-4 py-3 border-2 border-gray-400 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition resize-none text-sm font-medium text-stone-800 bg-white"
+                    />
                   </div>
                 </motion.div>
               </div>
@@ -3111,28 +3170,6 @@ export default function Doctors() {
                 ✕ Close
               </motion.button>
               <div className="flex gap-3">
-                {currentPrescription && (
-                  <>
-                    <motion.button
-                      whileHover={{ scale: 1.05, y: -2 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setShowViewPrescriptionModal(true)}
-                      className="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-                    >
-                      <span>👁️</span>
-                      <span>View Prescription</span>
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.05, y: -2 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setShowPrintPreviewModal(true)}
-                      className="px-6 py-2.5 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-                    >
-                      <span>🖨️</span>
-                      <span>Print Prescription</span>
-                    </motion.button>
-                  </>
-                )}
                 <motion.button
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
@@ -3407,8 +3444,6 @@ export default function Doctors() {
                     console.log('📋 Selected Appointment:', selectedAppointmentDetails);
                     console.log('🆔 AppointmentID:', selectedAppointmentDetails.appointmentId);
                     
-                    setSelectedAppointmentForVisit(selectedAppointmentDetails);
-                    
                     try {
                       // Load inventory before opening modal
                       if (inventoryMeds.length === 0) {
@@ -3439,14 +3474,12 @@ export default function Doctors() {
                         console.log('Diagnosis:', existingVisitData.diagnosis);
                         console.log('Prescriptions:', existingVisitData.prescriptions);
                         
-                        // Data exists - we'll load it in the modal component
-                        setSelectedAppointmentForVisit({
-                          ...selectedAppointmentDetails,
-                          existingVisitData: existingVisitData
-                        });
+                        // Create appointment data with visit data ONCE, before any setState calls
+                        const appointmentWithVisit = { ...selectedAppointmentDetails, existingVisitData };
+                        setSelectedAppointmentForVisit(appointmentWithVisit);
                       } else {
                         console.log('📝 NO EXISTING VISIT DATA - Showing new form');
-                        // No data exists - show empty form
+                        // No data exists - show empty form with appointment details
                         setSelectedAppointmentForVisit(selectedAppointmentDetails);
                       }
                     } catch (error) {
@@ -3463,6 +3496,7 @@ export default function Doctors() {
                     
                     console.log('🎯 Opening diagnosis modal...');
                     console.log('═══════════════════════════════════════════════════════');
+                    // Set modal visibility - this should trigger modal open
                     setShowVisitInfoModal(true);
                     setShowAppointmentDetails(false);
                   }}
@@ -5581,6 +5615,14 @@ export default function Doctors() {
                       onClick={() => {
                         setActiveSection("manage");
                         setActiveTab(tab.key);
+                        // Load API data based on tab
+                        if (tab.key === "settings") {
+                          loadClinicData();
+                        } else if (tab.key === "staff") {
+                          loadStaffData();
+                        } else if (tab.key === "inventory") {
+                          loadInventoryData();
+                        }
                       }}
                       whileHover={{ x: isSidebarCollapsed ? 0 : 3, scale: isSidebarCollapsed ? 1.08 : 1 }}
                       whileTap={{ scale: 0.95 }}
@@ -5589,6 +5631,116 @@ export default function Doctors() {
                         isSidebarCollapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
                       } ${
                         activeSection === "manage" && activeTab === tab.key
+                          ? "bg-white text-indigo-700 shadow-md"
+                          : "text-white/80 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <span className={`transition-all flex-shrink-0 ${
+                        isSidebarCollapsed ? 'text-lg' : 'text-base'
+                      }`}>{tab.icon}</span>
+                      <AnimatePresence mode="wait">
+                        {!isSidebarCollapsed && (
+                          <motion.span
+                            key="label"
+                            initial={{ opacity: 0, width: 0 }}
+                            animate={{ opacity: 1, width: "auto" }}
+                            exit={{ opacity: 0, width: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden whitespace-nowrap text-xs"
+                          >
+                            {tab.label}
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </motion.button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Divider */}
+          <div className="h-px bg-white/20 my-4"></div>
+
+          {/* Pharma Section */}
+          <div className="mb-4">
+            {/* Pharma Header - Collapsible */}
+            <motion.button
+              onClick={() => setIsPharmaExpanded(!isPharmaExpanded)}
+              className={`w-full flex items-center justify-between mb-2 px-2 py-1.5 hover:bg-white/10 rounded transition-all group ${isSidebarCollapsed ? 'justify-center' : ''}`}
+            >
+              {!isSidebarCollapsed ? (
+                <>
+                  <h3 className="text-white/90 text-xs font-bold uppercase tracking-wider whitespace-nowrap flex items-center gap-1.5">
+                    💊 Pharmacy
+                  </h3>
+                  <motion.svg
+                    animate={{ 
+                      rotate: isPharmaExpanded ? 180 : 0,
+                      y: isPharmaExpanded ? 0 : [0, -2, 0]
+                    }}
+                    transition={{ 
+                      rotate: { duration: 0.3 },
+                      y: { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+                    }}
+                    width="12"
+                    height="12"
+                    viewBox="0 0 12 12"
+                    fill="none"
+                    className="text-white/60"
+                  >
+                    <path
+                      d="M3 5L6 8L9 5"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </motion.svg>
+                </>
+              ) : (
+                <div className="relative">
+                  <span className="text-xl">💊</span>
+                  <motion.div
+                    animate={{ 
+                      scale: isPharmaExpanded ? 1 : [1, 1.2, 1]
+                    }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    className="absolute -top-1 -right-1 w-2 h-2 bg-white/60 rounded-full"
+                  />
+                </div>
+              )}
+            </motion.button>
+            
+            {/* Pharma Items */}
+            <AnimatePresence>
+              {isPharmaExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.25, ease: "easeInOut" }}
+                  className="overflow-hidden space-y-1"
+                >
+                  {[
+                    { key: 'inventory', label: 'Inventory', icon: '📦' },
+                    { key: 'sales', label: 'Sales', icon: '💰' },
+                    { key: 'suppliers', label: 'Suppliers', icon: '🚚' },
+                    { key: 'reports', label: 'Reports', icon: '📊' }
+                  ].map((tab) => (
+                    <motion.button
+                      key={tab.key}
+                      onClick={() => {
+                        setActiveSection("pharma");
+                        setActiveTab(tab.key);
+                      }}
+                      whileHover={{ x: isSidebarCollapsed ? 0 : 3, scale: isSidebarCollapsed ? 1.08 : 1 }}
+                      whileTap={{ scale: 0.95 }}
+                      title={isSidebarCollapsed ? tab.label : ""}
+                      className={`w-full flex items-center rounded-lg font-medium transition-all ${
+                        isSidebarCollapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
+                      } ${
+                        activeSection === "pharma" && activeTab === tab.key
                           ? "bg-white text-indigo-700 shadow-md"
                           : "text-white/80 hover:bg-white/10 hover:text-white"
                       }`}
@@ -7008,62 +7160,64 @@ export default function Doctors() {
                   </div>
                 </div>
                 <div className="p-8 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-semibold text-stone-700 mb-2">Clinic Name</label>
-                      <input type="text" defaultValue="Dentaesthetics Central Clinic" className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                  {loadingClinicData ? (
+                    <div className="text-center py-12">
+                      <div className="inline-block">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                          className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full"
+                        />
+                      </div>
+                      <p className="text-stone-600 mt-4">Loading clinic data...</p>
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-stone-700 mb-2">Registration Number</label>
-                      <input type="text" defaultValue="DC-2024-001" className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold text-stone-700 mb-2">Address</label>
-                      <input type="text" defaultValue="123 Dental Street, Medical District, Paris" className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-stone-700 mb-2">Contact Email</label>
-                      <input type="email" defaultValue="contact@dentaesthetics.com" className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-stone-700 mb-2">Phone Number</label>
-                      <input type="tel" defaultValue="+33 1 23 45 67 89" className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold text-stone-700 mb-2">Specialties</label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {["General Dentistry", "Orthodontics", "Cosmetic Dentistry", "Implantology", "Pediatric Dentistry"].map(specialty => (
-                          <span key={specialty} className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
-                            {specialty} ×
-                          </span>
-                        ))}
-                        <button className="px-3 py-1.5 border-2 border-dashed border-purple-300 text-purple-600 rounded-full text-sm font-medium hover:bg-purple-50 transition">
-                          + Add Specialty
-                        </button>
+                  ) : clinicData ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-sm font-semibold text-stone-700 mb-2">Clinic Name</label>
+                        <input type="text" defaultValue={clinicData.clinicName || "N/A"} className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-stone-700 mb-2">Registration Number</label>
+                        <input type="text" defaultValue={clinicData.registrationNumber || "N/A"} className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-stone-700 mb-2">Address</label>
+                        <input type="text" defaultValue={clinicData.address || "N/A"} className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-stone-700 mb-2">Contact Email</label>
+                        <input type="email" defaultValue={clinicData.email || "N/A"} className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-stone-700 mb-2">Phone Number</label>
+                        <input type="tel" defaultValue={clinicData.phoneNumber || "N/A"} className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
                       </div>
                     </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold text-stone-700 mb-2">Insurance Providers Accepted</label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {["AXA Health", "Allianz Care", "April International", "MSH International", "Cigna Global"].map(insurance => (
-                          <span key={insurance} className="px-3 py-1.5 bg-pink-100 text-pink-700 rounded-full text-sm font-medium">
-                            {insurance} ×
-                          </span>
-                        ))}
-                        <button className="px-3 py-1.5 border-2 border-dashed border-pink-300 text-pink-600 rounded-full text-sm font-medium hover:bg-pink-50 transition">
-                          + Add Provider
+                  ) : (
+                    <div className="text-center py-12 bg-purple-50 rounded-lg border border-purple-200">
+                      <p className="text-stone-600 font-medium">No clinic data available</p>
+                      <p className="text-sm text-stone-500 mt-2">Please ensure you have permission to view clinic settings</p>
+                    </div>
+                  )}
+                  {clinicData && (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-semibold text-stone-700 mb-2">Clinic Name</label>
+                          <p className="text-stone-800 font-medium">{clinicData.clinicName || "N/A"}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-3 pt-4 border-t border-stone-200">
+                        <button className="px-6 py-2 border border-stone-300 rounded-lg text-stone-700 font-medium hover:bg-stone-50 transition">
+                          Cancel
+                        </button>
+                        <button className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:shadow-lg transition">
+                          Save Changes
                         </button>
                       </div>
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-3 pt-4 border-t border-stone-200">
-                    <button className="px-6 py-2 border border-stone-300 rounded-lg text-stone-700 font-medium hover:bg-stone-50 transition">
-                      Cancel
-                    </button>
-                    <button className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:shadow-lg transition">
-                      Save Changes
-                    </button>
-                  </div>
+                    </>
+                  )}
                 </div>
               </div>
             </motion.div>
@@ -7110,35 +7264,54 @@ export default function Doctors() {
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        { name: "Dr. Sophie Martin", role: "Senior Dentist", specialty: "Cosmetic Dentistry", schedule: "Mon-Fri 9AM-5PM", contact: "+33 6 12 34 56 78" },
-                        { name: "Dr. Jean Dubois", role: "Orthodontist", specialty: "Orthodontics", schedule: "Tue-Sat 10AM-6PM", contact: "+33 6 23 45 67 89" },
-                        { name: "Marie Lefevre", role: "Dental Hygienist", specialty: "Preventive Care", schedule: "Mon-Fri 8AM-4PM", contact: "+33 6 34 56 78 90" },
-                        { name: "Pierre Bernard", role: "Dental Assistant", specialty: "General Support", schedule: "Mon-Fri 9AM-5PM", contact: "+33 6 45 67 89 01" },
-                        { name: "Claire Moreau", role: "Receptionist", specialty: "Front Desk", schedule: "Mon-Fri 8AM-6PM", contact: "+33 6 56 78 90 12" }
-                      ].map((staff, idx) => (
-                        <motion.tr
-                          key={idx}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className="border-b border-stone-100 hover:bg-teal-50/30 transition"
-                        >
-                          <td className="px-6 py-4 font-medium text-stone-800">{staff.name}</td>
-                          <td className="px-6 py-4 text-stone-600">{staff.role}</td>
-                          <td className="px-6 py-4 text-stone-600">{staff.specialty}</td>
-                          <td className="px-6 py-4 text-stone-600 text-xs">{staff.schedule}</td>
-                          <td className="px-6 py-4 text-stone-600 text-xs">{staff.contact}</td>
-                          <td className="px-6 py-4 text-center">
-                            <button className="px-3 py-1 bg-teal-100 text-teal-700 rounded-lg text-xs font-medium hover:bg-teal-200 transition mr-2">
-                              Edit
-                            </button>
-                            <button className="px-3 py-1 bg-rose-100 text-rose-700 rounded-lg text-xs font-medium hover:bg-rose-200 transition">
-                              Remove
-                            </button>
+                      {loadingStaffList ? (
+                        <tr>
+                          <td colSpan="6" className="px-6 py-12 text-center">
+                            <div className="flex justify-center">
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                                className="w-8 h-8 border-3 border-teal-200 border-t-teal-600 rounded-full"
+                              />
+                            </div>
+                            <p className="text-stone-600 mt-3">Loading staff data...</p>
                           </td>
-                        </motion.tr>
-                      ))}
+                        </tr>
+                      ) : staffList && staffList.length > 0 ? (
+                        staffList.map((staff, idx) => (
+                          <motion.tr
+                            key={idx}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className="border-b border-stone-100 hover:bg-teal-50/30 transition"
+                          >
+                            <td className="px-6 py-4 font-medium text-stone-800">{staff.firstName} {staff.lastName}</td>
+                            <td className="px-6 py-4 text-stone-600">{staff.role || "N/A"}</td>
+                            <td className="px-6 py-4 text-stone-600">{staff.specialization || "N/A"}</td>
+                            <td className="px-6 py-4 text-stone-600 text-xs">{staff.schedule || "N/A"}</td>
+                            <td className="px-6 py-4 text-stone-600 text-xs">{staff.contactNumber || staff.email || "N/A"}</td>
+                            <td className="px-6 py-4 text-center">
+                              <button 
+                                onClick={() => {
+                                  setSelectedStaffForView(staff);
+                                  setShowStaffDetailsModal(true);
+                                }}
+                                className="px-3 py-1 bg-teal-100 text-teal-700 rounded-lg text-xs font-medium hover:bg-teal-200 transition"
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </motion.tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="6" className="px-6 py-12 text-center">
+                            <p className="text-stone-600 font-medium">No staff members found</p>
+                            <p className="text-sm text-stone-500 mt-1">Click "Load Data" to fetch staff information</p>
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -7395,6 +7568,178 @@ export default function Doctors() {
             </motion.div>
           )}
 
+          {/* Manage Clinic - Inventory Tab */}
+          {activeSection === "manage" && activeTab === "inventory" && (
+            <motion.div
+              key="inventory"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-amber-100/60 overflow-hidden">
+                <div className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
+                        📦
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold bg-gradient-to-r from-amber-700 to-orange-700 bg-clip-text text-transparent">
+                          Clinic Inventory
+                        </h2>
+                        <p className="text-sm text-stone-600 mt-0.5">Manage clinic supplies and medications inventory</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setShowInventoryModal(true);
+                        setEditingInventoryItem(null);
+                        setInventoryFormData({ name: '', category: '', stock: 0, minStock: 0, unitCost: 0 });
+                      }}
+                      className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-medium hover:shadow-lg transition"
+                    >
+                      + Add Item
+                    </button>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-stone-50 border-b border-stone-200">
+                      <tr>
+                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Item Name</th>
+                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Category</th>
+                        <th className="px-6 py-3 text-center font-semibold text-stone-700">In Stock</th>
+                        <th className="px-6 py-3 text-center font-semibold text-stone-700">Min Level</th>
+                        <th className="px-6 py-3 text-right font-semibold text-stone-700">Unit Cost</th>
+                        <th className="px-6 py-3 text-center font-semibold text-stone-700">Status</th>
+                        <th className="px-6 py-3 text-center font-semibold text-stone-700">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingInventory ? (
+                        <tr>
+                          <td colSpan="7" className="px-6 py-12 text-center">
+                            <div className="flex justify-center">
+                              <motion.div
+                                animate={{ rotate: 360 }}
+                                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                                className="w-8 h-8 border-3 border-amber-200 border-t-amber-600 rounded-full"
+                              />
+                            </div>
+                            <p className="text-stone-600 mt-3">Loading inventory data...</p>
+                          </td>
+                        </tr>
+                      ) : clinicInventory && clinicInventory.length > 0 ? (
+                        clinicInventory.map((item, idx) => {
+                          const currentStock = item.stock || 0;
+                          const minStock = item.minStock || item.minimumStock || 0;
+                          let status = "OK";
+                          let statusColor = "bg-emerald-100 text-emerald-700";
+                          
+                          if (currentStock === 0) {
+                            status = "Out of Stock";
+                            statusColor = "bg-red-100 text-red-700";
+                          } else if (currentStock <= minStock) {
+                            status = "Low Stock";
+                            statusColor = "bg-yellow-100 text-yellow-700";
+                          }
+                          
+                          return (
+                            <motion.tr
+                              key={idx}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: idx * 0.05 }}
+                              className="border-b border-stone-100 hover:bg-amber-50/40 transition"
+                            >
+                              <td className="px-6 py-4 font-semibold text-stone-900">{item.itemName || item.name || "N/A"}</td>
+                              <td className="px-6 py-4">
+                                <span className="inline-block px-3 py-1 bg-stone-200 text-stone-700 rounded-full text-xs font-medium">
+                                  {item.categoryName || item.category || "N/A"}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-lg font-bold text-blue-700">{currentStock}</span>
+                                <p className="text-xs text-stone-500">units</p>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-sm font-medium text-stone-700">{minStock}</span>
+                                <p className="text-xs text-stone-500">minimum</p>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <span className="text-lg font-bold text-green-700">€{parseFloat(item.unitCost || item.cost || 0).toFixed(2)}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className={`inline-block px-3 py-1.5 rounded-full text-xs font-semibold ${statusColor}`}>
+                                  {status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setEditingInventoryItem(item);
+                                      setInventoryFormData({
+                                        name: item.itemName || item.name || '',
+                                        category: item.categoryName || item.category || '',
+                                        stock: item.stock || 0,
+                                        minStock: item.minStock || item.minimumStock || 0,
+                                        unitCost: item.unitCost || item.cost || 0
+                                      });
+                                      setShowInventoryModal(true);
+                                    }}
+                                    className="px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-xs font-semibold transition transform hover:scale-105"
+                                    title="Edit this item"
+                                  >
+                                    ✏️ Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteInventoryItem(item.id || item.inventoryId)}
+                                    className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-semibold transition transform hover:scale-105"
+                                    title="Delete this item"
+                                  >
+                                    🗑️ Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </motion.tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan="7" className="px-6 py-12 text-center">
+                            <div className="mb-4">
+                              <p className="text-4xl">📭</p>
+                            </div>
+                            <p className="text-stone-600 font-semibold text-lg">No inventory items found</p>
+                            <p className="text-sm text-stone-500 mt-1">Click "+ Add Item" to add your first inventory item</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="p-6 bg-stone-50 border-t border-stone-200">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-white rounded-lg border border-stone-200">
+                      <p className="text-sm text-stone-600 mb-1">Total Items in Inventory</p>
+                      <p className="text-2xl font-bold text-amber-700">{clinicInventory?.length || 0}</p>
+                    </div>
+                    <div className="p-4 bg-white rounded-lg border border-stone-200">
+                      <p className="text-sm text-stone-600 mb-1">Total Stock Count</p>
+                      <p className="text-2xl font-bold text-blue-700">{clinicInventory?.reduce((sum, item) => sum + (item.stock || 0), 0) || 0}</p>
+                    </div>
+                    <div className="p-4 bg-white rounded-lg border border-stone-200">
+                      <p className="text-sm text-stone-600 mb-1">Low Stock Items</p>
+                      <p className="text-2xl font-bold text-red-700">{clinicInventory?.filter(item => item.stock <= (item.minStock || item.minimumStock || 0)).length || 0}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           {/* Manage Clinic - Equipment & Assets Tab */}
           {activeSection === "manage" && activeTab === "equipment" && (
             <motion.div
@@ -7490,10 +7835,755 @@ export default function Doctors() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* PHARMA SECTION */}
+        <AnimatePresence mode="wait">
+          {/* Pharma - Inventory Tab */}
+          {activeSection === "pharma" && activeTab === "inventory" && (
+            <motion.div
+              key="pharma-inventory"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-700 via-green-700 to-teal-700 bg-clip-text text-transparent">
+                    💊 Pharmacy Inventory
+                  </h1>
+                  <p className="text-stone-600 mt-1">Manage medicines, stock levels, and expiry dates</p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition"
+                >
+                  ➕ Add Medicine
+                </motion.button>
+              </div>
+
+              {/* Key Metrics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-emerald-50 to-green-100/50 rounded-2xl p-6 border border-emerald-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-emerald-700 font-semibold">Total Medicines</p>
+                      <p className="text-3xl font-bold text-emerald-900 mt-2">254</p>
+                      <p className="text-xs text-emerald-600 mt-1">Active items</p>
+                    </div>
+                    <div className="text-4xl">💊</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-amber-50 to-yellow-100/50 rounded-2xl p-6 border border-amber-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-amber-700 font-semibold">Low Stock</p>
+                      <p className="text-3xl font-bold text-amber-900 mt-2">12</p>
+                      <p className="text-xs text-amber-600 mt-1">Needs reordering</p>
+                    </div>
+                    <div className="text-4xl">⚠️</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-red-50 to-rose-100/50 rounded-2xl p-6 border border-red-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-red-700 font-semibold">Expiring Soon</p>
+                      <p className="text-3xl font-bold text-red-900 mt-2">8</p>
+                      <p className="text-xs text-red-600 mt-1">Within 30 days</p>
+                    </div>
+                    <div className="text-4xl">⏰</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-blue-50 to-cyan-100/50 rounded-2xl p-6 border border-blue-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-blue-700 font-semibold">Inventory Value</p>
+                      <p className="text-3xl font-bold text-blue-900 mt-2">₹4.5L</p>
+                      <p className="text-xs text-blue-600 mt-1">Total stock worth</p>
+                    </div>
+                    <div className="text-4xl">💰</div>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Quick Action Cards */}
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-emerald-100/60 p-8">
+                <h3 className="text-lg font-bold text-stone-800 mb-6">Quick Actions</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-emerald-100 to-green-100 rounded-xl border border-emerald-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">📊</span>
+                    <p className="font-semibold text-emerald-900 text-center">View Stock</p>
+                    <p className="text-xs text-emerald-700 text-center mt-1">Check all items</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-amber-100 to-yellow-100 rounded-xl border border-amber-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">🔄</span>
+                    <p className="font-semibold text-amber-900 text-center">Reorder Items</p>
+                    <p className="text-xs text-amber-700 text-center mt-1">Low stock</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-red-100 to-rose-100 rounded-xl border border-red-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">📅</span>
+                    <p className="font-semibold text-red-900 text-center">Expiry Report</p>
+                    <p className="text-xs text-red-700 text-center mt-1">Coming soon</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl border border-blue-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">🏭</span>
+                    <p className="font-semibold text-blue-900 text-center">Manage Batch</p>
+                    <p className="text-xs text-blue-700 text-center mt-1">Track batches</p>
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Pharma - Sales Tab */}
+          {activeSection === "pharma" && activeTab === "sales" && (
+            <motion.div
+              key="pharma-sales"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-700 via-pink-700 to-rose-700 bg-clip-text text-transparent">
+                    💰 Pharmacy Sales
+                  </h1>
+                  <p className="text-stone-600 mt-1">Track medicine sales, revenue, and customer transactions</p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition"
+                >
+                  ➕ New Sale
+                </motion.button>
+              </div>
+
+              {/* Sales Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-purple-50 to-violet-100/50 rounded-2xl p-6 border border-purple-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-purple-700 font-semibold">Today's Sales</p>
+                      <p className="text-3xl font-bold text-purple-900 mt-2">₹8,450</p>
+                      <p className="text-xs text-purple-600 mt-1">15 transactions</p>
+                    </div>
+                    <div className="text-4xl">📈</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-pink-50 to-rose-100/50 rounded-2xl p-6 border border-pink-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-pink-700 font-semibold">This Month</p>
+                      <p className="text-3xl font-bold text-pink-900 mt-2">₹2.3L</p>
+                      <p className="text-xs text-pink-600 mt-1">342 sales</p>
+                    </div>
+                    <div className="text-4xl">📊</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-orange-50 to-amber-100/50 rounded-2xl p-6 border border-orange-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-orange-700 font-semibold">Top Product</p>
+                      <p className="text-3xl font-bold text-orange-900 mt-2">Crocin</p>
+                      <p className="text-xs text-orange-600 mt-1">45 units sold</p>
+                    </div>
+                    <div className="text-4xl">⭐</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-indigo-50 to-purple-100/50 rounded-2xl p-6 border border-indigo-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-indigo-700 font-semibold">Avg. Transaction</p>
+                      <p className="text-3xl font-bold text-indigo-900 mt-2">₹563</p>
+                      <p className="text-xs text-indigo-600 mt-1">Per customer</p>
+                    </div>
+                    <div className="text-4xl">🛒</div>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Sales Actions */}
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-purple-100/60 p-8">
+                <h3 className="text-lg font-bold text-stone-800 mb-6">Sales Management</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-purple-100 to-violet-100 rounded-xl border border-purple-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">🛍️</span>
+                    <p className="font-semibold text-purple-900 text-center">Daily Sales</p>
+                    <p className="text-xs text-purple-700 text-center mt-1">Today's records</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-pink-100 to-rose-100 rounded-xl border border-pink-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">💳</span>
+                    <p className="font-semibold text-pink-900 text-center">Payments</p>
+                    <p className="text-xs text-pink-700 text-center mt-1">Manage payments</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-orange-100 to-amber-100 rounded-xl border border-orange-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">📋</span>
+                    <p className="font-semibold text-orange-900 text-center">Invoices</p>
+                    <p className="text-xs text-orange-700 text-center mt-1">Sales invoices</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-xl border border-indigo-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">🎟️</span>
+                    <p className="font-semibold text-indigo-900 text-center">Discounts</p>
+                    <p className="text-xs text-indigo-700 text-center mt-1">Apply offers</p>
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Pharma - Suppliers Tab */}
+          {activeSection === "pharma" && activeTab === "suppliers" && (
+            <motion.div
+              key="pharma-suppliers"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 via-cyan-700 to-teal-700 bg-clip-text text-transparent">
+                    🚚 Suppliers Management
+                  </h1>
+                  <p className="text-stone-600 mt-1">Manage suppliers, orders, and deliveries</p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition"
+                >
+                  ➕ Add Supplier
+                </motion.button>
+              </div>
+
+              {/* Supplier Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-blue-50 to-cyan-100/50 rounded-2xl p-6 border border-blue-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-blue-700 font-semibold">Active Suppliers</p>
+                      <p className="text-3xl font-bold text-blue-900 mt-2">18</p>
+                      <p className="text-xs text-blue-600 mt-1">Approved vendors</p>
+                    </div>
+                    <div className="text-4xl">🏢</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-cyan-50 to-teal-100/50 rounded-2xl p-6 border border-cyan-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-cyan-700 font-semibold">Pending Orders</p>
+                      <p className="text-3xl font-bold text-cyan-900 mt-2">7</p>
+                      <p className="text-xs text-cyan-600 mt-1">In transit</p>
+                    </div>
+                    <div className="text-4xl">📦</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-teal-50 to-emerald-100/50 rounded-2xl p-6 border border-teal-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-teal-700 font-semibold">Avg. Lead Time</p>
+                      <p className="text-3xl font-bold text-teal-900 mt-2">4.2 Days</p>
+                      <p className="text-xs text-teal-600 mt-1">Average delivery</p>
+                    </div>
+                    <div className="text-4xl">⏱️</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-green-50 to-lime-100/50 rounded-2xl p-6 border border-green-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-green-700 font-semibold">Monthly Spend</p>
+                      <p className="text-3xl font-bold text-green-900 mt-2">₹12.5L</p>
+                      <p className="text-xs text-green-600 mt-1">Total purchases</p>
+                    </div>
+                    <div className="text-4xl">💸</div>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Supplier Actions */}
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-blue-100/60 p-8">
+                <h3 className="text-lg font-bold text-stone-800 mb-6">Supplier Operations</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl border border-blue-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">📞</span>
+                    <p className="font-semibold text-blue-900 text-center">Supplier List</p>
+                    <p className="text-xs text-blue-700 text-center mt-1">All vendors</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-cyan-100 to-teal-100 rounded-xl border border-cyan-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">📋</span>
+                    <p className="font-semibold text-cyan-900 text-center">Purchase Orders</p>
+                    <p className="text-xs text-cyan-700 text-center mt-1">Create orders</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-teal-100 to-emerald-100 rounded-xl border border-teal-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">✅</span>
+                    <p className="font-semibold text-teal-900 text-center">Receive Goods</p>
+                    <p className="text-xs text-teal-700 text-center mt-1">Mark delivery</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-green-100 to-lime-100 rounded-xl border border-green-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">💵</span>
+                    <p className="font-semibold text-green-900 text-center">Payments</p>
+                    <p className="text-xs text-green-700 text-center mt-1">Manage bills</p>
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Pharma - Reports Tab */}
+          {activeSection === "pharma" && activeTab === "reports" && (
+            <motion.div
+              key="pharma-reports"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="space-y-6"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-700 via-red-700 to-pink-700 bg-clip-text text-transparent">
+                    📊 Pharmacy Reports
+                  </h1>
+                  <p className="text-stone-600 mt-1">Analytics, insights, and business intelligence</p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition"
+                >
+                  📥 Export Report
+                </motion.button>
+              </div>
+
+              {/* Report Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-orange-50 to-red-100/50 rounded-2xl p-6 border border-orange-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-orange-700 font-semibold">Gross Profit</p>
+                      <p className="text-3xl font-bold text-orange-900 mt-2">₹45.2L</p>
+                      <p className="text-xs text-orange-600 mt-1">This quarter</p>
+                    </div>
+                    <div className="text-4xl">📈</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-red-50 to-pink-100/50 rounded-2xl p-6 border border-red-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-red-700 font-semibold">Profit Margin</p>
+                      <p className="text-3xl font-bold text-red-900 mt-2">28%</p>
+                      <p className="text-xs text-red-600 mt-1">Average margin</p>
+                    </div>
+                    <div className="text-4xl">📊</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-pink-50 to-rose-100/50 rounded-2xl p-6 border border-pink-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-pink-700 font-semibold">Stock Turnover</p>
+                      <p className="text-3xl font-bold text-pink-900 mt-2">4.8x</p>
+                      <p className="text-xs text-pink-600 mt-1">Per year</p>
+                    </div>
+                    <div className="text-4xl">🔄</div>
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  whileHover={{ y: -5 }}
+                  className="bg-gradient-to-br from-rose-50 to-fuchsia-100/50 rounded-2xl p-6 border border-rose-200/60 shadow-md"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-sm text-rose-700 font-semibold">Dead Stock</p>
+                      <p className="text-3xl font-bold text-rose-900 mt-2">₹3.2L</p>
+                      <p className="text-xs text-rose-600 mt-1">Expired/unsold</p>
+                    </div>
+                    <div className="text-4xl">⚠️</div>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Report Options */}
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-orange-100/60 p-8">
+                <h3 className="text-lg font-bold text-stone-800 mb-6">Available Reports</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-orange-100 to-red-100 rounded-xl border border-orange-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">📈</span>
+                    <p className="font-semibold text-orange-900 text-center">Sales Report</p>
+                    <p className="text-xs text-orange-700 text-center mt-1">Daily/monthly</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-red-100 to-pink-100 rounded-xl border border-red-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">💹</span>
+                    <p className="font-semibold text-red-900 text-center">Profit Analysis</p>
+                    <p className="text-xs text-red-700 text-center mt-1">Margins, etc</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-pink-100 to-rose-100 rounded-xl border border-pink-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">📅</span>
+                    <p className="font-semibold text-pink-900 text-center">Expiry Report</p>
+                    <p className="text-xs text-pink-700 text-center mt-1">Coming soon</p>
+                  </motion.button>
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-rose-100 to-fuchsia-100 rounded-xl border border-rose-300 hover:shadow-lg transition"
+                  >
+                    <span className="text-4xl mb-2">🎯</span>
+                    <p className="font-semibold text-rose-900 text-center">Performance</p>
+                    <p className="text-xs text-rose-700 text-center mt-1">KPIs & metrics</p>
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
       
       {/* Edit Appointment Modal */}
       <EditAppointmentModal />
+      
+      {/* Staff Details Modal */}
+      <AnimatePresence>
+        {showStaffDetailsModal && selectedStaffForView && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[9999] p-4"
+            onClick={() => setShowStaffDetailsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-teal-600 to-emerald-600 px-8 py-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-2xl">
+                    👤
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">{selectedStaffForView?.firstName} {selectedStaffForView?.lastName}</h2>
+                    <p className="text-white/80 text-sm">{selectedStaffForView?.role}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowStaffDetailsModal(false)}
+                  className="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-xl"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-8 space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-teal-50 rounded-xl p-4 border border-teal-200">
+                    <p className="text-xs font-semibold text-teal-600 uppercase mb-1">Role</p>
+                    <p className="text-lg font-bold text-teal-900">{selectedStaffForView?.role || "N/A"}</p>
+                  </div>
+                  <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                    <p className="text-xs font-semibold text-emerald-600 uppercase mb-1">Specialization</p>
+                    <p className="text-lg font-bold text-emerald-900">{selectedStaffForView?.specialization || "N/A"}</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+                    <p className="text-xs font-semibold text-blue-600 uppercase mb-1">Email</p>
+                    <p className="text-lg font-bold text-blue-900">{selectedStaffForView?.email || "N/A"}</p>
+                  </div>
+                  <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+                    <p className="text-xs font-semibold text-purple-600 uppercase mb-1">Phone</p>
+                    <p className="text-lg font-bold text-purple-900">{selectedStaffForView?.contactNumber || selectedStaffForView?.phoneNumber || "N/A"}</p>
+                  </div>
+                  <div className="bg-pink-50 rounded-xl p-4 border border-pink-200 md:col-span-2">
+                    <p className="text-xs font-semibold text-pink-600 uppercase mb-1">License Number</p>
+                    <p className="text-lg font-bold text-pink-900">{selectedStaffForView?.licenseNumber || "N/A"}</p>
+                  </div>
+                  {selectedStaffForView?.schedule && (
+                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-200 md:col-span-2">
+                      <p className="text-xs font-semibold text-amber-600 uppercase mb-1">Schedule</p>
+                      <p className="text-lg font-bold text-amber-900">{selectedStaffForView.schedule}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="bg-stone-50 border-t border-stone-200 px-8 py-4 flex justify-end gap-3">
+                <button
+                  onClick={() => setShowStaffDetailsModal(false)}
+                  className="px-6 py-2.5 bg-stone-200 hover:bg-stone-300 text-stone-700 font-semibold rounded-lg transition"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Inventory Add/Edit Modal */}
+      <AnimatePresence>
+        {showInventoryModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[9999] p-4"
+            onClick={() => setShowInventoryModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-8 py-6">
+                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                  <span>📦</span> {editingInventoryItem ? "Edit Inventory" : "Add Inventory Item"}
+                </h2>
+              </div>
+
+              {/* Body */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSaveInventoryItem();
+                }}
+                className="p-8 space-y-4"
+              >
+                <div>
+                  <label className="block text-sm font-semibold text-stone-700 mb-2">Item Name *</label>
+                  <input
+                    type="text"
+                    value={inventoryFormData.name}
+                    onChange={(e) => setInventoryFormData({ ...inventoryFormData, name: e.target.value })}
+                    placeholder="e.g., Dental Bibs"
+                    className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-stone-700 mb-2">Category *</label>
+                  <select
+                    value={inventoryFormData.category}
+                    onChange={(e) => setInventoryFormData({ ...inventoryFormData, category: e.target.value })}
+                    className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    required
+                  >
+                    <option value="">Select Category</option>
+                    <option value="Supplies">Supplies</option>
+                    <option value="Equipment">Equipment</option>
+                    <option value="Materials">Materials</option>
+                    <option value="PPE">PPE</option>
+                    <option value="Medications">Medications</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-stone-700 mb-2">Current Stock *</label>
+                  <input
+                    type="number"
+                    value={inventoryFormData.stock}
+                    onChange={(e) => setInventoryFormData({ ...inventoryFormData, stock: parseInt(e.target.value) || 0 })}
+                    placeholder="0"
+                    className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    required
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-stone-700 mb-2">Minimum Stock Level *</label>
+                  <input
+                    type="number"
+                    value={inventoryFormData.minStock}
+                    onChange={(e) => setInventoryFormData({ ...inventoryFormData, minStock: parseInt(e.target.value) || 0 })}
+                    placeholder="0"
+                    className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    required
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-stone-700 mb-2">Unit Cost (€) *</label>
+                  <input
+                    type="number"
+                    value={inventoryFormData.unitCost}
+                    onChange={(e) => setInventoryFormData({ ...inventoryFormData, unitCost: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                    className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    required
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-stone-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowInventoryModal(false);
+                      setEditingInventoryItem(null);
+                      setInventoryFormData({ name: '', category: '', stock: 0, minStock: 0, unitCost: 0 });
+                    }}
+                    className="px-6 py-2 border border-stone-300 rounded-lg text-stone-700 font-medium hover:bg-stone-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-medium hover:shadow-lg transition"
+                  >
+                    {editingInventoryItem ? "Update Item" : "Add Item"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       {/* Book Appointment Modal */}
       <BookAppointmentModal />
