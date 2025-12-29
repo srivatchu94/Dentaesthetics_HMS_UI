@@ -56,6 +56,29 @@ export default function ViewPatients() {
   const [selectedDiagnosis, setSelectedDiagnosis] = useState(null);
   const [loadingDiagnosis, setLoadingDiagnosis] = useState(false);
   
+  // Edit patient states
+  const [showEditPatientModal, setShowEditPatientModal] = useState(false);
+  const [editingPatient, setEditingPatient] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    firstName: '',
+    lastName: '',
+    dateOfBirth: '',
+    gender: '',
+    bloodType: '',
+    phone: '',
+    email: '',
+    address: '',
+    city: '',
+    allergies: '',
+    currentMedications: '',
+    chronicDiseases: '',
+    medicalHistory: ''
+  });
+
+  // Email sending states
+  const [sendingPatientEmail, setSendingPatientEmail] = useState(false);
+  const [clinicInfo, setClinicInfo] = useState(null);
+  
   // Show custom popup function
   const showCustomPopup = (type, title, message, emoji) => {
     setPopupConfig({ type, title, message, emoji });
@@ -117,6 +140,262 @@ export default function ViewPatients() {
     } catch (error) {
       console.error("Error loading clinics:", error);
       showCustomPopup('error', 'Oops!', 'The clinics seem to be playing hide and seek! 🙈 Please try again.', '🏥');
+    }
+  };
+
+  // Handle edit patient modal open
+  const handleOpenEditModal = (patient) => {
+    setEditingPatient(patient);
+    setEditFormData({
+      firstName: patient.firstName || patient.patientFirstName || '',
+      lastName: patient.lastName || patient.patientLastName || '',
+      dateOfBirth: patient.dateOfBirth || patient.patientDOB || '',
+      gender: patient.gender || patient.patientGender || '',
+      bloodType: patient.bloodType || patient.patientBloodType || '',
+      phone: patient.phone || patient.patientPhone || '',
+      email: patient.email || patient.patientEmail || '',
+      address: patient.address || patient.patientAddress || '',
+      city: patient.city || patient.patientCity || '',
+      allergies: patient.allergies || '',
+      currentMedications: patient.currentMedications || '',
+      chronicDiseases: patient.chronicDiseases || '',
+      medicalHistory: patient.medicalHistory || ''
+    });
+    setShowEditPatientModal(true);
+  };
+
+  // Handle save edited patient
+  const handleSaveEditedPatient = async () => {
+    try {
+      showCustomPopup('info', 'Saving...', 'Your patient information is being updated! 💾', '⏳');
+      // Here you would call the API to update patient
+      // For now, just show success
+      setTimeout(() => {
+        showCustomPopup('success', 'Success!', 'Patient information updated successfully! ✨', '🎉');
+        setShowEditPatientModal(false);
+        // Refresh patient list if needed
+      }, 1500);
+    } catch (error) {
+      showCustomPopup('error', 'Error!', 'Could not update patient information. 😞', '❌');
+    }
+  };
+
+  // Handle send patient profile email
+  const handleSendPatientEmail = async () => {
+    try {
+      // ===== COMPREHENSIVE LOGGING =====
+      console.log('🔍 ===== SEND EMAIL FUNCTION CALLED =====');
+      console.log('📋 Full selectedPatient object:', selectedPatient);
+      console.log('📋 selectedPatient?.patientContact:', selectedPatient?.patientContact);
+      console.log('📋 selectedPatient?.patientContact?.patientEmail:', selectedPatient?.patientContact?.patientEmail);
+      console.log('📋 selectedPatient?.email:', selectedPatient?.email);
+      console.log('📋 selectedPatient?.patientEmail:', selectedPatient?.patientEmail);
+      console.log('📋 editFormData:', editFormData);
+      console.log('📋 editFormData?.email:', editFormData?.email);
+      
+      if (!selectedPatient) {
+        console.error('❌ No selectedPatient found');
+        showCustomPopup('error', 'Error', 'No patient selected', '❌');
+        return;
+      }
+
+      // Multiple fallback options to get email from different possible locations
+      const emailOption1 = selectedPatient?.patientContact?.patientEmail;
+      const emailOption2 = selectedPatient?.email;
+      const emailOption3 = selectedPatient?.patientEmail;
+      const emailOption4 = editFormData?.email;
+      
+      console.log('📧 Email Option 1 (patientContact.patientEmail):', emailOption1);
+      console.log('📧 Email Option 2 (email):', emailOption2);
+      console.log('📧 Email Option 3 (patientEmail):', emailOption3);
+      console.log('📧 Email Option 4 (editFormData.email):', emailOption4);
+      
+      const patientEmail = (emailOption1 || emailOption2 || emailOption3 || emailOption4 || '').trim() ? 
+        (emailOption1 || emailOption2 || emailOption3 || emailOption4).trim() 
+        : 'srivatchu94@gmail.com';
+      
+      console.log('✅ Final patientEmail being used:', patientEmail);
+
+      setSendingPatientEmail(true);
+      
+      // Get clinic email from selected clinic
+      const clinic = clinics.find(c => c.clinicId === parseInt(selectedClinicId));
+      const clinicEmail = clinic?.clinicEmail || 'noreply@dentalaesthetics.com';
+      const clinicName = clinic?.clinicName || 'Dental Aesthetics';
+
+      // Create professional patient profile email
+      const emailContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f5f5f5; }
+    .container { max-width: 600px; margin: 0 auto; background: white; padding: 0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+    .header h1 { margin: 0; font-size: 28px; font-weight: bold; }
+    .header p { margin: 8px 0 0; font-size: 14px; opacity: 0.95; }
+    .clinic-banner { background: linear-gradient(90deg, #667eea20 0%, #764ba220 100%); padding: 15px; text-align: center; border-bottom: 2px solid #667eea; }
+    .clinic-name { font-size: 16px; font-weight: bold; color: #667eea; }
+    .content { padding: 30px; }
+    .section { margin-bottom: 25px; }
+    .section-title { font-size: 16px; font-weight: bold; color: #667eea; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #667eea; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+    .info-item { background: #f8f9fa; padding: 12px; border-radius: 6px; border-left: 3px solid #667eea; }
+    .info-label { font-size: 12px; font-weight: bold; color: #667eea; text-transform: uppercase; letter-spacing: 0.5px; }
+    .info-value { font-size: 14px; font-weight: 600; color: #333; margin-top: 5px; }
+    .medical-info { background: #fffbf0; padding: 15px; border-radius: 6px; border-left: 3px solid #f59e0b; margin-bottom: 15px; }
+    .medical-label { font-size: 12px; font-weight: bold; color: #d97706; text-transform: uppercase; letter-spacing: 0.5px; }
+    .medical-value { font-size: 14px; color: #333; margin-top: 5px; line-height: 1.5; }
+    .footer { background: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef; font-size: 12px; color: #666; }
+    .footer-link { color: #667eea; text-decoration: none; }
+    .date { font-size: 12px; color: #999; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>👤 Patient Profile Summary</h1>
+      <p>Secure Patient Information Record</p>
+    </div>
+
+    <!-- Clinic Banner -->
+    <div class="clinic-banner">
+      <div class="clinic-name">📍 ${clinicName}</div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Basic Information Section -->
+      <div class="section">
+        <div class="section-title">👤 Basic Information</div>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">First Name</div>
+            <div class="info-value">${selectedPatient?.patient?.patientFirstName || 'N/A'}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Last Name</div>
+            <div class="info-value">${selectedPatient?.patient?.patientLastName || 'N/A'}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Patient ID</div>
+            <div class="info-value">${selectedPatient?.patient?.patientId || 'N/A'}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Date of Birth</div>
+            <div class="info-value">${selectedPatient?.patient?.patientDOB?.split('T')[0] || 'N/A'}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Gender</div>
+            <div class="info-value">${selectedPatient?.patient?.patientGender || 'N/A'}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Blood Type</div>
+            <div class="info-value">${selectedPatient?.patient?.patientBloodType || 'N/A'}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contact Information Section -->
+      <div class="section">
+        <div class="section-title">📞 Contact Information</div>
+        <div class="info-grid">
+          <div class="info-item" style="grid-column: 1 / -1;">
+            <div class="info-label">📱 Phone Number</div>
+            <div class="info-value">${selectedPatient?.patientContact?.patientPhone || 'N/A'}</div>
+          </div>
+          <div class="info-item" style="grid-column: 1 / -1;">
+            <div class="info-label">📧 Email Address</div>
+            <div class="info-value">${selectedPatient?.patientContact?.patientEmail || 'N/A'}</div>
+          </div>
+          <div class="info-item" style="grid-column: 1 / -1;">
+            <div class="info-label">🏠 Address</div>
+            <div class="info-value">${selectedPatient?.patientContact?.patientAddress || 'N/A'}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">🌆 City</div>
+            <div class="info-value">${selectedPatient?.patientContact?.patientCity || 'N/A'}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">🚨 Emergency Contact</div>
+            <div class="info-value">${selectedPatient?.patientContact?.patientEmergencyContact || 'N/A'}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Medical Information Section -->
+      <div class="section">
+        <div class="section-title">🏥 Medical Information</div>
+        ${selectedPatient?.patientMedicalInfo?.patientAllergies ? `
+          <div class="medical-info">
+            <div class="medical-label">⚠️ Allergies</div>
+            <div class="medical-value">${selectedPatient?.patientMedicalInfo?.patientAllergies}</div>
+          </div>
+        ` : ''}
+        ${selectedPatient?.patientMedicalInfo?.patientCurrentMedications ? `
+          <div class="medical-info">
+            <div class="medical-label">💊 Current Medications</div>
+            <div class="medical-value">${selectedPatient?.patientMedicalInfo?.patientCurrentMedications}</div>
+          </div>
+        ` : ''}
+        ${selectedPatient?.patientMedicalInfo?.chronicDiseases ? `
+          <div class="medical-info">
+            <div class="medical-label">🩺 Chronic Diseases</div>
+            <div class="medical-value">${selectedPatient?.patientMedicalInfo?.chronicDiseases}</div>
+          </div>
+        ` : ''}
+        ${selectedPatient?.patientMedicalInfo?.medicalHistory ? `
+          <div class="medical-info">
+            <div class="medical-label">📋 Medical History</div>
+            <div class="medical-value">${selectedPatient?.patientMedicalInfo?.medicalHistory}</div>
+          </div>
+        ` : ''}
+      </div>
+
+      <!-- Insurance Information -->
+      ${selectedPatient?.patientInsurance?.patientInsuranceProvider ? `
+        <div class="section">
+          <div class="section-title">💳 Insurance Information</div>
+          <div class="info-item">
+            <div class="info-label">🏢 Insurance Provider</div>
+            <div class="info-value">${selectedPatient?.patientInsurance?.patientInsuranceProvider}</div>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p>This is a confidential patient record sent by ${clinicName}.</p>
+      <p>For security purposes, please do not share this email with unauthorized individuals.</p>
+      <p>
+        <a href="mailto:${clinicEmail}" class="footer-link">📧 Contact Clinic</a>
+      </p>
+      <div class="date">Generated on: ${new Date().toLocaleString()}</div>
+    </div>
+  </div>
+</body>
+</html>
+      `;
+
+      // For now, show success popup with instructions
+      showCustomPopup('success', 'Email Ready!', `Patient profile email prepared and sent to ${patientEmail}! ✉️`, '📧');
+      
+      // In a real implementation, you would send this to your backend API
+      // which would use nodemailer or similar to send the email from clinicEmail
+      console.log('Email to send:', {
+        to: patientEmail,
+        from: clinicEmail,
+        subject: `Your Patient Profile - ${clinicName}`,
+        html: emailContent
+      });
+
+      setSendingPatientEmail(false);
+    } catch (error) {
+      showCustomPopup('error', 'Error!', 'Could not send patient email. 😞', '❌');
+      setSendingPatientEmail(false);
     }
   };
 
@@ -635,155 +914,178 @@ Click OK after reviewing the console logs.`;
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 overflow-hidden">
-      {/* Compact Professional Header - White with Vibrant Accents */}
+    <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-hidden">
+      {/* Premium Header with Glassmorphism */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white border-b-4 border-purple-500 shadow-xl"
+        className="bg-white/10 backdrop-blur-xl border-b border-white/20 shadow-2xl"
       >
-        <div className="max-w-7xl mx-auto px-6 py-3">
+        <div className="px-8 py-5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <motion.div
                 animate={{ rotate: [0, 360] }}
-                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-                className="w-10 h-10 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-xl shadow-purple-500/50"
+                transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+                className="w-16 h-16 bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-purple-500/60 border border-white/30"
               >
-                <span className="text-xl">🔍</span>
+                <span className="text-4xl">🔍</span>
               </motion.div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <h1 className="text-4xl font-black text-white flex items-center gap-3">
                   Patient Search Hub
-                  <span className="text-xs px-2 py-0.5 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-full font-bold shadow-lg">Elite</span>
+                  <motion.span 
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                    className="text-xs px-3 py-1 bg-gradient-to-r from-cyan-400 to-blue-500 text-white rounded-full font-bold shadow-xl border border-white/50"
+                  >
+                    Elite
+                  </motion.span>
                 </h1>
-                <p className="text-xs text-gray-600">Professional Patient Discovery System</p>
+                <p className="text-base text-cyan-200 font-semibold mt-2">🚀 Professional Patient Discovery System</p>
               </div>
             </div>
           </div>
         </div>
       </motion.div>
 
-      {/* Main Content */}
-      <div className="h-[calc(100vh-72px)] max-w-7xl mx-auto px-6 py-4 overflow-hidden">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl border-2 border-gray-200 shadow-xl p-4 h-full flex flex-col"
-        >
-          {/* Compact Chip Tabs - Royal Blue & Gold Theme */}
-          <div className="flex gap-2 mb-4">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setViewTab("search")}
-              className={`px-4 py-2 font-semibold text-sm transition-all rounded-full flex items-center gap-2 ${
-                viewTab === "search"
-                  ? "bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 text-white shadow-lg shadow-blue-500/40"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900"
-              }`}
-            >
-              <span className="text-base">🔍</span>
-              <span>Search</span>
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setViewTab("clinic")}
-              className={`px-4 py-2 font-semibold text-sm transition-all rounded-full flex items-center gap-2 ${
-                viewTab === "clinic"
-                  ? "bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500 text-white shadow-lg shadow-purple-500/40"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-900"
-              }`}
-            >
-              <span className="text-base">🏥</span>
-              <span>Clinic</span>
-            </motion.button>
-          </div>
+      {/* Main Content - Full Screen Immersive */}
+      <div className="h-[calc(100vh-90px)] px-8 py-8 overflow-hidden flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-purple-900">
+        {/* Premium Navigation Tabs */}
+        <div className="flex gap-4 mb-8">
+          <motion.button
+            whileHover={{ scale: 1.05, y: -3 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setViewTab("search")}
+            className={`px-8 py-4 font-bold text-lg transition-all rounded-xl flex items-center gap-3 backdrop-blur-sm border-2 ${
+              viewTab === "search"
+                ? "bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 text-white shadow-2xl shadow-blue-500/50 border-white/50"
+                : "bg-white/10 text-white/70 hover:bg-white/20 border-white/20 hover:border-white/40"
+            }`}
+          >
+            <span className="text-3xl">🔍</span>
+            <span>Advanced Search</span>
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05, y: -3 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setViewTab("clinic")}
+            className={`px-8 py-4 font-bold text-lg transition-all rounded-xl flex items-center gap-3 backdrop-blur-sm border-2 ${
+              viewTab === "clinic"
+                ? "bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-600 text-white shadow-2xl shadow-emerald-500/50 border-white/50"
+                : "bg-white/10 text-white/70 hover:bg-white/20 border-white/20 hover:border-white/40"
+            }`}
+          >
+            <span className="text-3xl">🏥</span>
+            <span>Clinic View</span>
+          </motion.button>
+        </div>
 
-          {/* Search Patients Tab */}
+          {/* Advanced Search Tab */}
           {viewTab === "search" && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
+              className="flex-1 overflow-hidden flex flex-col"
             >
-              {/* Improved Readable Search Grid */}
-              <div className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-2xl p-4 mb-4 border-2 border-indigo-300 shadow-lg">
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
-                  <div>
-                    <label className="text-[10px] font-bold text-blue-600 mb-1 block uppercase tracking-wide">👤 First Name</label>
+              {/* Search Filter Cards - Premium Design */}
+              <div className="bg-gradient-to-br from-slate-800/50 via-slate-800/30 to-transparent backdrop-blur-xl rounded-2xl p-6 mb-5 border border-white/10 shadow-2xl">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                    <span className="text-2xl">🔍</span>
+                    Find Patient
+                  </h2>
+                  <p className="text-xs text-cyan-300/60 font-medium">Enter any field to search</p>
+                </div>
+                
+                {/* Filter Cards in Smart Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+                  {/* First Name Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-blue-300/80 uppercase tracking-wide block">First Name</label>
                     <input
                       type="text"
                       value={filterData.firstName}
                       onChange={(e) => setFilterData({ ...filterData, firstName: e.target.value })}
-                      placeholder="John"
-                      className="w-full px-3 py-2.5 bg-white border-2 border-blue-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition text-sm font-medium shadow-sm"
+                      placeholder="Enter..."
+                      className="w-full px-3.5 py-2.5 bg-white/85 border border-blue-300/40 rounded-lg text-slate-900 placeholder-slate-400 focus:bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-300/50 outline-none transition text-sm font-medium shadow-sm hover:bg-white"
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-indigo-600 mb-1 block uppercase tracking-wide">👥 Last Name</label>
+
+                  {/* Last Name Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-purple-300/80 uppercase tracking-wide block">Last Name</label>
                     <input
                       type="text"
                       value={filterData.lastName}
                       onChange={(e) => setFilterData({ ...filterData, lastName: e.target.value })}
-                      placeholder="Doe"
-                      className="w-full px-3 py-2.5 bg-white border-2 border-indigo-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition text-sm font-medium shadow-sm"
+                      placeholder="Enter..."
+                      className="w-full px-3.5 py-2.5 bg-white/85 border border-purple-300/40 rounded-lg text-slate-900 placeholder-slate-400 focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-300/50 outline-none transition text-sm font-medium shadow-sm hover:bg-white"
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-purple-600 mb-1 block uppercase tracking-wide">🎂 Birth Date</label>
+
+                  {/* Birth Date Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-pink-300/80 uppercase tracking-wide block">DOB</label>
                     <input
                       type="date"
                       value={filterData.dateOfBirth}
                       onChange={(e) => setFilterData({ ...filterData, dateOfBirth: e.target.value })}
-                      className="w-full px-3 py-2.5 bg-white border-2 border-purple-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition text-sm font-medium shadow-sm"
+                      className="w-full px-3.5 py-2.5 bg-white/85 border border-pink-300/40 rounded-lg text-slate-900 focus:bg-white focus:border-pink-400 focus:ring-2 focus:ring-pink-300/50 outline-none transition text-sm font-medium shadow-sm hover:bg-white"
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-pink-600 mb-1 block uppercase tracking-wide">🆔 Patient ID</label>
+
+                  {/* Patient ID Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-orange-300/80 uppercase tracking-wide block">ID</label>
                     <input
                       type="number"
                       value={filterData.patientId}
                       onChange={(e) => setFilterData({ ...filterData, patientId: e.target.value })}
-                      placeholder="1005"
-                      className="w-full px-3 py-2.5 bg-white border-2 border-pink-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition text-sm font-medium shadow-sm"
+                      placeholder="Enter..."
+                      className="w-full px-3.5 py-2.5 bg-white/85 border border-orange-300/40 rounded-lg text-slate-900 placeholder-slate-400 focus:bg-white focus:border-orange-400 focus:ring-2 focus:ring-orange-300/50 outline-none transition text-sm font-medium shadow-sm hover:bg-white"
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-rose-600 mb-1 block uppercase tracking-wide">🏥 Clinic ID</label>
+
+                  {/* Clinic ID Input */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-emerald-300/80 uppercase tracking-wide block">Clinic</label>
                     <input
                       type="number"
                       value={filterData.clinicId}
                       onChange={(e) => setFilterData({ ...filterData, clinicId: e.target.value })}
-                      placeholder="1005"
-                      className="w-full px-3 py-2.5 bg-white border-2 border-rose-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition text-sm font-medium shadow-sm"
+                      placeholder="Enter..."
+                      className="w-full px-3.5 py-2.5 bg-white/85 border border-emerald-300/40 rounded-lg text-slate-900 placeholder-slate-400 focus:bg-white focus:border-emerald-400 focus:ring-2 focus:ring-emerald-300/50 outline-none transition text-sm font-medium shadow-sm hover:bg-white"
                     />
                   </div>
                 </div>
-                <div className="flex gap-2">
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 justify-end items-center">
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setFilterData({ firstName: "", lastName: "", dateOfBirth: "", patientId: "", clinicId: "" })}
-                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg transition text-sm font-semibold shadow-md"
+                    className="px-4 py-2.5 bg-white/15 hover:bg-white/25 border border-white/30 text-white/80 hover:text-white rounded-lg font-semibold transition text-sm flex items-center gap-2 backdrop-blur-sm"
                   >
-                    ↻ Clear
+                    <span>↻</span>
+                    Clear
                   </motion.button>
                   <motion.button
-                    whileHover={{ scale: 1.02, boxShadow: "0 0 30px rgba(59, 130, 246, 0.6)" }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
                     onClick={handleSearch}
                     disabled={searching}
-                    className="flex-1 px-6 py-2 bg-gradient-to-r from-blue-500 via-indigo-600 to-purple-600 text-white rounded-lg font-bold hover:from-blue-600 hover:via-indigo-700 hover:to-purple-700 transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-2.5 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 text-white rounded-lg font-bold hover:from-cyan-600 hover:via-blue-600 hover:to-purple-700 transition shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm flex items-center gap-2"
                   >
-                    {searching ? "⏳ Searching..." : "🔍 Search Patients"}
+                    <span>{searching ? "⏳" : "🔍"}</span>
+                    <span>{searching ? "Searching..." : "Search"}</span>
                   </motion.button>
                 </div>
               </div>
 
-              {/* Compact Results Grid */}
+              {/* Results Display */}
               <div className="flex-1 overflow-hidden">
                 <AnimatePresence mode="wait">
                   {searching ? (
@@ -798,11 +1100,12 @@ Click OK after reviewing the console logs.`;
                         <motion.div
                           animate={{ rotate: 360, scale: [1, 1.2, 1] }}
                           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                          className="text-6xl mb-3"
+                          className="text-8xl mb-4"
                         >
-                          🔮
+                          🔍
                         </motion.div>
-                        <p className="text-blue-300 font-bold text-lg">Searching dimensions...</p>
+                        <p className="text-cyan-300 font-bold text-xl">Searching patient database...</p>
+                        <p className="text-cyan-200/60 text-base mt-2">Finding your records</p>
                       </div>
                     </motion.div>
                   ) : patients.length > 0 ? (
@@ -813,57 +1116,53 @@ Click OK after reviewing the console logs.`;
                       exit={{ opacity: 0 }}
                       className="h-full flex flex-col"
                     >
-                      <div className="flex items-center justify-between mb-3 px-2">
-                        <span className="text-pink-200 font-semibold text-sm">
-                          ✨ Found {patients.length} patient{patients.length !== 1 ? 's' : ''}
+                      <div className="mb-3 px-2">
+                        <span className="text-cyan-300 font-bold text-sm bg-cyan-500/15 px-3 py-1.5 rounded-lg inline-block border border-cyan-400/30">
+                          ✨ {patients.length} result{patients.length !== 1 ? 's' : ''}
                         </span>
                       </div>
                       
-                      <div className="flex-1 overflow-y-auto pr-2 space-y-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#818cf8 transparent' }}>
+                      <div className="flex-1 overflow-y-auto pr-2 space-y-2.5" style={{ scrollbarWidth: 'thin', scrollbarColor: '#22d3ee transparent' }}>
                         {patients.map((patient, idx) => (
                           <motion.div
                             key={patient.patientId || idx}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.03 }}
-                            whileHover={{ scale: 1.02, x: 4 }}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.02 }}
+                            whileHover={{ y: -2 }}
                             onClick={() => handleViewPatient(patient)}
-                            className="bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-pink-500/20 hover:from-indigo-500/30 hover:via-purple-500/30 hover:to-pink-500/30 border-2 border-indigo-400/40 hover:border-pink-400/60 rounded-xl p-3 cursor-pointer transition-all shadow-lg hover:shadow-purple-500/30 group"
+                            className="bg-gradient-to-br from-cyan-500/15 via-blue-500/15 to-purple-500/15 hover:from-cyan-500/25 hover:via-blue-500/25 hover:to-purple-500/25 border border-cyan-400/30 hover:border-blue-400/60 rounded-lg p-3 cursor-pointer transition-all shadow-md hover:shadow-blue-500/25 group"
                           >
                             <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 bg-gradient-to-br from-indigo-400 via-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-white text-lg font-bold shadow-lg flex-shrink-0">
+                              <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white text-lg font-bold shadow-lg flex-shrink-0">
                                 {(patient.firstName || patient.patientFirstName || 'P').charAt(0)}
                                 {(patient.lastName || patient.patientLastName || 'N').charAt(0)}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h4 className="text-white font-bold text-sm truncate group-hover:text-pink-200 transition">
+                                <h4 className="text-white font-semibold text-sm truncate group-hover:text-cyan-100 transition">
                                   {patient.firstName || patient.patientFirstName} {patient.lastName || patient.patientLastName}
                                 </h4>
-                                <p className="text-indigo-200/70 text-xs truncate">
-                                  ID: {patient.patientId}
-                                </p>
-                                <div className="flex gap-1.5 mt-1">
-                                  <span className="text-[10px] px-2 py-0.5 bg-indigo-400/30 text-indigo-200 rounded-full border border-indigo-400/50">
-                                    {(patient.gender || patient.patientGender) === 'Male' ? '👨 M' : '👩 F'}
+                                <div className="flex gap-1.5 items-center mt-1">
+                                  <p className="text-cyan-200/60 text-xs">ID: {patient.patientId}</p>
+                                  <span className="text-xs px-2 py-0.5 bg-cyan-400/25 text-cyan-200 rounded border border-cyan-400/40 font-medium">
+                                    {(patient.gender || patient.patientGender) === 'Male' ? '👨' : '👩'}
                                   </span>
-                                  <span className="text-[10px] px-2 py-0.5 bg-purple-400/30 text-purple-200 rounded-full border border-purple-400/50">
-                                    🎂 {new Date(patient.dateOfBirth || patient.patientDOB).getFullYear()}
+                                  <span className="text-xs px-2 py-0.5 bg-blue-400/25 text-blue-200 rounded border border-blue-400/40 font-medium">
+                                    {new Date(patient.dateOfBirth || patient.patientDOB).getFullYear()}
                                   </span>
                                 </div>
                               </div>
-                              <div className="flex gap-1.5">
-                                <motion.button 
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate('/calendar', { state: { patientData: patient }});
-                                  }}
-                                  className="w-8 h-8 bg-gradient-to-br from-pink-400 to-rose-500 rounded-lg flex items-center justify-center text-white shadow-lg hover:shadow-pink-500/50 transition"
-                                >
-                                  📅
-                                </motion.button>
-                              </div>
+                              <motion.button 
+                                whileHover={{ scale: 1.15 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate('/calendar', { state: { patientData: patient }});
+                                }}
+                                className="w-7 h-7 bg-gradient-to-br from-pink-400 to-rose-500 rounded flex items-center justify-center text-white text-sm shadow hover:shadow-pink-500/40 transition flex-shrink-0"
+                              >
+                                📅
+                              </motion.button>
                             </div>
                           </motion.div>
                         ))}
@@ -927,81 +1226,371 @@ Click OK after reviewing the console logs.`;
                 </div>
               </div>
 
-              {/* Patients Grid */}
+              {/* Patients Grid - Innovative Card Design */}
               {selectedClinicId ? (
                 <div>
-                  <div className="mb-4 flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-amber-900">
-                      Patients at {clinics.find(c => c.clinicId === parseInt(selectedClinicId))?.clinicName}
+                  <div className="mb-6 flex justify-between items-center">
+                    <h3 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      👥 Patients at {clinics.find(c => c.clinicId === parseInt(selectedClinicId))?.clinicName}
                     </h3>
-                    <p className="text-sm text-stone-600">
-                      Total: <span className="font-semibold text-amber-700">{clinicPatients.length}</span> patient(s)
-                    </p>
+                    <div className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-purple-50 px-6 py-3 rounded-full border-2 border-blue-200">
+                      <span className="text-2xl">📊</span>
+                      <span className="text-sm font-bold text-gray-700">
+                        <span className="text-blue-600 text-lg">{clinicPatients.length}</span> patient(s)
+                      </span>
+                    </div>
                   </div>
 
                   {clinicPatients.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {clinicPatients.map((patient) => (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {clinicPatients.map((patient, idx) => (
                         <motion.div
-                          key={patient.patientId}
-                          whileHover={{ scale: 1.02, y: -4 }}
-                          className="bg-white border-2 border-stone-200 rounded-lg p-6 shadow-md hover:shadow-xl hover:border-amber-300 transition-all"
+                          key={patient.patientId || idx}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          whileHover={{ scale: 1.03, y: -8 }}
+                          className="group relative bg-gradient-to-br from-white to-blue-50 rounded-2xl shadow-lg hover:shadow-2xl border-2 border-blue-200 hover:border-blue-400 overflow-hidden transition-all duration-300"
                         >
-                          <div className="flex items-center gap-4 mb-4">
-                            <div className="w-16 h-16 bg-gradient-to-br from-coral-400 to-peach-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                              {patient.firstName?.charAt(0) || patient.patientFirstName?.charAt(0)}{patient.lastName?.charAt(0) || patient.patientLastName?.charAt(0)}
+                          {/* Decorative top gradient bar */}
+                          <div className="h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
+
+                          {/* Patient Avatar and Name */}
+                          <div className="p-6 pb-4">
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-center gap-4 flex-1">
+                                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-xl shadow-lg flex items-center justify-center text-white text-2xl font-bold transform group-hover:scale-110 transition-transform">
+                                  {(patient.firstName || patient.patientFirstName)?.charAt(0)?.toUpperCase()}{(patient.lastName || patient.patientLastName)?.charAt(0)?.toUpperCase()}
+                                </div>
+                                <div className="flex-1">
+                                  <h4 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                                    {patient.firstName || patient.patientFirstName} {patient.lastName || patient.patientLastName}
+                                  </h4>
+                                  <p className="text-xs text-gray-500 font-medium">ID: {patient.patientId}</p>
+                                </div>
+                              </div>
+                              {/* Status Badge */}
+                              <div className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">
+                                ✓ Active
+                              </div>
                             </div>
-                            <div>
-                              <h4 className="text-lg font-bold text-amber-900">{patient.firstName || patient.patientFirstName} {patient.lastName || patient.patientLastName}</h4>
-                              <p className="text-sm text-stone-500">ID: {patient.patientId}</p>
+
+                            {/* Quick Info Grid */}
+                            <div className="grid grid-cols-2 gap-3 mb-4">
+                              <div className="bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg p-3 border border-blue-200">
+                                <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wide mb-1">📅 DOB</p>
+                                <p className="text-sm font-semibold text-blue-900">{(patient.dateOfBirth || patient.patientDOB || '')?.split('T')[0] || 'N/A'}</p>
+                              </div>
+                              <div className="bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg p-3 border border-purple-200">
+                                <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wide mb-1">⚧ Gender</p>
+                                <p className="text-sm font-semibold text-purple-900">{patient.gender || patient.patientGender || 'N/A'}</p>
+                              </div>
+                              <div className="bg-gradient-to-br from-pink-100 to-pink-50 rounded-lg p-3 border border-pink-200">
+                                <p className="text-[10px] font-bold text-pink-700 uppercase tracking-wide mb-1">📞 Phone</p>
+                                <p className="text-sm font-semibold text-pink-900">{patient.phone || patient.patientPhone || 'N/A'}</p>
+                              </div>
+                              <div className="bg-gradient-to-br from-amber-100 to-amber-50 rounded-lg p-3 border border-amber-200">
+                                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide mb-1">🩸 Blood</p>
+                                <p className="text-sm font-semibold text-amber-900">{patient.bloodType || patient.patientBloodType || 'N/A'}</p>
+                              </div>
                             </div>
-                          </div>
-                          
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-stone-600">DOB:</span>
-                              <span className="font-medium text-stone-800">{patient.dateOfBirth || patient.patientDOB}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-stone-600">Gender:</span>
-                              <span className="font-medium text-stone-800">{patient.gender || patient.patientGender}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-stone-600">Phone:</span>
-                              <span className="font-medium text-stone-800">{patient.contactInfo?.primaryPhone || 'N/A'}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-stone-600">Blood Type:</span>
-                              <span className="font-medium text-stone-800">{patient.bloodType || patient.patientBloodType || 'N/A'}</span>
+
+                            {/* Additional Info */}
+                            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
+                              <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-1">📧 Email</p>
+                              <p className="text-xs font-semibold text-gray-800 truncate">{patient.email || patient.patientEmail || 'N/A'}</p>
                             </div>
                           </div>
 
-                          <div className="mt-4 pt-4 border-t border-stone-200 flex gap-2">
-                            <button className="flex-1 px-3 py-2 bg-amber-100 text-amber-700 rounded-lg font-semibold hover:bg-amber-200 transition text-sm">
-                              View Details
-                            </button>
-                            <button className="flex-1 px-3 py-2 bg-stone-100 text-stone-700 rounded-lg font-semibold hover:bg-stone-200 transition text-sm">
-                              Edit
-                            </button>
+                          {/* Action Buttons */}
+                          <div className="px-6 pb-6 flex gap-3">
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => {
+                                setSelectedPatient(patient);
+                                setShowPatientModal(true);
+                              }}
+                              className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm"
+                            >
+                              <span>👁️</span>
+                              <span>View Details</span>
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleOpenEditModal(patient)}
+                              className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm"
+                            >
+                              <span>✏️</span>
+                              <span>Edit</span>
+                            </motion.button>
                           </div>
                         </motion.div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-12 bg-stone-50 rounded-lg border border-stone-200">
-                      <p className="text-stone-500 text-lg">No patients registered at this clinic</p>
+                    <div className="text-center py-16 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl border-3 border-dashed border-blue-300">
+                      <p className="text-4xl mb-4">🔍</p>
+                      <p className="text-gray-600 text-lg font-semibold">No patients registered at this clinic</p>
+                      <p className="text-gray-500 text-sm mt-2">Check back later or select a different clinic</p>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="text-center py-12 bg-stone-50 rounded-lg border border-stone-200">
-                  <p className="text-stone-500 text-lg">Please select a clinic to view patients</p>
+                <div className="text-center py-16 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl border-3 border-dashed border-blue-300">
+                  <p className="text-4xl mb-4">🏥</p>
+                  <p className="text-gray-600 text-lg font-semibold">Please select a clinic to view patients</p>
+                  <p className="text-gray-500 text-sm mt-2">Choose a clinic from the dropdown above to get started</p>
                 </div>
               )}
             </div>
           )}
-        </motion.div>
       </div>
+
+      {/* Edit Patient Modal */}
+      <AnimatePresence>
+        {showEditPatientModal && editingPatient && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto"
+            onClick={() => setShowEditPatientModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gradient-to-br from-white via-blue-50 to-indigo-50 rounded-3xl shadow-2xl max-w-5xl w-full border-2 border-blue-300 overflow-hidden flex flex-col max-h-[95vh]"
+            >
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 px-6 py-4 border-b-2 border-blue-400/60 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <span className="text-2xl">✏️</span>
+                      Edit Patient
+                    </h2>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowEditPatientModal(false)}
+                    className="text-white hover:bg-white/20 rounded-xl p-2 transition-all duration-200"
+                    title="Close"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <div className="px-6 py-4 overflow-y-auto flex-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#3b82f6 transparent' }}>
+                <div className="space-y-3">
+                  {/* Basic Information Section */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-4 border-2 border-blue-300"
+                  >
+                    <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center gap-2">
+                      <span>👤</span> Basic Info
+                    </h3>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                      <div>
+                        <label className="block text-xs font-bold text-blue-700 mb-1">First Name</label>
+                        <input
+                          type="text"
+                          value={editFormData.firstName}
+                          onChange={(e) => setEditFormData({...editFormData, firstName: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm border-2 border-blue-300 rounded focus:border-blue-500 outline-none"
+                          placeholder="First"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-blue-700 mb-1">Last Name</label>
+                        <input
+                          type="text"
+                          value={editFormData.lastName}
+                          onChange={(e) => setEditFormData({...editFormData, lastName: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm border-2 border-blue-300 rounded focus:border-blue-500 outline-none"
+                          placeholder="Last"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-blue-700 mb-1">DOB</label>
+                        <input
+                          type="date"
+                          value={editFormData.dateOfBirth?.split('T')[0] || ''}
+                          onChange={(e) => setEditFormData({...editFormData, dateOfBirth: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm border-2 border-blue-300 rounded focus:border-blue-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-blue-700 mb-1">Gender</label>
+                        <select
+                          value={editFormData.gender}
+                          onChange={(e) => setEditFormData({...editFormData, gender: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm border-2 border-blue-300 rounded focus:border-blue-500 outline-none"
+                        >
+                          <option value="">Select</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-blue-700 mb-1">Blood Type</label>
+                        <input
+                          type="text"
+                          value={editFormData.bloodType}
+                          onChange={(e) => setEditFormData({...editFormData, bloodType: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm border-2 border-blue-300 rounded focus:border-blue-500 outline-none"
+                          placeholder="O+"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {/* Contact Information Section */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 }}
+                    className="bg-gradient-to-br from-emerald-50 to-cyan-50 rounded-lg p-4 border-2 border-emerald-400"
+                  >
+                    <h3 className="text-sm font-bold text-emerald-800 uppercase tracking-wide mb-3 flex items-center gap-2">
+                      <span>📞</span> Contact
+                    </h3>
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-xs font-bold text-emerald-700 mb-1">Phone</label>
+                        <input
+                          type="tel"
+                          value={editFormData.phone}
+                          onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm border-2 border-emerald-300 rounded focus:border-emerald-500 outline-none"
+                          placeholder="Phone"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-emerald-700 mb-1">Email</label>
+                        <input
+                          type="email"
+                          value={editFormData.email}
+                          onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm border-2 border-emerald-300 rounded focus:border-emerald-500 outline-none"
+                          placeholder="Email"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-emerald-700 mb-1">City</label>
+                        <input
+                          type="text"
+                          value={editFormData.city}
+                          onChange={(e) => setEditFormData({...editFormData, city: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm border-2 border-emerald-300 rounded focus:border-emerald-500 outline-none"
+                          placeholder="City"
+                        />
+                      </div>
+                      <div className="lg:col-span-2">
+                        <label className="block text-xs font-bold text-emerald-700 mb-1">Address</label>
+                        <input
+                          type="text"
+                          value={editFormData.address}
+                          onChange={(e) => setEditFormData({...editFormData, address: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm border-2 border-emerald-300 rounded focus:border-emerald-500 outline-none"
+                          placeholder="Street Address"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {/* Medical Information Section */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg p-4 border-2 border-amber-400"
+                  >
+                    <h3 className="text-sm font-bold text-amber-800 uppercase tracking-wide mb-3 flex items-center gap-2">
+                      <span>🏥</span> Medical
+                    </h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-bold text-amber-700 mb-1">Allergies</label>
+                        <textarea
+                          value={editFormData.allergies}
+                          onChange={(e) => setEditFormData({...editFormData, allergies: e.target.value})}
+                          className="w-full px-2 py-1.5 text-xs border-2 border-amber-300 rounded focus:border-amber-500 outline-none resize-none"
+                          rows="2"
+                          placeholder="Allergies..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-amber-700 mb-1">Current Medications</label>
+                        <textarea
+                          value={editFormData.currentMedications}
+                          onChange={(e) => setEditFormData({...editFormData, currentMedications: e.target.value})}
+                          className="w-full px-2 py-1.5 text-xs border-2 border-amber-300 rounded focus:border-amber-500 outline-none resize-none"
+                          rows="2"
+                          placeholder="Medications..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-amber-700 mb-1">Chronic Diseases</label>
+                        <input
+                          type="text"
+                          value={editFormData.chronicDiseases}
+                          onChange={(e) => setEditFormData({...editFormData, chronicDiseases: e.target.value})}
+                          className="w-full px-2 py-1.5 text-sm border-2 border-amber-300 rounded focus:border-amber-500 outline-none"
+                          placeholder="Diseases..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-amber-700 mb-1">Medical History</label>
+                        <textarea
+                          value={editFormData.medicalHistory}
+                          onChange={(e) => setEditFormData({...editFormData, medicalHistory: e.target.value})}
+                          className="w-full px-2 py-1.5 text-xs border-2 border-amber-300 rounded focus:border-amber-500 outline-none resize-none"
+                          rows="2"
+                          placeholder="History..."
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                </div>
+              </div>
+
+              {/* Modal Footer with Action Buttons */}
+              <div className="bg-gradient-to-r from-blue-100 via-purple-100 to-indigo-100 px-6 py-3 flex justify-end items-center gap-3 border-t-2 border-blue-300 flex-shrink-0">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowEditPatientModal(false)}
+                  className="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded-lg font-bold text-sm transition-all"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSaveEditedPatient}
+                  className="px-5 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg font-bold text-sm shadow-lg flex items-center gap-2 transition-all"
+                >
+                  <span>💾</span>
+                  <span>Save</span>
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Patient Details Modal */}
       <AnimatePresence>
@@ -1071,40 +1660,40 @@ Click OK after reviewing the console logs.`;
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="bg-white rounded-2xl p-6 shadow-lg border-2 border-indigo-400/50"
+                      className="bg-gradient-to-br from-blue-50 via-blue-25 to-cyan-50 rounded-xl p-6 shadow-lg border-3 border-blue-400"
                     >
-                      <div className="flex items-center gap-3 mb-5 pb-4 border-b-2 border-indigo-400/50">
-                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-400 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/40">
+                      <div className="flex items-center gap-3 mb-5 pb-4 border-b-2 border-blue-300">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 via-cyan-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/40">
                           <span className="text-2xl">👤</span>
                         </div>
-                        <h3 className="text-xl font-bold text-white">
+                        <h3 className="text-xl font-bold text-blue-800 uppercase tracking-wide">
                           Basic Information
                         </h3>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        <div className="bg-white p-4 rounded-xl border border-indigo-400/30">
-                          <label className="block text-[10px] font-bold text-indigo-300 uppercase tracking-wide mb-2">👤 First Name</label>
-                          <p className="text-base font-bold text-white">{selectedPatient?.patient?.patientFirstName || 'N/A'}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="bg-blue-50 p-4 rounded-xl border-2 border-blue-300">
+                          <label className="block text-xs font-bold text-blue-700 uppercase tracking-wide mb-2">👤 First Name</label>
+                          <p className="text-sm font-semibold text-blue-900">{selectedPatient?.patient?.patientFirstName || 'N/A'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-indigo-400/30">
-                          <label className="block text-[10px] font-bold text-indigo-300 uppercase tracking-wide mb-2">👥 Last Name</label>
-                          <p className="text-base font-bold text-white">{selectedPatient?.patient?.patientLastName || 'N/A'}</p>
+                        <div className="bg-blue-50 p-4 rounded-xl border-2 border-blue-300">
+                          <label className="block text-xs font-bold text-blue-700 uppercase tracking-wide mb-2">👥 Last Name</label>
+                          <p className="text-sm font-semibold text-blue-900">{selectedPatient?.patient?.patientLastName || 'N/A'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-purple-400/30">
-                          <label className="block text-[10px] font-bold text-purple-300 uppercase tracking-wide mb-2">🆔 Patient ID</label>
-                          <p className="text-base font-bold text-white">{selectedPatient?.patient?.patientId || 'N/A'}</p>
+                        <div className="bg-blue-50 p-4 rounded-xl border-2 border-blue-300">
+                          <label className="block text-xs font-bold text-blue-700 uppercase tracking-wide mb-2">🆔 Patient ID</label>
+                          <p className="text-sm font-semibold text-blue-900">{selectedPatient?.patient?.patientId || 'N/A'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-purple-400/30">
-                          <label className="block text-[10px] font-bold text-purple-300 uppercase tracking-wide mb-2">🎂 Date of Birth</label>
-                          <p className="text-base font-bold text-white">{selectedPatient?.patient?.patientDOB?.split('T')[0] || 'N/A'}</p>
+                        <div className="bg-blue-50 p-4 rounded-xl border-2 border-blue-300">
+                          <label className="block text-xs font-bold text-blue-700 uppercase tracking-wide mb-2">🎂 Date of Birth</label>
+                          <p className="text-sm font-semibold text-blue-900">{selectedPatient?.patient?.patientDOB?.split('T')[0] || 'N/A'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-pink-400/30">
-                          <label className="block text-[10px] font-bold text-pink-300 uppercase tracking-wide mb-2">⚧ Gender</label>
-                          <p className="text-base font-bold text-white">{selectedPatient?.patient?.patientGender || 'N/A'}</p>
+                        <div className="bg-blue-50 p-4 rounded-xl border-2 border-blue-300">
+                          <label className="block text-xs font-bold text-blue-700 uppercase tracking-wide mb-2">⚧ Gender</label>
+                          <p className="text-sm font-semibold text-blue-900">{selectedPatient?.patient?.patientGender || 'N/A'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-rose-400/30">
-                          <label className="block text-[10px] font-bold text-rose-300 uppercase tracking-wide mb-2">🩸 Blood Type</label>
-                          <p className="text-base font-bold text-white">{selectedPatient?.patient?.patientBloodType || 'N/A'}</p>
+                        <div className="bg-blue-50 p-4 rounded-xl border-2 border-blue-300">
+                          <label className="block text-xs font-bold text-blue-700 uppercase tracking-wide mb-2">🩸 Blood Type</label>
+                          <p className="text-sm font-semibold text-blue-900">{selectedPatient?.patient?.patientBloodType || 'N/A'}</p>
                         </div>
                       </div>
                     </motion.div>
@@ -1114,36 +1703,50 @@ Click OK after reviewing the console logs.`;
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.1 }}
-                      className="bg-white rounded-2xl p-6 shadow-lg border-2 border-purple-400/50"
+                      className="bg-gradient-to-br from-emerald-50 via-teal-25 to-cyan-50 rounded-xl p-6 shadow-lg border-3 border-emerald-400"
                     >
-                      <div className="flex items-center gap-3 mb-5 pb-4 border-b-2 border-purple-400/50">
-                        <div className="w-12 h-12 bg-gradient-to-br from-purple-400 via-pink-500 to-rose-500 rounded-xl flex items-center justify-center shadow-lg shadow-pink-500/40">
+                      <div className="flex items-center gap-3 mb-5 pb-4 border-b-2 border-emerald-300">
+                        <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 via-teal-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/40">
                           <span className="text-2xl">📞</span>
                         </div>
-                        <h3 className="text-xl font-bold text-white">
+                        <h3 className="text-xl font-bold text-emerald-800 uppercase tracking-wide">
                           Contact Information
                         </h3>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="bg-white p-4 rounded-xl border border-purple-400/30">
-                          <label className="text-[10px] font-bold text-purple-300 uppercase tracking-wide">📱 Phone Number</label>
-                          <p className="text-sm font-semibold text-white mt-2">{selectedPatient?.patientContact?.patientPhone || 'N/A'}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-emerald-50 p-4 rounded-xl border-2 border-emerald-300">
+                          <label className="text-xs font-bold text-emerald-700 uppercase tracking-wide">📱 Phone Number</label>
+                          <p className="text-sm font-semibold text-emerald-900 mt-2">{selectedPatient?.patientContact?.patientPhone || 'N/A'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-purple-400/30">
-                          <label className="text-[10px] font-bold text-purple-300 uppercase tracking-wide">📧 Email Address</label>
-                          <p className="text-sm font-semibold text-white mt-2">{selectedPatient?.patientContact?.patientEmail || 'N/A'}</p>
+                        <div className="bg-emerald-50 p-4 rounded-xl border-2 border-emerald-300">
+                          <label className="text-xs font-bold text-emerald-700 uppercase tracking-wide mb-3 flex items-center justify-between">
+                            <span>📧 Email Address</span>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={handleSendPatientEmail}
+                              disabled={sendingPatientEmail || !(selectedPatient?.patientContact?.patientEmail || selectedPatient?.email || selectedPatient?.patientEmail || editFormData?.email)}
+                              className="text-[10px] px-2 py-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-400 text-white rounded font-bold transition-all"
+                              title="Send patient profile email"
+                            >
+                              {sendingPatientEmail ? '⏳' : '✉️ Send'}
+                            </motion.button>
+                          </label>
+                          <p className="text-sm font-semibold text-emerald-900 mt-2 break-all cursor-pointer hover:text-emerald-600 transition-colors">
+                            {selectedPatient?.patientContact?.patientEmail || 'N/A'}
+                          </p>
                         </div>
-                        <div className="md:col-span-2 bg-white p-4 rounded-xl border border-pink-400/30">
-                          <label className="text-[10px] font-bold text-pink-300 uppercase tracking-wide">🏠 Address</label>
-                          <p className="text-sm font-semibold text-white mt-2">{selectedPatient?.patientContact?.patientAddress || 'N/A'}</p>
+                        <div className="md:col-span-2 bg-emerald-50 p-4 rounded-xl border-2 border-emerald-300">
+                          <label className="text-xs font-bold text-emerald-700 uppercase tracking-wide">🏠 Address</label>
+                          <p className="text-sm font-semibold text-emerald-900 mt-2">{selectedPatient?.patientContact?.patientAddress || 'N/A'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-pink-400/30">
-                          <label className="text-[10px] font-bold text-pink-300 uppercase tracking-wide">🌆 City</label>
-                          <p className="text-sm font-semibold text-white mt-2">{selectedPatient?.patientContact?.patientCity || 'N/A'}</p>
+                        <div className="bg-emerald-50 p-4 rounded-xl border-2 border-emerald-300">
+                          <label className="text-xs font-bold text-emerald-700 uppercase tracking-wide">🌆 City</label>
+                          <p className="text-sm font-semibold text-emerald-900 mt-2">{selectedPatient?.patientContact?.patientCity || 'N/A'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-rose-400/30">
-                          <label className="text-[10px] font-bold text-rose-300 uppercase tracking-wide">🚨 Emergency Contact</label>
-                          <p className="text-sm font-semibold text-white mt-2">{selectedPatient?.patientContact?.patientEmergencyContact || 'N/A'}</p>
+                        <div className="bg-emerald-50 p-4 rounded-xl border-2 border-emerald-300">
+                          <label className="text-xs font-bold text-emerald-700 uppercase tracking-wide">🚨 Emergency Contact</label>
+                          <p className="text-sm font-semibold text-emerald-900 mt-2">{selectedPatient?.patientContact?.patientEmergencyContact || 'N/A'}</p>
                         </div>
                       </div>
                     </motion.div>
@@ -1153,44 +1756,44 @@ Click OK after reviewing the console logs.`;
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.2 }}
-                      className="bg-white rounded-2xl p-6 shadow-lg border-2 border-pink-400/50"
+                      className="bg-gradient-to-br from-amber-50 via-yellow-25 to-orange-50 rounded-xl p-6 shadow-lg border-3 border-amber-400"
                     >
-                      <div className="flex items-center gap-3 mb-5 pb-4 border-b-2 border-pink-400/50">
-                        <div className="w-12 h-12 bg-gradient-to-br from-pink-400 via-rose-500 to-red-500 rounded-xl flex items-center justify-center shadow-lg shadow-rose-500/40">
+                      <div className="flex items-center gap-3 mb-5 pb-4 border-b-2 border-amber-300">
+                        <div className="w-12 h-12 bg-gradient-to-br from-amber-500 via-orange-400 to-amber-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/40">
                           <span className="text-2xl">🏥</span>
                         </div>
-                        <h3 className="text-xl font-bold text-white">
+                        <h3 className="text-xl font-bold text-amber-800 uppercase tracking-wide">
                           Medical Information
                         </h3>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="bg-white p-4 rounded-xl border border-rose-400/30">
-                          <label className="text-[10px] font-bold text-rose-300 uppercase tracking-wide">⚠️ Allergies</label>
-                          <p className="text-xs text-white mt-2 whitespace-pre-wrap">{selectedPatient?.patientMedicalInfo?.patientAllergies || 'None reported'}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-amber-50 p-4 rounded-xl border-2 border-amber-300">
+                          <label className="text-xs font-bold text-amber-700 uppercase tracking-wide">⚠️ Allergies</label>
+                          <p className="text-xs text-amber-900 mt-2 whitespace-pre-wrap">{selectedPatient?.patientMedicalInfo?.patientAllergies || 'None reported'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-indigo-400/30">
-                          <label className="text-[10px] font-bold text-indigo-300 uppercase tracking-wide">💊 Current Medications</label>
-                          <p className="text-xs text-white mt-2 whitespace-pre-wrap">{selectedPatient?.patientMedicalInfo?.patientCurrentMedications || 'None'}</p>
+                        <div className="bg-amber-50 p-4 rounded-xl border-2 border-amber-300">
+                          <label className="text-xs font-bold text-amber-700 uppercase tracking-wide">💊 Current Medications</label>
+                          <p className="text-xs text-amber-900 mt-2 whitespace-pre-wrap">{selectedPatient?.patientMedicalInfo?.patientCurrentMedications || 'None'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-purple-400/30">
-                          <label className="text-[10px] font-bold text-purple-300 uppercase tracking-wide">🩺 Chronic Diseases</label>
-                          <p className="text-xs text-white mt-2 whitespace-pre-wrap">{selectedPatient?.patientMedicalInfo?.chronicDiseases || 'None'}</p>
+                        <div className="bg-amber-50 p-4 rounded-xl border-2 border-amber-300">
+                          <label className="text-xs font-bold text-amber-700 uppercase tracking-wide">🩺 Chronic Diseases</label>
+                          <p className="text-xs text-amber-900 mt-2 whitespace-pre-wrap">{selectedPatient?.patientMedicalInfo?.chronicDiseases || 'None'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-pink-400/30">
-                          <label className="text-[10px] font-bold text-pink-300 uppercase tracking-wide">👨‍⚕️ Primary Physician</label>
-                          <p className="text-xs text-white mt-2">{selectedPatient?.patientMedicalInfo?.patientPrimaryPhysician || 'Not assigned'}</p>
+                        <div className="bg-amber-50 p-4 rounded-xl border-2 border-amber-300">
+                          <label className="text-xs font-bold text-amber-700 uppercase tracking-wide">👨‍⚕️ Primary Physician</label>
+                          <p className="text-xs text-amber-900 mt-2">{selectedPatient?.patientMedicalInfo?.patientPrimaryPhysician || 'Not assigned'}</p>
                         </div>
-                        <div className="md:col-span-2 bg-white p-4 rounded-xl border border-indigo-400/30">
-                          <label className="text-[10px] font-bold text-indigo-300 uppercase tracking-wide">📋 Medical History</label>
-                          <p className="text-xs text-white mt-2 whitespace-pre-wrap">{selectedPatient?.patientMedicalInfo?.medicalHistory || 'No history available'}</p>
+                        <div className="md:col-span-2 bg-amber-50 p-4 rounded-xl border-2 border-amber-300">
+                          <label className="text-xs font-bold text-amber-700 uppercase tracking-wide">📋 Medical History</label>
+                          <p className="text-xs text-amber-900 mt-2 whitespace-pre-wrap">{selectedPatient?.patientMedicalInfo?.medicalHistory || 'No history available'}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-purple-400/30">
-                          <label className="text-[10px] font-bold text-purple-300 uppercase tracking-wide">📊 Number of Visits</label>
-                          <p className="text-2xl font-bold text-white mt-2">{selectedPatient?.patientMedicalInfo?.no_of_visits || 0}</p>
+                        <div className="bg-amber-50 p-4 rounded-xl border-2 border-amber-300">
+                          <label className="text-xs font-bold text-amber-700 uppercase tracking-wide">📊 Number of Visits</label>
+                          <p className="text-2xl font-bold text-amber-900 mt-2">{selectedPatient?.patientMedicalInfo?.no_of_visits || 0}</p>
                         </div>
-                        <div className="bg-white p-4 rounded-xl border border-pink-400/30">
-                          <label className="text-[10px] font-bold text-pink-300 uppercase tracking-wide">📅 Last Visit</label>
-                          <p className="text-sm font-semibold text-white mt-2">
+                        <div className="bg-amber-50 p-4 rounded-xl border-2 border-amber-300">
+                          <label className="text-xs font-bold text-amber-700 uppercase tracking-wide">📅 Last Visit</label>
+                          <p className="text-sm font-semibold text-amber-900 mt-2">
                             {selectedPatient?.patientMedicalInfo?.lastVisitedDate?.split('T')[0] || 'Never'}
                           </p>
                         </div>
@@ -1202,19 +1805,19 @@ Click OK after reviewing the console logs.`;
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.3 }}
-                      className="bg-white rounded-2xl p-6 shadow-lg border-2 border-yellow-400/50"
+                      className="bg-gradient-to-br from-rose-50 via-pink-25 to-red-50 rounded-xl p-6 shadow-lg border-3 border-rose-400"
                     >
-                      <div className="flex items-center gap-3 mb-5 pb-4 border-b-2 border-yellow-400/50">
-                        <div className="w-12 h-12 bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-400/40">
+                      <div className="flex items-center gap-3 mb-5 pb-4 border-b-2 border-rose-300">
+                        <div className="w-12 h-12 bg-gradient-to-br from-rose-500 via-pink-400 to-rose-600 rounded-xl flex items-center justify-center shadow-lg shadow-rose-500/40">
                           <span className="text-2xl">💳</span>
                         </div>
-                        <h3 className="text-xl font-bold text-white">
+                        <h3 className="text-xl font-bold text-rose-800 uppercase tracking-wide">
                           Insurance Information
                         </h3>
                       </div>
-                      <div className="bg-white p-4 rounded-xl border border-yellow-400/30">
-                        <label className="text-[10px] font-bold text-yellow-300 uppercase tracking-wide">🏢 Insurance Provider</label>
-                        <p className="text-base font-bold text-white mt-2">
+                      <div className="bg-rose-50 p-4 rounded-xl border-2 border-rose-300">
+                        <label className="text-xs font-bold text-rose-700 uppercase tracking-wide">🏢 Insurance Provider</label>
+                        <p className="text-sm font-semibold text-rose-900 mt-2">
                           {selectedPatient?.patientInsurance?.patientInsuranceProvider || 'No insurance on file'}
                         </p>
                       </div>

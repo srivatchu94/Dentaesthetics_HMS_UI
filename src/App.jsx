@@ -39,6 +39,7 @@ import Footer from "./components/Footer";
 import WhatsAppChatbot from "./components/WhatsAppChatbot";
 import { useTokenExpiry } from "./context/TokenExpiryContext";
 import { tokenExpiryEmitter } from "./services/apiClient";
+import { initializeTabFocusListener } from "./services/authService";
 
 export default function App(){
   const navigate = useNavigate();
@@ -51,7 +52,14 @@ export default function App(){
       setShowTokenExpiryModal(true);
     });
 
-    return unsubscribe;
+    // Initialize tab focus listener to ensure token refresh continues
+    const removeFocusListener = initializeTabFocusListener();
+
+    // Cleanup
+    return () => {
+      unsubscribe();
+      removeFocusListener();
+    };
   }, [setShowTokenExpiryModal]);
 
   const handleLoginRedirect = () => {

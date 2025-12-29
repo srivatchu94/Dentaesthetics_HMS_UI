@@ -5,6 +5,7 @@ import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatien
 import { visitService } from "../services/visitService";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
 import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment } from "../services/appointmentService";
+import { sendPrescriptionEmail } from "../services/emailService";
 import ViewPatients from "./ViewPatients";
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
@@ -138,6 +139,7 @@ export default function Patients() {
   // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [registeredPatient, setRegisteredPatient] = useState(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
   
   // View Patients modal state
   const [showViewPatientsModal, setShowViewPatientsModal] = useState(false);
@@ -2526,7 +2528,7 @@ export default function Patients() {
               </div>
 
               {/* Modal Content */}
-              <div className="px-8 py-6 max-h-[70vh] overflow-y-auto bg-gradient-to-br from-cream-50 to-peach-50">
+              <div className="px-8 py-6 max-h-[70vh] overflow-y-auto bg-gradient-to-br from-slate-50 via-white to-slate-50">
                 {loadingPatientDetails ? (
                   <div className="text-center py-20 bg-white rounded-xl shadow-lg border-2 border-teal-200">
                     <div className="flex justify-center mb-6">
@@ -2562,16 +2564,16 @@ export default function Patients() {
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="p-4 bg-yellow-50 border-2 border-yellow-300 rounded-xl"
+                        className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-400 rounded-xl shadow-md"
                       >
                         <div className="flex items-start gap-3">
                           <span className="text-2xl">⚠️</span>
                           <div>
-                            <p className="font-bold text-yellow-800">Data Loading Issue</p>
-                            <p className="text-sm text-yellow-700 mt-1">
+                            <p className="font-bold text-amber-900">Data Loading Issue</p>
+                            <p className="text-sm text-amber-800 mt-1">
                               The patient data structure appears to be incomplete. Check the browser console (F12) for detailed data structure logs.
                             </p>
-                            <p className="text-xs text-yellow-600 mt-2">
+                            <p className="text-xs text-amber-700 mt-2">
                               Expected structure: patient, patientContact, patientMedicalInfo, patientInsurance
                             </p>
                           </div>
@@ -2580,16 +2582,16 @@ export default function Patients() {
                     )}
 
                     {/* Debug Data Display Panel */}
-                    <div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-xl">
+                    <div className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-400 rounded-xl shadow-md">
                       <details className="cursor-pointer">
-                        <summary className="font-bold text-blue-800 flex items-center gap-2">
+                        <summary className="font-bold text-blue-900 flex items-center gap-2 cursor-pointer hover:text-blue-700 transition">
                           <span>🔍</span> Debug: Raw Data Values & Token
                         </summary>
-                        <div className="mt-3 space-y-2 text-sm bg-white p-3 rounded border border-blue-200">
+                        <div className="mt-3 space-y-2 text-sm bg-white p-4 rounded-lg border border-blue-200 shadow-sm">
                           {/* Bearer Token */}
-                          <div className="p-2 bg-purple-50 border border-purple-200 rounded">
-                            <p><strong>🔐 Bearer Token:</strong></p>
-                            <code className="bg-purple-100 px-2 py-1 rounded block text-xs break-all mt-1">
+                          <div className="p-3 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-300 rounded-lg shadow-sm">
+                            <p className="font-bold text-purple-900"><strong>🔐 Bearer Token:</strong></p>
+                            <code className="bg-purple-100 px-2 py-1 rounded block text-xs break-all mt-2 text-purple-900">
                               {(() => {
                                 const token = sessionStorage.getItem('accessToken_session') || localStorage.getItem('accessToken');
                                 console.log('🔐 BEARER TOKEN:', token);
@@ -2619,56 +2621,56 @@ export default function Patients() {
                     </div>
 
                     {/* Basic Information */}
-                    <div className="bg-white rounded-xl p-6 shadow-md border-2 border-coral-200">
-                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-coral-200">
-                        <div className="w-10 h-10 bg-gradient-to-br from-coral-100 to-peach-100 rounded-lg flex items-center justify-center shadow-sm">
-                          <svg className="w-6 h-6 text-coral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="bg-gradient-to-br from-blue-50 via-blue-25 to-cyan-50 rounded-xl p-6 shadow-lg border-3 border-blue-400">
+                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-3 border-blue-400">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center shadow-md">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                           </svg>
                         </div>
-                        <h3 className="text-lg font-bold text-amber-900">Basic Information</h3>
+                        <h3 className="text-lg font-bold text-blue-900">👤 Basic Information</h3>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">First Name</label>
+                          <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">👤 First Name</label>
                           <input
                             type="text"
-                            placeholder="First Name"
+                            placeholder="Enter first name"
                             value={isEditMode ? editedPatient?.patient?.patientFirstName || '' : selectedPatient?.patient?.patientFirstName || ''}
                             onChange={(e) => isEditMode && setEditedPatient({
                               ...editedPatient,
                               patient: { ...editedPatient.patient, patientFirstName: e.target.value }
                             })}
                             disabled={!isEditMode}
-                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-900 text-slate-700 transition-colors"
+                            className="w-full mt-1 px-4 py-2.5 border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-blue-50 disabled:text-blue-900 text-blue-900 font-medium transition-colors"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Last Name</label>
+                          <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">👤 Last Name</label>
                           <input
                             type="text"
-                            placeholder="Last Name"
+                            placeholder="Enter last name"
                             value={isEditMode ? editedPatient?.patient?.patientLastName || '' : selectedPatient?.patient?.patientLastName || ''}
                             onChange={(e) => isEditMode && setEditedPatient({
                               ...editedPatient,
                               patient: { ...editedPatient.patient, patientLastName: e.target.value }
                             })}
                             disabled={!isEditMode}
-                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-900 text-slate-700 transition-colors"
+                            className="w-full mt-1 px-4 py-2.5 border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-blue-50 disabled:text-blue-900 text-blue-900 font-medium transition-colors"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Clinic ID</label>
+                          <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">🏥 Clinic ID</label>
                           <input
                             type="text"
                             placeholder="Clinic ID"
                             value={selectedPatient?.patient?.clinicID || selectedPatient?.patient?.patientEntityID || ''}
                             disabled
-                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg bg-slate-50 text-slate-900"
+                            className="w-full mt-1 px-4 py-2.5 border-2 border-blue-200 rounded-lg bg-blue-50 text-blue-900 font-medium cursor-not-allowed"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Date of Birth</label>
+                          <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">📅 Date of Birth</label>
                           <input
                             type="date"
                             placeholder="Date of Birth"
@@ -2678,11 +2680,11 @@ export default function Patients() {
                               patient: { ...editedPatient.patient, patientDOB: e.target.value }
                             })}
                             disabled={!isEditMode}
-                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-900 text-slate-700 transition-colors"
+                            className="w-full mt-1 px-4 py-2.5 border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-blue-50 disabled:text-blue-900 text-blue-900 font-medium transition-colors"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Gender</label>
+                          <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">⚧️ Gender</label>
                           {isEditMode ? (
                             <select
                               value={editedPatient?.patient?.patientGender || ''}
@@ -2690,7 +2692,7 @@ export default function Patients() {
                                 ...editedPatient,
                                 patient: { ...editedPatient.patient, patientGender: e.target.value }
                               })}
-                              className="w-full mt-1.5 px-4 py-2.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 text-stone-700 transition-colors"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-blue-900 font-medium transition-colors"
                             >
                               <option value="">Select Gender</option>
                               <option value="Male">Male</option>
@@ -2703,12 +2705,12 @@ export default function Patients() {
                               placeholder="Gender"
                               value={selectedPatient?.patient?.patientGender || ''}
                               disabled
-                              className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg disabled:bg-slate-50 disabled:text-slate-900 text-slate-700 transition-colors"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-blue-200 rounded-lg disabled:bg-blue-50 disabled:text-blue-900 text-blue-900 font-medium transition-colors"
                             />
                           )}
                         </div>
                         <div>
-                          <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Blood Type</label>
+                          <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">🩸 Blood Type</label>
                           {isEditMode ? (
                             <select
                               value={editedPatient?.patient?.patientBloodType || ''}
@@ -2716,7 +2718,7 @@ export default function Patients() {
                                 ...editedPatient,
                                 patient: { ...editedPatient.patient, patientBloodType: e.target.value }
                               })}
-                              className="w-full mt-1.5 px-4 py-2.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 text-stone-700 transition-colors"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-blue-900 font-medium transition-colors"
                             >
                               <option value="">Select Blood Type</option>
                               <option value="A+">A+</option>
@@ -2734,7 +2736,7 @@ export default function Patients() {
                               placeholder="Blood Type"
                               value={selectedPatient?.patient?.patientBloodType || ''}
                               disabled
-                              className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg disabled:bg-slate-50 disabled:text-slate-900 text-slate-700 transition-colors"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-blue-200 rounded-lg disabled:bg-blue-50 disabled:text-blue-900 text-blue-900 font-medium transition-colors"
                             />
                           )}
                         </div>
@@ -2742,102 +2744,102 @@ export default function Patients() {
                     </div>
 
                     {/* Contact Information */}
-                    <div className="bg-white rounded-xl p-6 shadow-md border-2 border-teal-200">
-                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-teal-200">
-                        <div className="w-10 h-10 bg-gradient-to-br from-teal-100 to-cyan-100 rounded-lg flex items-center justify-center shadow-sm">
-                          <svg className="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="bg-gradient-to-br from-emerald-50 via-emerald-25 to-teal-50 rounded-xl p-6 shadow-lg border-3 border-emerald-400">
+                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-3 border-emerald-400">
+                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center shadow-md">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                           </svg>
                         </div>
-                        <h3 className="text-lg font-bold text-amber-900">Contact Information</h3>
+                        <h3 className="text-lg font-bold text-emerald-900">📞 Contact Information</h3>
                       </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="text-sm font-semibold text-slate-600">Phone Number</label>
+                            <label className="block text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1.5">📱 Phone Number</label>
                             <input
                               type="text"
-                              placeholder="Phone Number"
+                              placeholder="Enter phone number"
                               value={isEditMode ? editedPatient?.patientContact?.patientPhone || '' : selectedPatient?.patientContact?.patientPhone || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
                                 ...editedPatient,
                                 patientContact: { ...editedPatient.patientContact, patientPhone: e.target.value }
                               })}
                               disabled={!isEditMode}
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 disabled:text-stone-900 transition-colors"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-emerald-50 disabled:text-emerald-900 text-emerald-900 font-medium transition-colors"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-slate-600">Email Address</label>
+                            <label className="block text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1.5">📧 Email Address</label>
                             <input
                               type="email"
-                              placeholder="Email Address"
+                              placeholder="Enter email address"
                               value={isEditMode ? editedPatient?.patientContact?.patientEmail || '' : selectedPatient?.patientContact?.patientEmail || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
                                 ...editedPatient,
                                 patientContact: { ...editedPatient.patientContact, patientEmail: e.target.value }
                               })}
                               disabled={!isEditMode}
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 disabled:text-stone-900 transition-colors"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-emerald-50 disabled:text-emerald-900 text-emerald-900 font-medium transition-colors"
                             />
                           </div>
                           <div className="md:col-span-2">
-                            <label className="text-sm font-semibold text-slate-600">Address</label>
+                            <label className="block text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1.5">🏠 Address</label>
                             <input
                               type="text"
-                              placeholder="Address"
+                              placeholder="Enter full address"
                               value={isEditMode ? editedPatient?.patientContact?.patientAddress || '' : selectedPatient?.patientContact?.patientAddress || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
                                 ...editedPatient,
                                 patientContact: { ...editedPatient.patientContact, patientAddress: e.target.value }
                               })}
                               disabled={!isEditMode}
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 disabled:text-stone-900 transition-colors"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-emerald-50 disabled:text-emerald-900 text-emerald-900 font-medium transition-colors"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-slate-600">City</label>
+                            <label className="block text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1.5">🏙️ City</label>
                             <input
                               type="text"
-                              placeholder="City"
+                              placeholder="Enter city name"
                               value={isEditMode ? editedPatient?.patientContact?.patientCity || '' : selectedPatient?.patientContact?.patientCity || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
                                 ...editedPatient,
                                 patientContact: { ...editedPatient.patientContact, patientCity: e.target.value }
                               })}
                               disabled={!isEditMode}
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 disabled:text-stone-900 transition-colors"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-emerald-50 disabled:text-emerald-900 text-emerald-900 font-medium transition-colors"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-slate-600">Emergency Contact</label>
+                            <label className="block text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1.5">🆘 Emergency Contact</label>
                             <input
                               type="text"
-                              placeholder="Emergency Contact"
+                              placeholder="Enter emergency contact name/number"
                               value={isEditMode ? editedPatient?.patientContact?.patientEmergencyContact || '' : selectedPatient?.patientContact?.patientEmergencyContact || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
                                 ...editedPatient,
                                 patientContact: { ...editedPatient.patientContact, patientEmergencyContact: e.target.value }
                               })}
                               disabled={!isEditMode}
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 disabled:text-stone-900 transition-colors"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 disabled:bg-emerald-50 disabled:text-emerald-900 text-emerald-900 font-medium transition-colors"
                             />
                           </div>
                         </div>
                       </div>
 
                     {/* Medical Information */}
-                    <div className="bg-white rounded-xl p-6 shadow-md border-2 border-amber-200">
-                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-amber-200">
-                        <div className="w-10 h-10 bg-gradient-to-br from-amber-100 to-orange-100 rounded-lg flex items-center justify-center shadow-sm">
-                          <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="bg-gradient-to-br from-amber-50 via-amber-25 to-orange-50 rounded-xl p-6 shadow-lg border-3 border-amber-400">
+                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-3 border-amber-400">
+                        <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-lg flex items-center justify-center shadow-md">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </div>
-                        <h3 className="text-lg font-bold text-amber-900">Medical Information</h3>
+                        <h3 className="text-lg font-bold text-amber-900">📋 Medical Information</h3>
                       </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="text-sm font-semibold text-slate-600">Allergies</label>
+                            <label className="block text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1.5">🚫 Allergies</label>
                             <textarea
                               value={isEditMode ? editedPatient?.patientMedicalInfo?.patientAllergies || '' : selectedPatient?.patientMedicalInfo?.patientAllergies || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
@@ -2846,11 +2848,12 @@ export default function Patients() {
                               })}
                               disabled={!isEditMode}
                               rows="2"
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-stone-100 transition-colors"
+                              placeholder="List any known allergies"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-amber-50 disabled:text-amber-900 text-amber-900 font-medium transition-colors"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-slate-600">Current Medications</label>
+                            <label className="block text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1.5">💊 Current Medications</label>
                             <textarea
                               value={isEditMode ? editedPatient?.patientMedicalInfo?.patientCurrentMedications || '' : selectedPatient?.patientMedicalInfo?.patientCurrentMedications || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
@@ -2859,11 +2862,12 @@ export default function Patients() {
                               })}
                               disabled={!isEditMode}
                               rows="2"
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-stone-100 transition-colors"
+                              placeholder="List current medications"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-amber-50 disabled:text-amber-900 text-amber-900 font-medium transition-colors"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-slate-600">Chronic Diseases</label>
+                            <label className="block text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1.5">⚠️ Chronic Diseases</label>
                             <textarea
                               value={isEditMode ? editedPatient?.patientMedicalInfo?.chronicDiseases || '' : selectedPatient?.patientMedicalInfo?.chronicDiseases || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
@@ -2872,11 +2876,12 @@ export default function Patients() {
                               })}
                               disabled={!isEditMode}
                               rows="2"
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-stone-100 transition-colors"
+                              placeholder="List chronic diseases or conditions"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-amber-50 disabled:text-amber-900 text-amber-900 font-medium transition-colors"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-slate-600">Medical History</label>
+                            <label className="block text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1.5">📖 Medical History</label>
                             <textarea
                               value={isEditMode ? editedPatient?.patientMedicalInfo?.medicalHistory || '' : selectedPatient?.patientMedicalInfo?.medicalHistory || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
@@ -2885,65 +2890,68 @@ export default function Patients() {
                               })}
                               disabled={!isEditMode}
                               rows="2"
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-stone-100 transition-colors"
+                              placeholder="Describe medical history"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-amber-50 disabled:text-amber-900 text-amber-900 font-medium transition-colors"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-slate-600">Primary Physician</label>
+                            <label className="block text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1.5">👨‍⚕️ Primary Physician</label>
                             <input
                               type="text"
+                              placeholder="Enter primary physician name"
                               value={isEditMode ? editedPatient?.patientMedicalInfo?.patientPrimaryPhysician || '' : selectedPatient?.patientMedicalInfo?.patientPrimaryPhysician || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
                                 ...editedPatient,
                                 patientMedicalInfo: { ...editedPatient.patientMedicalInfo, patientPrimaryPhysician: e.target.value }
                               })}
                               disabled={!isEditMode}
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-amber-400 disabled:bg-stone-100 transition-colors"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-amber-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-amber-50 disabled:text-amber-900 text-amber-900 font-medium transition-colors"
                             />
                           </div>
                           <div>
-                            <label className="text-sm font-semibold text-slate-600">Number of Visits</label>
+                            <label className="block text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1.5">📊 Number of Visits</label>
                             <input
                               type="number"
                               value={selectedPatient?.patientMedicalInfo?.no_of_visits || 0}
                               disabled
-                              className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg bg-slate-100"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-amber-200 rounded-lg bg-amber-50 text-amber-900 font-medium cursor-not-allowed"
                             />
                           </div>
                           <div className="md:col-span-2">
-                            <label className="text-sm font-semibold text-slate-600">Last Visited Date</label>
+                            <label className="block text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1.5">🗓️ Last Visited Date</label>
                             <input
                               type="date"
                               value={selectedPatient?.patientMedicalInfo?.lastVisitedDate?.split('T')[0] || ''}
                               disabled
-                              className="w-full mt-1 px-4 py-2 border border-slate-300 rounded-lg bg-slate-100"
+                              className="w-full mt-1 px-4 py-2.5 border-2 border-amber-200 rounded-lg bg-amber-50 text-amber-900 font-medium cursor-not-allowed"
                             />
                           </div>
                         </div>
                       </div>
 
                     {/* Insurance Information */}
-                    <div className="bg-white rounded-xl p-6 shadow-md border-2 border-cyan-200">
-                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-cyan-200">
-                        <div className="w-10 h-10 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-lg flex items-center justify-center shadow-sm">
-                          <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="bg-gradient-to-br from-rose-50 via-rose-25 to-pink-50 rounded-xl p-6 shadow-lg border-3 border-rose-400">
+                      <div className="flex items-center gap-3 mb-5 pb-3 border-b-3 border-rose-400">
+                        <div className="w-10 h-10 bg-gradient-to-br from-rose-500 to-pink-500 rounded-lg flex items-center justify-center shadow-md">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                           </svg>
                         </div>
-                        <h3 className="text-lg font-bold text-amber-900">Insurance Information</h3>
+                        <h3 className="text-lg font-bold text-rose-900">🛡️ Insurance Information</h3>
                       </div>
                       <div className="grid grid-cols-1 gap-4">
                         <div>
-                          <label className="text-sm font-semibold text-slate-600">Insurance Provider</label>
+                          <label className="block text-xs font-semibold text-rose-700 uppercase tracking-wide mb-1.5">🏢 Insurance Provider</label>
                           <input
                             type="text"
+                            placeholder="Enter insurance provider name"
                             value={isEditMode ? editedPatient?.patientInsurance?.patientInsuranceProvider || '' : selectedPatient?.patientInsurance?.patientInsuranceProvider || ''}
                             onChange={(e) => isEditMode && setEditedPatient({
                               ...editedPatient,
                               patientInsurance: { ...editedPatient.patientInsurance, patientInsuranceProvider: e.target.value }
                             })}
                             disabled={!isEditMode}
-                            className="w-full mt-1.5 px-4 py-2.5 border border-stone-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:border-cyan-400 disabled:bg-stone-100 disabled:text-stone-500 text-stone-700 transition-colors"
+                            className="w-full mt-1 px-4 py-2.5 border-2 border-rose-200 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 disabled:bg-rose-50 disabled:text-rose-900 text-rose-900 font-medium transition-colors"
                           />
                         </div>
                       </div>
@@ -4877,20 +4885,48 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        if (selectedPatientForVisit?.patientEmail) {
-                          // Simulate email send - would integrate with backend email service
-                          const medsBlock = medications.length ? `Medications:\n${serializeMedications(medications)}\n\n` : "";
-                          const mailtoLink = `mailto:${selectedPatientForVisit.patientEmail}?subject=Your Medical Prescription from ${CURRENT_DOCTOR.name}&body=Dear ${selectedPatientForVisit.patientFirstName},\n\nPlease find your prescription below:\n\n${medsBlock}${prescriptionText}\n\nBest regards,\n${CURRENT_DOCTOR.name}\n${CURRENT_DOCTOR.registrationNumber}`;
-                          window.location.href = mailtoLink;
-                        } else {
-                          alert("📧 Patient email not available. Please add email to patient profile.");
+                      disabled={sendingEmail || !selectedPatientForVisit?.patientEmail}
+                      onClick={async () => {
+                        try {
+                          if (!selectedPatientForVisit?.patientEmail) {
+                            alert("📧 Patient email not available. Please add email to patient profile.");
+                            return;
+                          }
+
+                          setSendingEmail(true);
+                          const medicationData = medications.map(m => ({
+                            name: m.medicationName || m.name,
+                            dosage: m.dosage,
+                            frequency: m.frequency,
+                            duration: m.duration || 'As prescribed',
+                            instructions: m.instructions || ''
+                          }));
+
+                          await sendPrescriptionEmail(
+                            selectedPatientForVisit.patientEmail,
+                            `${selectedPatientForVisit.patientFirstName} ${selectedPatientForVisit.patientLastName}`,
+                            CURRENT_DOCTOR?.name || 'Doctor',
+                            medicationData,
+                            selectedPatientForVisit.clinicName || 'Dental Clinic',
+                            CURRENT_DOCTOR?.doctorId || CURRENT_DOCTOR?.id || ''
+                          );
+
+                          showCustomPopup('success', '📧 Email Sent!', '🎉 Prescription email delivered successfully! Your patient will find it waiting in their inbox.', '✨');
+                          setSendingEmail(false);
+                        } catch (error) {
+                          console.error('Error sending email:', error);
+                          showCustomPopup('error', '❌ Oops!', `Email delivery failed: ${error.message}`, '📧');
+                          setSendingEmail(false);
                         }
                       }}
-                      className="px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                      className={`px-6 py-3 text-white rounded-lg font-semibold shadow-md transition-all flex items-center justify-center gap-2 ${
+                        sendingEmail || !selectedPatientForVisit?.patientEmail
+                          ? 'bg-gray-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-pink-500 to-rose-500 hover:shadow-lg'
+                      }`}
                     >
-                      <span className="text-xl">📧</span>
-                      <span>Email to Patient</span>
+                      <span className="text-xl">{sendingEmail ? '⏳' : '📧'}</span>
+                      <span>{sendingEmail ? 'Sending...' : 'Email to Patient'}</span>
                     </motion.button>
                   </div>
 

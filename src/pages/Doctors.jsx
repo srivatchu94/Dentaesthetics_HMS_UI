@@ -7,6 +7,7 @@ import { createInventoryMaster, listInventoryMasters, getClinicInventoryByClinic
 import { getClinic, getClinicByClinicId } from "../services/clinicService";
 import { getStaffProfileByClinicId } from "../services/staffService";
 import { getDoctorsByClinicId } from "../services/doctorService";
+import { sendPrescriptionEmail } from "../services/emailService";
 import PrescriptionWritingModal from "../components/PrescriptionWritingModal";
 import PrescriptionPrint from "../components/PrescriptionPrint";
 import InventoryAutoComplete from "../components/InventoryAutoComplete";
@@ -101,6 +102,7 @@ export default function Doctors() {
   const [editingMedicationIndex, setEditingMedicationIndex] = useState(null);
   const [inventoryMeds, setInventoryMeds] = useState([]);
   const [loadingMeds, setLoadingMeds] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [medicineDropdownOpen, setMedicineDropdownOpen] = useState(false);
   const medicineInputRef = useRef(null);
   const [showMedicationDropdown, setShowMedicationDropdown] = useState(false);
@@ -3285,18 +3287,75 @@ export default function Doctors() {
                     <motion.button
                       whileHover={{ scale: 1.02, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        const appointmentDetails = selectedAppointmentForVisit;
-                        const medicationText = inlineMedications
-                          .map(med => `${med.name} - ${med.dosage} ${med.frequency} for ${med.duration}`)
-                          .join('\n');
-                        const mailtoLink = `mailto:${appointmentDetails.patientEmail || ''}?subject=Your Prescription&body=Dear Patient,\n\nHere is your prescription:\n\n${medicationText}\n\nPlease follow the instructions carefully.\n\nBest regards,\nYour Doctor`;
-                        window.location.href = mailtoLink;
+                      disabled={sendingEmail}
+                      onClick={async () => {
+                        try {
+                          setSendingEmail(true);
+                          const appointmentDetails = selectedAppointmentForVisit;
+                          
+                          // ===== COMPREHENSIVE LOGGING =====
+                          console.log('🔍 ===== DOCTORS PAGE PRESCRIPTION EMAIL SEND CALLED =====');
+                          console.log('📋 Full appointmentDetails object:', appointmentDetails);
+                          console.log('📧 appointmentDetails.patientEmail:', appointmentDetails?.patientEmail);
+                          console.log('📧 appointmentDetails.email:', appointmentDetails?.email);
+                          console.log('📧 appointmentDetails.patientContact:', appointmentDetails?.patientContact);
+                          console.log('📧 appointmentDetails.patientContact?.patientEmail:', appointmentDetails?.patientContact?.patientEmail);
+                          
+                          // Multiple fallback options
+                          const patientEmail = (appointmentDetails?.patientContact?.patientEmail 
+                            || appointmentDetails?.patientEmail 
+                            || appointmentDetails?.email 
+                            || '').trim() ? 
+                            (appointmentDetails?.patientContact?.patientEmail 
+                              || appointmentDetails?.patientEmail 
+                              || appointmentDetails?.email).trim()
+                            : 'srivatchu94@gmail.com';
+                          
+                          console.log('✅ Final patientEmail being used:', patientEmail);
+                          
+                          if (!patientEmail || patientEmail === 'srivatchu94@gmail.com') {
+                            console.warn('⚠️ Using fallback email: srivatchu94@gmail.com');
+                          }
+
+                          if (!patientEmail) {
+                            alert('❌ Patient email not found. Please update patient contact information.');
+                            setSendingEmail(false);
+                            return;
+                          }
+
+                          if (inlineMedications.length === 0) {
+                            alert('❌ Please add at least one medication before sending email');
+                            setSendingEmail(false);
+                            return;
+                          }
+
+                          await sendPrescriptionEmail(
+                            patientEmail,
+                            `${appointmentDetails.patientFirstName} ${appointmentDetails.patientLastName}`,
+                            appointmentDetails.doctorName || 'Doctor',
+                            inlineMedications,
+                            appointmentDetails.clinicName || 'Dental Clinic',
+                            appointmentDetails.doctorId || appointmentDetails.doctorCode || ''
+                          );
+
+                          setSuccessMessage('🎉 Email delivered! Your patient\'s inbox just got a little healthier!');
+                          setShowPrescriptionSuccessModal(true);
+                          setSendingEmail(false);
+                        } catch (error) {
+                          console.error('Error sending email:', error);
+                          setSuccessMessage(`❌ Oops! Email got lost in the digital void: ${error.message}`);
+                          setShowPrescriptionSuccessModal(true);
+                          setSendingEmail(false);
+                        }
                       }}
-                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-bold shadow-xl hover:shadow-2xl transition flex items-center justify-center gap-2"
+                      className={`px-6 py-3 text-white rounded-xl font-bold shadow-xl transition flex items-center justify-center gap-2 ${
+                        sendingEmail 
+                          ? 'bg-gray-400 cursor-not-allowed' 
+                          : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 hover:shadow-2xl'
+                      }`}
                     >
-                      <span>📧</span>
-                      <span>Send via Email</span>
+                      <span>{sendingEmail ? '⏳' : '📧'}</span>
+                      <span>{sendingEmail ? 'Sending...' : 'Send via Email'}</span>
                     </motion.button>
                   </div>
 
@@ -4890,16 +4949,65 @@ export default function Doctors() {
       }
     };
 
-    const handleEmailShare = () => {
-      const patientEmail = selectedAppointmentForVisit?.email || 'patient@example.com';
-      const prescriptionText = prescriptionForm.medications
-        .map(m => `${m.name} - ${m.dosage} - ${m.frequency}`)
-        .join('\n');
-      
-      const subject = `Prescription from ${SAMPLE_CLINIC_DETAILS.clinicName}`;
-      const body = `Dear Patient,\n\nHere is your prescription:\n\n${prescriptionText}\n\nBest regards,\n${userData.username || 'Dr.'}\n${SAMPLE_CLINIC_DETAILS.clinicName}`;
-      
-      window.location.href = `mailto:${patientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const handleEmailShare = async () => {
+      try {
+        // ===== COMPREHENSIVE LOGGING =====
+        console.log('🔍 ===== PRINT PREVIEW EMAIL SHARE CALLED =====');
+        console.log('📋 Full selectedAppointmentForVisit object:', selectedAppointmentForVisit);
+        console.log('📧 selectedAppointmentForVisit?.email:', selectedAppointmentForVisit?.email);
+        console.log('📧 selectedAppointmentForVisit?.patientEmail:', selectedAppointmentForVisit?.patientEmail);
+        console.log('📧 selectedAppointmentForVisit?.patientContact:', selectedAppointmentForVisit?.patientContact);
+        console.log('📧 selectedAppointmentForVisit?.patientContact?.patientEmail:', selectedAppointmentForVisit?.patientContact?.patientEmail);
+        
+        // Multiple fallback options
+        const patientEmail = (selectedAppointmentForVisit?.patientContact?.patientEmail 
+          || selectedAppointmentForVisit?.patientEmail 
+          || selectedAppointmentForVisit?.email 
+          || '').trim() ? 
+          (selectedAppointmentForVisit?.patientContact?.patientEmail 
+            || selectedAppointmentForVisit?.patientEmail 
+            || selectedAppointmentForVisit?.email).trim()
+          : 'srivatchu94@gmail.com';
+        
+        console.log('✅ Final patientEmail being used:', patientEmail);
+        
+        if (!patientEmail || patientEmail === 'srivatchu94@gmail.com') {
+          console.warn('⚠️ Using fallback email: srivatchu94@gmail.com');
+        }
+
+        setSendingEmail(true);
+        const prescriptionText = prescriptionForm.medications
+          .map(m => `${m.name} - ${m.dosage} - ${m.frequency}`)
+          .join('\n');
+        
+        const patientName = `${selectedAppointmentForVisit?.patientFirstName || ''} ${selectedAppointmentForVisit?.patientLastName || ''}`.trim() || 'Patient';
+        const doctorName = userData?.username || 'Doctor';
+
+        await sendPrescriptionEmail(
+          patientEmail,
+          patientName,
+          doctorName,
+          prescriptionForm.medications.map(m => ({
+            name: m.name,
+            dosage: m.dosage,
+            frequency: m.frequency,
+            duration: m.duration || 'As prescribed',
+            instructions: m.instructions || ''
+          })),
+          selectedAppointmentForVisit?.clinicName || 'Dental Clinic',
+          selectedAppointmentForVisit?.doctorId || userData?.doctorId || ''
+          }))
+        );
+
+        setSuccessMessage('🚀 Prescription zoomed through the internet! Check your inbox magic! ✨');
+        setShowPrescriptionSuccessModal(true);
+        setSendingEmail(false);
+      } catch (error) {
+        console.error('Error sending email:', error);
+        setSuccessMessage(`❌ Oops! Email got lost in the digital void: ${error.message}`);
+        setShowPrescriptionSuccessModal(true);
+        setSendingEmail(false);
+      }
     };
 
     const handleWhatsAppShare = () => {

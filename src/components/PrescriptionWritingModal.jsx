@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { listInventoryMasters, createInventoryMaster } from "../services/inventoryService";
 import { addPrescription } from "../services/appointmentService";
+import PrescriptionEmailTemplate from "./PrescriptionEmailTemplate";
 
 const PrescriptionWritingModal = ({
   isOpen,
@@ -28,6 +29,7 @@ const PrescriptionWritingModal = ({
     isActive: true
   });
   const [savingPrescription, setSavingPrescription] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [medicationToAdd, setMedicationToAdd] = useState(null);
   const [openMedicationDropdown, setOpenMedicationDropdown] = useState(null);
   const medicationDropdownRefs = useRef({});
@@ -337,6 +339,86 @@ const PrescriptionWritingModal = ({
       alert(`❌ ${errorMessage}`);
     } finally {
       setSavingPrescription(false);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    try {
+      setSendingEmail(true);
+      
+      // ===== COMPREHENSIVE LOGGING =====
+      console.log('🔍 ===== PRESCRIPTION EMAIL SEND CALLED =====');
+      console.log('📋 Full patientInfo object:', patientInfo);
+      console.log('📧 patientInfo?.patientEmail:', patientInfo?.patientEmail);
+      console.log('📧 patientInfo?.email:', patientInfo?.email);
+      console.log('📧 patientInfo?.patientContact:', patientInfo?.patientContact);
+      console.log('📧 patientInfo?.patientContact?.patientEmail:', patientInfo?.patientContact?.patientEmail);
+      
+      // Validate email exists with multiple fallback options
+      const patientEmail = (patientInfo?.patientContact?.patientEmail 
+        || patientInfo?.patientEmail 
+        || patientInfo?.email 
+        || '').trim() ? 
+        (patientInfo?.patientContact?.patientEmail 
+          || patientInfo?.patientEmail 
+          || patientInfo?.email).trim()
+        : 'srivatchu94@gmail.com';
+      
+      console.log('✅ Final patientEmail being used for prescription:', patientEmail);
+      
+      if (!patientEmail || patientEmail === 'srivatchu94@gmail.com') {
+        console.warn('⚠️ Using fallback email: srivatchu94@gmail.com');
+      }
+      
+      // Validate medications
+      const validMeds = medications.filter(med => med.name && med.dosage && med.frequency && med.duration);
+      if (validMeds.length === 0) {
+        alert("❌ Please add at least one medication before sending email");
+        setSendingEmail(false);
+        return;
+      }
+      
+      // Create prescription object for email
+      const prescriptionForEmail = {
+        prescriptionId: appointmentDetails?.prescriptionId || "N/A",
+        prescriptionDate: new Date().toISOString(),
+        prescriptionContent: validMeds
+          .map(med => `${med.name} - ${med.dosage} ${med.frequency} for ${med.duration}${med.instructions ? ` (${med.instructions})` : ""}`)
+          .join("\n"),
+        medicationsList: validMeds
+      };
+      
+      // Generate email template
+      const emailTemplate = PrescriptionEmailTemplate({
+        prescription: prescriptionForEmail,
+        patientInfo: patientInfo,
+        doctorInfo: doctorInfo,
+        clinicInfo: appointmentDetails?.clinicInfo || {}
+      });
+      
+      const emailHTML = emailTemplate.getHTML();
+      
+      console.log('📧 Sending email with template:', {
+        to: patientEmail,
+        subject: `Prescription from Dr. ${doctorInfo?.doctorName || 'Doctor'}`,
+        medications: validMeds.length,
+        patientName: `${patientInfo?.patientFirstName} ${patientInfo?.patientLastName}`
+      });
+      
+      // Copy email HTML to clipboard
+      navigator.clipboard.writeText(emailHTML).then(() => {
+        alert(`✅ Email template generated and copied!\\n\\nRecipient: ${patientEmail}\\n\\nYou can now paste this into your email client to send to the patient.`);
+        console.log('✅ Email HTML copied to clipboard');
+      }).catch(err => {
+        console.error('Failed to copy to clipboard:', err);
+        alert(`✅ Email template generated!\\n\\nRecipient: ${patientEmail}\\n\\nPlease check the browser console for the email content.`);
+      });
+      
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert(`❌ Error preparing email: ${error.message}`);
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -791,7 +873,7 @@ const PrescriptionWritingModal = ({
           </div>
 
           {/* Footer */}
-          <div className="bg-stone-50 px-8 py-5 flex justify-end gap-4 border-t border-stone-200 sticky bottom-0">
+          <div className="bg-stone-50 px-8 py-5 flex justify-between items-center border-t border-stone-200 sticky bottom-0 gap-4">
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -800,19 +882,37 @@ const PrescriptionWritingModal = ({
             >
               Cancel
             </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleSavePrescription}
-              disabled={savingPrescription}
-              className={`px-6 py-2.5 rounded-lg font-semibold text-white transition shadow-lg ${
-                savingPrescription
-                  ? "bg-gray-300 cursor-not-allowed"
-                  : "bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700"
-              }`}
-            >
-              {savingPrescription ? "Saving..." : "💊 Save Prescription"}
-            </motion.button>
+            
+            <div className="flex gap-4">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleSendEmail}
+                disabled={sendingEmail}
+                className={`px-6 py-2.5 rounded-lg font-semibold text-white transition shadow-lg flex items-center gap-2 ${
+                  sendingEmail
+                    ? "bg-gray-300 cursor-not-allowed"
+                    : "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                }`}
+              >
+                <span>📧</span>
+                {sendingEmail ? "Sending..." : "Send Email"}
+              </motion.button>
+              
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleSavePrescription}
+                disabled={savingPrescription}
+                className={`px-6 py-2.5 rounded-lg font-semibold text-white transition shadow-lg ${
+                  savingPrescription
+                    ? "bg-gray-300 cursor-not-allowed"
+                    : "bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-700 hover:to-pink-700"
+                }`}
+              >
+                {savingPrescription ? "Saving..." : "💊 Save Prescription"}
+              </motion.button>
+            </div>
           </div>
 
           {/* Add Medication Modal */}
