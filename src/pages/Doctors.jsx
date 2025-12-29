@@ -4996,7 +4996,6 @@ export default function Doctors() {
           })),
           selectedAppointmentForVisit?.clinicName || 'Dental Clinic',
           selectedAppointmentForVisit?.doctorId || userData?.doctorId || ''
-          }))
         );
 
         setSuccessMessage('🚀 Prescription zoomed through the internet! Check your inbox magic! ✨');
