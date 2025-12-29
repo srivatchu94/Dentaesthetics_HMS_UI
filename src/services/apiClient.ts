@@ -6,6 +6,22 @@ export const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://
 // Import token management
 import { getAuthToken, getSelectedAccess } from './authService';
 
+// Event emitter for token expiry to communicate with React components
+export const tokenExpiryEmitter = {
+  listeners: [] as Array<(location: string) => void>,
+  
+  subscribe: (callback: (location: string) => void) => {
+    tokenExpiryEmitter.listeners.push(callback);
+    return () => {
+      tokenExpiryEmitter.listeners = tokenExpiryEmitter.listeners.filter(cb => cb !== callback);
+    };
+  },
+  
+  emit: (location: string) => {
+    tokenExpiryEmitter.listeners.forEach(callback => callback(location));
+  }
+};
+
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // Get token from localStorage
   const token = getAuthToken();
@@ -72,7 +88,13 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
           if (decoded.exp) {
             const now = Math.floor(Date.now() / 1000);
             const isExpired = decoded.exp < now;
-            if (isExpired) console.error('⚠️ Token is EXPIRED');
+            if (isExpired) {
+              console.error('⚠️ Token is EXPIRED - Triggering token expiry modal');
+              // Store current location and trigger modal
+              const currentLocation = window.location.pathname;
+              sessionStorage.setItem('tokenExpiryLocation', currentLocation);
+              tokenExpiryEmitter.emit(currentLocation);
+            }
           }
         } catch (e) {
           console.error('❌ Could not decode JWT token');

@@ -1,8 +1,9 @@
-import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Header from "./components/Header";
 import ErrorPage from "./components/ErrorPage";
 import ErrorBoundary from "./components/ErrorBoundary";
+import TokenExpiryModal from "./components/TokenExpiryModal";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -36,8 +37,28 @@ import ClinicInventory from "./pages/ClinicInventory.tsx";
 import Analytics from "./pages/Analytics.jsx";
 import Footer from "./components/Footer";
 import WhatsAppChatbot from "./components/WhatsAppChatbot";
+import { useTokenExpiry } from "./context/TokenExpiryContext";
+import { tokenExpiryEmitter } from "./services/apiClient";
 
 export default function App(){
+  const navigate = useNavigate();
+  const { showTokenExpiryModal, setShowTokenExpiryModal } = useTokenExpiry();
+
+  useEffect(() => {
+    // Subscribe to token expiry events
+    const unsubscribe = tokenExpiryEmitter.subscribe((location) => {
+      console.log('🔐 Token expiry detected, showing modal');
+      setShowTokenExpiryModal(true);
+    });
+
+    return unsubscribe;
+  }, [setShowTokenExpiryModal]);
+
+  const handleLoginRedirect = () => {
+    setShowTokenExpiryModal(false);
+    navigate('/login', { state: { returnTo: sessionStorage.getItem('tokenExpiryLocation') || '/' } });
+  };
+
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-gradient-to-br from-cream-50 via-warmGray-50 to-teal-50/30">
@@ -84,6 +105,11 @@ export default function App(){
         </main>
         <Footer />
         <WhatsAppChatbot />
+        <TokenExpiryModal 
+          isOpen={showTokenExpiryModal} 
+          onLogin={handleLoginRedirect}
+          onClose={() => setShowTokenExpiryModal(false)}
+        />
       </div>
     </ErrorBoundary>
   );

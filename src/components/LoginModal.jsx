@@ -170,13 +170,10 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
         localStorage.setItem('userType', userType);
 
-        setSuccessMessage(`Welcome ${userType === 'doctor' ? 'Dr.' : 'Admin'} ${credentials.username}! 🎉`);
-
-        setTimeout(() => {
-          resetForm();
-          onClose();
-          if (onLoginSuccess) onLoginSuccess();
-        }, 1500);
+        // Close modal and redirect immediately on successful authentication
+        resetForm();
+        onClose();
+        if (onLoginSuccess) onLoginSuccess();
       } else {
         setError('Invalid credentials. Please try again.');
       }
@@ -245,13 +242,10 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
       localStorage.setItem('userType', userType);
       localStorage.setItem('email', otpState.email);
 
-      setSuccessMessage(`Welcome ${userType === 'doctor' ? 'Doctor' : 'Administrator'}! 🎉`);
-
-      setTimeout(() => {
-        resetForm();
-        onClose();
-        if (onLoginSuccess) onLoginSuccess();
-      }, 1500);
+      // Close modal and redirect immediately on successful authentication
+      resetForm();
+      onClose();
+      if (onLoginSuccess) onLoginSuccess();
     } catch (err) {
       setError(err.message || 'Invalid OTP. Please try again.');
     } finally {

@@ -156,6 +156,10 @@ export function getDoctorsByEnterpriseId(enterpriseId: number): Promise<DoctorPr
   return request<DoctorProfileModel[]>(`/DoctorProfile/GetDoctorsByEnterpriseID?enterpriseId=${enterpriseId}`);
 }
 
+export function getDoctorsByClinicId(clinicId: number): Promise<DoctorProfileModel[]> {
+  return request<DoctorProfileModel[]>(`/DoctorProfile/GetDoctorsByClinicID?ClinicID=${clinicId}`);
+}
+
 // Get clinics by enterprise ID
 import type { ClinicModel } from '../Interfaces/ClinicModel';
 

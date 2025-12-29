@@ -570,7 +570,7 @@ export default function Patients() {
     specialization: "General Dentistry & Oral Medicine"
   };
 
-  const appointmentTypeOptions = ["Consultation", "Follow-up", "Telehealth", "Emergency", "Routine Checkup", "Treatment", "Surgery"];
+  const appointmentTypeOptions = ["Consultation", "Follow-up", "Telehealth", "Emergency", "Routine Checkup", "Treatment", "Surgery","Walk-in"];
 
   // Form state for all four models
   const [patientData, setPatientData] = useState({
@@ -2540,6 +2540,84 @@ export default function Patients() {
                   </div>
                 ) : selectedPatient ? (
                   <div className="space-y-5">
+                    {/* Debug: Log the complete data structure */}
+                    {(() => {
+                      console.log('═════════════════════════════════════════════');
+                      console.log('📋 PATIENT MODAL - COMPLETE DATA STRUCTURE');
+                      console.log('═════════════════════════════════════════════');
+                      console.log('selectedPatient:', selectedPatient);
+                      console.log('selectedPatient.patient:', selectedPatient?.patient);
+                      console.log('selectedPatient.patientContact:', selectedPatient?.patientContact);
+                      console.log('selectedPatient.patientMedicalInfo:', selectedPatient?.patientMedicalInfo);
+                      console.log('selectedPatient.patientInsurance:', selectedPatient?.patientInsurance);
+                      console.log('First Name:', selectedPatient?.patient?.patientFirstName);
+                      console.log('Last Name:', selectedPatient?.patient?.patientLastName);
+                      console.log('Phone:', selectedPatient?.patientContact?.patientPhone);
+                      console.log('Email:', selectedPatient?.patientContact?.patientEmail);
+                      console.log('═════════════════════════════════════════════');
+                      return null;
+                    })()}
+                    {/* Data Validation Alert */}
+                    {(!selectedPatient?.patient || Object.keys(selectedPatient?.patient || {}).length === 0) && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 bg-yellow-50 border-2 border-yellow-300 rounded-xl"
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="text-2xl">⚠️</span>
+                          <div>
+                            <p className="font-bold text-yellow-800">Data Loading Issue</p>
+                            <p className="text-sm text-yellow-700 mt-1">
+                              The patient data structure appears to be incomplete. Check the browser console (F12) for detailed data structure logs.
+                            </p>
+                            <p className="text-xs text-yellow-600 mt-2">
+                              Expected structure: patient, patientContact, patientMedicalInfo, patientInsurance
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Debug Data Display Panel */}
+                    <div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-xl">
+                      <details className="cursor-pointer">
+                        <summary className="font-bold text-blue-800 flex items-center gap-2">
+                          <span>🔍</span> Debug: Raw Data Values & Token
+                        </summary>
+                        <div className="mt-3 space-y-2 text-sm bg-white p-3 rounded border border-blue-200">
+                          {/* Bearer Token */}
+                          <div className="p-2 bg-purple-50 border border-purple-200 rounded">
+                            <p><strong>🔐 Bearer Token:</strong></p>
+                            <code className="bg-purple-100 px-2 py-1 rounded block text-xs break-all mt-1">
+                              {(() => {
+                                const token = sessionStorage.getItem('accessToken_session') || localStorage.getItem('accessToken');
+                                console.log('🔐 BEARER TOKEN:', token);
+                                return token ? token.substring(0, 50) + '...' : '(not found)';
+                              })()}
+                            </code>
+                            <p className="text-xs text-purple-600 mt-1">Full token logged to console</p>
+                          </div>
+                          
+                          <hr className="my-2" />
+                          
+                          {/* Patient Data */}
+                          <p><strong>First Name:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{selectedPatient?.patient?.patientFirstName || '(empty)'}</code></p>
+                          <p><strong>Last Name:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{selectedPatient?.patient?.patientLastName || '(empty)'}</code></p>
+                          <p><strong>Clinic ID:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{selectedPatient?.patient?.clinicID || '(empty)'}</code></p>
+                          <p><strong>Patient ID:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{selectedPatient?.patient?.patientId || '(empty)'}</code></p>
+                          <p><strong>DOB:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{selectedPatient?.patient?.patientDOB || '(empty)'}</code></p>
+                          <p><strong>Gender:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{selectedPatient?.patient?.patientGender || '(empty)'}</code></p>
+                          <p><strong>Blood Type:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{selectedPatient?.patient?.patientBloodType || '(empty)'}</code></p>
+                          <hr className="my-2" />
+                          <p><strong>Phone:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{selectedPatient?.patientContact?.patientPhone || '(empty)'}</code></p>
+                          <p><strong>Email:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{selectedPatient?.patientContact?.patientEmail || '(empty)'}</code></p>
+                          <p><strong>Address:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{selectedPatient?.patientContact?.patientAddress || '(empty)'}</code></p>
+                          <p><strong>City:</strong> <code className="bg-gray-100 px-2 py-1 rounded">{selectedPatient?.patientContact?.patientCity || '(empty)'}</code></p>
+                        </div>
+                      </details>
+                    </div>
+
                     {/* Basic Information */}
                     <div className="bg-white rounded-xl p-6 shadow-md border-2 border-coral-200">
                       <div className="flex items-center gap-3 mb-5 pb-3 border-b-2 border-coral-200">
@@ -2555,48 +2633,52 @@ export default function Patients() {
                           <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">First Name</label>
                           <input
                             type="text"
+                            placeholder="First Name"
                             value={isEditMode ? editedPatient?.patient?.patientFirstName || '' : selectedPatient?.patient?.patientFirstName || ''}
                             onChange={(e) => isEditMode && setEditedPatient({
                               ...editedPatient,
                               patient: { ...editedPatient.patient, patientFirstName: e.target.value }
                             })}
                             disabled={!isEditMode}
-                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-500 text-slate-700 transition-colors"
+                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-900 text-slate-700 transition-colors"
                           />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Last Name</label>
                           <input
                             type="text"
+                            placeholder="Last Name"
                             value={isEditMode ? editedPatient?.patient?.patientLastName || '' : selectedPatient?.patient?.patientLastName || ''}
                             onChange={(e) => isEditMode && setEditedPatient({
                               ...editedPatient,
                               patient: { ...editedPatient.patient, patientLastName: e.target.value }
                             })}
                             disabled={!isEditMode}
-                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-500 text-slate-700 transition-colors"
+                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-900 text-slate-700 transition-colors"
                           />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Clinic ID</label>
                           <input
                             type="text"
+                            placeholder="Clinic ID"
                             value={selectedPatient?.patient?.clinicID || selectedPatient?.patient?.patientEntityID || ''}
                             disabled
-                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg bg-slate-50 text-slate-500"
+                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg bg-slate-50 text-slate-900"
                           />
                         </div>
                         <div>
                           <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">Date of Birth</label>
                           <input
                             type="date"
+                            placeholder="Date of Birth"
                             value={isEditMode ? editedPatient?.patient?.patientDOB?.split('T')[0] || '' : selectedPatient?.patient?.patientDOB?.split('T')[0] || ''}
                             onChange={(e) => isEditMode && setEditedPatient({
                               ...editedPatient,
                               patient: { ...editedPatient.patient, patientDOB: e.target.value }
                             })}
                             disabled={!isEditMode}
-                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-500 text-slate-700 transition-colors"
+                            className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-900 text-slate-700 transition-colors"
                           />
                         </div>
                         <div>
@@ -2618,9 +2700,10 @@ export default function Patients() {
                           ) : (
                             <input
                               type="text"
+                              placeholder="Gender"
                               value={selectedPatient?.patient?.patientGender || ''}
                               disabled
-                              className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg disabled:bg-slate-50 disabled:text-slate-500 text-slate-700 transition-colors"
+                              className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg disabled:bg-slate-50 disabled:text-slate-900 text-slate-700 transition-colors"
                             />
                           )}
                         </div>
@@ -2648,9 +2731,10 @@ export default function Patients() {
                           ) : (
                             <input
                               type="text"
+                              placeholder="Blood Type"
                               value={selectedPatient?.patient?.patientBloodType || ''}
                               disabled
-                              className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg disabled:bg-slate-50 disabled:text-slate-500 text-slate-700 transition-colors"
+                              className="w-full mt-1.5 px-4 py-2.5 border border-slate-300 rounded-lg disabled:bg-slate-50 disabled:text-slate-900 text-slate-700 transition-colors"
                             />
                           )}
                         </div>
@@ -2672,65 +2756,70 @@ export default function Patients() {
                             <label className="text-sm font-semibold text-slate-600">Phone Number</label>
                             <input
                               type="text"
+                              placeholder="Phone Number"
                               value={isEditMode ? editedPatient?.patientContact?.patientPhone || '' : selectedPatient?.patientContact?.patientPhone || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
                                 ...editedPatient,
                                 patientContact: { ...editedPatient.patientContact, patientPhone: e.target.value }
                               })}
                               disabled={!isEditMode}
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 transition-colors"
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 disabled:text-stone-900 transition-colors"
                             />
                           </div>
                           <div>
                             <label className="text-sm font-semibold text-slate-600">Email Address</label>
                             <input
                               type="email"
+                              placeholder="Email Address"
                               value={isEditMode ? editedPatient?.patientContact?.patientEmail || '' : selectedPatient?.patientContact?.patientEmail || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
                                 ...editedPatient,
                                 patientContact: { ...editedPatient.patientContact, patientEmail: e.target.value }
                               })}
                               disabled={!isEditMode}
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 transition-colors"
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 disabled:text-stone-900 transition-colors"
                             />
                           </div>
                           <div className="md:col-span-2">
                             <label className="text-sm font-semibold text-slate-600">Address</label>
                             <input
                               type="text"
+                              placeholder="Address"
                               value={isEditMode ? editedPatient?.patientContact?.patientAddress || '' : selectedPatient?.patientContact?.patientAddress || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
                                 ...editedPatient,
                                 patientContact: { ...editedPatient.patientContact, patientAddress: e.target.value }
                               })}
                               disabled={!isEditMode}
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 transition-colors"
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 disabled:text-stone-900 transition-colors"
                             />
                           </div>
                           <div>
                             <label className="text-sm font-semibold text-slate-600">City</label>
                             <input
                               type="text"
+                              placeholder="City"
                               value={isEditMode ? editedPatient?.patientContact?.patientCity || '' : selectedPatient?.patientContact?.patientCity || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
                                 ...editedPatient,
                                 patientContact: { ...editedPatient.patientContact, patientCity: e.target.value }
                               })}
                               disabled={!isEditMode}
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 transition-colors"
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 disabled:text-stone-900 transition-colors"
                             />
                           </div>
                           <div>
                             <label className="text-sm font-semibold text-slate-600">Emergency Contact</label>
                             <input
                               type="text"
+                              placeholder="Emergency Contact"
                               value={isEditMode ? editedPatient?.patientContact?.patientEmergencyContact || '' : selectedPatient?.patientContact?.patientEmergencyContact || ''}
                               onChange={(e) => isEditMode && setEditedPatient({
                                 ...editedPatient,
                                 patientContact: { ...editedPatient.patientContact, patientEmergencyContact: e.target.value }
                               })}
                               disabled={!isEditMode}
-                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 transition-colors"
+                              className="w-full mt-1 px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-400 focus:border-teal-400 disabled:bg-stone-100 disabled:text-stone-900 transition-colors"
                             />
                           </div>
                         </div>
@@ -5007,274 +5096,254 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
               </motion.button>
 
               {/* Form */}
-              <div className="p-8 max-h-[70vh] overflow-y-auto">
-                {/* Patient Search Section */}
-                <div className="mb-8 p-6 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border-2 border-indigo-200">
-                  <h4 className="text-xl font-bold text-indigo-800 mb-4 flex items-center gap-2">
-                    <span>🔍</span> Search Patient
-                  </h4>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-400 mb-2 flex items-center gap-2">
-                        <span>🏥</span> Clinic (Disabled for now)
-                      </label>
-                      <select
-                        disabled
-                        value={patientSearchForm.clinicId}
-                        onChange={(e) => setPatientSearchForm({ ...patientSearchForm, clinicId: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed outline-none"
-                      >
-                        <option value="">Select Clinic</option>
-                        {clinicsList.map(clinic => (
-                          <option key={clinic.clinicId} value={clinic.clinicId}>
-                            {clinic.clinicName}
-                          </option>
-                        ))}
-                      </select>
+              <div className="p-8 max-h-[90vh] overflow-y-auto space-y-6">
+                
+                {/* Search Section */}
+                {!searchedPatient && !bookingWithoutRegistration && (
+                  <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200">
+                    <h3 className="text-lg font-bold text-blue-900 mb-6 flex items-center gap-2">
+                      <span>🔍</span> Search Patient
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                          First Name
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter first name..."
+                          id="patientFirstNameSearch"
+                          className="w-full px-4 py-2 rounded-lg border-2 border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                          Last Name
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Enter last name..."
+                          id="patientLastNameSearch"
+                          className="w-full px-4 py-2 rounded-lg border-2 border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                        <span>🆔</span> Select Patient
-                      </label>
-                      <select
-                        value={patientSearchForm.patientId}
-                        onChange={async (e) => {
-                          const selectedPatientId = e.target.value;
-                          setPatientSearchForm({ ...patientSearchForm, patientId: selectedPatientId });
+
+                    <div className="flex gap-3">
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={async () => {
+                          const firstName = document.getElementById('patientFirstNameSearch')?.value || '';
+                          const lastName = document.getElementById('patientLastNameSearch')?.value || '';
                           
-                          if (selectedPatientId) {
-                            // Find the selected patient and auto-fill the form
-                            const patient = clinicPatientsList.find(p => p.patientId === parseInt(selectedPatientId));
-                            if (patient) {
-                              setSearchedPatient(patient);
-                              setPatientNotFound(false);
-                              setBookingWithoutRegistration(false);
-                              
-                              // Auto-fill appointment form
+                          if (!firstName.trim() && !lastName.trim()) {
+                            alert('Please enter at least one of: First Name or Last Name');
+                            return;
+                          }
+                          
+                          try {
+                            // Get clinic ID and enterprise ID from selectedAccess (token payload)
+                            const selectedAccessStr = localStorage.getItem('selectedAccess');
+                            const selectedAccess = selectedAccessStr ? JSON.parse(selectedAccessStr) : null;
+                            
+                            if (!selectedAccess || !selectedAccess.enterpriseId || !selectedAccess.clinicId) {
+                              alert('❌ Session error: Please login again to get clinic information.');
+                              return;
+                            }
+                            
+                            const searchParams = {
+                              clinicId: selectedAccess.clinicId,
+                              enterpriseId: selectedAccess.enterpriseId
+                            };
+                            
+                            if (firstName.trim()) searchParams.firstName = firstName;
+                            if (lastName.trim()) searchParams.lastName = lastName;
+                            
+                            const results = await searchPatients(searchParams);
+                            
+                            if (results && results.length > 0) {
+                              setSearchedPatient(results[0]);
                               setAppointmentForm({
                                 ...appointmentForm,
-                                firstName: patient.patientFirstName || '',
-                                lastName: patient.patientLastName || '',
-                                phoneNumber: patient.patientPhone || '',
-                                email: patient.patientEmail || ''
+                                firstName: results[0].patientFirstName || '',
+                                lastName: results[0].patientLastName || '',
+                                phoneNumber: results[0].patientPhone || '',
+                                email: results[0].patientEmail || ''
                               });
+                            } else {
+                              // Show no results with options
+                              setPatientNotFound(true);
                             }
-                          } else {
-                            setSearchedPatient(null);
-                            setPatientNotFound(false);
+                          } catch (error) {
+                            console.error('Search error:', error);
+                            alert('❌ Error searching for patient');
                           }
                         }}
-                        disabled={loadingClinicPatients}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
+                        className="flex-1 px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2"
                       >
-                        <option value="">
-                          {loadingClinicPatients ? 'Loading patients...' : 'Select a patient'}
-                        </option>
-                        {clinicPatientsList.map(patient => (
-                          <option key={patient.patientId} value={patient.patientId}>
-                            ID: {patient.patientId} - {patient.patientFirstName} {patient.patientLastName}
-                          </option>
-                        ))}
-                      </select>
+                        <span>🔍</span>
+                        <span>Search Patient</span>
+                      </motion.button>
+                      
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setBookingWithoutRegistration(true);
+                          document.getElementById('patientFirstNameSearch').value = '';
+                          document.getElementById('patientLastNameSearch').value = '';
+                        }}
+                        className="px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2"
+                      >
+                        <span>🚶</span>
+                        <span>Walk-In</span>
+                      </motion.button>
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                        <span>👤</span> First Name (Optional Search)
-                      </label>
-                      <input
-                        type="text"
-                        value={patientSearchForm.firstName}
-                        onChange={(e) => setPatientSearchForm({ ...patientSearchForm, firstName: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
-                        placeholder="Enter First Name"
-                      />
+                )}
+
+                {/* No Results Found - Show Options */}
+                {patientNotFound && !searchedPatient && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-6 bg-rose-50 border-2 border-rose-300 rounded-xl"
+                  >
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="text-2xl">❌</span>
+                      <h4 className="font-bold text-rose-700">No Patient Found</h4>
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                        <span>👤</span> Last Name (Optional Search)
-                      </label>
-                      <input
-                        type="text"
-                        value={patientSearchForm.lastName}
-                        onChange={(e) => setPatientSearchForm({ ...patientSearchForm, lastName: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all"
-                        placeholder="Enter Last Name"
-                      />
+                    <p className="text-sm text-rose-600 mb-4">
+                      We couldn't find a patient with that name. Would you like to:
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setPatientNotFound(false);
+                          setBookingWithoutRegistration(true);
+                        }}
+                        className="px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2"
+                      >
+                        <span>🚶</span>
+                        <span>Book Walk-In Appointment</span>
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setShowNewAppointmentModal(false);
+                          setActiveView('register');
+                        }}
+                        className="px-4 py-3 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2"
+                      >
+                        <span>➕</span>
+                        <span>Register New Patient</span>
+                      </motion.button>
                     </div>
-                  </div>
-                  
-                  {/* Search by Name Button - Optional when dropdown selection is not used */}
-                  {(patientSearchForm.firstName || patientSearchForm.lastName) && !searchedPatient && (
                     <motion.button
                       type="button"
                       whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      disabled={patientSearchLoading}
-                      onClick={async () => {
-                        setPatientSearchLoading(true);
+                      onClick={() => {
                         setPatientNotFound(false);
-                        setSearchedPatient(null);
-                        
-                        try {
-                          const searchParams = {};
-                          if (patientSearchForm.firstName) searchParams.firstName = patientSearchForm.firstName;
-                          if (patientSearchForm.lastName) searchParams.lastName = patientSearchForm.lastName;
-                          
-                          const results = await searchPatients(searchParams);
-                          
-                          if (results && results.length > 0) {
-                            const patient = results[0];
-                            setSearchedPatient(patient);
-                            setPatientNotFound(false);
-                            setBookingWithoutRegistration(false);
-                            
-                            // Auto-fill appointment form - API returns direct patient object
-                            setAppointmentForm({
-                              ...appointmentForm,
-                              firstName: patient.patientFirstName || '',
-                              lastName: patient.patientLastName || '',
-                              phoneNumber: patient.patientPhone || '',
-                              email: patient.patientEmail || ''
-                            });
-                          } else {
-                            setPatientNotFound(true);
-                            setSearchedPatient(null);
-                            setBookingWithoutRegistration(false);
-                          }
-                        } catch (error) {
-                          console.error('Patient search error:', error);
-                          setPatientNotFound(true);
-                          setSearchedPatient(null);
-                        } finally {
-                          setPatientSearchLoading(false);
-                        }
+                        document.getElementById('patientFirstNameSearch').value = '';
+                        document.getElementById('patientLastNameSearch').value = '';
                       }}
-                      className={`w-full px-6 py-3 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 mb-4 ${
-                        patientSearchLoading
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white'
-                      }`}
+                      className="w-full mt-3 px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold transition-all"
                     >
-                      {patientSearchLoading ? (
-                        <>
-                          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          <span>Searching...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>🔍</span>
-                          <span>Search by Name</span>
-                        </>
-                      )}
+                      Back to Search
                     </motion.button>
-                  )}
-                  
-                  {/* Patient Found Message */}
-                  {searchedPatient && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mt-4 p-4 bg-emerald-50 border-2 border-emerald-300 rounded-xl"
-                    >
-                      <div className="flex items-center gap-2 text-emerald-700 font-bold mb-2">
-                        <span>✅</span>
-                        <span>Patient Found!</span>
+                  </motion.div>
+                )}
+
+                {/* Searched Patient Info */}
+                {searchedPatient && !patientNotFound && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-emerald-50 border-2 border-emerald-300 rounded-xl"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">✅</span>
+                        <div>
+                          <p className="font-bold text-emerald-700">Patient Found</p>
+                          <p className="text-sm text-emerald-600">
+                            {searchedPatient.patientFirstName} {searchedPatient.patientLastName} • ID: {searchedPatient.patientId}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-sm text-emerald-600">
-                        {searchedPatient.patientFirstName} {searchedPatient.patientLastName} - 
-                        ID: {searchedPatient.patientId} | DOB: {searchedPatient.patientDOB ? new Date(searchedPatient.patientDOB).toLocaleDateString() : 'N/A'} | Gender: {searchedPatient.patientGender || 'N/A'}
-                      </p>
-                    </motion.div>
-                  )}
-                  
-                  {/* Patient Not Found Message */}
-                  {patientNotFound && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mt-4 p-4 bg-rose-50 border-2 border-rose-300 rounded-xl"
-                    >
-                      <div className="flex items-center gap-2 text-rose-700 font-bold mb-3">
-                        <span>❌</span>
-                        <span>Patient Not Found</span>
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.1 }}
+                        onClick={() => {
+                          setSearchedPatient(null);
+                          document.getElementById('patientFirstNameSearch').value = '';
+                          document.getElementById('patientLastNameSearch').value = '';
+                        }}
+                        className="px-4 py-2 bg-emerald-200 hover:bg-emerald-300 text-emerald-700 rounded-lg text-sm font-bold transition-all"
+                      >
+                        Search Again
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Walk-In Mode Indicator */}
+                {bookingWithoutRegistration && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-amber-50 border-2 border-amber-300 rounded-xl"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl">🚶</span>
+                        <div>
+                          <p className="font-bold text-amber-700">Walk-In Appointment Mode</p>
+                          <p className="text-sm text-amber-600">Enter patient details below</p>
+                        </div>
                       </div>
-                      <p className="text-sm text-rose-600 mb-3">
-                        No patient found with the provided search criteria.
-                      </p>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => {
-                            setShowNewAppointmentModal(false);
-                            setActiveView('register');
-                          }}
-                          className="px-4 py-2 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
-                        >
-                          <span>➕</span>
-                          <span>Register Patient</span>
-                        </motion.button>
-                        <motion.button
-                          type="button"
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => {
-                            setBookingWithoutRegistration(true);
-                            setPatientNotFound(false);
-                            // Clear the form for manual entry
-                            setAppointmentForm({
-                              firstName: "",
-                              lastName: "",
-                              phoneNumber: "",
-                              email: "",
-                              dateOfBirth: "",
-                              age: "",
-                              date: "",
-                              startTime: "",
-                              endTime: "",
-                              durationMinutes: "",
-                              appointmentType: "",
-                              reasonForVisit: "",
-                              notes: "",
-                              roomNumber: "",
-                              telehealthLink: "",
-                              attendingPhysician: "",
-                              status: "Scheduled",
-                              isConfirmed: false,
-                              billableAmount: "",
-                              paidAmount: "",
-                              pendingAmount: "",
-                              paymentStatus: "Pending",
-                              doctorId: "",
-                              isWalkIn: true
-                            });
-                          }}
-                          className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-lg font-bold shadow-md transition-all flex items-center justify-center gap-2"
-                        >
-                          <span>📝</span>
-                          <span>Book Walk-in Appointment</span>
-                        </motion.button>
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.1 }}
+                        onClick={() => {
+                          setBookingWithoutRegistration(false);
+                          setPatientNotFound(false);
+                          document.getElementById('patientFirstNameSearch').value = '';
+                          document.getElementById('patientLastNameSearch').value = '';
+                        }}
+                        className="px-4 py-2 bg-amber-200 hover:bg-amber-300 text-amber-700 rounded-lg text-sm font-bold transition-all"
+                      >
+                        Back
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
 
                 <form onSubmit={async (e) => {
                   e.preventDefault();
                   
                   try {
-                    // Get default clinic ID (you may want to make this selectable)
-                    const defaultClinicId = parseInt(localStorage.getItem('clinicId') || '1');
-                    const enterpriseId = parseInt(localStorage.getItem('enterpriseId') || '1');
-                    const userId = parseInt(localStorage.getItem('userId') || '1');
+                    // Get clinic ID and enterprise ID from selectedAccess (token payload)
+                    const selectedAccessStr = localStorage.getItem('selectedAccess');
+                    const selectedAccess = selectedAccessStr ? JSON.parse(selectedAccessStr) : null;
+                    
+                    if (!selectedAccess || !selectedAccess.enterpriseId || !selectedAccess.clinicId) {
+                      alert('❌ Session error: Please login again to get the required clinic and enterprise information.');
+                      return;
+                    }
+                    
+                    const clinicId = selectedAccess.clinicId;
+                    const enterpriseId = selectedAccess.enterpriseId;
+                    const userId = localStorage.getItem('userId');
                     
                     // Convert time format from HH:mm to HH:mm:ss for TimeSpan
                     const startTimeSpan = appointmentForm.startTime ? `${appointmentForm.startTime}:00` : null;
@@ -5290,10 +5359,10 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     
                     // Build appointment model matching backend AppointmentsModel
                     const appointmentPayload = {
-                      // References
+                      // References - from token payload (selectedAccess)
                       enterpriseId: enterpriseId,
+                      clinicId: clinicId,
                       patientId: searchedPatient ? searchedPatient.patientId : 0, // 0 for walk-in/non-registered
-                      clinicId: defaultClinicId,
                       doctorId: appointmentForm.doctorId ? parseInt(appointmentForm.doctorId) : null,
                       attendingPhysician: appointmentForm.attendingPhysician || null,
                       // Patient details (stored in appointments row)
@@ -5320,7 +5389,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       pendingAmount: appointmentForm.pendingAmount ? parseFloat(appointmentForm.pendingAmount) : null,
                       paymentStatus: appointmentForm.paymentStatus || "Pending",
                       // Audit
-                      createdBy: userId
+                      createdBy: userId ? parseInt(userId) : null
                     };
                     
                     // Call API
@@ -5452,39 +5521,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </div>
                   )}
 
-                  {/* Identifiers (read-only) */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-bold mb-2 text-slate-700">Patient ID (read-only)</label>
-                      <input
-                        type="text"
-                        value={appointmentForm.patientId || searchedPatient?.patientId || ''}
-                        readOnly
-                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 bg-gray-100 text-gray-700"
-                        placeholder="Auto"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold mb-2 text-slate-700">Clinic ID</label>
-                      <input
-                        type="text"
-                        value={appointmentForm.clinicId || localStorage.getItem('clinicId') || ''}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, clinicId: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                        placeholder="Clinic ID"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold mb-2 text-slate-700">Enterprise ID</label>
-                      <input
-                        type="text"
-                        value={appointmentForm.enterpriseId || localStorage.getItem('enterpriseId') || ''}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, enterpriseId: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
-                        placeholder="Enterprise ID"
-                      />
-                    </div>
-                  </div>
+
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -5612,19 +5649,6 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                           <option value={appointmentForm.appointmentType}>{appointmentForm.appointmentType} (current)</option>
                         )}
                       </select>
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
-                        <span>👨‍⚕️</span> Doctor ID {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
-                      </label>
-                      <input
-                        type="number"
-                        disabled={!searchedPatient && !bookingWithoutRegistration}
-                        value={appointmentForm.doctorId}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, doctorId: e.target.value })}
-                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
-                        placeholder="Enter doctor ID (optional)"
-                      />
                     </div>
                   </div>
 

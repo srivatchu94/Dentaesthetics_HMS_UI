@@ -3,11 +3,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { getCalendarAppointments, getAppointmentsByDoctorID, getAppointmentsByFilters, createPrescription, getPrescriptionsByAppointment, updateAppointment, addPrescription, updatePrescriptionData, getPrescriptionById, addPatientVisit } from "../services/appointmentService";
 import { visitService, prescriptionService } from "../services/visitService";
-import { createInventoryMaster, listInventoryMasters, getClinicInventoryByClinicId, createClinicInventory, updateClinicInventory, deleteClinicInventory } from "../services/inventoryService";
+import { createInventoryMaster, listInventoryMasters, getClinicInventoryByClinicId, createClinicInventory, updateClinicInventory, deleteClinicInventory, addInventoryMasterItemsBulk } from "../services/inventoryService";
 import { getClinic, getClinicByClinicId } from "../services/clinicService";
 import { getStaffProfileByClinicId } from "../services/staffService";
+import { getDoctorsByClinicId } from "../services/doctorService";
 import PrescriptionWritingModal from "../components/PrescriptionWritingModal";
 import PrescriptionPrint from "../components/PrescriptionPrint";
+import InventoryAutoComplete from "../components/InventoryAutoComplete";
+import AddToMasterInventoryModal from "../components/AddToMasterInventoryModal";
+import SuccessModal from "../components/SuccessModal";
 import { getPatientFullProfile, getPatientVisit, editPatientVisit, getPatientsByClinic } from "../services/patientService";
 
 // Sample data
@@ -194,12 +198,19 @@ export default function Doctors() {
   const [loadingInventory, setLoadingInventory] = useState(false);
   const [showInventoryModal, setShowInventoryModal] = useState(false);
   const [editingInventoryItem, setEditingInventoryItem] = useState(null);
+  const [masterItems, setMasterItems] = useState([]);
+  const [showAddMasterFromAutocomplete, setShowAddMasterFromAutocomplete] = useState(false);
+  const [autocompleteNewItemName, setAutocompleteNewItemName] = useState('');
+  const [loadingMasterModal, setLoadingMasterModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successModalData, setSuccessModalData] = useState({ itemCount: 0 });
   const [inventoryFormData, setInventoryFormData] = useState({
     name: '',
     category: '',
     stock: 0,
     minStock: 0,
-    unitCost: 0
+    unitCost: 0,
+    storageLocation: ''
   });
   
   // Clinic Details states
@@ -218,15 +229,19 @@ export default function Doctors() {
   
   // New appointment booking states
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [doctorsList, setDoctorsList] = useState([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
   const [newAppointment, setNewAppointment] = useState({
-    patient: "",
+    firstName: "",
+    lastName: "",
     date: "",
     time: "",
     type: "",
     doctor: "",
     notes: "",
     phone: "",
-    email: ""
+    email: "",
+    isWalkIn: false
   });
   
   // Inventory management states
@@ -330,46 +345,84 @@ export default function Doctors() {
   }, []);
   
   // New appointment booking functions
-  const handleOpenBooking = () => {
+  const handleOpenBooking = async () => {
     setBookingModalOpen(true);
     setNewAppointment({
-      patient: "",
+      firstName: "",
+      lastName: "",
       date: "",
       time: "",
       type: "",
       doctor: "",
       notes: "",
       phone: "",
-      email: ""
+      email: "",
+      isWalkIn: false
     });
+
+    // Fetch doctors list for the clinic
+    try {
+      setLoadingDoctors(true);
+      // Get clinic ID from clinicData or from selected access
+      const clinicId = clinicData?.clinicId || selectedAccess?.clinicId;
+      if (clinicId) {
+        const doctors = await getDoctorsByClinicId(clinicId);
+        setDoctorsList(doctors || []);
+        console.log('✅ Doctors fetched:', doctors);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching doctors:', error);
+      setDoctorsList([]);
+    } finally {
+      setLoadingDoctors(false);
+    }
   };
   
   const handleBookAppointment = () => {
-    if (newAppointment.patient && newAppointment.date && newAppointment.time && newAppointment.type) {
-      const appointment = {
-        id: appointments.length + 1,
-        patient: newAppointment.patient,
-        date: newAppointment.date,
-        time: newAppointment.time,
-        type: newAppointment.type,
-        status: "Confirmed"
-      };
-      setAppointments([...appointments, appointment]);
-      setBookingModalOpen(false);
-      setNewAppointment({
-        patient: "",
-        date: "",
-        time: "",
-        type: "",
-        doctor: "",
-        notes: "",
-        phone: "",
-        email: ""
-      });
-      alert("✅ Appointment booked successfully!");
-    } else {
-      alert("❌ Please fill in all required fields");
+    // Validate mandatory fields
+    const { firstName, lastName, date, time, type, notes, phone, email, isWalkIn, doctor } = newAppointment;
+    
+    if (!firstName || !lastName || !date || !time || !type || !notes || !phone || !email) {
+      alert("❌ Please fill in all mandatory fields: First Name, Last Name, Contact, Email, Date, Time, Type, and Reason for Visit");
+      return;
     }
+
+    // For non-walk-in appointments, doctor is required
+    if (!isWalkIn && !doctor) {
+      alert("❌ Please select an attending physician for this appointment");
+      return;
+    }
+
+    const appointment = {
+      id: appointments.length + 1,
+      firstName: firstName,
+      lastName: lastName,
+      patient: `${firstName} ${lastName}`,
+      date: date,
+      time: time,
+      type: type,
+      doctor: doctor || "Walk-In",
+      notes: notes,
+      phone: phone,
+      email: email,
+      status: "Confirmed",
+      appointmentType: isWalkIn ? "Walk In" : type
+    };
+    setAppointments([...appointments, appointment]);
+    setBookingModalOpen(false);
+    setNewAppointment({
+      firstName: "",
+      lastName: "",
+      date: "",
+      time: "",
+      type: "",
+      doctor: "",
+      notes: "",
+      phone: "",
+      email: "",
+      isWalkIn: false
+    });
+    alert("✅ Appointment booked successfully!");
   };
   
   const handleAddNewItem = () => {
@@ -458,6 +511,28 @@ export default function Doctors() {
     }
   }, [showVisitInfoModal]);
 
+  // Load inventory data on component mount
+  useEffect(() => {
+    console.log('📦 Component mounted, loading inventory data...');
+    loadInventoryData();
+  }, []);
+
+  // Load master items when inventory modal opens
+  useEffect(() => {
+    if (showInventoryModal) {
+      const loadMasterItems = async () => {
+        try {
+          const data = await listInventoryMasters();
+          setMasterItems(data || []);
+        } catch (error) {
+          console.error('Error loading master items:', error);
+          setMasterItems([]);
+        }
+      };
+      loadMasterItems();
+    }
+  }, [showInventoryModal]);
+
   // ============ MANAGE CLINIC API FUNCTIONS ============
   const loadClinicData = async () => {
     const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
@@ -501,20 +576,26 @@ export default function Doctors() {
   };
 
   const loadInventoryData = async () => {
+    console.log('🚀 [INVENTORY] loadInventoryData() called');
     const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
     const clinicId = selectedAccess.clinicId;
+    console.log('🏥 [INVENTORY] Clinic ID from token:', clinicId);
+    
     if (!clinicId) {
-      console.error('❌ Clinic ID not found');
+      console.error('❌ [INVENTORY] Clinic ID not found in localStorage.selectedAccess');
       return;
     }
     
     setLoadingInventory(true);
+    console.log('⏳ [INVENTORY] Set loading state to true, calling API...');
+    
     try {
+      console.log(`📞 [INVENTORY] Calling getClinicInventoryByClinicId(${clinicId})`);
       const data = await getClinicInventoryByClinicId(clinicId);
-      console.log('✅ Inventory data loaded:', data);
+      console.log('✅ [INVENTORY] Data loaded successfully:', data);
       setClinicInventory(data || []);
     } catch (error) {
-      console.error('❌ Failed to load inventory data:', error);
+      console.error('❌ [INVENTORY] Failed to load inventory data:', error);
       setClinicInventory([]);
     } finally {
       setLoadingInventory(false);
@@ -526,45 +607,136 @@ export default function Doctors() {
     const clinicId = selectedAccess.clinicId;
     const enterpriseId = selectedAccess.enterpriseId;
     
+    console.log('💾 [INVENTORY] Saving inventory item with token data:', { clinicId, enterpriseId });
+    
+    if (!clinicId || !enterpriseId) {
+      alert('❌ Clinic information not found. Please select a clinic.');
+      return;
+    }
+
+    if (!inventoryFormData.name.trim()) {
+      alert('❌ Please enter item name');
+      return;
+    }
+    
     try {
+      // The backend expects itemId (reference to master inventory) AND ItemName
       const payload = {
+        itemId: editingInventoryItem?.itemId || editingInventoryItem?.id || 0,
+        itemName: inventoryFormData.name.trim(),  // ✅ Backend requires this
         enterpriseId: enterpriseId,
         clinicId: clinicId,
-        itemName: inventoryFormData.name,
-        categoryName: inventoryFormData.category,
-        stock: inventoryFormData.stock,
-        minimumStock: inventoryFormData.minStock,
-        unitCost: inventoryFormData.unitCost
+        quantityAvailable: parseInt(inventoryFormData.stock) || 0,
+        reorderLevel: parseInt(inventoryFormData.minStock) || 0,
+        minimumStock: parseInt(inventoryFormData.minStock) || 0,
+        status: 'Active',
+        storageLocation: inventoryFormData.storageLocation || 'Storage'
       };
       
-      if (editingInventoryItem?.id) {
-        await updateClinicInventory(editingInventoryItem.id, { ...payload, id: editingInventoryItem.id });
+      console.log('📤 [INVENTORY] Payload being sent:', payload);
+      
+      if (editingInventoryItem?.inventoryId || editingInventoryItem?.id) {
+        // Update existing item
+        console.log('✏️ [INVENTORY] Updating existing inventory item:', editingInventoryItem?.inventoryId || editingInventoryItem?.id);
+        const updatePayload = {
+          inventoryId: editingInventoryItem?.inventoryId || editingInventoryItem?.id,
+          ...payload
+        };
+        await updateClinicInventory(editingInventoryItem?.inventoryId || editingInventoryItem?.id, updatePayload);
         console.log('✅ Inventory item updated');
       } else {
+        // Create new item
+        console.log('➕ [INVENTORY] Creating new inventory item');
         await createClinicInventory(payload);
         console.log('✅ Inventory item added');
       }
       
       setShowInventoryModal(false);
-      setInventoryFormData({ name: '', category: '', stock: 0, minStock: 0, unitCost: 0 });
+      setInventoryFormData({ name: '', category: '', stock: 0, minStock: 0, unitCost: 0, storageLocation: '' });
       setEditingInventoryItem(null);
       await loadInventoryData();
     } catch (error) {
       console.error('❌ Failed to save inventory item:', error);
-      alert('Failed to save inventory item');
+      alert(`Failed to save inventory item: ${error.message}`);
     }
   };
 
   const handleDeleteInventoryItem = async (itemId) => {
     if (window.confirm('Are you sure you want to delete this inventory item?')) {
       try {
-        await deleteClinicInventory(itemId);
+        const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
+        const enterpriseId = selectedAccess.enterpriseId;
+        const clinicId = selectedAccess.clinicId;
+        
+        if (!enterpriseId || !clinicId) {
+          alert('❌ Enterprise ID or Clinic ID not found. Please login again.');
+          return;
+        }
+        
+        console.log(`🗑️ Deleting inventory item:`, { enterpriseId, clinicId, itemId });
+        await deleteClinicInventory(enterpriseId, clinicId, itemId);
         console.log('✅ Inventory item deleted');
         await loadInventoryData();
       } catch (error) {
         console.error('❌ Failed to delete inventory item:', error);
         alert('Failed to delete inventory item');
       }
+    }
+  };
+
+  const handleAddMasterItems = async (validRows) => {
+    try {
+      console.log('📋 Adding master inventory items:', validRows);
+      setLoadingMasterModal(true);
+      
+      const payload = validRows.map((row) => ({
+        itemCode: row.itemCode,
+        itemName: row.itemName,
+        category: row.category,
+        subCategory: row.subCategory,
+        unit: row.unit,
+        description: row.description || '',
+      }));
+      
+      console.log('📦 Payload being sent to API:', payload);
+      await addInventoryMasterItemsBulk(payload);
+      console.log('✅ Items added to master inventory successfully');
+      
+      // Refresh master items list
+      const updatedMasterItems = await listInventoryMasters();
+      setMasterItems(updatedMasterItems || []);
+      
+      // Get the first added item name to pre-select it
+      const firstAddedItemName = validRows[0]?.itemName || '';
+      
+      // Close the Add to Master modal but keep inventory modal open
+      setShowAddMasterFromAutocomplete(false);
+      setAutocompleteNewItemName('');
+      setLoadingMasterModal(false);
+      
+      // Update the autocomplete field with the first added item
+      if (firstAddedItemName) {
+        // Find the newly added item in the master items
+        const newItem = updatedMasterItems?.find(item => item.itemName === firstAddedItemName);
+        if (newItem) {
+          setInventoryFormData({
+            ...inventoryFormData,
+            itemId: newItem.id,
+            name: newItem.itemName,
+            category: newItem.category,
+            unit: newItem.unit,
+            subCategory: newItem.subCategory,
+          });
+        }
+      }
+      
+      // Show success modal instead of alert
+      setSuccessModalData({ itemCount: validRows.length });
+      setShowSuccessModal(true);
+    } catch (error) {
+      console.error('❌ Error adding master items:', error);
+      alert(`Failed to add items: ${error.message}`);
+      setLoadingMasterModal(false);
     }
   };
 
@@ -4965,22 +5137,41 @@ export default function Doctors() {
               <div>
                 <h3 className="text-sm font-semibold text-stone-700 mb-3 flex items-center gap-2">
                   <span>👤</span> Patient Information
+                  {newAppointment.isWalkIn && (
+                    <span className="ml-auto px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold">
+                      Walk-In Patient
+                    </span>
+                  )}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-1">
-                      Patient Name <span className="text-red-500">*</span>
+                      First Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
-                      value={newAppointment.patient}
-                      onChange={(e) => setNewAppointment({ ...newAppointment, patient: e.target.value })}
-                      placeholder="Enter patient name"
+                      value={newAppointment.firstName}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, firstName: e.target.value })}
+                      placeholder="Enter first name"
                       className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">Phone Number</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Last Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newAppointment.lastName}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, lastName: e.target.value })}
+                      placeholder="Enter last name"
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Contact Number <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="tel"
                       value={newAppointment.phone}
@@ -4989,8 +5180,10 @@ export default function Doctors() {
                       className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
                     />
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-stone-700 mb-1">Email Address</label>
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Email Address <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="email"
                       value={newAppointment.email}
@@ -5036,7 +5229,14 @@ export default function Doctors() {
                     </label>
                     <select
                       value={newAppointment.type}
-                      onChange={(e) => setNewAppointment({ ...newAppointment, type: e.target.value })}
+                      onChange={(e) => {
+                        const isWalkIn = e.target.value === "Walk In";
+                        setNewAppointment({ 
+                          ...newAppointment, 
+                          type: e.target.value,
+                          isWalkIn
+                        });
+                      }}
                       className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
                     >
                       <option value="">Select type</option>
@@ -5048,28 +5248,35 @@ export default function Doctors() {
                       <option value="Extraction">Extraction</option>
                       <option value="Consultation">Consultation</option>
                       <option value="Emergency">Emergency</option>
+                      <option value="Walk In">Walk In</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">Assigned Doctor</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Attending Physician {!newAppointment.isWalkIn && <span className="text-red-500">*</span>}
+                    </label>
                     <select
                       value={newAppointment.doctor}
                       onChange={(e) => setNewAppointment({ ...newAppointment, doctor: e.target.value })}
-                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                      disabled={loadingDoctors}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition disabled:bg-stone-100"
                     >
-                      <option value="">Select doctor</option>
-                      <option value="Dr. Smith">Dr. Smith</option>
-                      <option value="Dr. Johnson">Dr. Johnson</option>
-                      <option value="Dr. Williams">Dr. Williams</option>
-                      <option value="Dr. Brown">Dr. Brown</option>
+                      <option value="">{loadingDoctors ? "Loading doctors..." : "Select doctor"}</option>
+                      {doctorsList.map((doc) => (
+                        <option key={doc.doctorId} value={doc.doctorId}>
+                          {doc.firstName} {doc.lastName} {doc.specialization ? `(${doc.specialization})` : ""}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-stone-700 mb-1">Notes</label>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Reason for Visit <span className="text-red-500">*</span>
+                    </label>
                     <textarea
                       value={newAppointment.notes}
                       onChange={(e) => setNewAppointment({ ...newAppointment, notes: e.target.value })}
-                      placeholder="Any additional notes or special requirements..."
+                      placeholder="Describe the reason for visit, symptoms, or concerns..."
                       rows={3}
                       className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition resize-none"
                     />
@@ -5613,14 +5820,18 @@ export default function Doctors() {
                     <motion.button
                       key={tab.key}
                       onClick={() => {
+                        console.log(`🖱️ [SIDEBAR] Clicked on Manage Clinic tab:`, tab.key);
                         setActiveSection("manage");
                         setActiveTab(tab.key);
                         // Load API data based on tab
                         if (tab.key === "settings") {
+                          console.log('⚙️ [SIDEBAR] Loading clinic settings...');
                           loadClinicData();
                         } else if (tab.key === "staff") {
+                          console.log('👔 [SIDEBAR] Loading staff data...');
                           loadStaffData();
                         } else if (tab.key === "inventory") {
+                          console.log('📦 [SIDEBAR] Loading inventory data from sidebar click...');
                           loadInventoryData();
                         }
                       }}
@@ -7595,7 +7806,7 @@ export default function Doctors() {
                       onClick={() => {
                         setShowInventoryModal(true);
                         setEditingInventoryItem(null);
-                        setInventoryFormData({ name: '', category: '', stock: 0, minStock: 0, unitCost: 0 });
+                        setInventoryFormData({ name: '', category: '', stock: 0, minStock: 0, unitCost: 0, storageLocation: '' });
                       }}
                       className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-medium hover:shadow-lg transition"
                     >
@@ -7632,8 +7843,8 @@ export default function Doctors() {
                         </tr>
                       ) : clinicInventory && clinicInventory.length > 0 ? (
                         clinicInventory.map((item, idx) => {
-                          const currentStock = item.stock || 0;
-                          const minStock = item.minStock || item.minimumStock || 0;
+                          const currentStock = item.quantityAvailable || item.stock || 0;
+                          const minStock = item.reorderLevel || item.minStock || item.minimumStock || 0;
                           let status = "OK";
                           let statusColor = "bg-emerald-100 text-emerald-700";
                           
@@ -7656,7 +7867,7 @@ export default function Doctors() {
                               <td className="px-6 py-4 font-semibold text-stone-900">{item.itemName || item.name || "N/A"}</td>
                               <td className="px-6 py-4">
                                 <span className="inline-block px-3 py-1 bg-stone-200 text-stone-700 rounded-full text-xs font-medium">
-                                  {item.categoryName || item.category || "N/A"}
+                                  {item.category || item.categoryName || "General"}
                                 </span>
                               </td>
                               <td className="px-6 py-4 text-center">
@@ -7682,10 +7893,11 @@ export default function Doctors() {
                                       setEditingInventoryItem(item);
                                       setInventoryFormData({
                                         name: item.itemName || item.name || '',
-                                        category: item.categoryName || item.category || '',
-                                        stock: item.stock || 0,
-                                        minStock: item.minStock || item.minimumStock || 0,
-                                        unitCost: item.unitCost || item.cost || 0
+                                        category: item.category || item.categoryName || '',
+                                        stock: item.quantityAvailable || item.stock || 0,
+                                        minStock: item.reorderLevel || item.minStock || item.minimumStock || 0,
+                                        unitCost: item.unitCost || item.cost || 0,
+                                        storageLocation: item.storageLocation || ''
                                       });
                                       setShowInventoryModal(true);
                                     }}
@@ -7695,7 +7907,7 @@ export default function Doctors() {
                                     ✏️ Edit
                                   </button>
                                   <button
-                                    onClick={() => handleDeleteInventoryItem(item.id || item.inventoryId)}
+                                    onClick={() => handleDeleteInventoryItem(item.inventoryId || item.id)}
                                     className="px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-semibold transition transform hover:scale-105"
                                     title="Delete this item"
                                   >
@@ -7728,11 +7940,11 @@ export default function Doctors() {
                     </div>
                     <div className="p-4 bg-white rounded-lg border border-stone-200">
                       <p className="text-sm text-stone-600 mb-1">Total Stock Count</p>
-                      <p className="text-2xl font-bold text-blue-700">{clinicInventory?.reduce((sum, item) => sum + (item.stock || 0), 0) || 0}</p>
+                      <p className="text-2xl font-bold text-blue-700">{clinicInventory?.reduce((sum, item) => sum + (item.quantityAvailable || item.stock || 0), 0) || 0}</p>
                     </div>
                     <div className="p-4 bg-white rounded-lg border border-stone-200">
                       <p className="text-sm text-stone-600 mb-1">Low Stock Items</p>
-                      <p className="text-2xl font-bold text-red-700">{clinicInventory?.filter(item => item.stock <= (item.minStock || item.minimumStock || 0)).length || 0}</p>
+                      <p className="text-2xl font-bold text-red-700">{clinicInventory?.filter(item => (item.quantityAvailable || item.stock || 0) <= (item.reorderLevel || item.minStock || item.minimumStock || 0)).length || 0}</p>
                     </div>
                   </div>
                 </div>
@@ -8497,13 +8709,33 @@ export default function Doctors() {
               >
                 <div>
                   <label className="block text-sm font-semibold text-stone-700 mb-2">Item Name *</label>
-                  <input
-                    type="text"
-                    value={inventoryFormData.name}
-                    onChange={(e) => setInventoryFormData({ ...inventoryFormData, name: e.target.value })}
-                    placeholder="e.g., Dental Bibs"
-                    className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    required
+                  <InventoryAutoComplete
+                    value={{
+                      itemId: inventoryFormData.itemId,
+                      itemName: inventoryFormData.name,
+                    }}
+                    masterItems={masterItems}
+                    placeholder="Search item... (e.g., Dental Bibs)"
+                    onChange={(item) => {
+                      setInventoryFormData({
+                        ...inventoryFormData,
+                        name: item.itemName,
+                      });
+                    }}
+                    onSelect={(item) => {
+                      setInventoryFormData({
+                        ...inventoryFormData,
+                        itemId: item.id,
+                        name: item.itemName,
+                        category: item.category,
+                        subCategory: item.subCategory,
+                        unit: item.unit,
+                      });
+                    }}
+                    onAddNewItem={(itemData) => {
+                      setAutocompleteNewItemName(itemData.searchValue);
+                      setShowAddMasterFromAutocomplete(true);
+                    }}
                   />
                 </div>
                 <div>
@@ -8566,7 +8798,7 @@ export default function Doctors() {
                     onClick={() => {
                       setShowInventoryModal(false);
                       setEditingInventoryItem(null);
-                      setInventoryFormData({ name: '', category: '', stock: 0, minStock: 0, unitCost: 0 });
+                      setInventoryFormData({ name: '', category: '', stock: 0, minStock: 0, unitCost: 0, storageLocation: '' });
                     }}
                     className="px-6 py-2 border border-stone-300 rounded-lg text-stone-700 font-medium hover:bg-stone-50 transition"
                   >
@@ -9654,7 +9886,24 @@ export default function Doctors() {
       </AnimatePresence>
 
       {/* Success Modal */}
-      <SuccessModal />
+      <SuccessModal 
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title="Master Inventory Updated!"
+        itemCount={successModalData.itemCount}
+      />
+
+      {/* Add to Master Inventory Modal */}
+      <AddToMasterInventoryModal
+        isOpen={showAddMasterFromAutocomplete}
+        onClose={() => {
+          setShowAddMasterFromAutocomplete(false);
+          setAutocompleteNewItemName('');
+        }}
+        onSubmit={handleAddMasterItems}
+        isLoading={loadingMasterModal}
+        initialItemName={autocompleteNewItemName}
+      />
     </div>
   );
 }

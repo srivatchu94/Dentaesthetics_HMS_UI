@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import InventoryAutoComplete from '../components/InventoryAutoComplete';
+import AddToMasterInventoryModal from '../components/AddToMasterInventoryModal';
 import {
   listClinicInventories,
   createClinicInventory,
@@ -9,8 +11,7 @@ import {
   listInventoryMasters,
   getInventoryStats,
   saveClinicInventoryBatch,
-  addInventoryMasterItemsBulk,
-  deleteClinicInventoryWithParams
+  addInventoryMasterItemsBulk
 } from '../services/inventoryService';
 import { listEnterprises } from '../services/enterpriseService';
 import { listClinics } from '../services/clinicService';
@@ -28,12 +29,14 @@ export default function ClinicInventory() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAddMasterModal, setShowAddMasterModal] = useState(false);
+  const [showAddMasterFromAutocomplete, setShowAddMasterFromAutocomplete] = useState(false);
   const [showInventoryDetailModal, setShowInventoryDetailModal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<(ClinicInventory & { itemName?: string }) | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [stats, setStats] = useState<any>(null);
+  const [autocompleteNewItemName, setAutocompleteNewItemName] = useState('');
   
   // Multi-row states
   const [inventoryRows, setInventoryRows] = useState<InventoryAddRow[]>([{
@@ -248,7 +251,7 @@ export default function ClinicInventory() {
     setLoading(true);
     try {
       // Call delete with proper parameters: enterpriseId, clinicId, inventoryId
-      await deleteClinicInventoryWithParams(selectedEnterprise, selectedClinic, selectedItem.inventoryId);
+      await deleteClinicInventory(selectedEnterprise, selectedClinic, selectedItem.inventoryId);
 
       showSuccess('🗑️ Inventory deleted successfully!');
       setShowDeleteModal(false);
@@ -331,18 +334,7 @@ export default function ClinicInventory() {
     setMasterRows(updatedRows);
   };
 
-  const handleAddMasterItems = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const validRows = masterRows.filter(row => {
-      return row.itemName.trim() && row.itemCode.trim() && row.category && row.unit;
-    });
-
-    if (validRows.length === 0) {
-      showError('Please fill at least one master item with required fields');
-      return;
-    }
-
+  const handleAddMasterItems = async (validRows: MasterInventoryAddRow[]) => {
     setLoading(true);
     try {
       await addInventoryMasterItemsBulk(validRows);
@@ -354,6 +346,7 @@ export default function ClinicInventory() {
       const funnyMsg = getRandomMessage();
       showSuccess(`${funnyMsg} New items are ready for selection!`);
       setShowAddMasterModal(false);
+      setShowAddMasterFromAutocomplete(false);
       
       // Reset form
       setMasterRows([{
@@ -365,9 +358,10 @@ export default function ClinicInventory() {
         isActive: true
       }]);
 
+      setAutocompleteNewItemName('');
     } catch (error) {
       console.error('Error adding master items:', error);
-      showError('Failed to add master inventory items');
+      showError('Failed to add items to master inventory');
     } finally {
       setLoading(false);
     }
@@ -761,18 +755,26 @@ export default function ClinicInventory() {
                         {inventoryRows.map((row, index) => (
                           <tr key={index} className="border-b border-gray-200 hover:bg-gray-50">
                             <td className="p-3">
-                              <select
-                                value={row.itemId || ''}
-                                onChange={(e) => updateInventoryRow(index, 'itemId', parseInt(e.target.value))}
-                                className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-green-500"
-                              >
-                                <option value="">Select Item</option>
-                                {masterItems.map(item => (
-                                  <option key={item.itemId} value={item.itemId}>
-                                    {item.itemName} (ID: {item.itemId})
-                                  </option>
-                                ))}
-                              </select>
+                              <InventoryAutoComplete
+                                value={{ itemId: row.itemId, itemName: row.itemName }}
+                                masterItems={masterItems}
+                                placeholder="Search item..."
+                                onChange={(item) => {
+                                  updateInventoryRow(index, 'itemId', item.itemId);
+                                  updateInventoryRow(index, 'itemName', item.itemName);
+                                  updateInventoryRow(index, 'unit', item.unit || '');
+                                }}
+                                onSelect={(item) => {
+                                  updateInventoryRow(index, 'itemId', item.itemId);
+                                  updateInventoryRow(index, 'itemName', item.itemName);
+                                  updateInventoryRow(index, 'unit', item.unit || '');
+                                }}
+                                onAddNewItem={(itemData) => {
+                                  setAutocompleteNewItemName(itemData.itemName);
+                                  setShowAddMasterFromAutocomplete(true);
+                                }}
+                                className="w-full"
+                              />
                             </td>
                             <td className="p-3">
                               <input
@@ -1221,6 +1223,18 @@ export default function ClinicInventory() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Add to Master Inventory Modal - from Autocomplete */}
+        <AddToMasterInventoryModal
+          isOpen={showAddMasterFromAutocomplete}
+          onClose={() => {
+            setShowAddMasterFromAutocomplete(false);
+            setAutocompleteNewItemName('');
+          }}
+          onSubmit={handleAddMasterItems}
+          isLoading={loading}
+          initialItemName={autocompleteNewItemName}
+        />
       </motion.div>
     </div>
   );

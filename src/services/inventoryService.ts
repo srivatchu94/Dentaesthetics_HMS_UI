@@ -56,7 +56,7 @@ export function getAllInventoryMasterItems(): Promise<InventoryMaster[]> {
 // ============= CLINIC INVENTORY OPERATIONS =============
 
 export function listClinicInventories(enterpriseId?: number, clinicId?: number): Promise<ClinicInventory[]> {
-  let url = "/ClinicInventory/GetAll";
+  let url = "/Inventory/GetAll";
   const params = [];
   
   if (enterpriseId) params.push(`enterpriseId=${enterpriseId}`);
@@ -70,30 +70,50 @@ export function listClinicInventories(enterpriseId?: number, clinicId?: number):
 }
 
 export function getClinicInventory(inventoryId: number): Promise<ClinicInventory> {
-  return request<ClinicInventory>(`/ClinicInventory/GetByID?id=${inventoryId}`);
+  return request<ClinicInventory>(`/Inventory/GetByID?id=${inventoryId}`);
 }
 
 export function getClinicInventoriesByClinic(clinicId: number, enterpriseId: number): Promise<ClinicInventory[]> {
-  return request<ClinicInventory[]>(`/ClinicInventory/GetByClinic?enterpriseId=${enterpriseId}&clinicId=${clinicId}`);
+  return request<ClinicInventory[]>(`/Inventory/GetByClinic?enterpriseId=${enterpriseId}&clinicId=${clinicId}`);
 }
 
 export function createClinicInventory(payload: CreateClinicInventoryDto): Promise<ClinicInventory> {
-  return request<ClinicInventory>("/ClinicInventory/Create", {
+  console.log('📞 API CALL: AddClinicInventory', payload);
+  return request<ClinicInventory>("/Inventory/AddClinicInventory", {
     method: "POST",
     body: JSON.stringify(payload)
+  }).then(data => {
+    console.log('✅ Inventory item created:', data);
+    return data;
+  }).catch(error => {
+    console.error('❌ Failed to create inventory:', error);
+    throw error;
   });
 }
 
 export function updateClinicInventory(inventoryId: number, payload: UpdateClinicInventoryDto): Promise<ClinicInventory> {
-  return request<ClinicInventory>(`/ClinicInventory/Update?id=${inventoryId}`, {
+  console.log('📝 API CALL: UpdateClinicInventory', { inventoryId, payload });
+  return request<ClinicInventory>("/Inventory/UpdateClinicInventory", {
     method: "PUT",
     body: JSON.stringify(payload)
+  }).then(data => {
+    console.log('✅ Inventory item updated:', data);
+    return data;
+  }).catch(error => {
+    console.error('❌ Failed to update inventory:', error);
+    throw error;
   });
 }
 
-export function deleteClinicInventory(inventoryId: number): Promise<void> {
-  return request<void>(`/ClinicInventory/Delete?id=${inventoryId}`, {
+export function deleteClinicInventory(enterpriseId: number, clinicId: number, inventoryId: number): Promise<void> {
+  console.log('🗑️ API CALL: DeleteClinicInventory', { enterpriseId, clinicId, inventoryId });
+  return request<void>(`/Inventory/DeleteClinicInventory?EnterpriseID=${enterpriseId}&ClinicID=${clinicId}&InventoryID=${inventoryId}`, {
     method: "DELETE"
+  }).then(() => {
+    console.log('✅ Inventory item deleted successfully');
+  }).catch(error => {
+    console.error('❌ Failed to delete inventory:', error);
+    throw error;
   });
 }
 
@@ -105,7 +125,16 @@ export function saveClinicInventoryBatch(enterpriseId: number, clinicId: number,
 }
 
 export function getClinicInventoryByClinicId(clinicId: number): Promise<ClinicInventory[]> {
-  return request<ClinicInventory[]>(`/inventory/GetClinicInventoryByClinicId?clinicId=${clinicId}`);
+  console.log('📞 API CALL: GetClinicInventoryByClinicId', { clinicId });
+  return request<ClinicInventory[]>(`/Inventory/GetClinicInventoryByClinicId?clinicId=${clinicId}`)
+    .then(data => {
+      console.log('✅ Clinic inventory fetched:', data);
+      return data;
+    })
+    .catch(error => {
+      console.error('❌ Failed to fetch clinic inventory:', error);
+      throw error;
+    });
 }
 
 export function updateClinicInventoryIndividual(item: ClinicInventory): Promise<ClinicInventory> {
@@ -115,20 +144,9 @@ export function updateClinicInventoryIndividual(item: ClinicInventory): Promise<
   });
 }
 
-export function deleteClinicInventoryItem(id: number): Promise<void> {
-  return request<void>(`/inventory/DeleteClinicInventory?id=${id}`, {
-    method: "DELETE"
-  });
-}
-
-export function deleteClinicInventoryWithParams(enterpriseId: number, clinicId: number, inventoryId: number): Promise<void> {
-  return request<void>(`/inventory/DeleteClinicInventory?EnterpriseID=${enterpriseId}&ClinicID=${clinicId}&InventoryID=${inventoryId}`, {
-    method: "DELETE"
-  });
-}
 
 export function bulkUpdateClinicInventories(updates: UpdateClinicInventoryDto[]): Promise<ClinicInventory[]> {
-  return request<ClinicInventory[]>("/ClinicInventory/BulkUpdate", {
+  return request<ClinicInventory[]>("/Inventory/BulkUpdate", {
     method: "POST",
     body: JSON.stringify(updates)
   });
@@ -200,7 +218,7 @@ export function searchClinicInventories(params: SearchClinicInventoryParams): Pr
   if (params.itemName) queryParams.append('itemName', params.itemName);
   if (params.status) queryParams.append('status', params.status);
   
-  const url = `/ClinicInventory/Search?${queryParams.toString()}`;
+  const url = `/Inventory/Search?${queryParams.toString()}`;
   return request<ClinicInventory[]>(url);
 }
 
@@ -214,7 +232,7 @@ export interface InventoryStats {
 }
 
 export function getInventoryStats(enterpriseId: number, clinicId?: number): Promise<InventoryStats> {
-  let url = `/ClinicInventory/Stats?enterpriseId=${enterpriseId}`;
+  let url = `/Inventory/Stats?enterpriseId=${enterpriseId}`;
   if (clinicId) url += `&clinicId=${clinicId}`;
   
   return request<InventoryStats>(url);
