@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import FancyDatePicker from "../components/FancyDatePicker";
 
 // Sample data for revenue analytics
 const generateRevenueData = (period) => {
@@ -549,28 +550,8 @@ export default function ReportsAnalytics() {
 
                     <div className="space-y-4 mb-6">
                       <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">
-                            Start Date
-                          </label>
-                          <input
-                            type="date"
-                            value={reportConfig.startDate}
-                            onChange={(e) => setReportConfig({...reportConfig, startDate: e.target.value})}
-                            className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-400 focus:border-transparent outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">
-                            End Date
-                          </label>
-                          <input
-                            type="date"
-                            value={reportConfig.endDate}
-                            onChange={(e) => setReportConfig({...reportConfig, endDate: e.target.value})}
-                            className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-400 focus:border-transparent outline-none"
-                          />
-                        </div>
+                        <FancyDatePicker label="Start Date" value={reportConfig.startDate} onChange={(date) => setReportConfig({...reportConfig, startDate: date})} />
+                        <FancyDatePicker label="End Date" value={reportConfig.endDate} onChange={(date) => setReportConfig({...reportConfig, endDate: date})} />
                       </div>
 
                       <div>

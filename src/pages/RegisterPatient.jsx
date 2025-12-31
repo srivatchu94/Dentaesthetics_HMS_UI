@@ -3,63 +3,91 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPatient } from "../services/patientService";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
+import FancyDatePicker from "../components/FancyDatePicker";
 
 // Reusable InputField component
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => (
   <div className="mb-2">
-    <label className={`block text-xs font-medium mb-1 transition ${
-      disabled ? "text-gray-400" : "text-gray-700"
-    }`}>
-      {label} {required && <span className="text-red-500">*</span>}
-      {disabled && <span className="text-xs ml-1 text-gray-400">🔒</span>}
-    </label>
-    {options ? (
-      <select
-        name={name}
+    {type === "date" ? (
+      <FancyDatePicker
+        label={label}
         value={value}
         onChange={onChange}
+        placeholder={placeholder || `Select ${label}`}
         required={required}
         disabled={disabled}
-        className={`w-full px-3 py-1.5 text-sm border rounded-lg transition ${
-          disabled 
-            ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
-            : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
-        }`}
-      >
-        <option value="">{disabled ? "Select patient first" : `Select ${label}`}</option>
-        {options.map(opt => (
-          <option key={opt} value={opt}>{opt}</option>
-        ))}
-      </select>
+      />
+    ) : options ? (
+      <>
+        <label className={`block text-xs font-medium mb-1 transition ${
+          disabled ? "text-gray-400" : "text-gray-700"
+        }`}>
+          {label} {required && <span className="text-red-500">*</span>}
+          {disabled && <span className="text-xs ml-1 text-gray-400">🔒</span>}
+        </label>
+        <select
+          name={name}
+          value={value}
+          onChange={onChange}
+          required={required}
+          disabled={disabled}
+          className={`w-full px-3 py-1.5 text-sm border rounded-lg transition ${
+            disabled 
+              ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
+              : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
+          }`}
+        >
+          <option value="">{disabled ? "Select patient first" : `Select ${label}`}</option>
+          {options.map(opt => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      </>
     ) : type === "textarea" ? (
-      <textarea
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        rows={3}
-        disabled={disabled}
-        className={`w-full px-3 py-1.5 text-sm border rounded-lg transition resize-none ${
-          disabled 
-            ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
-            : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
-        }`}
-      />
+      <>
+        <label className={`block text-xs font-medium mb-1 transition ${
+          disabled ? "text-gray-400" : "text-gray-700"
+        }`}>
+          {label} {required && <span className="text-red-500">*</span>}
+          {disabled && <span className="text-xs ml-1 text-gray-400">🔒</span>}
+        </label>
+        <textarea
+          name={name}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          rows={3}
+          disabled={disabled}
+          className={`w-full px-3 py-1.5 text-sm border rounded-lg transition resize-none ${
+            disabled 
+              ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
+              : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
+          }`}
+        />
+      </>
     ) : (
-      <input
-        type={type}
-        name={name}
-        value={value}
-        onChange={onChange}
-        required={required}
-        placeholder={placeholder}
-        disabled={disabled}
-        className={`w-full px-3 py-1.5 text-sm border rounded-lg transition ${
-          disabled 
-            ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
-            : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
-        }`}
-      />
+      <>
+        <label className={`block text-xs font-medium mb-1 transition ${
+          disabled ? "text-gray-400" : "text-gray-700"
+        }`}>
+          {label} {required && <span className="text-red-500">*</span>}
+          {disabled && <span className="text-xs ml-1 text-gray-400">🔒</span>}
+        </label>
+        <input
+          type={type}
+          name={name}
+          value={value}
+          onChange={onChange}
+          required={required}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={`w-full px-3 py-1.5 text-sm border rounded-lg transition ${
+            disabled 
+              ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
+              : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
+          }`}
+        />
+      </>
     )}
   </div>
 );

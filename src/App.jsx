@@ -39,7 +39,7 @@ import Footer from "./components/Footer";
 import WhatsAppChatbot from "./components/WhatsAppChatbot";
 import { useTokenExpiry } from "./context/TokenExpiryContext";
 import { tokenExpiryEmitter } from "./services/apiClient";
-import { initializeTabFocusListener } from "./services/authService";
+import { initializeTabFocusListener, startTokenRefreshHeartbeat, getAuthToken } from "./services/authService";
 
 export default function App(){
   const navigate = useNavigate();
@@ -54,6 +54,13 @@ export default function App(){
 
     // Initialize tab focus listener to ensure token refresh continues
     const removeFocusListener = initializeTabFocusListener();
+
+    // Start heartbeat if user is already logged in (e.g., after page reload)
+    const token = getAuthToken();
+    if (token) {
+      console.log('✅ User is logged in. Starting token refresh heartbeat...');
+      startTokenRefreshHeartbeat();
+    }
 
     // Cleanup
     return () => {

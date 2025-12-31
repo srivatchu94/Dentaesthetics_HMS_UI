@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { getCalendarAppointments, updateAppointment, createAppointment } from "../services/appointmentService";
+import FancyDatePicker from "../components/FancyDatePicker";
 
 // Time slots for booking
 const TIME_SLOTS = [
@@ -843,8 +844,7 @@ export default function Calendar() {
                       </div>
                       <div className="p-5 grid grid-cols-3 gap-4">
                         <div>
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">Date *</label>
-                          <input type="date" required value={bookingForm.date} onChange={(e) => setBookingForm({ ...bookingForm, date: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" />
+                          <FancyDatePicker label="Date" required value={bookingForm.date} onChange={(date) => setBookingForm({ ...bookingForm, date })} />
                         </div>
                         <div>
                           <label className="block text-sm font-semibold text-slate-700 mb-2">Start Time *</label>

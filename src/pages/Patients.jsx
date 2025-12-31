@@ -7,6 +7,7 @@ import { getClinicsByEnterpriseId } from "../services/doctorService";
 import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment } from "../services/appointmentService";
 import { sendPrescriptionEmail } from "../services/emailService";
 import ViewPatients from "./ViewPatients";
+import FancyDatePicker from "../components/FancyDatePicker";
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => (
@@ -50,6 +51,8 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
             : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
         }`}
       />
+    ) : type === "date" ? (
+      <FancyDatePicker label="" value={value} onChange={onChange} required={required} disabled={disabled} />
     ) : (
       <input
         type={type}

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import FancyDatePicker from "../components/FancyDatePicker";
 
 export default function Services(){
   const navigate = useNavigate();
@@ -81,6 +82,8 @@ export default function Services(){
     priority: '',
     referralNotes: ''
   });
+
+  const [reportFilterDate, setReportFilterDate] = useState('');
 
   const serviceCategories = [
     {
@@ -1391,7 +1394,7 @@ export default function Services(){
                     <option>Select Camp</option>
                     <option>Dental Health Awareness Camp 2025</option>
                   </select>
-                  <input type="date" className="px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 outline-none" />
+                  <FancyDatePicker label="Report Date" value={reportFilterDate} onChange={setReportFilterDate} />
                   <button className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-bold hover:from-purple-600 hover:to-pink-600 transition-all">
                     Generate Report
                   </button>

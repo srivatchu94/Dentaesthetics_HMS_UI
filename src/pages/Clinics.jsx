@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import FancyDatePicker from "../components/FancyDatePicker";
 import { createDoctor } from "../services/doctorService";
 
 export default function Clinics(){
@@ -2155,21 +2156,15 @@ export default function Clinics(){
                               <label className="block text-sm font-semibold text-purple-900 mb-2">
                                 Date of Birth <span className="text-red-500">*</span>
                               </label>
-                              <input
-                                type="date"
-                                required
+                              <FancyDatePicker
                                 value={doctorFormData.dateOfBirth}
-                                onChange={(e) => {
-                                  setDoctorFormData({ ...doctorFormData, dateOfBirth: e.target.value });
-                                  if (e.target.value) {
+                                onChange={(date) => {
+                                  setDoctorFormData({ ...doctorFormData, dateOfBirth: date });
+                                  if (date) {
                                     setValidationErrors(validationErrors.filter(err => err !== "dateOfBirth"));
                                   }
                                 }}
-                                className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition ${
-                                  validationErrors.includes("dateOfBirth")
-                                    ? "border-red-500 bg-red-50 animate-shake"
-                                    : "border-purple-300"
-                                }`}
+                                required
                               />
                             </div>
                             <div>
@@ -2346,21 +2341,15 @@ export default function Clinics(){
                               <label className="block text-sm font-semibold text-purple-900 mb-2">
                                 License Expiry <span className="text-red-500">*</span>
                               </label>
-                              <input
-                                type="date"
-                                required
+                              <FancyDatePicker
                                 value={doctorFormData.licenseExpiry}
-                                onChange={(e) => {
-                                  setDoctorFormData({ ...doctorFormData, licenseExpiry: e.target.value });
-                                  if (e.target.value) {
+                                onChange={(date) => {
+                                  setDoctorFormData({ ...doctorFormData, licenseExpiry: date });
+                                  if (date) {
                                     setValidationErrors(validationErrors.filter(err => err !== "licenseExpiry"));
                                   }
                                 }}
-                                className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition ${
-                                  validationErrors.includes("licenseExpiry")
-                                    ? "border-red-500 bg-red-50 animate-shake"
-                                    : "border-purple-300"
-                                }`}
+                                required
                               />
                             </div>
                             <div>
@@ -2465,27 +2454,19 @@ export default function Clinics(){
                               <label className="block text-sm font-semibold text-purple-900 mb-2">
                                 Joining Date <span className="text-red-500">*</span>
                               </label>
-                              <input
-                                type="date"
-                                required
+                              <FancyDatePicker
                                 value={doctorFormData.joiningDate}
-                                onChange={(e) => {
-                                  setDoctorFormData({ ...doctorFormData, joiningDate: e.target.value });
-                                  if (e.target.value) {
+                                onChange={(date) => {
+                                  setDoctorFormData({ ...doctorFormData, joiningDate: date });
+                                  if (date) {
                                     setValidationErrors(validationErrors.filter(err => err !== "joiningDate"));
                                   }
                                 }}
-                                className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition ${
-                                  validationErrors.includes("joiningDate")
-                                    ? "border-red-500 bg-red-50 animate-shake"
-                                    : "border-purple-300"
-                                }`}
+                                required
                               />
                             </div>
                             <div>
-                              <label className="block text-sm font-semibold text-purple-900 mb-2">
-                                Employment Status <span className="text-red-500">*</span>
-                              </label>
+                              <label className="block text-sm font-semibold text-purple-900 mb-2">Employment Status <span className="text-red-500">*</span></label>
                               <select
                                 required
                                 value={doctorFormData.employmentStatus}
@@ -4929,18 +4910,14 @@ export default function Clinics(){
                         <div>
                           <p className="text-xs font-semibold text-slate-600 uppercase">Date of Birth</p>
                           {isEditingDoctorDetails ? (
-                            <input
-                              type="date"
+                            <FancyDatePicker
                               value={doctorEditFormData?.dateOfBirth?.split('T')[0] || ""}
-                              onChange={(e) =>
-                                setDoctorEditFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))
+                              onChange={(date) =>
+                                setDoctorEditFormData(prev => ({ ...prev, dateOfBirth: date }))
                               }
-                              className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-white"
                             />
                           ) : (
-                            <p className="text-slate-800 font-semibold mt-1">
-                              {selectedDoctorView.dateOfBirth ? new Date(selectedDoctorView.dateOfBirth).toLocaleDateString() : "N/A"}
-                            </p>
+                            <p className="text-slate-800 font-semibold mt-1">{selectedDoctorView.dateOfBirth?.split('T')[0]}</p>
                           )}
                         </div>
                         <div>

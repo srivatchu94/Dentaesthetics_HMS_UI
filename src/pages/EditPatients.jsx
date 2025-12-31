@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import FancyDatePicker from "../components/FancyDatePicker";
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null }) => (
@@ -31,6 +32,8 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
         rows={3}
         className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition resize-none"
       />
+    ) : type === "date" ? (
+      <FancyDatePicker label="" value={value || ""} onChange={onChange} required={required} />
     ) : (
       <input
         type={type}
@@ -260,15 +263,11 @@ export default function EditPatients() {
                       className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-2">Date of Birth</label>
-                    <input
-                      type="date"
-                      value={filterData.dateOfBirth}
-                      onChange={(e) => setFilterData({ ...filterData, dateOfBirth: e.target.value })}
-                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                    />
-                  </div>
+                  <FancyDatePicker
+                    label="Date of Birth"
+                    value={filterData.dateOfBirth}
+                    onChange={(date) => setFilterData({ ...filterData, dateOfBirth: date })}
+                  />
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-2">Clinic ID</label>
                     <input
@@ -456,12 +455,10 @@ export default function EditPatients() {
                           onChange={(e) => updateEditData("lastName", e.target.value)}
                           required
                         />
-                        <InputField
+                        <FancyDatePicker
                           label="Date of Birth"
-                          name="dateOfBirth"
-                          type="date"
                           value={editData.dateOfBirth}
-                          onChange={(e) => updateEditData("dateOfBirth", e.target.value)}
+                          onChange={(date) => updateEditData("dateOfBirth", date)}
                           required
                         />
                         <InputField
@@ -664,12 +661,10 @@ export default function EditPatients() {
                             onChange={(e) => updateEditData("exerciseFrequency", e.target.value)}
                             options={["Sedentary", "Light", "Moderate", "Active", "Very Active"]}
                           />
-                          <InputField
+                          <FancyDatePicker
                             label="Last Dental Visit"
-                            name="lastDentalVisit"
-                            type="date"
                             value={editData.lastDentalVisit}
-                            onChange={(e) => updateEditData("lastDentalVisit", e.target.value)}
+                            onChange={(date) => updateEditData("lastDentalVisit", date)}
                           />
                         </div>
                         <InputField
@@ -738,19 +733,15 @@ export default function EditPatients() {
                           onChange={(e) => updateEditData("policyHolderRelation", e.target.value)}
                           options={["Self", "Spouse", "Child", "Parent", "Other"]}
                         />
-                        <InputField
+                        <FancyDatePicker
                           label="Coverage Start Date"
-                          name="coverageStartDate"
-                          type="date"
                           value={editData.coverageStartDate}
-                          onChange={(e) => updateEditData("coverageStartDate", e.target.value)}
+                          onChange={(date) => updateEditData("coverageStartDate", date)}
                         />
-                        <InputField
+                        <FancyDatePicker
                           label="Coverage End Date"
-                          name="coverageEndDate"
-                          type="date"
                           value={editData.coverageEndDate}
-                          onChange={(e) => updateEditData("coverageEndDate", e.target.value)}
+                          onChange={(date) => updateEditData("coverageEndDate", date)}
                         />
                         <InputField
                           label="Copay Amount"

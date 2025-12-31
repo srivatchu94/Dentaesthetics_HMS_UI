@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import FancyDatePicker from "../components/FancyDatePicker";
 import { getCalendarAppointments, getAppointmentsByDoctorID, getAppointmentsByFilters, createPrescription, getPrescriptionsByAppointment, updateAppointment, addPrescription, updatePrescriptionData, getPrescriptionById, addPatientVisit } from "../services/appointmentService";
 import { visitService, prescriptionService } from "../services/visitService";
 import { createInventoryMaster, listInventoryMasters, getClinicInventoryByClinicId, createClinicInventory, updateClinicInventory, deleteClinicInventory, addInventoryMasterItemsBulk } from "../services/inventoryService";
@@ -1879,11 +1880,9 @@ export default function Doctors() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-bold text-stone-700 mb-2">Appointment Date *</label>
-                          <input
-                            type="date"
+                          <FancyDatePicker
                             value={localFormData.appointmentDate ? localFormData.appointmentDate.split('T')[0] : ""}
-                            onChange={(e) => handleLocalInputChange("appointmentDate", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                            onChange={(date) => handleLocalInputChange("appointmentDate", date)}
                           />
                         </div>
                         <div>
@@ -2284,11 +2283,9 @@ export default function Doctors() {
                   >
                     <div>
                       <label className="block text-sm font-semibold text-stone-700 mb-1">New Date</label>
-                      <input
-                        type="date"
+                      <FancyDatePicker
                         value={rescheduleData.date}
-                        onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
-                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                        onChange={(date) => setRescheduleData({ ...rescheduleData, date })}
                       />
                     </div>
                     <div>
@@ -2845,20 +2842,16 @@ export default function Doctors() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-bold text-stone-700 mb-2">Visit Date <span className="text-red-500">*</span></label>
-                        <input
-                          type="date"
+                        <FancyDatePicker
                           value={visitForm.visitDate}
-                          onChange={(e) => handleVisitFormChange('visitDate', e.target.value)}
-                          className="w-full px-4 py-2 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
+                          onChange={(date) => handleVisitFormChange('visitDate', date)}
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-bold text-stone-700 mb-2">Follow-up Date</label>
-                        <input
-                          type="date"
+                        <FancyDatePicker
                           value={visitForm.followUpDate}
-                          onChange={(e) => handleVisitFormChange('followUpDate', e.target.value)}
-                          className="w-full px-4 py-2 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
+                          onChange={(date) => handleVisitFormChange('followUpDate', date)}
                         />
                       </div>
                     </div>
@@ -5312,17 +5305,11 @@ export default function Doctors() {
                     <label className="block text-sm font-medium text-stone-700 mb-1">
                       Date <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="date"
+                    <FancyDatePicker
                       value={newAppointment.date}
-                      onChange={(e) => setNewAppointment({ ...newAppointment, date: e.target.value })}
-                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
+                      onChange={(date) => setNewAppointment({ ...newAppointment, date })}
+                      required
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-1">
-                      Time <span className="text-red-500">*</span>
-                    </label>
                     <input
                       type="time"
                       value={newAppointment.time}
@@ -6704,14 +6691,12 @@ export default function Doctors() {
                   <div className="flex items-center gap-4 flex-wrap">
                     <div>
                       <label className="text-sm font-semibold text-stone-700 mb-1 block">Date Filter:</label>
-                      <input
-                        type="date"
+                      <FancyDatePicker
                         value={paymentDate}
-                        onChange={(e) => setPaymentDate(e.target.value)}
-                        className="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                        onChange={(date) => setPaymentDate(date)}
                       />
                     </div>
-                    <div className="flex-1 min-w-[200px]">
+                    <div>
                       <label className="text-sm font-semibold text-stone-700 mb-1 block">Clinic ID:</label>
                       <input
                         type="number"
@@ -7017,12 +7002,12 @@ export default function Doctors() {
                 <div className="px-6 py-4 bg-stone-50 border-b border-stone-200 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <label className="text-sm font-semibold text-stone-700">Filter by Date:</label>
-                    <input
-                      type="date"
+                    <FancyDatePicker
                       value={appointmentDate}
-                      onChange={(e) => setAppointmentDate(e.target.value)}
-                      className="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                      onChange={(date) => setAppointmentDate(date)}
                     />
+                  </div>
+                  <div className="flex items-center gap-3">
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}

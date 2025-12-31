@@ -91,6 +91,7 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
     
     // Start auto-refresh and inactivity monitoring
     startTokenRefreshTimer();
+    startTokenRefreshHeartbeat(); // Start heartbeat to keep refresh timer alive
     startInactivityTimer();
     startSessionExpiryTimer(refreshTokenExpiresAt);
     
@@ -647,6 +648,7 @@ const handleLogout = (): void => {
   if (refreshTokenTimer) clearTimeout(refreshTokenTimer);
   if (inactivityTimer) clearInterval(inactivityTimer);
   if (sessionExpiryTimer) clearTimeout(sessionExpiryTimer);
+  stopTokenRefreshHeartbeat(); // Stop heartbeat on logout
   
   // Remove activity listeners
   removeActivityListeners();
@@ -743,6 +745,75 @@ export const handleTabFocus = (): void => {
     }
   } catch (error) {
     console.error('❌ Error handling tab focus:', error);
+  }
+};
+
+/**
+ * Heartbeat mechanism to ensure token refresh timer is always running
+ * Runs every 30 seconds to check and restart timer if needed
+ */
+let tokenRefreshHeartbeatTimer: number | null = null;
+
+export const startTokenRefreshHeartbeat = (): void => {
+  if (tokenRefreshHeartbeatTimer) {
+    clearInterval(tokenRefreshHeartbeatTimer);
+  }
+
+  console.log('💓 Starting token refresh heartbeat (checks every 30 seconds)');
+
+  tokenRefreshHeartbeatTimer = window.setInterval(() => {
+    try {
+      const expiryStr = getTokenExpiry();
+      if (!expiryStr) {
+        console.warn('⚠️ No token expiry found');
+        return;
+      }
+
+      const expiryTime = new Date(expiryStr).getTime();
+      const now = Date.now();
+      const timeUntilExpiry = expiryTime - now;
+
+      // If token is already expired, trigger immediate logout
+      if (timeUntilExpiry <= 0) {
+        console.error('🚨 TOKEN HAS EXPIRED! Logging out...');
+        showSessionExpiredPopup();
+        handleLogout();
+        return;
+      }
+
+      // If less than 5 minutes until expiry and refresh timer not running, refresh immediately
+      if (timeUntilExpiry < 5 * 60 * 1000 && !refreshTokenTimer) {
+        console.warn('⚠️ Less than 5 minutes until expiry and no refresh timer. Refreshing NOW...');
+        refreshAccessToken();
+        return;
+      }
+
+      // If refresh timer is not set but token still valid, restart it
+      if (!refreshTokenTimer && timeUntilExpiry > 60000) {
+        console.warn('⚠️ Refresh timer not running but token valid. Restarting timer...');
+        startTokenRefreshTimer();
+        return;
+      }
+
+      // Everything is good, log brief heartbeat
+      const minutesLeft = Math.floor(timeUntilExpiry / 1000 / 60);
+      if (minutesLeft > 0 && minutesLeft % 5 === 0) {
+        console.log(`💓 Heartbeat: Token valid for ${minutesLeft} more minutes`);
+      }
+    } catch (error) {
+      console.error('❌ Heartbeat error:', error);
+    }
+  }, 30 * 1000); // Check every 30 seconds
+};
+
+/**
+ * Stop the token refresh heartbeat
+ */
+export const stopTokenRefreshHeartbeat = (): void => {
+  if (tokenRefreshHeartbeatTimer) {
+    clearInterval(tokenRefreshHeartbeatTimer);
+    tokenRefreshHeartbeatTimer = null;
+    console.log('💓 Token refresh heartbeat stopped');
   }
 };
 

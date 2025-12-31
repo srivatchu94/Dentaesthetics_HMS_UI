@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import FancyDatePicker from "../components/FancyDatePicker";
 
 // Sample clinics data
 const SAMPLE_CLINICS = [
@@ -713,12 +714,7 @@ export default function SalaryManagement() {
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
                     Effective From Date *
                   </label>
-                  <input
-                    type="date"
-                    value={editSalaryForm.effectiveDate}
-                    onChange={(e) => setEditSalaryForm({...editSalaryForm, effectiveDate: e.target.value})}
-                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent outline-none"
-                  />
+                  <FancyDatePicker label="" value={editSalaryForm.effectiveDate} onChange={(date) => setEditSalaryForm({...editSalaryForm, effectiveDate: date})} required />
                   <p className="text-xs text-slate-500 mt-1">
                     New salary will be effective from this date. Previous salary will be recorded in history.
                   </p>

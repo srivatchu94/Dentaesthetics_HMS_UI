@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import FancyDatePicker from "../components/FancyDatePicker";
 import { listDoctorProfiles, searchDoctors, mapDoctorToClinics, listClinicalSpecialties, getDoctorsByEnterpriseId, getDoctorClinicMappings } from "../services/doctorService";
 import { listClinics, getClinicsByEnterpriseId as getEnterpriseClinics, getClinic as getClinicById } from "../services/clinicService";
 
@@ -1237,24 +1238,16 @@ export default function DoctorClinicMapping() {
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-xs font-bold text-gray-700 mb-1">📅 Start Date</label>
-                            <input
-                              type="date"
-                              value={config.startDate}
-                              onChange={(e) => updateClinicMapping(clinicId, 'startDate', e.target.value)}
-                              className="w-full px-2 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-200 text-xs"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-700 mb-1">🏁 End Date</label>
-                            <input
-                              type="date"
-                              value={config.endDate}
-                              onChange={(e) => updateClinicMapping(clinicId, 'endDate', e.target.value)}
-                              className="w-full px-2 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-200 text-xs"
-                            />
-                          </div>
+                          <FancyDatePicker
+                            label="📅 Start Date"
+                            value={config.startDate}
+                            onChange={(date) => updateClinicMapping(clinicId, 'startDate', date)}
+                          />
+                          <FancyDatePicker
+                            label="🏁 End Date"
+                            value={config.endDate}
+                            onChange={(date) => updateClinicMapping(clinicId, 'endDate', date)}
+                          />
                         </div>
 
                         <div>

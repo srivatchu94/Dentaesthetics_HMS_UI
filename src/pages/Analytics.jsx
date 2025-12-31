@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import AnalyticsDashboard from "./AnalyticsDashboard";
 import ClinicPerformance from "./ClinicPerformance";
 import UserStatistics from "./UserStatistics";
+import FancyDatePicker from "../components/FancyDatePicker";
 import { getAllEnterprises, getClinicsByEnterpriseId } from "../api/hmsApi";
 
 const Analytics = () => {
@@ -349,34 +350,16 @@ const Analytics = () => {
                 exit={{ opacity: 0, height: 0 }}
                 className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 pt-6 border-t-2 border-purple-100"
               >
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-                    <span className="text-xl">📅</span>
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={customDateRange.start}
-                    onChange={(e) => handleDateChange("start", e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border-2 border-indigo-200 bg-gradient-to-r from-indigo-50 to-purple-50 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-semibold text-gray-700"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-                    <span className="text-xl">📅</span>
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    value={customDateRange.end}
-                    onChange={(e) => handleDateChange("end", e.target.value)}
-                    className={`w-full px-4 py-3 rounded-xl border-2 bg-gradient-to-r from-indigo-50 to-purple-50 focus:ring-4 focus:ring-indigo-100 outline-none transition-all font-semibold text-gray-700 ${
-                      dateError
-                        ? "border-red-500 focus:border-red-500"
-                        : "border-indigo-200 focus:border-indigo-500"
-                    }`}
-                  />
-                </div>
+                <FancyDatePicker
+                  label="📅 Start Date"
+                  value={customDateRange.start}
+                  onChange={(date) => handleDateChange("start", date)}
+                />
+                <FancyDatePicker
+                  label="📅 End Date"
+                  value={customDateRange.end}
+                  onChange={(date) => handleDateChange("end", date)}
+                />
               </motion.div>
             )}
           </AnimatePresence>

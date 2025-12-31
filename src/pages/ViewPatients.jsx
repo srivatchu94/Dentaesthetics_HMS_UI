@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
-import { searchPatients, getPatientsByClinic, getPatientFullProfile, getPatientVisit } from "../services/patientService";
+import { searchPatients, getPatientsByClinic, getPatientFullProfile, getPatientVisit, updatePatientFullProfile } from "../services/patientService";
 import { getClinicsByEnterpriseId, getClinicDoctorMappings, listDoctorProfiles } from "../services/doctorService";
 import { getAppointmentsByPatient, createAppointment, updateAppointment } from "../services/appointmentService";
 import { getSelectedAccess } from "../services/authService";
+import FancyDatePicker from "../components/FancyDatePicker";
+import CompactFancyDatePicker from "../components/CompactFancyDatePicker";
 
 export default function ViewPatients() {
   const navigate = useNavigate();
@@ -59,20 +61,53 @@ export default function ViewPatients() {
   // Edit patient states
   const [showEditPatientModal, setShowEditPatientModal] = useState(false);
   const [editingPatient, setEditingPatient] = useState(null);
+  const [editActiveTab, setEditActiveTab] = useState("patient");
   const [editFormData, setEditFormData] = useState({
+    // Basic Patient Info
     firstName: '',
     lastName: '',
     dateOfBirth: '',
     gender: '',
     bloodType: '',
+    maritalStatus: '',
+    // Contact Information
     phone: '',
+    alternatePhone: '',
     email: '',
     address: '',
+    addressLine2: '',
     city: '',
+    state: '',
+    postalCode: '',
+    country: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    emergencyContactRelation: '',
+    // Medical Information
     allergies: '',
+    chronicConditions: '',
     currentMedications: '',
-    chronicDiseases: '',
-    medicalHistory: ''
+    pastSurgeries: '',
+    familyMedicalHistory: '',
+    smokingStatus: '',
+    alcoholConsumption: '',
+    exerciseFrequency: '',
+    dietaryRestrictions: '',
+    lastDentalVisit: '',
+    notes: '',
+    primaryPhysician: '',
+    // Insurance Information
+    insuranceProvider: '',
+    policyNumber: '',
+    groupNumber: '',
+    policyHolderName: '',
+    policyHolderRelation: '',
+    coverageStartDate: '',
+    coverageEndDate: '',
+    copayAmount: '',
+    deductibleAmount: '',
+    coveragePercentage: '',
+    insurancePhone: ''
   });
 
   // Email sending states
@@ -145,38 +180,154 @@ export default function ViewPatients() {
 
   // Handle edit patient modal open
   const handleOpenEditModal = (patient) => {
-    setEditingPatient(patient);
+    // Use selectedPatient (full profile from modal) for form population
+    const patientData = patient || selectedPatient;
+    
+    setEditingPatient(patientData);
     setEditFormData({
-      firstName: patient.firstName || patient.patientFirstName || '',
-      lastName: patient.lastName || patient.patientLastName || '',
-      dateOfBirth: patient.dateOfBirth || patient.patientDOB || '',
-      gender: patient.gender || patient.patientGender || '',
-      bloodType: patient.bloodType || patient.patientBloodType || '',
-      phone: patient.phone || patient.patientPhone || '',
-      email: patient.email || patient.patientEmail || '',
-      address: patient.address || patient.patientAddress || '',
-      city: patient.city || patient.patientCity || '',
-      allergies: patient.allergies || '',
-      currentMedications: patient.currentMedications || '',
-      chronicDiseases: patient.chronicDiseases || '',
-      medicalHistory: patient.medicalHistory || ''
+      // Basic Patient Info
+      firstName: patientData?.patient?.patientFirstName || '',
+      lastName: patientData?.patient?.patientLastName || '',
+      dateOfBirth: patientData?.patient?.patientDOB || '',
+      gender: patientData?.patient?.patientGender || '',
+      bloodType: patientData?.patient?.patientBloodType || '',
+      maritalStatus: patientData?.patient?.patientMaritalStatus || '',
+      // Contact Information
+      phone: patientData?.patientContact?.patientPhone || '',
+      alternatePhone: patientData?.patientContact?.patientAlternatePhone || '',
+      email: patientData?.patientContact?.patientEmail || '',
+      address: patientData?.patientContact?.patientAddress || '',
+      addressLine2: patientData?.patientContact?.patientAddressLine2 || '',
+      city: patientData?.patientContact?.patientCity || '',
+      state: patientData?.patientContact?.patientState || '',
+      postalCode: patientData?.patientContact?.patientPostalCode || '',
+      country: patientData?.patientContact?.patientCountry || '',
+      emergencyContactName: patientData?.patientContact?.patientEmergencyContact || '',
+      emergencyContactPhone: patientData?.patientContact?.patientEmergencyContactPhone || '',
+      emergencyContactRelation: patientData?.patientContact?.patientEmergencyContactRelation || '',
+      // Medical Information
+      allergies: patientData?.patientMedicalInfo?.patientAllergies || '',
+      chronicConditions: patientData?.patientMedicalInfo?.patientChronicConditions || '',
+      currentMedications: patientData?.patientMedicalInfo?.patientCurrentMedications || '',
+      pastSurgeries: patientData?.patientMedicalInfo?.patientPastSurgeries || '',
+      familyMedicalHistory: patientData?.patientMedicalInfo?.patientFamilyMedicalHistory || '',
+      smokingStatus: patientData?.patientMedicalInfo?.patientSmokingStatus || '',
+      alcoholConsumption: patientData?.patientMedicalInfo?.patientAlcoholConsumption || '',
+      exerciseFrequency: patientData?.patientMedicalInfo?.patientExerciseFrequency || '',
+      dietaryRestrictions: patientData?.patientMedicalInfo?.patientDietaryRestrictions || '',
+      lastDentalVisit: patientData?.patientMedicalInfo?.patientLastDentalVisit || '',
+      notes: patientData?.patientMedicalInfo?.patientNotes || '',
+      primaryPhysician: patientData?.patientMedicalInfo?.patientPrimaryPhysician || '',
+      // Insurance Information
+      insuranceProvider: patientData?.patientInsurance?.patientInsuranceProvider || '',
+      policyNumber: patientData?.patientInsurance?.patientPolicyNumber || '',
+      groupNumber: patientData?.patientInsurance?.patientGroupNumber || '',
+      policyHolderName: patientData?.patientInsurance?.patientPolicyHolderName || '',
+      policyHolderRelation: patientData?.patientInsurance?.patientPolicyHolderRelation || '',
+      coverageStartDate: patientData?.patientInsurance?.patientCoverageStartDate || '',
+      coverageEndDate: patientData?.patientInsurance?.patientCoverageEndDate || '',
+      copayAmount: patientData?.patientInsurance?.patientCopayAmount || '',
+      deductibleAmount: patientData?.patientInsurance?.patientDeductibleAmount || '',
+      coveragePercentage: patientData?.patientInsurance?.patientCoveragePercentage || '',
+      insurancePhone: patientData?.patientInsurance?.patientInsurancePhone || ''
     });
+    
     setShowEditPatientModal(true);
   };
 
   // Handle save edited patient
   const handleSaveEditedPatient = async () => {
     try {
+      // Get patientId from selectedPatient (full profile structure)
+      const patientId = selectedPatient?.patient?.patientId;
+      
+      if (!patientId) {
+        showCustomPopup('error', 'Error!', 'Patient ID not found. Cannot update.', '❌');
+        return;
+      }
+
+      // Build the complete patient data model for API as per PatientDataModel interface
+      const patientDataModel = {
+        patient: {
+          patientId: patientId,
+          clinicID: selectedPatient?.patient?.clinicID || '',
+          patientFirstName: editFormData.firstName,
+          patientLastName: editFormData.lastName,
+          patientDOB: editFormData.dateOfBirth,
+          patientGender: editFormData.gender,
+          patientBloodType: editFormData.bloodType,
+          patientMaritalStatus: editFormData.maritalStatus
+        },
+        patientContact: {
+          patientId: patientId,
+          patientPhone: editFormData.phone,
+          patientAlternatePhone: editFormData.alternatePhone,
+          patientEmail: editFormData.email,
+          patientAddress: editFormData.address,
+          patientAddressLine2: editFormData.addressLine2,
+          patientCity: editFormData.city,
+          patientState: editFormData.state,
+          patientPostalCode: editFormData.postalCode,
+          patientCountry: editFormData.country,
+          patientEmergencyContact: editFormData.emergencyContactName,
+          patientEmergencyContactPhone: editFormData.emergencyContactPhone,
+          patientEmergencyContactRelation: editFormData.emergencyContactRelation
+        },
+        patientMedicalInfo: {
+          patientId: patientId,
+          patientAllergies: editFormData.allergies,
+          patientChronicConditions: editFormData.chronicConditions,
+          patientCurrentMedications: editFormData.currentMedications,
+          patientPastSurgeries: editFormData.pastSurgeries,
+          patientFamilyMedicalHistory: editFormData.familyMedicalHistory,
+          patientSmokingStatus: editFormData.smokingStatus,
+          patientAlcoholConsumption: editFormData.alcoholConsumption,
+          patientExerciseFrequency: editFormData.exerciseFrequency,
+          patientDietaryRestrictions: editFormData.dietaryRestrictions,
+          patientLastDentalVisit: editFormData.lastDentalVisit,
+          patientNotes: editFormData.notes,
+          patientPrimaryPhysician: editFormData.primaryPhysician,
+          patientMedicalHistory: editFormData.familyMedicalHistory || editFormData.notes,
+          // Required fields by backend API
+          medicalHistory: editFormData.familyMedicalHistory || editFormData.notes,
+          chronicDiseases: editFormData.chronicConditions,
+          // Alias fields for strict validation
+          MedicalHistory: editFormData.familyMedicalHistory || editFormData.notes,
+          ChronicDiseases: editFormData.chronicConditions
+        },
+        patientInsurance: {
+          patientId: patientId,
+          patientInsuranceProvider: editFormData.insuranceProvider,
+          patientPolicyNumber: editFormData.policyNumber,
+          patientGroupNumber: editFormData.groupNumber,
+          patientPolicyHolderName: editFormData.policyHolderName,
+          patientPolicyHolderRelation: editFormData.policyHolderRelation,
+          patientCoverageStartDate: editFormData.coverageStartDate,
+          patientCoverageEndDate: editFormData.coverageEndDate,
+          patientCopayAmount: editFormData.copayAmount,
+          patientDeductibleAmount: editFormData.deductibleAmount,
+          patientCoveragePercentage: editFormData.coveragePercentage,
+          patientInsurancePhone: editFormData.insurancePhone
+        }
+      };
+
       showCustomPopup('info', 'Saving...', 'Your patient information is being updated! 💾', '⏳');
-      // Here you would call the API to update patient
-      // For now, just show success
-      setTimeout(() => {
-        showCustomPopup('success', 'Success!', 'Patient information updated successfully! ✨', '🎉');
-        setShowEditPatientModal(false);
-        // Refresh patient list if needed
-      }, 1500);
+      
+      // Call the API to update patient
+      await updatePatientFullProfile(patientDataModel);
+      
+      showCustomPopup('success', 'Success!', 'Patient information updated successfully! ✨', '🎉');
+      setShowEditPatientModal(false);
+      setEditingPatient(null);
+      
+      // Refresh the patient details if modal is still open
+      if (selectedPatient?.patient?.patientId) {
+        const refreshedProfile = await getPatientFullProfile(selectedPatient.patient.patientId);
+        setSelectedPatient(refreshedProfile);
+      }
     } catch (error) {
-      showCustomPopup('error', 'Error!', 'Could not update patient information. 😞', '❌');
+      console.error('Error updating patient:', error);
+      showCustomPopup('error', 'Error!', `Could not update patient information: ${error.message}`, '❌');
     }
   };
 
@@ -1028,11 +1179,9 @@ Click OK after reviewing the console logs.`;
                   {/* Birth Date Input */}
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-pink-300/80 uppercase tracking-wide block">DOB</label>
-                    <input
-                      type="date"
+                    <FancyDatePicker
                       value={filterData.dateOfBirth}
-                      onChange={(e) => setFilterData({ ...filterData, dateOfBirth: e.target.value })}
-                      className="w-full px-3.5 py-2.5 bg-white/85 border border-pink-300/40 rounded-lg text-slate-900 focus:bg-white focus:border-pink-400 focus:ring-2 focus:ring-pink-300/50 outline-none transition text-sm font-medium shadow-sm hover:bg-white"
+                      onChange={(date) => setFilterData({ ...filterData, dateOfBirth: date })}
                     />
                   </div>
 
@@ -1116,56 +1265,90 @@ Click OK after reviewing the console logs.`;
                       exit={{ opacity: 0 }}
                       className="h-full flex flex-col"
                     >
-                      <div className="mb-3 px-2">
-                        <span className="text-cyan-300 font-bold text-sm bg-cyan-500/15 px-3 py-1.5 rounded-lg inline-block border border-cyan-400/30">
+                      <div className="mb-4 px-2">
+                        <span className="text-blue-700 font-bold text-sm bg-blue-100 px-3 py-1.5 rounded-lg inline-block border border-blue-300">
                           ✨ {patients.length} result{patients.length !== 1 ? 's' : ''}
                         </span>
                       </div>
                       
-                      <div className="flex-1 overflow-y-auto pr-2 space-y-2.5" style={{ scrollbarWidth: 'thin', scrollbarColor: '#22d3ee transparent' }}>
-                        {patients.map((patient, idx) => (
-                          <motion.div
-                            key={patient.patientId || idx}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.02 }}
-                            whileHover={{ y: -2 }}
-                            onClick={() => handleViewPatient(patient)}
-                            className="bg-gradient-to-br from-cyan-500/15 via-blue-500/15 to-purple-500/15 hover:from-cyan-500/25 hover:via-blue-500/25 hover:to-purple-500/25 border border-cyan-400/30 hover:border-blue-400/60 rounded-lg p-3 cursor-pointer transition-all shadow-md hover:shadow-blue-500/25 group"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white text-lg font-bold shadow-lg flex-shrink-0">
-                                {(patient.firstName || patient.patientFirstName || 'P').charAt(0)}
-                                {(patient.lastName || patient.patientLastName || 'N').charAt(0)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-white font-semibold text-sm truncate group-hover:text-cyan-100 transition">
-                                  {patient.firstName || patient.patientFirstName} {patient.lastName || patient.patientLastName}
-                                </h4>
-                                <div className="flex gap-1.5 items-center mt-1">
-                                  <p className="text-cyan-200/60 text-xs">ID: {patient.patientId}</p>
-                                  <span className="text-xs px-2 py-0.5 bg-cyan-400/25 text-cyan-200 rounded border border-cyan-400/40 font-medium">
-                                    {(patient.gender || patient.patientGender) === 'Male' ? '👨' : '👩'}
+                      <div className="flex-1 overflow-y-auto pr-2 space-y-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#3b82f6 transparent' }}>
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                          {/* Table Header */}
+                          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 grid grid-cols-4 gap-2 font-bold text-sm text-gray-700">
+                            <div>Name</div>
+                            <div>ID / Contact</div>
+                            <div>Details</div>
+                            <div className="text-right">View</div>
+                          </div>
+
+                          {/* Table Rows */}
+                          <div className="divide-y divide-gray-200">
+                            {patients.map((patient, idx) => (
+                              <motion.div
+                                key={patient.patientId || idx}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: idx * 0.02 }}
+                                className="px-4 py-3 hover:bg-blue-50 transition-colors cursor-pointer grid grid-cols-4 gap-2 items-center"
+                                onClick={() => handleViewPatient(patient)}
+                              >
+                                {/* Name with Avatar */}
+                                <div className="flex items-center gap-3">
+                                  <div className="w-9 h-9 bg-blue-200 rounded flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
+                                    {(patient.firstName || patient.patientFirstName || 'P').charAt(0)}{(patient.lastName || patient.patientLastName || 'N').charAt(0)}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-gray-900 text-sm truncate">
+                                      {patient.firstName || patient.patientFirstName} {patient.lastName || patient.patientLastName}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* ID / Contact */}
+                                <div>
+                                  <p className="text-xs text-gray-600 font-medium">ID: {patient.patientId}</p>
+                                  <p className="text-xs text-gray-500 truncate">{patient.phone || patient.patientPhone || 'N/A'}</p>
+                                </div>
+
+                                {/* Details */}
+                                <div className="flex gap-2">
+                                  <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">
+                                    {(patient.gender || patient.patientGender) === 'Male' ? '👨 M' : '👩 F'}
                                   </span>
-                                  <span className="text-xs px-2 py-0.5 bg-blue-400/25 text-blue-200 rounded border border-blue-400/40 font-medium">
+                                  <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded font-medium">
                                     {new Date(patient.dateOfBirth || patient.patientDOB).getFullYear()}
                                   </span>
                                 </div>
-                              </div>
-                              <motion.button 
-                                whileHover={{ scale: 1.15 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate('/calendar', { state: { patientData: patient }});
-                                }}
-                                className="w-7 h-7 bg-gradient-to-br from-pink-400 to-rose-500 rounded flex items-center justify-center text-white text-sm shadow hover:shadow-pink-500/40 transition flex-shrink-0"
-                              >
-                                📅
-                              </motion.button>
-                            </div>
-                          </motion.div>
-                        ))}
+
+                                {/* View Button */}
+                                <div className="text-right flex gap-2 justify-end">
+                                  <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleViewPatient(patient);
+                                    }}
+                                    className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded font-bold text-xs transition-colors"
+                                  >
+                                    View
+                                  </motion.button>
+                                  <motion.button 
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate('/calendar', { state: { patientData: patient }});
+                                    }}
+                                    className="px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded font-bold text-xs transition-colors"
+                                  >
+                                    📅
+                                  </motion.button>
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </motion.div>
                   ) : (
@@ -1242,92 +1425,83 @@ Click OK after reviewing the console logs.`;
                   </div>
 
                   {clinicPatients.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                      {clinicPatients.map((patient, idx) => (
-                        <motion.div
-                          key={patient.patientId || idx}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          whileHover={{ scale: 1.03, y: -8 }}
-                          className="group relative bg-gradient-to-br from-white to-blue-50 rounded-2xl shadow-lg hover:shadow-2xl border-2 border-blue-200 hover:border-blue-400 overflow-hidden transition-all duration-300"
-                        >
-                          {/* Decorative top gradient bar */}
-                          <div className="h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
+                    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                      {/* Table Header */}
+                      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 text-white font-bold text-sm">
+                          <div>Name</div>
+                          <div>Patient ID</div>
+                          <div>Contact</div>
+                          <div>Gender / DOB</div>
+                          <div className="text-right">Actions</div>
+                        </div>
+                      </div>
 
-                          {/* Patient Avatar and Name */}
-                          <div className="p-6 pb-4">
-                            <div className="flex items-start justify-between mb-4">
-                              <div className="flex items-center gap-4 flex-1">
-                                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-xl shadow-lg flex items-center justify-center text-white text-2xl font-bold transform group-hover:scale-110 transition-transform">
-                                  {(patient.firstName || patient.patientFirstName)?.charAt(0)?.toUpperCase()}{(patient.lastName || patient.patientLastName)?.charAt(0)?.toUpperCase()}
+                      {/* Table Rows */}
+                      <div className="divide-y divide-gray-200">
+                        {clinicPatients.map((patient, idx) => (
+                          <motion.div
+                            key={patient.patientId || idx}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ delay: idx * 0.03 }}
+                            className="px-6 py-4 hover:bg-blue-50 transition-colors duration-200"
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                              {/* Name */}
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center font-bold text-blue-700 text-sm flex-shrink-0">
+                                  {(patient.firstName || patient.patientFirstName)?.charAt(0)?.toUpperCase() || 'P'}
                                 </div>
-                                <div className="flex-1">
-                                  <h4 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                                    {patient.firstName || patient.patientFirstName} {patient.lastName || patient.patientLastName}
-                                  </h4>
-                                  <p className="text-xs text-gray-500 font-medium">ID: {patient.patientId}</p>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-gray-900 truncate">{patient.firstName || patient.patientFirstName} {patient.lastName || patient.patientLastName}</p>
                                 </div>
                               </div>
-                              {/* Status Badge */}
-                              <div className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full">
-                                ✓ Active
+
+                              {/* Patient ID */}
+                              <div>
+                                <p className="text-sm font-medium text-gray-700">{patient.patientId}</p>
+                              </div>
+
+                              {/* Contact */}
+                              <div>
+                                <p className="text-sm text-gray-600 truncate">{patient.phone || patient.patientPhone || patient.email || patient.patientEmail || 'N/A'}</p>
+                              </div>
+
+                              {/* Gender / DOB */}
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm text-gray-700">{patient.gender || patient.patientGender || 'N/A'}</span>
+                                  <span className="text-xs text-gray-500">•</span>
+                                  <span className="text-sm text-gray-700">{(patient.dateOfBirth || patient.patientDOB || '')?.split('T')[0] || 'N/A'}</span>
+                                </div>
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex gap-2 justify-end">
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => handleViewPatient(patient)}
+                                  title="View Details"
+                                  className="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-bold text-xs transition-colors"
+                                >
+                                  View
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => handleOpenEditModal(patient)}
+                                  title="Edit Patient"
+                                  className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-bold text-xs transition-colors"
+                                >
+                                  Edit
+                                </motion.button>
                               </div>
                             </div>
-
-                            {/* Quick Info Grid */}
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                              <div className="bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg p-3 border border-blue-200">
-                                <p className="text-[10px] font-bold text-blue-700 uppercase tracking-wide mb-1">📅 DOB</p>
-                                <p className="text-sm font-semibold text-blue-900">{(patient.dateOfBirth || patient.patientDOB || '')?.split('T')[0] || 'N/A'}</p>
-                              </div>
-                              <div className="bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg p-3 border border-purple-200">
-                                <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wide mb-1">⚧ Gender</p>
-                                <p className="text-sm font-semibold text-purple-900">{patient.gender || patient.patientGender || 'N/A'}</p>
-                              </div>
-                              <div className="bg-gradient-to-br from-pink-100 to-pink-50 rounded-lg p-3 border border-pink-200">
-                                <p className="text-[10px] font-bold text-pink-700 uppercase tracking-wide mb-1">📞 Phone</p>
-                                <p className="text-sm font-semibold text-pink-900">{patient.phone || patient.patientPhone || 'N/A'}</p>
-                              </div>
-                              <div className="bg-gradient-to-br from-amber-100 to-amber-50 rounded-lg p-3 border border-amber-200">
-                                <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide mb-1">🩸 Blood</p>
-                                <p className="text-sm font-semibold text-amber-900">{patient.bloodType || patient.patientBloodType || 'N/A'}</p>
-                              </div>
-                            </div>
-
-                            {/* Additional Info */}
-                            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg p-3 border border-gray-200">
-                              <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-1">📧 Email</p>
-                              <p className="text-xs font-semibold text-gray-800 truncate">{patient.email || patient.patientEmail || 'N/A'}</p>
-                            </div>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="px-6 pb-6 flex gap-3">
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => {
-                                setSelectedPatient(patient);
-                                setShowPatientModal(true);
-                              }}
-                              className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm"
-                            >
-                              <span>👁️</span>
-                              <span>View Details</span>
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => handleOpenEditModal(patient)}
-                              className="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm"
-                            >
-                              <span>✏️</span>
-                              <span>Edit</span>
-                            </motion.button>
-                          </div>
-                        </motion.div>
-                      ))}
+                          </motion.div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-16 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl border-3 border-dashed border-blue-300">
@@ -1364,8 +1538,34 @@ Click OK after reviewing the console logs.`;
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
               transition={{ type: "spring", duration: 0.5 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-gradient-to-br from-white via-blue-50 to-indigo-50 rounded-3xl shadow-2xl max-w-5xl w-full border-2 border-blue-300 overflow-hidden flex flex-col max-h-[95vh]"
+              className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full border-2 border-teal-200 overflow-hidden flex flex-col max-h-[95vh]"
             >
+              {/* Tabs */}
+              <div className="bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-4 border-b-2 border-teal-200 flex gap-2 overflow-x-auto flex-shrink-0">
+                {[
+                  { key: "patient", label: "Patient Info", icon: "👤" },
+                  { key: "contact", label: "Contact", icon: "📞" },
+                  { key: "medical", label: "Medical Info", icon: "🏥" },
+                  { key: "insurance", label: "Insurance", icon: "💳" }
+                ].map((tab) => (
+                  <motion.button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setEditActiveTab(tab.key)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    className={`px-4 py-2 font-semibold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-md whitespace-nowrap ${
+                      editActiveTab === tab.key
+                        ? "bg-gradient-to-r from-teal-600 to-cyan-600 text-white shadow-lg scale-105"
+                        : "bg-white text-slate-600 hover:bg-gradient-to-r hover:from-teal-50 hover:to-cyan-50 hover:text-teal-600 border-2 border-slate-200"
+                    }`}
+                  >
+                    <span className="text-base">{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </motion.button>
+                ))}
+              </div>
+
               {/* Modal Header */}
               <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 px-6 py-4 border-b-2 border-blue-400/60 flex-shrink-0">
                 <div className="flex items-center justify-between">
@@ -1390,207 +1590,589 @@ Click OK after reviewing the console logs.`;
               </div>
 
               {/* Modal Content */}
-              <div className="px-6 py-4 overflow-y-auto flex-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#3b82f6 transparent' }}>
-                <div className="space-y-3">
-                  {/* Basic Information Section */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-4 border-2 border-blue-300"
-                  >
-                    <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wide mb-3 flex items-center gap-2">
-                      <span>👤</span> Basic Info
-                    </h3>
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                      <div>
-                        <label className="block text-xs font-bold text-blue-700 mb-1">First Name</label>
-                        <input
-                          type="text"
-                          value={editFormData.firstName}
-                          onChange={(e) => setEditFormData({...editFormData, firstName: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm border-2 border-blue-300 rounded focus:border-blue-500 outline-none"
-                          placeholder="First"
-                        />
+              <div className="px-6 py-6 overflow-y-auto flex-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#3b82f6 transparent', minHeight: '500px', maxHeight: 'calc(95vh - 240px)' }}>
+                <AnimatePresence mode="wait">
+                  {/* Patient Info Tab */}
+                  {editActiveTab === "patient" && (
+                    <motion.div
+                      key="patient-tab"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <h3 className="text-lg font-bold text-teal-900 mb-4 flex items-center gap-2">
+                        <span className="text-xl">👤</span>
+                        Patient Information
+                      </h3>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">First Name *</label>
+                            <input
+                              type="text"
+                              value={editFormData.firstName}
+                              onChange={(e) => setEditFormData({...editFormData, firstName: e.target.value})}
+                              className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                              placeholder="Enter first name"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Last Name *</label>
+                            <input
+                              type="text"
+                              value={editFormData.lastName}
+                              onChange={(e) => setEditFormData({...editFormData, lastName: e.target.value})}
+                              className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                              placeholder="Enter last name"
+                            />
+                          </div>
+                          <CompactFancyDatePicker
+                            label="Date of Birth *"
+                            value={editFormData.dateOfBirth?.split('T')[0] || ''}
+                            onChange={(date) => setEditFormData({...editFormData, dateOfBirth: date})}
+                            required
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Gender</label>
+                            <select
+                              value={editFormData.gender}
+                              onChange={(e) => setEditFormData({...editFormData, gender: e.target.value})}
+                              className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                            >
+                              <option value="">Select Gender</option>
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Blood Type</label>
+                            <select
+                              value={editFormData.bloodType}
+                              onChange={(e) => setEditFormData({...editFormData, bloodType: e.target.value})}
+                              className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                            >
+                              <option value="">Select Blood Type</option>
+                              <option value="O+">O+</option>
+                              <option value="O-">O-</option>
+                              <option value="A+">A+</option>
+                              <option value="A-">A-</option>
+                              <option value="B+">B+</option>
+                              <option value="B-">B-</option>
+                              <option value="AB+">AB+</option>
+                              <option value="AB-">AB-</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Marital Status</label>
+                            <select
+                              value={editFormData.maritalStatus}
+                              onChange={(e) => setEditFormData({...editFormData, maritalStatus: e.target.value})}
+                              className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                            >
+                              <option value="">Select Status</option>
+                              <option value="Single">Single</option>
+                              <option value="Married">Married</option>
+                              <option value="Divorced">Divorced</option>
+                              <option value="Widowed">Widowed</option>
+                            </select>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-bold text-blue-700 mb-1">Last Name</label>
-                        <input
-                          type="text"
-                          value={editFormData.lastName}
-                          onChange={(e) => setEditFormData({...editFormData, lastName: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm border-2 border-blue-300 rounded focus:border-blue-500 outline-none"
-                          placeholder="Last"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-blue-700 mb-1">DOB</label>
-                        <input
-                          type="date"
-                          value={editFormData.dateOfBirth?.split('T')[0] || ''}
-                          onChange={(e) => setEditFormData({...editFormData, dateOfBirth: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm border-2 border-blue-300 rounded focus:border-blue-500 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-blue-700 mb-1">Gender</label>
-                        <select
-                          value={editFormData.gender}
-                          onChange={(e) => setEditFormData({...editFormData, gender: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm border-2 border-blue-300 rounded focus:border-blue-500 outline-none"
+                    </motion.div>
+                    )}
+
+                    {/* Contact Tab */}
+                    {editActiveTab === "contact" && (
+                      <motion.div
+                        key="contact-tab"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <h3 className="text-lg font-bold text-teal-900 mb-4 flex items-center gap-2">
+                          <span className="text-xl">📞</span>
+                          Contact Information
+                        </h3>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-sm font-semibold text-slate-700 mb-2">Phone *</label>
+                              <input
+                                type="tel"
+                                value={editFormData.phone}
+                                onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
+                                className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                placeholder="Primary phone"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-slate-700 mb-2">Alternate Phone</label>
+                              <input
+                                type="tel"
+                                value={editFormData.alternatePhone}
+                                onChange={(e) => setEditFormData({...editFormData, alternatePhone: e.target.value})}
+                                className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                placeholder="Alternate phone"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
+                              <input
+                                type="email"
+                                value={editFormData.email}
+                                onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
+                                className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                placeholder="Email"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Address Section */}
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                              <span>🏠</span> Address
+                            </h4>
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Address Line 1 *</label>
+                                <input
+                                  type="text"
+                                  value={editFormData.address}
+                                  onChange={(e) => setEditFormData({...editFormData, address: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                  placeholder="Street address"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Address Line 2</label>
+                                <input
+                                  type="text"
+                                  value={editFormData.addressLine2}
+                                  onChange={(e) => setEditFormData({...editFormData, addressLine2: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                  placeholder="Apt, Suite, etc."
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">City *</label>
+                                  <input
+                                    type="text"
+                                    value={editFormData.city}
+                                    onChange={(e) => setEditFormData({...editFormData, city: e.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                    placeholder="City"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">State *</label>
+                                  <input
+                                    type="text"
+                                    value={editFormData.state}
+                                    onChange={(e) => setEditFormData({...editFormData, state: e.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                    placeholder="State"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">Postal Code *</label>
+                                  <input
+                                    type="text"
+                                    value={editFormData.postalCode}
+                                    onChange={(e) => setEditFormData({...editFormData, postalCode: e.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                    placeholder="ZIP"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">Country *</label>
+                                  <input
+                                    type="text"
+                                    value={editFormData.country}
+                                    onChange={(e) => setEditFormData({...editFormData, country: e.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                    placeholder="Country"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Emergency Contact Section */}
+                          <div className="bg-red-50 rounded-lg p-4 border-2 border-red-300">
+                            <h4 className="text-sm font-semibold text-red-700 mb-3 flex items-center gap-2">
+                              <span>🆘</span> Emergency Contact *
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <label className="block text-sm font-semibold text-red-700 mb-2">Name *</label>
+                                <input
+                                  type="text"
+                                  value={editFormData.emergencyContactName}
+                                  onChange={(e) => setEditFormData({...editFormData, emergencyContactName: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                                  placeholder="Contact name"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-red-700 mb-2">Phone *</label>
+                                <input
+                                  type="tel"
+                                  value={editFormData.emergencyContactPhone}
+                                  onChange={(e) => setEditFormData({...editFormData, emergencyContactPhone: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                                  placeholder="Contact phone"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-red-700 mb-2">Relation *</label>
+                                <input
+                                  type="text"
+                                  value={editFormData.emergencyContactRelation}
+                                  onChange={(e) => setEditFormData({...editFormData, emergencyContactRelation: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                                  placeholder="e.g., Parent, Spouse"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                      {/* Medical Info Tab */}
+                      {editActiveTab === "medical" && (
+                        <motion.div
+                          key="medical-tab"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ duration: 0.2 }}
                         >
-                          <option value="">Select</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-blue-700 mb-1">Blood Type</label>
-                        <input
-                          type="text"
-                          value={editFormData.bloodType}
-                          onChange={(e) => setEditFormData({...editFormData, bloodType: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm border-2 border-blue-300 rounded focus:border-blue-500 outline-none"
-                          placeholder="O+"
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
+                          <h3 className="text-lg font-bold text-teal-900 mb-4 flex items-center gap-2">
+                            <span className="text-xl">🏥</span>
+                            Medical Information
+                          </h3>
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Allergies</label>
+                                <textarea
+                                  value={editFormData.allergies}
+                                  onChange={(e) => setEditFormData({...editFormData, allergies: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none resize-none"
+                                  rows="3"
+                                  placeholder="List any allergies..."
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Current Medications</label>
+                                <textarea
+                                  value={editFormData.currentMedications}
+                                  onChange={(e) => setEditFormData({...editFormData, currentMedications: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none resize-none"
+                                  rows="3"
+                                  placeholder="List current medications..."
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Chronic Conditions</label>
+                                <textarea
+                                  value={editFormData.chronicConditions}
+                                  onChange={(e) => setEditFormData({...editFormData, chronicConditions: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none resize-none"
+                                  rows="3"
+                                  placeholder="e.g., Diabetes, Hypertension..."
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Past Surgeries</label>
+                                <textarea
+                                  value={editFormData.pastSurgeries}
+                                  onChange={(e) => setEditFormData({...editFormData, pastSurgeries: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none resize-none"
+                                  rows="3"
+                                  placeholder="List past surgeries..."
+                                />
+                              </div>
+                            </div>
 
-                  {/* Contact Information Section */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 }}
-                    className="bg-gradient-to-br from-emerald-50 to-cyan-50 rounded-lg p-4 border-2 border-emerald-400"
-                  >
-                    <h3 className="text-sm font-bold text-emerald-800 uppercase tracking-wide mb-3 flex items-center gap-2">
-                      <span>📞</span> Contact
-                    </h3>
-                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                      <div>
-                        <label className="block text-xs font-bold text-emerald-700 mb-1">Phone</label>
-                        <input
-                          type="tel"
-                          value={editFormData.phone}
-                          onChange={(e) => setEditFormData({...editFormData, phone: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm border-2 border-emerald-300 rounded focus:border-emerald-500 outline-none"
-                          placeholder="Phone"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-emerald-700 mb-1">Email</label>
-                        <input
-                          type="email"
-                          value={editFormData.email}
-                          onChange={(e) => setEditFormData({...editFormData, email: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm border-2 border-emerald-300 rounded focus:border-emerald-500 outline-none"
-                          placeholder="Email"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-emerald-700 mb-1">City</label>
-                        <input
-                          type="text"
-                          value={editFormData.city}
-                          onChange={(e) => setEditFormData({...editFormData, city: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm border-2 border-emerald-300 rounded focus:border-emerald-500 outline-none"
-                          placeholder="City"
-                        />
-                      </div>
-                      <div className="lg:col-span-2">
-                        <label className="block text-xs font-bold text-emerald-700 mb-1">Address</label>
-                        <input
-                          type="text"
-                          value={editFormData.address}
-                          onChange={(e) => setEditFormData({...editFormData, address: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm border-2 border-emerald-300 rounded focus:border-emerald-500 outline-none"
-                          placeholder="Street Address"
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
+                            <div>
+                              <label className="block text-sm font-semibold text-slate-700 mb-2">Family Medical History</label>
+                              <textarea
+                                value={editFormData.familyMedicalHistory}
+                                onChange={(e) => setEditFormData({...editFormData, familyMedicalHistory: e.target.value})}
+                                className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none resize-none"
+                                rows="3"
+                                placeholder="Family medical history..."
+                              />
+                            </div>
 
-                  {/* Medical Information Section */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg p-4 border-2 border-amber-400"
-                  >
-                    <h3 className="text-sm font-bold text-amber-800 uppercase tracking-wide mb-3 flex items-center gap-2">
-                      <span>🏥</span> Medical
-                    </h3>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs font-bold text-amber-700 mb-1">Allergies</label>
-                        <textarea
-                          value={editFormData.allergies}
-                          onChange={(e) => setEditFormData({...editFormData, allergies: e.target.value})}
-                          className="w-full px-2 py-1.5 text-xs border-2 border-amber-300 rounded focus:border-amber-500 outline-none resize-none"
-                          rows="2"
-                          placeholder="Allergies..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-amber-700 mb-1">Current Medications</label>
-                        <textarea
-                          value={editFormData.currentMedications}
-                          onChange={(e) => setEditFormData({...editFormData, currentMedications: e.target.value})}
-                          className="w-full px-2 py-1.5 text-xs border-2 border-amber-300 rounded focus:border-amber-500 outline-none resize-none"
-                          rows="2"
-                          placeholder="Medications..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-amber-700 mb-1">Chronic Diseases</label>
-                        <input
-                          type="text"
-                          value={editFormData.chronicDiseases}
-                          onChange={(e) => setEditFormData({...editFormData, chronicDiseases: e.target.value})}
-                          className="w-full px-2 py-1.5 text-sm border-2 border-amber-300 rounded focus:border-amber-500 outline-none"
-                          placeholder="Diseases..."
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-amber-700 mb-1">Medical History</label>
-                        <textarea
-                          value={editFormData.medicalHistory}
-                          onChange={(e) => setEditFormData({...editFormData, medicalHistory: e.target.value})}
-                          className="w-full px-2 py-1.5 text-xs border-2 border-amber-300 rounded focus:border-amber-500 outline-none resize-none"
-                          rows="2"
-                          placeholder="History..."
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-              </div>
+                            {/* Lifestyle & Notes */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Smoking Status</label>
+                                <select
+                                  value={editFormData.smokingStatus}
+                                  onChange={(e) => setEditFormData({...editFormData, smokingStatus: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                >
+                                  <option value="">Select</option>
+                                  <option value="Never">Never</option>
+                                  <option value="Current">Current</option>
+                                  <option value="Former">Former</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Alcohol Use</label>
+                                <select
+                                  value={editFormData.alcoholConsumption}
+                                  onChange={(e) => setEditFormData({...editFormData, alcoholConsumption: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                >
+                                  <option value="">Select</option>
+                                  <option value="None">None</option>
+                                  <option value="Occasional">Occasional</option>
+                                  <option value="Regular">Regular</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Exercise Frequency</label>
+                                <input
+                                  type="text"
+                                  value={editFormData.exerciseFrequency}
+                                  onChange={(e) => setEditFormData({...editFormData, exerciseFrequency: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                  placeholder="e.g., Daily, 3x/week"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Dietary Restrictions</label>
+                                <input
+                                  type="text"
+                                  value={editFormData.dietaryRestrictions}
+                                  onChange={(e) => setEditFormData({...editFormData, dietaryRestrictions: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                  placeholder="e.g., Vegetarian, Gluten-free"
+                                />
+                              </div>
+                            </div>
 
-              {/* Modal Footer with Action Buttons */}
-              <div className="bg-gradient-to-r from-blue-100 via-purple-100 to-indigo-100 px-6 py-3 flex justify-end items-center gap-3 border-t-2 border-blue-300 flex-shrink-0">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowEditPatientModal(false)}
-                  className="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded-lg font-bold text-sm transition-all"
-                >
-                  Cancel
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleSaveEditedPatient}
-                  className="px-5 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg font-bold text-sm shadow-lg flex items-center gap-2 transition-all"
-                >
-                  <span>💾</span>
-                  <span>Save</span>
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                            {/* Dates & Primary Physician */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <CompactFancyDatePicker
+                                label="Last Dental Visit"
+                                value={editFormData.lastDentalVisit}
+                                onChange={(date) => setEditFormData({...editFormData, lastDentalVisit: date})}
+                              />
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Primary Physician</label>
+                                <input
+                                  type="text"
+                                  value={editFormData.primaryPhysician}
+                                  onChange={(e) => setEditFormData({...editFormData, primaryPhysician: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                  placeholder="Dr. Name"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-semibold text-slate-700 mb-2">Medical Notes</label>
+                              <textarea
+                                value={editFormData.notes}
+                                onChange={(e) => setEditFormData({...editFormData, notes: e.target.value})}
+                                className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none resize-none"
+                                rows="3"
+                                placeholder="Additional medical notes..."
+                              />
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {/* Insurance Tab */}
+                      {editActiveTab === "insurance" && (
+                        <motion.div
+                          key="insurance-tab"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <h3 className="text-lg font-bold text-teal-900 mb-4 flex items-center gap-2">
+                            <span className="text-xl">💳</span>
+                            Insurance Information
+                          </h3>
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Insurance Provider</label>
+                                <input
+                                  type="text"
+                                  value={editFormData.insuranceProvider}
+                                  onChange={(e) => setEditFormData({...editFormData, insuranceProvider: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                  placeholder="Insurance company name"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Insurance Phone</label>
+                                <input
+                                  type="tel"
+                                  value={editFormData.insurancePhone}
+                                  onChange={(e) => setEditFormData({...editFormData, insurancePhone: e.target.value})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                  placeholder="Insurance contact"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                <span>📋</span> Policy Details
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">Policy Number</label>
+                                  <input
+                                    type="text"
+                                    value={editFormData.policyNumber}
+                                    onChange={(e) => setEditFormData({...editFormData, policyNumber: e.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                    placeholder="Policy number"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">Group Number</label>
+                                  <input
+                                    type="text"
+                                    value={editFormData.groupNumber}
+                                    onChange={(e) => setEditFormData({...editFormData, groupNumber: e.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                    placeholder="Group number"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">Coverage %</label>
+                                  <input
+                                    type="number"
+                                    value={editFormData.coveragePercentage}
+                                    onChange={(e) => setEditFormData({...editFormData, coveragePercentage: e.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                    placeholder="e.g., 80"
+                                    min="0"
+                                    max="100"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                <span>👤</span> Policy Holder
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">Policy Holder Name</label>
+                                  <input
+                                    type="text"
+                                    value={editFormData.policyHolderName}
+                                    onChange={(e) => setEditFormData({...editFormData, policyHolderName: e.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                    placeholder="Holder name"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">Relation to Patient</label>
+                                  <select
+                                    value={editFormData.policyHolderRelation}
+                                    onChange={(e) => setEditFormData({...editFormData, policyHolderRelation: e.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                  >
+                                    <option value="">Select</option>
+                                    <option value="Self">Self</option>
+                                    <option value="Spouse">Spouse</option>
+                                    <option value="Parent">Parent</option>
+                                    <option value="Child">Child</option>
+                                    <option value="Other">Other</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">Copay Amount</label>
+                                  <input
+                                    type="number"
+                                    value={editFormData.copayAmount}
+                                    onChange={(e) => setEditFormData({...editFormData, copayAmount: e.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                    placeholder="Copay amount"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <h4 className="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                                <span>📅</span> Coverage Period
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <CompactFancyDatePicker
+                                  label="Coverage Start Date"
+                                  value={editFormData.coverageStartDate}
+                                  onChange={(date) => setEditFormData({...editFormData, coverageStartDate: date})}
+                                />
+                                <CompactFancyDatePicker
+                                  label="Coverage End Date"
+                                  value={editFormData.coverageEndDate}
+                                  onChange={(date) => setEditFormData({...editFormData, coverageEndDate: date})}
+                                />
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">Deductible Amount</label>
+                                  <input
+                                    type="number"
+                                    value={editFormData.deductibleAmount}
+                                    onChange={(e) => setEditFormData({...editFormData, deductibleAmount: e.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                    placeholder="Deductible amount"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="bg-gradient-to-r from-slate-100 to-blue-100 px-6 py-4 border-t-2 border-teal-200 flex justify-end items-center gap-3 flex-shrink-0">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setShowEditPatientModal(false)}
+                      className="px-6 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded-lg font-semibold transition-all"
+                    >
+                      Cancel
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleSaveEditedPatient}
+                      className="px-6 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg font-semibold shadow-lg flex items-center gap-2 transition-all"
+                    >
+                      <span>💾</span>
+                      <span>Save Changes</span>
+                    </motion.button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
       {/* Patient Details Modal */}
       <AnimatePresence>
@@ -1858,6 +2440,18 @@ Click OK after reviewing the console logs.`;
                     <span className="text-lg">📋</span>
                     <span>Appointment History</span>
                   </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      handleOpenEditModal(selectedPatient);
+                      setShowPatientModal(false);
+                    }}
+                    className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-400/60 hover:shadow-emerald-400/80 transition-all flex items-center gap-2 border-2 border-emerald-200"
+                  >
+                    <span className="text-lg">✏️</span>
+                    <span>Edit</span>
+                  </motion.button>
                 </div>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
@@ -1873,22 +2467,31 @@ Click OK after reviewing the console logs.`;
         )}
       </AnimatePresence>
 
-      {/* Custom Animated Popup */}
+      {/* Custom Animated Popup - Center of Screen with Click-to-Dismiss */}
       <AnimatePresence>
         {showPopup && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.5, y: -100 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.5, y: -100 }}
-            transition={{ type: "spring", duration: 0.5 }}
-            className="fixed top-20 right-8 z-[99999] max-w-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            onClick={() => setShowPopup(false)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[99999] flex items-center justify-center p-4"
           >
-            <div className={`rounded-2xl shadow-2xl overflow-hidden ${
-              popupConfig.type === 'error' ? 'bg-gradient-to-br from-red-500 via-pink-500 to-purple-500' :
-              popupConfig.type === 'warning' ? 'bg-gradient-to-br from-yellow-400 via-orange-400 to-red-400' :
-              popupConfig.type === 'info' ? 'bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400' :
-              'bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400'
-            }`}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: 20 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-md w-full"
+            >
+              <div className={`rounded-2xl shadow-2xl overflow-hidden border-2 ${
+                popupConfig.type === 'error' ? 'bg-gradient-to-br from-red-500 via-pink-500 to-purple-500 border-red-400' :
+                popupConfig.type === 'warning' ? 'bg-gradient-to-br from-yellow-400 via-orange-400 to-red-400 border-yellow-300' :
+                popupConfig.type === 'info' ? 'bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400 border-blue-300' :
+                'bg-gradient-to-br from-green-400 via-emerald-400 to-teal-400 border-green-300'
+              }`}>
               <div className="p-6 relative">
                 {/* Animated background elements */}
                 <motion.div
@@ -1942,7 +2545,8 @@ Click OK after reviewing the console logs.`;
                   />
                 </div>
               </div>
-            </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -2272,11 +2876,9 @@ Click OK after reviewing the console logs.`;
                           </div>
                           <div>
                             <label className="block text-sm font-bold text-pink-600 uppercase tracking-wide mb-2">🎂 Date of Birth</label>
-                            <input
-                              type="date"
+                            <FancyDatePicker
                               value={appointmentForm.dateOfBirth || ''}
-                              onChange={(e) => setAppointmentForm({ ...appointmentForm, dateOfBirth: e.target.value })}
-                              className="w-full px-4 py-3 bg-white border-2 border-pink-300 rounded-xl text-gray-900 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition shadow-sm"
+                              onChange={(date) => setAppointmentForm({ ...appointmentForm, dateOfBirth: date })}
                             />
                           </div>
                           <div>
@@ -2325,11 +2927,9 @@ Click OK after reviewing the console logs.`;
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-bold text-blue-600 uppercase tracking-wide mb-2">📅 Appointment Date</label>
-                      <input
-                        type="date"
+                      <FancyDatePicker
                         value={appointmentForm.appointmentDate || ''}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, appointmentDate: e.target.value })}
-                        className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-xl text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-sm"
+                        onChange={(date) => setAppointmentForm({ ...appointmentForm, appointmentDate: date })}
                       />
                     </div>
                     <div>
