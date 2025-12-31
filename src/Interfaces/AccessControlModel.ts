@@ -20,7 +20,8 @@ export interface CreateAccessControlDto {
 
 // DTO for bulk role assignment (multiple roles for one user)
 export interface BulkAssignRolesDto {
-  userId: number;
+  userId: string | number;
+  enterpriseId: number;
   clinicId: number;
   roleIds: number[]; // Array of role IDs to assign
   isActive?: boolean;

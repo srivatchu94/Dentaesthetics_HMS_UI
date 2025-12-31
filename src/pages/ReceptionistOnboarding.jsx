@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getSelectedAccess } from "../services/authService";
 
 export default function ReceptionistOnboarding() {
   const navigate = useNavigate();
@@ -10,11 +11,16 @@ export default function ReceptionistOnboarding() {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [showDebug, setShowDebug] = useState(false);
+  const [freezeEnterprise, setFreezeEnterprise] = useState(false);
   const [lastRequest, setLastRequest] = useState({
     formSnapshot: null,
     payloadSnapshot: null,
     jsonBody: ""
   });
+  
+  // Local date string (YYYY-MM-DD) for input max validation
+  const today = new Date();
+  const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   
   // Available roles - using role names as both id and value to match API requirements
   const availableRoles = [
@@ -55,6 +61,22 @@ export default function ReceptionistOnboarding() {
     yearsExperience: "",
     roleId: ""
   });
+
+  // Pre-populate enterprise ID from login access data
+  useEffect(() => {
+    const access = getSelectedAccess();
+    console.log('🔐 Login Access Data:', access);
+    
+    if (access?.enterpriseId) {
+      setForm(prev => ({
+        ...prev,
+        enterpriseId: access.enterpriseId,
+        clinicId: access.clinicId || 0
+      }));
+      setFreezeEnterprise(true);
+      console.log('✅ Pre-populated enterpriseId from login:', access.enterpriseId);
+    }
+  }, []);
 
   useEffect(() => {
     const loadEnterprises = async () => {
@@ -139,6 +161,20 @@ export default function ReceptionistOnboarding() {
     if (!form.firstName || !form.lastName || !form.email) {
         console.log("❌ Validation failed: Missing required fields");
       setError("Please fill all required fields");
+      return;
+    }
+    // Validate date of birth not in future
+    if (form.dateOfBirth && form.dateOfBirth > todayISO) {
+      setError("Date of birth cannot be a future date");
+      return;
+    }
+
+    // Validate phone and emergency contact are not the same (normalize digits)
+    const norm = (s) => (s || "").replace(/\D/g, "");
+    const phoneNorm = norm(form.phone);
+    const emergencyNorm = norm(form.emergencyContact);
+    if (phoneNorm && emergencyNorm && phoneNorm === emergencyNorm) {
+      setError("Phone number and emergency contact cannot be the same");
       return;
     }
     if (!form.enterpriseId || !form.clinicId) {
@@ -468,9 +504,15 @@ export default function ReceptionistOnboarding() {
                 name="enterpriseId"
                 value={form.enterpriseId}
                 onChange={handleChange}
-                className="w-full border rounded-lg px-3 py-2"
+                disabled={freezeEnterprise}
+                className={`w-full border rounded-lg px-3 py-2 ${freezeEnterprise ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                 placeholder="Enter enterprise ID"
               />
+              {freezeEnterprise && (
+                <p className="text-xs text-blue-600 mt-1">
+                  🔒 Locked from login access
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Assign Role</label>
@@ -524,7 +566,10 @@ export default function ReceptionistOnboarding() {
                 value={form.email}
                 onChange={handleChange}
                 className="w-full border rounded-lg px-3 py-2"
+                placeholder="name@example.com"
+                title="Enter a valid work email ID, e.g., name@example.com"
               />
+              <p className="text-xs text-gray-500 mt-1">Use a valid email ID (e.g., name@example.com). This will be used for login and notifications.</p>
             </div>
           </div>
 
@@ -555,7 +600,10 @@ export default function ReceptionistOnboarding() {
                 value={form.phone}
                 onChange={handleChange}
                 className="w-full border rounded-lg px-3 py-2"
+                placeholder="e.g., +91 9876543210"
+                title="Enter digits only, include country code if applicable"
               />
+              <p className="text-xs text-gray-500 mt-1">Digits only. Include country code if needed (e.g., +91 9876543210). Recommended 10–15 digits.</p>
             </div>
           </div>
 
@@ -575,6 +623,8 @@ export default function ReceptionistOnboarding() {
                     value={form.dateOfBirth}
                     onChange={handleChange}
                     className="w-full border rounded-lg px-3 py-2"
+                    max={todayISO}
+                    title="Date of birth cannot be in the future"
                   />
                 </div>
                 <div>
@@ -608,7 +658,10 @@ export default function ReceptionistOnboarding() {
                     value={form.emergencyContact}
                     onChange={handleChange}
                     className="w-full border rounded-lg px-3 py-2"
+                    placeholder="Alternate contact number (e.g., +91 9876501234)"
+                    title="Alternate number to reach in emergencies; include country code"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Alternate number for emergencies. Include country code. Prefer a different number than the primary phone.</p>
                 </div>
               </div>
             </div>
@@ -790,9 +843,11 @@ export default function ReceptionistOnboarding() {
                     name="profilePhotoUrl"
                     value={form.profilePhotoUrl}
                     onChange={handleChange}
-                    placeholder="URL to profile photo"
+                    placeholder="https://example.com/photo.jpg"
+                    title="Publicly accessible image URL (JPG/PNG)"
                     className="w-full border rounded-lg px-3 py-2"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Provide a publicly accessible image URL (https://...). JPG/PNG recommended.</p>
                 </div>
               </div>
             </div>

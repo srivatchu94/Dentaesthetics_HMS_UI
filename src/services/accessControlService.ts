@@ -63,9 +63,10 @@ export function createAccessControl(payload: CreateAccessControlDto): Promise<Ac
 // Bulk assign multiple roles to a user in a clinic
 // Sends all roles in a single request to match backend model
 export async function bulkAssignRoles(payload: BulkAssignRolesDto): Promise<AccessControlModel[]> {
-  // Backend expects PascalCase properties: UserId, ClinicId, RoleIds, IsActive
+  // Backend expects PascalCase properties: UserId, EnterpriseId, ClinicId, RoleIds, IsActive
   const backendPayload = {
-    UserId: payload.userId,
+    UserId: payload.userId.toString(),
+    EnterpriseId: payload.enterpriseId,
     ClinicId: payload.clinicId,
     RoleIds: payload.roleIds,
     IsActive: payload.isActive ?? true

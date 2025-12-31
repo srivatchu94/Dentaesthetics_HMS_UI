@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
+import { listRolesForStaff } from "../services/roleService";
+import { getSelectedAccess } from "../services/authService";
 
 export default function ViewStaffDetails() {
   const navigate = useNavigate();
@@ -35,15 +37,29 @@ export default function ViewStaffDetails() {
   const [clinics, setClinics] = useState([]);
   const [isLoadingEnterprises, setIsLoadingEnterprises] = useState(false);
   const [isLoadingClinics, setIsLoadingClinics] = useState(false);
+  const [freezeEnterprise, setFreezeEnterprise] = useState(false);
 
-  // Available roles
-  const availableRoles = [
-    { id: "entityadmin", name: "Entity Admin" },
-    { id: "staff", name: "Staff" },
-    { id: "clinicadmin", name: "Clinic Admin" },
-    { id: "Doctor", name: "Doctor" },
-    { id: "Nurse", name: "Nurse" }
-  ];
+  // Roles from API
+  const [roleOptions, setRoleOptions] = useState([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+
+  // Fetch roles for staff on mount
+  useEffect(() => {
+    const loadRoles = async () => {
+      try {
+        setRolesLoading(true);
+        const roles = await listRolesForStaff();
+        // Expecting items with roleId and roleName
+        setRoleOptions(Array.isArray(roles) ? roles : roles?.data || []);
+      } catch (e) {
+        console.error("Failed to load roles for staff:", e);
+        setRoleOptions([]);
+      } finally {
+        setRolesLoading(false);
+      }
+    };
+    loadRoles();
+  }, []);
 
   // Fetch all enterprises on component mount
   useEffect(() => {
@@ -74,6 +90,19 @@ export default function ViewStaffDetails() {
     };
 
     fetchEnterprises();
+  }, []);
+
+  // Pre-fill enterprise (and optional clinic) from login and freeze enterprise selection
+  useEffect(() => {
+    const selected = getSelectedAccess();
+    if (selected?.enterpriseId) {
+      setSearchFilters(prev => ({
+        ...prev,
+        enterpriseId: selected.enterpriseId.toString(),
+        clinicId: selected.clinicId ? selected.clinicId.toString() : prev.clinicId
+      }));
+      setFreezeEnterprise(true);
+    }
   }, []);
 
   // Fetch clinics when enterprise is selected
@@ -181,10 +210,11 @@ export default function ViewStaffDetails() {
     try {
       setIsSearching(true);
       const params = new URLSearchParams();
-      params.append("rolesAssigned", searchFilters.rolesAssigned);
+      // Convert role to lowercase for API compatibility
+      params.append("rolesAssigned", searchFilters.rolesAssigned.toLowerCase());
       params.append("enterpriseId", searchFilters.enterpriseId);
       if (searchFilters.clinicId) params.append("clinicId", searchFilters.clinicId);
-      if (hasProfileID) params.append("Id", searchFilters.profileID.trim());
+      if (hasProfileID) params.append("profileId", searchFilters.profileID.trim());
       if (hasFirstName) params.append("firstName", searchFilters.firstName.trim());
       if (hasLastName) params.append("lastName", searchFilters.lastName.trim());
 
@@ -564,10 +594,10 @@ export default function ViewStaffDetails() {
                     className="w-full border border-gray-300 rounded-lg px-4 py-2.5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                     required
                   >
-                    <option value="">Select role</option>
-                    {availableRoles.map(role => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
+                    <option value="">{rolesLoading ? "Loading roles..." : "Select role"}</option>
+                    {roleOptions.map(role => (
+                      <option key={role.roleId} value={role.roleName}>
+                        {role.roleName}
                       </option>
                     ))}
                   </select>
@@ -582,8 +612,8 @@ export default function ViewStaffDetails() {
                     name="enterpriseId"
                     value={searchFilters.enterpriseId}
                     onChange={handleSearchChange}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:bg-gray-100 disabled:text-gray-500"
-                    disabled={isLoadingEnterprises}
+                    className={`w-full border border-gray-300 rounded-lg px-4 py-2.5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:bg-gray-100 disabled:text-gray-500 ${freezeEnterprise ? 'bg-gray-100 cursor-not-allowed opacity-90' : ''}`}
+                    disabled={isLoadingEnterprises || freezeEnterprise}
                     required
                   >
                     <option value="">Select enterprise</option>
@@ -596,7 +626,11 @@ export default function ViewStaffDetails() {
                       );
                     })}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">Choose the organization to search within</p>
+                  {freezeEnterprise ? (
+                    <p className="text-xs text-blue-600 mt-1 font-medium">🔒 Locked from login access</p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1">Choose the organization to search within</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -673,7 +707,20 @@ export default function ViewStaffDetails() {
                 <button
                   type="button"
                   onClick={() => {
-                    setSearchFilters({ rolesAssigned: "", profileID: "", firstName: "", lastName: "", enterpriseId: "", clinicId: "" });
+                    // Get enterprise from login and prefill it
+                    const access = getSelectedAccess();
+                    console.log('🔐 Reset - Login Access:', access);
+                    const enterpriseFromLogin = access?.enterpriseId || "";
+                    console.log('🏢 Reset - Enterprise ID:', enterpriseFromLogin);
+                    
+                    setSearchFilters({ 
+                      rolesAssigned: "", 
+                      profileID: "", 
+                      firstName: "", 
+                      lastName: "", 
+                      enterpriseId: enterpriseFromLogin.toString(), 
+                      clinicId: "" 
+                    });
                     setStaffList([]);
                     setShowSearchResult(false);
                     setError("");

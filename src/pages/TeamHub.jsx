@@ -5,6 +5,7 @@ import { createDoctor, searchDoctors } from '../services/doctorService';
 import { bulkAssignRoles } from '../services/accessControlService';
 import { listRoles } from '../services/roleService';
 import { createStaffDetail } from '../services/staffService';
+import { getSelectedAccess } from '../services/authService';
 
 const TeamHub = () => {
   const navigate = useNavigate();
@@ -23,7 +24,8 @@ const TeamHub = () => {
     staffId: "",
     firstName: "",
     lastName: "",
-    clinicId: ""
+    clinicId: "",
+    enterpriseId: ""
   });
   const [searchResults, setSearchResults] = useState([]);
   const [selectedStaff, setSelectedStaff] = useState(null);
@@ -42,7 +44,7 @@ const TeamHub = () => {
     firstName: "",
     lastName: "",
     email: "",
-    username: "",
+    mobileNumber: "",
     password: "",
     confirmPassword: "",
     enterpriseId: 0,
@@ -58,6 +60,12 @@ const TeamHub = () => {
   const [rolesLoading, setRolesLoading] = useState(false);
   const [availableRolesFromApi, setAvailableRolesFromApi] = useState([]);
   const [loadingRoles, setLoadingRoles] = useState(false);
+  const [freezeEnterprise, setFreezeEnterprise] = useState(false);
+  const [freezeCredentialEnterprise, setFreezeCredentialEnterprise] = useState(false);
+  const [freezeAccessControlEnterprise, setFreezeAccessControlEnterprise] = useState(false);
+  // Today's date (YYYY-MM-DD) for date validation and max attribute
+  const today = new Date();
+  const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   
   // Security Questions Modal States
   const [showSecurityQuestionsModal, setShowSecurityQuestionsModal] = useState(false);
@@ -220,8 +228,10 @@ const TeamHub = () => {
           const clinicList = Array.isArray(data) ? data : (data?.clinics || [data]);
           console.log("📋 Clinics loaded for onboarding:", clinicList);
           setOnboardingClinics(clinicList);
-          // Reset clinicId when enterprise changes
-          setDoctorFormData(prev => ({ ...prev, clinicId: "" }));
+          // If enterprise is frozen (from login), keep preset clinic if any; else reset
+          if (!freezeEnterprise) {
+            setDoctorFormData(prev => ({ ...prev, clinicId: "" }));
+          }
         } else {
           setOnboardingClinics([]);
         }
@@ -232,7 +242,19 @@ const TeamHub = () => {
     };
 
     fetchOnboardingClinics();
-  }, [doctorFormData.enterpriseId]);
+  }, [doctorFormData.enterpriseId, freezeEnterprise]);
+
+  // Auto-populate clinic in credential modal when frozen enterprise's clinics are loaded
+  useEffect(() => {
+    if (freezeCredentialEnterprise && credentialClinics.length > 0 && credentialFormData.clinicId === 0) {
+      // Auto-select the first clinic from the enterprise
+      const firstClinic = credentialClinics[0];
+      setCredentialFormData(prev => ({
+        ...prev,
+        clinicId: firstClinic.clinicId
+      }));
+    }
+  }, [credentialClinics, freezeCredentialEnterprise]);
 
   const sections = [
     {
@@ -368,6 +390,12 @@ const TeamHub = () => {
       setDoctorFormData(prev => ({ ...prev, role: "Doctor" }));
       loadRoles();
       loadEnterprises();
+      // Preselect enterprise from login and freeze selection
+      const access = getSelectedAccess();
+      if (access?.enterpriseId) {
+        setDoctorFormData(prev => ({ ...prev, enterpriseId: access.enterpriseId, clinicId: access.clinicId || "" }));
+        setFreezeEnterprise(true);
+      }
       setShowDoctorModal(true);
       return;
     }
@@ -376,6 +404,12 @@ const TeamHub = () => {
       setDoctorFormData(prev => ({ ...prev, role: "Receptionist" }));
       loadRoles();
       loadEnterprises();
+      // Preselect enterprise from login and freeze selection
+      const access = getSelectedAccess();
+      if (access?.enterpriseId) {
+        setDoctorFormData(prev => ({ ...prev, enterpriseId: access.enterpriseId, clinicId: access.clinicId || "" }));
+        setFreezeEnterprise(true);
+      }
       setShowDoctorModal(true);
       return;
     }
@@ -389,6 +423,27 @@ const TeamHub = () => {
     }
     if (optionId === 'manage-access') {
       setShowAccessControlModal(true);
+      // Prefill and freeze enterprise from login
+      const access = getSelectedAccess();
+      console.log('🔐 Login Access Data:', access);
+      
+      // TEMPORARY FIX: If values are still swapped, correct them here
+      let correctEnterpriseId = access?.enterpriseId;
+      if (access && access.clinicId > access.enterpriseId) {
+        // If clinicId is larger than enterpriseId, they're likely swapped
+        // (since enterprise IDs are typically 5 digits like 10004, clinic IDs are 4 digits like 5007)
+        correctEnterpriseId = access.clinicId;
+        console.log('⚠️ Detected swap, using clinicId as enterpriseId:', correctEnterpriseId);
+      }
+      
+      if (correctEnterpriseId) {
+        setSearchFilters(prev => ({
+          ...prev,
+          enterpriseId: correctEnterpriseId.toString()
+        }));
+        setFreezeAccessControlEnterprise(true);
+        console.log('✅ Set searchFilters.enterpriseId to:', correctEnterpriseId.toString());
+      }
       return;
     }
     if (optionId === 'create-credential') {
@@ -396,6 +451,18 @@ const TeamHub = () => {
       setCredentialError("");
       loadEnterprises();
       loadRoles();
+      // Prefill enterprise (and clinic) from login selection and freeze in credential modal
+      const access = getSelectedAccess();
+      if (access?.enterpriseId) {
+        setCredentialFormData(prev => ({
+          ...prev,
+          enterpriseId: access.enterpriseId,
+          clinicId: access.clinicId || 0
+        }));
+        setFreezeCredentialEnterprise(true);
+        // Ensure clinics are loaded for the preset enterprise
+        loadClinicsForCredential(access.enterpriseId);
+      }
       return;
     }
     if (optionId === 'security-questions') {
@@ -410,48 +477,91 @@ const TeamHub = () => {
   const handleSearchStaff = async () => {
     setIsSearching(true);
     try {
-      // Build search params for API
-      const searchParams = {};
+      // Get enterprise ID from searchFilters (already set from login when modal opened)
+      const enterpriseId = searchFilters.enterpriseId;
       
+      if (!enterpriseId) {
+        alert('❌ Enterprise ID not found. Please login again.');
+        setIsSearching(false);
+        return;
+      }
+
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+      queryParams.append('enterpriseId', enterpriseId);
+      
+      if (searchFilters.clinicId) {
+        queryParams.append('clinicId', searchFilters.clinicId);
+      }
       if (searchFilters.staffId) {
-        searchParams.staffId = parseInt(searchFilters.staffId);
+        queryParams.append('profileId', searchFilters.staffId);
       }
       if (searchFilters.firstName) {
-        searchParams.firstName = searchFilters.firstName;
+        queryParams.append('firstName', searchFilters.firstName);
       }
       if (searchFilters.lastName) {
-        searchParams.lastName = searchFilters.lastName;
+        queryParams.append('lastName', searchFilters.lastName);
       }
-      if (searchFilters.clinicId) {
-        searchParams.clinicId = parseInt(searchFilters.clinicId);
+
+      const apiUrl = `https://localhost:7104/api/StaffDetail/GetStaffProfile?${queryParams.toString()}`;
+      console.log('🔍 Searching staff with URL:', apiUrl);
+      console.log('📊 Query Params:', {
+        enterpriseId,
+        clinicId: searchFilters.clinicId,
+        profileId: searchFilters.staffId,
+        firstName: searchFilters.firstName,
+        lastName: searchFilters.lastName
+      });
+      
+      // Call GetStaffProfile API
+      const response = await fetch(apiUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+
+      console.log('📡 API Response Status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error Response:', errorText);
+        throw new Error(`API returned status ${response.status}: ${errorText}`);
       }
-      
-      console.log('🔍 Searching doctors with params:', searchParams);
-      
-      // Call the SearchDoctors API
-      const results = await searchDoctors(searchParams);
-      
-      console.log('✅ Found doctors:', results);
-      
+
+      const allStaff = await response.json();
+      console.log('✅ Staff found from API:', allStaff);
+      console.log('📋 First staff object structure:', allStaff[0]);
+
       // Transform API results to match UI structure
-      const transformedResults = results.map(doctor => ({
-        id: doctor.doctorId,
-        staffId: doctor.staffId,
-        firstName: doctor.firstName,
-        lastName: doctor.lastName,
-        clinicId: doctor.branchId, // branchId maps to clinicId
-        currentRole: doctor.role,
-        email: doctor.email
-      }));
-      
+      const transformedResults = (Array.isArray(allStaff) ? allStaff : (allStaff?.data || [])).map((staff, index) => {
+        const transformed = {
+          id: staff.id,
+          staffId: staff.id,  // Use id as staffId since API returns id as STF001
+          firstName: staff.firstName,
+          lastName: staff.lastName,
+          enterpriseID: staff.enterpriseID,  // Include enterpriseID from API
+          clinicId: staff.clinicID,  // API uses clinicID (capital D)
+          currentRole: staff.roleType || staff.role || staff.roleName,
+          email: staff.email || staff.emailId
+        };
+        
+        if (index === 0) {
+          console.log('🔄 First transformed result:', transformed);
+        }
+        
+        return transformed;
+      });
+
       setSearchResults(transformedResults);
-      
+
       if (transformedResults.length === 0) {
-        alert('ℹ️ No doctors found matching the search criteria.');
+        alert('ℹ️ No staff found matching the search criteria.');
       }
     } catch (error) {
-      console.error('❌ Error searching doctors:', error);
-      alert(`❌ Failed to search doctors: ${error.message}`);
+      console.error('❌ Error searching staff:', error);
+      alert(`❌ Failed to search staff: ${error.message}`);
       setSearchResults([]);
     } finally {
       setIsSearching(false);
@@ -484,20 +594,9 @@ const TeamHub = () => {
     const loadRoles = async () => {
       try {
         setRolesLoading(true);
-        const response = await fetch("https://localhost:7104/RoleMaster/GetAllRolesForStaff", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setRoleOptions(Array.isArray(data) ? data : data.data || []);
-        } else {
-          console.error("Failed to load roles", response.status);
-          setRoleOptions([]);
-        }
+        // Use RoleMaster/GetAllRoles API via roleService (base URL includes /api)
+        const roles = await listRoles();
+        setRoleOptions(Array.isArray(roles) ? roles : roles?.data || []);
       } catch (error) {
         console.error("Error loading roles:", error);
         setRoleOptions([]);
@@ -550,10 +649,18 @@ const TeamHub = () => {
       setCredentialError("Email is required");
       return;
     }
-    if (!credentialFormData.username?.trim()) {
-      setCredentialError("Username is required");
+    if (!credentialFormData.mobileNumber?.trim()) {
+      setCredentialError("Mobile number is required");
       return;
     }
+    // Extract digits only from mobile (allows +, spaces, hyphens in display)
+    const digitsOnly = credentialFormData.mobileNumber.replace(/\D/g, "");
+    if (digitsOnly.length < 10 || digitsOnly.length > 15) {
+      setCredentialError("Mobile number must contain 10-15 digits (country code optional, e.g., +91 9876543210)");
+      return;
+    }
+    // Take only last 10 digits (removes country code if provided)
+    const mobileNumber10Digit = digitsOnly.slice(-10);
     if (!credentialFormData.password?.trim()) {
       setCredentialError("Password is required");
       return;
@@ -581,8 +688,9 @@ const TeamHub = () => {
         firstName: credentialFormData.firstName,
         lastName: credentialFormData.lastName,
         emailId: credentialFormData.email,
-        username: credentialFormData.username,
+        username: credentialFormData.email,
         password: credentialFormData.password,
+        mobileNumber: mobileNumber10Digit,
         enterpriseId: parseInt(credentialFormData.enterpriseId),
         clinicId: parseInt(credentialFormData.clinicId),
         roleId: parseInt(credentialFormData.roleId)
@@ -603,8 +711,8 @@ const TeamHub = () => {
         const data = await response.json();
         console.log("✅ Credential registered:", data);
         
-        // Show success modal with username
-        setCredentialSuccessUsername(credentialFormData.username);
+        // Show success modal with mobile number
+        setCredentialSuccessUsername(digitsOnly);
         setShowCredentialSuccess(true);
         
         // Reset form
@@ -612,7 +720,7 @@ const TeamHub = () => {
           firstName: "",
           lastName: "",
           email: "",
-          username: "",
+          mobileNumber: "",
           password: "",
           confirmPassword: "",
           enterpriseId: 0,
@@ -813,15 +921,41 @@ const TeamHub = () => {
       setIsAssigningRoles(true);
       
       try {
+        // Get enterprise ID from SELECTED STAFF
+        const enterpriseId = selectedStaff.enterpriseID;
+        
+        if (!enterpriseId) {
+          throw new Error("Enterprise ID not found in selected staff");
+        }
+
         // Prepare the payload for backend API
+        // StaffId is same as profileId - use whichever is available
+        const staffId = selectedStaff.staffId || selectedStaff.profileId || selectedStaff.id;
+        
+        if (!staffId) {
+          console.error('❌ Selected staff object:', selectedStaff);
+          throw new Error("Staff ID/Profile ID is required but not found in selected staff");
+        }
+
+        // Validate clinic ID from selected staff
+        if (!selectedStaff.clinicId) {
+          console.error('❌ Selected staff object:', selectedStaff);
+          throw new Error("Clinic ID is required but not found in selected staff");
+        }
+
         const payload = {
-          userId: selectedStaff.staffId,  // Use staffId as the userId
-          clinicId: selectedStaff.clinicId, // Use actual clinicId (branchId from API)
-          roleIds: selectedRoles.map(r => r.id), // Array of role IDs [1, 2, 3, etc.]
+          userId: staffId.toString(),  // staffId/profileId as string
+          enterpriseId: parseInt(enterpriseId),  // Convert to int as required - FROM SELECTED STAFF
+          clinicId: parseInt(selectedStaff.clinicId),  // clinicId from selected staff as int
+          roleIds: selectedRoles.map(r => r.id),  // Array of role IDs as int
           isActive: true
         };
         
         console.log('📤 Sending role assignment:', payload);
+        console.log('🆔 Staff/Profile ID:', staffId);
+        console.log('🏢 Enterprise ID (from selected staff):', enterpriseId);
+        console.log('🏥 Clinic ID (from staff):', selectedStaff.clinicId);
+        console.log('👤 Selected Staff:', selectedStaff);
         
         // Call the backend API to assign roles (calls AssignRoles endpoint for each role)
         const result = await bulkAssignRoles(payload);
@@ -863,12 +997,13 @@ const TeamHub = () => {
   };
   
   const resetAccessControl = () => {
-    setSearchFilters({ staffId: "", firstName: "", lastName: "", clinicId: "" });
+    setSearchFilters({ staffId: "", firstName: "", lastName: "", clinicId: "", enterpriseId: "" });
     setSearchResults([]);
     setSelectedStaff(null);
     setShowRoleManager(false);
     setSelectedRoles([]);
     setShowConfirmation(false);
+    setFreezeAccessControlEnterprise(false);
   };
 
   // Tab navigation order
@@ -884,6 +1019,8 @@ const TeamHub = () => {
       if (!doctorFormData.firstName) errors.push("firstName");
       if (!doctorFormData.lastName) errors.push("lastName");
       if (!doctorFormData.dateOfBirth) errors.push("dateOfBirth");
+      // Disallow future DOB
+      if (doctorFormData.dateOfBirth && doctorFormData.dateOfBirth > todayISO) errors.push("dateOfBirth");
       if (!doctorFormData.gender) errors.push("gender");
       if (!doctorFormData.roleId || doctorFormData.roleId === "") errors.push("roleId");
     } else if (tab === "contact") {
@@ -913,6 +1050,7 @@ const TeamHub = () => {
     if (!doctorFormData.firstName?.trim()) missing.push('First Name');
     if (!doctorFormData.lastName?.trim()) missing.push('Last Name');
     if (!doctorFormData.dateOfBirth) missing.push('Date of Birth');
+    if (doctorFormData.dateOfBirth && doctorFormData.dateOfBirth > todayISO) missing.push('Valid Date of Birth');
     if (!doctorFormData.gender) missing.push('Gender');
     if (!doctorFormData.roleId || doctorFormData.roleId === "") missing.push('Role');
     // Contact
@@ -1419,7 +1557,8 @@ const TeamHub = () => {
                           onChange={handleInputChange}
                           className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                             validationErrors.includes("enterpriseId") ? "border-red-500 bg-red-50" : "border-purple-300"
-                          }`}
+                          } ${freezeEnterprise ? 'bg-gray-100 cursor-not-allowed opacity-90' : ''}`}
+                          disabled={freezeEnterprise}
                         >
                           <option value="">Select enterprise</option>
                           {allEnterprises.map(enterprise => {
@@ -1531,6 +1670,8 @@ const TeamHub = () => {
                           className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                             validationErrors.includes("dateOfBirth") ? "border-red-500 bg-red-50" : "border-purple-300"
                           }`}
+                          max={todayISO}
+                          title="Date of birth cannot be in the future"
                         />
                       </div>
                       <div>
@@ -2947,7 +3088,8 @@ const TeamHub = () => {
                             setCredentialError("");
                             loadClinicsForCredential(enterpriseId);
                           }}
-                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                          className={`w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none ${freezeCredentialEnterprise ? 'bg-gray-100 cursor-not-allowed opacity-90' : ''}`}
+                          disabled={freezeCredentialEnterprise}
                         >
                           <option value="0">-- Select Enterprise --</option>
                           {allEnterprises.map((enterprise) => (
@@ -3011,14 +3153,16 @@ const TeamHub = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">Username <span className="text-red-500">*</span></label>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Mobile Number <span className="text-red-500">*</span></label>
                         <input
-                          type="text"
-                          value={credentialFormData.username}
-                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, username: e.target.value }))}
+                          type="tel"
+                          value={credentialFormData.mobileNumber}
+                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, mobileNumber: e.target.value }))}
                           className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
-                          placeholder="johndoe123"
+                          placeholder="e.g., +91 9876543210"
+                          title="Enter mobile with country code (e.g., +91 9876543210). Only digits will be sent to API."
                         />
+                        <p className="text-xs text-gray-500 mt-1">Include country code with + (e.g., +91 9876543210). Only digits used for login.</p>
                       </div>
                     </div>
                   </div>
@@ -3118,7 +3262,7 @@ const TeamHub = () => {
               <h3 className="text-2xl font-bold text-green-600 mb-2">Success!</h3>
               <p className="text-slate-600 mb-4">Credential registered successfully</p>
               <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-6">
-                <p className="text-xs font-semibold text-slate-600 mb-2">USERNAME</p>
+                <p className="text-xs font-semibold text-slate-600 mb-2">MOBILE NUMBER</p>
                 <p className="text-xl font-bold text-slate-800 break-all">{credentialSuccessUsername}</p>
               </div>
               <p className="text-sm text-gray-500">Closing in a moment...</p>

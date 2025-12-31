@@ -16,6 +16,12 @@ export function listRoles(): Promise<RoleModel[]> {
   return request<RoleModel[]>("/RoleMaster/GetAllRoles");
 }
 
+// Roles available for Staff module (used in View Staff, Onboarding, etc.)
+export function listRolesForStaff(): Promise<RoleModel[]> {
+  console.log("📋 Fetching roles from RoleMaster/GetAllRolesForStaff API...");
+  return request<RoleModel[]>("/RoleMaster/GetAllRolesForStaff");
+}
+
 export function getRole(roleId: number): Promise<RoleModel> {
   return request<RoleModel>(`/roles/${roleId}`);
 }
