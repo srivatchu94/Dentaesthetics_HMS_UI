@@ -1655,6 +1655,13 @@ export default function Doctors() {
     }
   };
 
+  // Filter my patients by search text
+  const filteredMyPatients = myPatients.filter(patient => {
+    const searchLower = myPatientsFilterText.toLowerCase();
+    const fullName = `${patient.firstName || ''} ${patient.lastName || ''}`.toLowerCase();
+    return fullName.includes(searchLower) || (patient.patientId?.toString() || '').includes(searchLower);
+  });
+
   const fetchAppointmentDetails = async (appt) => {
     try {
       const clinicId = appt.clinicId || parseInt(localStorage.getItem('clinicId') || '0');

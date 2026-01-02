@@ -44,7 +44,8 @@ const TeamHub = () => {
     confirmPassword: "",
     enterpriseId: 0,
     clinicId: 0,
-    roleId: 0
+    roleId: 0,
+    roleName: ""
   });
   const [allEnterprises, setAllEnterprises] = useState([]);
   const [credentialClinics, setCredentialClinics] = useState([]);
@@ -471,7 +472,8 @@ const TeamHub = () => {
         password: credentialFormData.password,
         enterpriseId: parseInt(credentialFormData.enterpriseId),
         clinicId: parseInt(credentialFormData.clinicId),
-        roleId: parseInt(credentialFormData.roleId)
+        roleId: parseInt(credentialFormData.roleId),
+        roleName: credentialFormData.roleName
       };
 
       console.log("📝 Registering credential:", payload);
@@ -503,7 +505,8 @@ const TeamHub = () => {
           confirmPassword: "",
           enterpriseId: 0,
           clinicId: 0,
-          roleId: 0
+          roleId: 0,
+          roleName: ""
         });
 
         // Close modal after success
@@ -2788,14 +2791,22 @@ const TeamHub = () => {
                         <label className="block text-sm font-semibold text-slate-700 mb-2">Role <span className="text-red-500">*</span></label>
                         <select
                           value={credentialFormData.roleId}
-                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, roleId: parseInt(e.target.value) || 0 }))}
+                          onChange={(e) => {
+                            const selectedOption = e.target.options[e.target.selectedIndex];
+                            const roleName = selectedOption.dataset.roleName || "";
+                            setCredentialFormData(prev => ({ 
+                              ...prev, 
+                              roleId: parseInt(e.target.value) || 0,
+                              roleName: roleName
+                            }));
+                          }}
                           className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
                         >
                           <option value="0">-- Select Role --</option>
-                          <option value="1">Admin - Full system access</option>
-                          <option value="2">Doctor - Patient records, treatment plans, prescriptions</option>
-                          <option value="3">Receptionist - Appointments, check-ins, billing</option>
-                          <option value="4">Patient - View records, appointments, bills</option>
+                          <option value="1" data-role-name="Admin">Admin - Full system access</option>
+                          <option value="2" data-role-name="Doctor">Doctor - Patient records, treatment plans, prescriptions</option>
+                          <option value="3" data-role-name="Receptionist">Receptionist - Appointments, check-ins, billing</option>
+                          <option value="4" data-role-name="Patient">Patient - View records, appointments, bills</option>
                         </select>
                       </div>
                     </div>

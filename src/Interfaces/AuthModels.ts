@@ -8,6 +8,7 @@ export interface RegisterRequest {
   firstName?: string;
   lastName?: string;
   roleId?: number;
+  roleName?: string;
 }
 
 export interface LoginRequest {

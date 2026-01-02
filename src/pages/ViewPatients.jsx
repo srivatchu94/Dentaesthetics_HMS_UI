@@ -2938,30 +2938,6 @@ Click OK after reviewing the console logs.`;
                     </div>
                   ) : (
                     <div className="relative">
-                      <label className="block text-sm font-bold text-blue-600 uppercase tracking-wide mb-2">🔍 Search Patient</label>
-                      <input
-                        type="text"
-                        value={patientSearchTerm}
-                        onChange={(e) => handlePatientSearch(e.target.value)}
-                        onFocus={() => patientSearchTerm && setShowPatientDropdown(true)}
-                        placeholder="Type first or last name..."
-                        className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-sm"
-                      />
-                      {/* Patient Dropdown */}
-                      {showPatientDropdown && filteredPatientsForBooking.length > 0 && (
-                        <div className="absolute z-50 w-full mt-2 bg-white border-2 border-blue-300 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
-                          {filteredPatientsForBooking.map((patient) => (
-                            <div
-                              key={patient.patientId}
-                              onClick={() => handleSelectPatientForBooking(patient)}
-                              className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-blue-100 last:border-b-0 transition"
-                            >
-                              <p className="font-bold text-gray-900">{patient.firstName} {patient.lastName}</p>
-                              <p className="text-xs text-gray-600">ID: {patient.patientId}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   )}
 
