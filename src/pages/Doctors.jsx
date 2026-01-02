@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import FancyDatePicker from "../components/FancyDatePicker";
 import { getCalendarAppointments, getAppointmentsByDoctorID, getAppointmentsByFilters, createPrescription, getPrescriptionsByAppointment, updateAppointment, addPrescription, updatePrescriptionData, getPrescriptionById, addPatientVisit } from "../services/appointmentService";
 import { visitService, prescriptionService } from "../services/visitService";
 import { createInventoryMaster, listInventoryMasters, getClinicInventoryByClinicId, createClinicInventory, updateClinicInventory, deleteClinicInventory, addInventoryMasterItemsBulk } from "../services/inventoryService";
@@ -70,7 +69,6 @@ export default function Doctors() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isDashboardExpanded, setIsDashboardExpanded] = useState(false);
   const [isManageExpanded, setIsManageExpanded] = useState(false);
-  const [isPharmaExpanded, setIsPharmaExpanded] = useState(false);
   
   // Appointments management states
   const [appointments, setAppointments] = useState(SAMPLE_APPOINTMENTS);
@@ -195,6 +193,7 @@ export default function Doctors() {
   const [loadingStaffList, setLoadingStaffList] = useState(false);
   const [selectedStaffForView, setSelectedStaffForView] = useState(null);
   const [showStaffDetailsModal, setShowStaffDetailsModal] = useState(false);
+  const [selectedStaffTypeFilter, setSelectedStaffTypeFilter] = useState("All");
   
   // Manage Clinic - Inventory states
   const [clinicInventory, setClinicInventory] = useState([]);
@@ -1554,21 +1553,7 @@ export default function Doctors() {
   }, [activeTab, myPatientsSelectedClinic]);
 
   // Load doctor clinics when clinic tab is active
-  useEffect(() => {
-    if (activeTab === 'clinic' && activeSection === 'dashboard') {
-      loadDoctorClinics();
-    }
-  }, [activeTab, activeSection]);
-
-  // Filter my patients by search text
-  const filteredMyPatients = myPatients.filter(patient => {
-    const searchLower = myPatientsFilterText.toLowerCase();
-    const fullName = `${patient.firstName || ''} ${patient.lastName || ''}`.toLowerCase();
-    return fullName.includes(searchLower) || (patient.patientId?.toString() || '').includes(searchLower);
-  });
-
-  // Load doctor's clinics from API
-  const loadDoctorClinics = async () => {
+  const loadDoctorClinicsCallback = useCallback(async () => {
     setLoadingClinicDetails(true);
     try {
       const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
@@ -1578,6 +1563,7 @@ export default function Doctors() {
         console.warn('No doctor ID found in localStorage');
         setDoctorClinics([]);
         setSelectedClinicForView(null);
+        setLoadingClinicDetails(false);
         return;
       }
 
@@ -1590,7 +1576,7 @@ export default function Doctors() {
         const clinicsData = [];
         for (const clinicId of clinicIds) {
           try {
-            const clinicData = await getClinic(clinicId);
+            const clinicData = await getClinicByClinicId(clinicId);
             clinicsData.push(clinicData);
           } catch (error) {
             console.warn(`Failed to load clinic ${clinicId}:`, error);
@@ -1615,7 +1601,7 @@ export default function Doctors() {
           const clinicsData = [];
           for (const clinicId of uniqueClinicIds) {
             try {
-              const clinicData = await getClinic(clinicId);
+              const clinicData = await getClinicByClinicId(clinicId);
               clinicsData.push(clinicData);
             } catch (error) {
               console.warn(`Failed to load clinic ${clinicId}:`, error);
@@ -1639,7 +1625,13 @@ export default function Doctors() {
     } finally {
       setLoadingClinicDetails(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'clinic' && activeSection === 'dashboard') {
+      loadDoctorClinicsCallback();
+    }
+  }, [activeTab, activeSection, loadDoctorClinicsCallback]);
 
   // Load my patients function
   const loadMyPatients = async () => {
@@ -1880,9 +1872,11 @@ export default function Doctors() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-bold text-stone-700 mb-2">Appointment Date *</label>
-                          <FancyDatePicker
+                          <input
+                            type="date"
                             value={localFormData.appointmentDate ? localFormData.appointmentDate.split('T')[0] : ""}
-                            onChange={(date) => handleLocalInputChange("appointmentDate", date)}
+                            onChange={(e) => handleLocalInputChange("appointmentDate", e.target.value)}
+                            className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
                           />
                         </div>
                         <div>
@@ -2283,9 +2277,11 @@ export default function Doctors() {
                   >
                     <div>
                       <label className="block text-sm font-semibold text-stone-700 mb-1">New Date</label>
-                      <FancyDatePicker
+                      <input
+                        type="date"
                         value={rescheduleData.date}
-                        onChange={(date) => setRescheduleData({ ...rescheduleData, date })}
+                        onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
+                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                       />
                     </div>
                     <div>
@@ -2842,16 +2838,20 @@ export default function Doctors() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-bold text-stone-700 mb-2">Visit Date <span className="text-red-500">*</span></label>
-                        <FancyDatePicker
+                        <input
+                          type="date"
                           value={visitForm.visitDate}
-                          onChange={(date) => handleVisitFormChange('visitDate', date)}
+                          onChange={(e) => handleVisitFormChange('visitDate', e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
                         />
                       </div>
                       <div>
                         <label className="block text-sm font-bold text-stone-700 mb-2">Follow-up Date</label>
-                        <FancyDatePicker
+                        <input
+                          type="date"
                           value={visitForm.followUpDate}
-                          onChange={(date) => handleVisitFormChange('followUpDate', date)}
+                          onChange={(e) => handleVisitFormChange('followUpDate', e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
                         />
                       </div>
                     </div>
@@ -5305,9 +5305,11 @@ export default function Doctors() {
                     <label className="block text-sm font-medium text-stone-700 mb-1">
                       Date <span className="text-red-500">*</span>
                     </label>
-                    <FancyDatePicker
+                    <input
+                      type="date"
                       value={newAppointment.date}
-                      onChange={(date) => setNewAppointment({ ...newAppointment, date })}
+                      onChange={(e) => setNewAppointment({ ...newAppointment, date: e.target.value })}
+                      className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 transition"
                       required
                     />
                     <input
@@ -5967,113 +5969,6 @@ export default function Doctors() {
           {/* Divider */}
           <div className="h-px bg-white/20 my-4"></div>
 
-          {/* Pharma Section */}
-          <div className="mb-4">
-            {/* Pharma Header - Collapsible */}
-            <motion.button
-              onClick={() => setIsPharmaExpanded(!isPharmaExpanded)}
-              className={`w-full flex items-center justify-between mb-2 px-2 py-1.5 hover:bg-white/10 rounded transition-all group ${isSidebarCollapsed ? 'justify-center' : ''}`}
-            >
-              {!isSidebarCollapsed ? (
-                <>
-                  <h3 className="text-white/90 text-xs font-bold uppercase tracking-wider whitespace-nowrap flex items-center gap-1.5">
-                    💊 Pharmacy
-                  </h3>
-                  <motion.svg
-                    animate={{ 
-                      rotate: isPharmaExpanded ? 180 : 0,
-                      y: isPharmaExpanded ? 0 : [0, -2, 0]
-                    }}
-                    transition={{ 
-                      rotate: { duration: 0.3 },
-                      y: { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
-                    }}
-                    width="12"
-                    height="12"
-                    viewBox="0 0 12 12"
-                    fill="none"
-                    className="text-white/60"
-                  >
-                    <path
-                      d="M3 5L6 8L9 5"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </motion.svg>
-                </>
-              ) : (
-                <div className="relative">
-                  <span className="text-xl">💊</span>
-                  <motion.div
-                    animate={{ 
-                      scale: isPharmaExpanded ? 1 : [1, 1.2, 1]
-                    }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    className="absolute -top-1 -right-1 w-2 h-2 bg-white/60 rounded-full"
-                  />
-                </div>
-              )}
-            </motion.button>
-            
-            {/* Pharma Items */}
-            <AnimatePresence>
-              {isPharmaExpanded && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.25, ease: "easeInOut" }}
-                  className="overflow-hidden space-y-1"
-                >
-                  {[
-                    { key: 'inventory', label: 'Inventory', icon: '📦' },
-                    { key: 'sales', label: 'Sales', icon: '💰' },
-                    { key: 'suppliers', label: 'Suppliers', icon: '🚚' },
-                    { key: 'reports', label: 'Reports', icon: '📊' }
-                  ].map((tab) => (
-                    <motion.button
-                      key={tab.key}
-                      onClick={() => {
-                        setActiveSection("pharma");
-                        setActiveTab(tab.key);
-                      }}
-                      whileHover={{ x: isSidebarCollapsed ? 0 : 3, scale: isSidebarCollapsed ? 1.08 : 1 }}
-                      whileTap={{ scale: 0.95 }}
-                      title={isSidebarCollapsed ? tab.label : ""}
-                      className={`w-full flex items-center rounded-lg font-medium transition-all ${
-                        isSidebarCollapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2.5'
-                      } ${
-                        activeSection === "pharma" && activeTab === tab.key
-                          ? "bg-white text-indigo-700 shadow-md"
-                          : "text-white/80 hover:bg-white/10 hover:text-white"
-                      }`}
-                    >
-                      <span className={`transition-all flex-shrink-0 ${
-                        isSidebarCollapsed ? 'text-lg' : 'text-base'
-                      }`}>{tab.icon}</span>
-                      <AnimatePresence mode="wait">
-                        {!isSidebarCollapsed && (
-                          <motion.span
-                            key="label"
-                            initial={{ opacity: 0, width: 0 }}
-                            animate={{ opacity: 1, width: "auto" }}
-                            exit={{ opacity: 0, width: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className="overflow-hidden whitespace-nowrap text-xs"
-                          >
-                            {tab.label}
-                          </motion.span>
-                        )}
-                      </AnimatePresence>
-                    </motion.button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
           {/* Bottom Actions */}
           <div className="mt-6 pt-4 border-t border-white/20">
             <motion.button
@@ -6691,9 +6586,11 @@ export default function Doctors() {
                   <div className="flex items-center gap-4 flex-wrap">
                     <div>
                       <label className="text-sm font-semibold text-stone-700 mb-1 block">Date Filter:</label>
-                      <FancyDatePicker
+                      <input
+                        type="date"
                         value={paymentDate}
-                        onChange={(date) => setPaymentDate(date)}
+                        onChange={(e) => setPaymentDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
                       />
                     </div>
                     <div>
@@ -7002,9 +6899,11 @@ export default function Doctors() {
                 <div className="px-6 py-4 bg-stone-50 border-b border-stone-200 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <label className="text-sm font-semibold text-stone-700">Filter by Date:</label>
-                    <FancyDatePicker
+                    <input
+                      type="date"
                       value={appointmentDate}
-                      onChange={(date) => setAppointmentDate(date)}
+                      onChange={(e) => setAppointmentDate(e.target.value)}
+                      className="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
                     />
                   </div>
                   <div className="flex items-center gap-3">
@@ -7554,6 +7453,28 @@ export default function Doctors() {
                     </button>
                   </div>
                 </div>
+
+                {/* Staff Type Filter Tabs */}
+                <div className="px-6 py-4 border-b border-teal-200 bg-gradient-to-r from-teal-50/50 to-emerald-50/50">
+                  <div className="flex gap-2 flex-wrap">
+                    {["All", ...(staffList ? [...new Set(staffList.map(s => s.role))].filter(Boolean) : [])].map((type) => (
+                      <motion.button
+                        key={type}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setSelectedStaffTypeFilter(type)}
+                        className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                          selectedStaffTypeFilter === type
+                            ? "bg-gradient-to-r from-teal-500 to-emerald-500 text-white shadow-md"
+                            : "bg-white/60 text-stone-700 hover:bg-white/80 border border-teal-200/40"
+                        }`}
+                      >
+                        {type}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-stone-50 border-b border-stone-200">
@@ -7581,7 +7502,10 @@ export default function Doctors() {
                           </td>
                         </tr>
                       ) : staffList && staffList.length > 0 ? (
-                        staffList.map((staff, idx) => (
+                        (selectedStaffTypeFilter === "All" 
+                          ? staffList 
+                          : staffList.filter(staff => staff.role === selectedStaffTypeFilter)
+                        ).map((staff, idx) => (
                           <motion.tr
                             key={idx}
                             initial={{ opacity: 0, x: -10 }}
@@ -7589,11 +7513,11 @@ export default function Doctors() {
                             transition={{ delay: idx * 0.05 }}
                             className="border-b border-stone-100 hover:bg-teal-50/30 transition"
                           >
-                            <td className="px-6 py-4 font-medium text-stone-800">{staff.firstName} {staff.lastName}</td>
+                            <td className="px-6 py-4 font-medium text-stone-800">{staff.fullName || "N/A"}</td>
                             <td className="px-6 py-4 text-stone-600">{staff.role || "N/A"}</td>
                             <td className="px-6 py-4 text-stone-600">{staff.specialization || "N/A"}</td>
                             <td className="px-6 py-4 text-stone-600 text-xs">{staff.schedule || "N/A"}</td>
-                            <td className="px-6 py-4 text-stone-600 text-xs">{staff.contactNumber || staff.email || "N/A"}</td>
+                            <td className="px-6 py-4 text-stone-600 text-xs">{staff.phone || staff.email || "N/A"}</td>
                             <td className="px-6 py-4 text-center">
                               <button 
                                 onClick={() => {
@@ -8139,545 +8063,6 @@ export default function Doctors() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* PHARMA SECTION */}
-        <AnimatePresence mode="wait">
-          {/* Pharma - Inventory Tab */}
-          {activeSection === "pharma" && activeTab === "inventory" && (
-            <motion.div
-              key="pharma-inventory"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-              className="space-y-6"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-700 via-green-700 to-teal-700 bg-clip-text text-transparent">
-                    💊 Pharmacy Inventory
-                  </h1>
-                  <p className="text-stone-600 mt-1">Manage medicines, stock levels, and expiry dates</p>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition"
-                >
-                  ➕ Add Medicine
-                </motion.button>
-              </div>
-
-              {/* Key Metrics Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-emerald-50 to-green-100/50 rounded-2xl p-6 border border-emerald-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-emerald-700 font-semibold">Total Medicines</p>
-                      <p className="text-3xl font-bold text-emerald-900 mt-2">254</p>
-                      <p className="text-xs text-emerald-600 mt-1">Active items</p>
-                    </div>
-                    <div className="text-4xl">💊</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-amber-50 to-yellow-100/50 rounded-2xl p-6 border border-amber-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-amber-700 font-semibold">Low Stock</p>
-                      <p className="text-3xl font-bold text-amber-900 mt-2">12</p>
-                      <p className="text-xs text-amber-600 mt-1">Needs reordering</p>
-                    </div>
-                    <div className="text-4xl">⚠️</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-red-50 to-rose-100/50 rounded-2xl p-6 border border-red-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-red-700 font-semibold">Expiring Soon</p>
-                      <p className="text-3xl font-bold text-red-900 mt-2">8</p>
-                      <p className="text-xs text-red-600 mt-1">Within 30 days</p>
-                    </div>
-                    <div className="text-4xl">⏰</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-blue-50 to-cyan-100/50 rounded-2xl p-6 border border-blue-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-blue-700 font-semibold">Inventory Value</p>
-                      <p className="text-3xl font-bold text-blue-900 mt-2">₹4.5L</p>
-                      <p className="text-xs text-blue-600 mt-1">Total stock worth</p>
-                    </div>
-                    <div className="text-4xl">💰</div>
-                  </div>
-                </motion.div>
-              </div>
-
-              {/* Quick Action Cards */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-emerald-100/60 p-8">
-                <h3 className="text-lg font-bold text-stone-800 mb-6">Quick Actions</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-emerald-100 to-green-100 rounded-xl border border-emerald-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">📊</span>
-                    <p className="font-semibold text-emerald-900 text-center">View Stock</p>
-                    <p className="text-xs text-emerald-700 text-center mt-1">Check all items</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-amber-100 to-yellow-100 rounded-xl border border-amber-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">🔄</span>
-                    <p className="font-semibold text-amber-900 text-center">Reorder Items</p>
-                    <p className="text-xs text-amber-700 text-center mt-1">Low stock</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-red-100 to-rose-100 rounded-xl border border-red-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">📅</span>
-                    <p className="font-semibold text-red-900 text-center">Expiry Report</p>
-                    <p className="text-xs text-red-700 text-center mt-1">Coming soon</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl border border-blue-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">🏭</span>
-                    <p className="font-semibold text-blue-900 text-center">Manage Batch</p>
-                    <p className="text-xs text-blue-700 text-center mt-1">Track batches</p>
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Pharma - Sales Tab */}
-          {activeSection === "pharma" && activeTab === "sales" && (
-            <motion.div
-              key="pharma-sales"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-              className="space-y-6"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-700 via-pink-700 to-rose-700 bg-clip-text text-transparent">
-                    💰 Pharmacy Sales
-                  </h1>
-                  <p className="text-stone-600 mt-1">Track medicine sales, revenue, and customer transactions</p>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition"
-                >
-                  ➕ New Sale
-                </motion.button>
-              </div>
-
-              {/* Sales Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-purple-50 to-violet-100/50 rounded-2xl p-6 border border-purple-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-purple-700 font-semibold">Today's Sales</p>
-                      <p className="text-3xl font-bold text-purple-900 mt-2">₹8,450</p>
-                      <p className="text-xs text-purple-600 mt-1">15 transactions</p>
-                    </div>
-                    <div className="text-4xl">📈</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-pink-50 to-rose-100/50 rounded-2xl p-6 border border-pink-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-pink-700 font-semibold">This Month</p>
-                      <p className="text-3xl font-bold text-pink-900 mt-2">₹2.3L</p>
-                      <p className="text-xs text-pink-600 mt-1">342 sales</p>
-                    </div>
-                    <div className="text-4xl">📊</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-orange-50 to-amber-100/50 rounded-2xl p-6 border border-orange-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-orange-700 font-semibold">Top Product</p>
-                      <p className="text-3xl font-bold text-orange-900 mt-2">Crocin</p>
-                      <p className="text-xs text-orange-600 mt-1">45 units sold</p>
-                    </div>
-                    <div className="text-4xl">⭐</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-indigo-50 to-purple-100/50 rounded-2xl p-6 border border-indigo-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-indigo-700 font-semibold">Avg. Transaction</p>
-                      <p className="text-3xl font-bold text-indigo-900 mt-2">₹563</p>
-                      <p className="text-xs text-indigo-600 mt-1">Per customer</p>
-                    </div>
-                    <div className="text-4xl">🛒</div>
-                  </div>
-                </motion.div>
-              </div>
-
-              {/* Sales Actions */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-purple-100/60 p-8">
-                <h3 className="text-lg font-bold text-stone-800 mb-6">Sales Management</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-purple-100 to-violet-100 rounded-xl border border-purple-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">🛍️</span>
-                    <p className="font-semibold text-purple-900 text-center">Daily Sales</p>
-                    <p className="text-xs text-purple-700 text-center mt-1">Today's records</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-pink-100 to-rose-100 rounded-xl border border-pink-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">💳</span>
-                    <p className="font-semibold text-pink-900 text-center">Payments</p>
-                    <p className="text-xs text-pink-700 text-center mt-1">Manage payments</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-orange-100 to-amber-100 rounded-xl border border-orange-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">📋</span>
-                    <p className="font-semibold text-orange-900 text-center">Invoices</p>
-                    <p className="text-xs text-orange-700 text-center mt-1">Sales invoices</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-xl border border-indigo-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">🎟️</span>
-                    <p className="font-semibold text-indigo-900 text-center">Discounts</p>
-                    <p className="text-xs text-indigo-700 text-center mt-1">Apply offers</p>
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Pharma - Suppliers Tab */}
-          {activeSection === "pharma" && activeTab === "suppliers" && (
-            <motion.div
-              key="pharma-suppliers"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-              className="space-y-6"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-700 via-cyan-700 to-teal-700 bg-clip-text text-transparent">
-                    🚚 Suppliers Management
-                  </h1>
-                  <p className="text-stone-600 mt-1">Manage suppliers, orders, and deliveries</p>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition"
-                >
-                  ➕ Add Supplier
-                </motion.button>
-              </div>
-
-              {/* Supplier Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-blue-50 to-cyan-100/50 rounded-2xl p-6 border border-blue-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-blue-700 font-semibold">Active Suppliers</p>
-                      <p className="text-3xl font-bold text-blue-900 mt-2">18</p>
-                      <p className="text-xs text-blue-600 mt-1">Approved vendors</p>
-                    </div>
-                    <div className="text-4xl">🏢</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-cyan-50 to-teal-100/50 rounded-2xl p-6 border border-cyan-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-cyan-700 font-semibold">Pending Orders</p>
-                      <p className="text-3xl font-bold text-cyan-900 mt-2">7</p>
-                      <p className="text-xs text-cyan-600 mt-1">In transit</p>
-                    </div>
-                    <div className="text-4xl">📦</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-teal-50 to-emerald-100/50 rounded-2xl p-6 border border-teal-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-teal-700 font-semibold">Avg. Lead Time</p>
-                      <p className="text-3xl font-bold text-teal-900 mt-2">4.2 Days</p>
-                      <p className="text-xs text-teal-600 mt-1">Average delivery</p>
-                    </div>
-                    <div className="text-4xl">⏱️</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-green-50 to-lime-100/50 rounded-2xl p-6 border border-green-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-green-700 font-semibold">Monthly Spend</p>
-                      <p className="text-3xl font-bold text-green-900 mt-2">₹12.5L</p>
-                      <p className="text-xs text-green-600 mt-1">Total purchases</p>
-                    </div>
-                    <div className="text-4xl">💸</div>
-                  </div>
-                </motion.div>
-              </div>
-
-              {/* Supplier Actions */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-blue-100/60 p-8">
-                <h3 className="text-lg font-bold text-stone-800 mb-6">Supplier Operations</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-xl border border-blue-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">📞</span>
-                    <p className="font-semibold text-blue-900 text-center">Supplier List</p>
-                    <p className="text-xs text-blue-700 text-center mt-1">All vendors</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-cyan-100 to-teal-100 rounded-xl border border-cyan-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">📋</span>
-                    <p className="font-semibold text-cyan-900 text-center">Purchase Orders</p>
-                    <p className="text-xs text-cyan-700 text-center mt-1">Create orders</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-teal-100 to-emerald-100 rounded-xl border border-teal-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">✅</span>
-                    <p className="font-semibold text-teal-900 text-center">Receive Goods</p>
-                    <p className="text-xs text-teal-700 text-center mt-1">Mark delivery</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-green-100 to-lime-100 rounded-xl border border-green-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">💵</span>
-                    <p className="font-semibold text-green-900 text-center">Payments</p>
-                    <p className="text-xs text-green-700 text-center mt-1">Manage bills</p>
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Pharma - Reports Tab */}
-          {activeSection === "pharma" && activeTab === "reports" && (
-            <motion.div
-              key="pharma-reports"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-              className="space-y-6"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-700 via-red-700 to-pink-700 bg-clip-text text-transparent">
-                    📊 Pharmacy Reports
-                  </h1>
-                  <p className="text-stone-600 mt-1">Analytics, insights, and business intelligence</p>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition"
-                >
-                  📥 Export Report
-                </motion.button>
-              </div>
-
-              {/* Report Metrics */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-orange-50 to-red-100/50 rounded-2xl p-6 border border-orange-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-orange-700 font-semibold">Gross Profit</p>
-                      <p className="text-3xl font-bold text-orange-900 mt-2">₹45.2L</p>
-                      <p className="text-xs text-orange-600 mt-1">This quarter</p>
-                    </div>
-                    <div className="text-4xl">📈</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-red-50 to-pink-100/50 rounded-2xl p-6 border border-red-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-red-700 font-semibold">Profit Margin</p>
-                      <p className="text-3xl font-bold text-red-900 mt-2">28%</p>
-                      <p className="text-xs text-red-600 mt-1">Average margin</p>
-                    </div>
-                    <div className="text-4xl">📊</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-pink-50 to-rose-100/50 rounded-2xl p-6 border border-pink-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-pink-700 font-semibold">Stock Turnover</p>
-                      <p className="text-3xl font-bold text-pink-900 mt-2">4.8x</p>
-                      <p className="text-xs text-pink-600 mt-1">Per year</p>
-                    </div>
-                    <div className="text-4xl">🔄</div>
-                  </div>
-                </motion.div>
-
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="bg-gradient-to-br from-rose-50 to-fuchsia-100/50 rounded-2xl p-6 border border-rose-200/60 shadow-md"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm text-rose-700 font-semibold">Dead Stock</p>
-                      <p className="text-3xl font-bold text-rose-900 mt-2">₹3.2L</p>
-                      <p className="text-xs text-rose-600 mt-1">Expired/unsold</p>
-                    </div>
-                    <div className="text-4xl">⚠️</div>
-                  </div>
-                </motion.div>
-              </div>
-
-              {/* Report Options */}
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-orange-100/60 p-8">
-                <h3 className="text-lg font-bold text-stone-800 mb-6">Available Reports</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-orange-100 to-red-100 rounded-xl border border-orange-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">📈</span>
-                    <p className="font-semibold text-orange-900 text-center">Sales Report</p>
-                    <p className="text-xs text-orange-700 text-center mt-1">Daily/monthly</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-red-100 to-pink-100 rounded-xl border border-red-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">💹</span>
-                    <p className="font-semibold text-red-900 text-center">Profit Analysis</p>
-                    <p className="text-xs text-red-700 text-center mt-1">Margins, etc</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-pink-100 to-rose-100 rounded-xl border border-pink-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">📅</span>
-                    <p className="font-semibold text-pink-900 text-center">Expiry Report</p>
-                    <p className="text-xs text-pink-700 text-center mt-1">Coming soon</p>
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="flex flex-col items-center justify-center p-6 bg-gradient-to-br from-rose-100 to-fuchsia-100 rounded-xl border border-rose-300 hover:shadow-lg transition"
-                  >
-                    <span className="text-4xl mb-2">🎯</span>
-                    <p className="font-semibold text-rose-900 text-center">Performance</p>
-                    <p className="text-xs text-rose-700 text-center mt-1">KPIs & metrics</p>
-                  </motion.button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </motion.div>
       
       {/* Edit Appointment Modal */}
@@ -8707,7 +8092,7 @@ export default function Doctors() {
                     👤
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-white">{selectedStaffForView?.firstName} {selectedStaffForView?.lastName}</h2>
+                    <h2 className="text-2xl font-bold text-white">{selectedStaffForView?.fullName || "N/A"}</h2>
                     <p className="text-white/80 text-sm">{selectedStaffForView?.role}</p>
                   </div>
                 </div>
@@ -8738,7 +8123,7 @@ export default function Doctors() {
                   </div>
                   <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
                     <p className="text-xs font-semibold text-purple-600 uppercase mb-1">Phone</p>
-                    <p className="text-lg font-bold text-purple-900">{selectedStaffForView?.contactNumber || selectedStaffForView?.phoneNumber || "N/A"}</p>
+                    <p className="text-lg font-bold text-purple-900">{selectedStaffForView?.phone || "N/A"}</p>
                   </div>
                   <div className="bg-pink-50 rounded-xl p-4 border border-pink-200 md:col-span-2">
                     <p className="text-xs font-semibold text-pink-600 uppercase mb-1">License Number</p>

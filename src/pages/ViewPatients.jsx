@@ -5,8 +5,6 @@ import { searchPatients, getPatientsByClinic, getPatientFullProfile, getPatientV
 import { getClinicsByEnterpriseId, getClinicDoctorMappings, listDoctorProfiles } from "../services/doctorService";
 import { getAppointmentsByPatient, createAppointment, updateAppointment } from "../services/appointmentService";
 import { getSelectedAccess } from "../services/authService";
-import FancyDatePicker from "../components/FancyDatePicker";
-import CompactFancyDatePicker from "../components/CompactFancyDatePicker";
 
 export default function ViewPatients() {
   const navigate = useNavigate();
@@ -120,6 +118,30 @@ export default function ViewPatients() {
     setShowPopup(true);
     setTimeout(() => setShowPopup(false), 4000);
   };
+
+  // Handle incoming patient from Doctors page
+  useEffect(() => {
+    const incomingPatient = location.state?.selectedPatient;
+    if (incomingPatient && isModal) {
+      setShowPatientModal(true);
+      setLoadingPatientDetails(true);
+      
+      // Fetch full patient profile
+      const fetchPatientProfile = async () => {
+        try {
+          const fullProfile = await getPatientFullProfile(incomingPatient.patientId);
+          setSelectedPatient(fullProfile);
+        } catch (error) {
+          console.error("Error fetching patient profile:", error);
+          setShowPatientModal(false);
+        } finally {
+          setLoadingPatientDetails(false);
+        }
+      };
+      
+      fetchPatientProfile();
+    }
+  }, [location.state?.selectedPatient, isModal]);
 
   // Load clinics on component mount
   useEffect(() => {
@@ -1178,10 +1200,12 @@ Click OK after reviewing the console logs.`;
 
                   {/* Birth Date Input */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-pink-300/80 uppercase tracking-wide block">DOB</label>
-                    <FancyDatePicker
+                    <label className="text-xs font-semibold text-pink-300/80 uppercase tracking-wide block">📅 DOB</label>
+                    <input
+                      type="date"
                       value={filterData.dateOfBirth}
-                      onChange={(date) => setFilterData({ ...filterData, dateOfBirth: date })}
+                      onChange={(e) => setFilterData({ ...filterData, dateOfBirth: e.target.value })}
+                      className="w-full px-3.5 py-2.5 bg-gradient-to-r from-pink-100/90 to-rose-100/90 border-2 border-pink-400/60 rounded-lg text-slate-900 placeholder-slate-400 focus:bg-gradient-to-r focus:from-pink-100 focus:to-rose-100 focus:border-pink-500 focus:ring-2 focus:ring-pink-300/50 outline-none transition text-sm font-semibold shadow-md hover:shadow-lg hover:border-pink-500"
                     />
                   </div>
 
@@ -1627,12 +1651,16 @@ Click OK after reviewing the console logs.`;
                               placeholder="Enter last name"
                             />
                           </div>
-                          <CompactFancyDatePicker
-                            label="Date of Birth *"
-                            value={editFormData.dateOfBirth?.split('T')[0] || ''}
-                            onChange={(date) => setEditFormData({...editFormData, dateOfBirth: date})}
-                            required
-                          />
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">Date of Birth *</label>
+                            <input
+                              type="date"
+                              value={editFormData.dateOfBirth?.split('T')[0] || ''}
+                              onChange={(e) => setEditFormData({...editFormData, dateOfBirth: e.target.value})}
+                              className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                              required
+                            />
+                          </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
@@ -1965,11 +1993,15 @@ Click OK after reviewing the console logs.`;
 
                             {/* Dates & Primary Physician */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <CompactFancyDatePicker
-                                label="Last Dental Visit"
-                                value={editFormData.lastDentalVisit}
-                                onChange={(date) => setEditFormData({...editFormData, lastDentalVisit: date})}
-                              />
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">Last Dental Visit</label>
+                                <input
+                                  type="date"
+                                  value={editFormData.lastDentalVisit}
+                                  onChange={(date) => setEditFormData({...editFormData, lastDentalVisit: date})}
+                                  className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                />
+                              </div>
                               <div>
                                 <label className="block text-sm font-semibold text-slate-700 mb-2">Primary Physician</label>
                                 <input
@@ -2121,16 +2153,24 @@ Click OK after reviewing the console logs.`;
                                 <span>📅</span> Coverage Period
                               </h4>
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <CompactFancyDatePicker
-                                  label="Coverage Start Date"
-                                  value={editFormData.coverageStartDate}
-                                  onChange={(date) => setEditFormData({...editFormData, coverageStartDate: date})}
-                                />
-                                <CompactFancyDatePicker
-                                  label="Coverage End Date"
-                                  value={editFormData.coverageEndDate}
-                                  onChange={(date) => setEditFormData({...editFormData, coverageEndDate: date})}
-                                />
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">Coverage Start Date</label>
+                                  <input
+                                    type="date"
+                                    value={editFormData.coverageStartDate}
+                                    onChange={(date) => setEditFormData({...editFormData, coverageStartDate: date.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-semibold text-slate-700 mb-2">Coverage End Date</label>
+                                  <input
+                                    type="date"
+                                    value={editFormData.coverageEndDate}
+                                    onChange={(date) => setEditFormData({...editFormData, coverageEndDate: date.target.value})}
+                                    className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+                                  />
+                                </div>
                                 <div>
                                   <label className="block text-sm font-semibold text-slate-700 mb-2">Deductible Amount</label>
                                   <input
@@ -2876,9 +2916,11 @@ Click OK after reviewing the console logs.`;
                           </div>
                           <div>
                             <label className="block text-sm font-bold text-pink-600 uppercase tracking-wide mb-2">🎂 Date of Birth</label>
-                            <FancyDatePicker
+                            <input
+                              type="date"
                               value={appointmentForm.dateOfBirth || ''}
-                              onChange={(date) => setAppointmentForm({ ...appointmentForm, dateOfBirth: date })}
+                              onChange={(e) => setAppointmentForm({ ...appointmentForm, dateOfBirth: e.target.value })}
+                              className="w-full px-4 py-3 bg-white border-2 border-pink-300 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition shadow-sm"
                             />
                           </div>
                           <div>
@@ -2927,9 +2969,11 @@ Click OK after reviewing the console logs.`;
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-bold text-blue-600 uppercase tracking-wide mb-2">📅 Appointment Date</label>
-                      <FancyDatePicker
+                      <input
+                        type="date"
                         value={appointmentForm.appointmentDate || ''}
-                        onChange={(date) => setAppointmentForm({ ...appointmentForm, appointmentDate: date })}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, appointmentDate: e.target.value })}
+                        className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-xl text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-sm"
                       />
                     </div>
                     <div>
