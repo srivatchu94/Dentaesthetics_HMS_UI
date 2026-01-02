@@ -707,9 +707,13 @@ const TeamHub = () => {
         body: JSON.stringify(payload)
       });
 
+      console.log("📤 API Response Status:", response.status);
+      console.log("📤 API Response Headers:", Object.fromEntries(response.headers.entries()));
+
       if (response.ok) {
         const data = await response.json();
-        console.log("✅ Credential registered:", data);
+        console.log("✅ Credential registered successfully:", data);
+        console.log("✅ Response data keys:", Object.keys(data));
         
         // Show success modal with mobile number
         setCredentialSuccessUsername(digitsOnly);
@@ -734,12 +738,30 @@ const TeamHub = () => {
           setShowCredentialSuccess(false);
         }, 2000);
       } else {
-        const errorData = await response.json();
-        setCredentialError(errorData.message || "Failed to register credential");
+        // Read response body once, then try to parse as JSON, fallback to text
+        const responseText = await response.text();
+        let errorMessage = "Failed to register credential";
+        
+        try {
+          if (responseText) {
+            const errorData = JSON.parse(responseText);
+            console.log("❌ Error response (JSON):", errorData);
+            errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: Failed to register credential`;
+          } else {
+            errorMessage = `HTTP ${response.status}: Failed to register credential`;
+          }
+        } catch (parseError) {
+          // If JSON parsing fails, use raw text
+          console.log("❌ Error response (Text):", responseText);
+          errorMessage = responseText || `HTTP ${response.status}: Failed to register credential`;
+        }
+        console.log("❌ Full error details:", { status: response.status, message: errorMessage, body: responseText });
+        setCredentialError(errorMessage);
       }
     } catch (error) {
-      console.error("Error registering credential:", error);
-      setCredentialError("Error registering credential. Please try again.");
+      console.error("❌ Error registering credential:", error);
+      console.error("❌ Error stack:", error.stack);
+      setCredentialError(error.message || "Error registering credential. Please try again.");
     } finally {
       setCredentialLoading(false);
     }
