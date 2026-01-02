@@ -49,7 +49,8 @@ const TeamHub = () => {
     confirmPassword: "",
     enterpriseId: 0,
     clinicId: 0,
-    roleId: 0
+    roleId: 0,
+    roleName: ""
   });
   const [allEnterprises, setAllEnterprises] = useState([]);
   const [onboardingClinics, setOnboardingClinics] = useState([]);
@@ -684,6 +685,10 @@ const TeamHub = () => {
 
     setCredentialLoading(true);
     try {
+      console.log("🔴 BEFORE PAYLOAD - Full credentialFormData:", credentialFormData);
+      console.log("🔴 roleId:", credentialFormData.roleId);
+      console.log("🔴 roleName:", credentialFormData.roleName);
+
       const payload = {
         firstName: credentialFormData.firstName,
         lastName: credentialFormData.lastName,
@@ -693,10 +698,13 @@ const TeamHub = () => {
         mobileNumber: mobileNumber10Digit,
         enterpriseId: parseInt(credentialFormData.enterpriseId),
         clinicId: parseInt(credentialFormData.clinicId),
-        roleId: parseInt(credentialFormData.roleId)
+        roleId: parseInt(credentialFormData.roleId),
+        roleName: credentialFormData.roleName
       };
 
       console.log("📝 Registering credential:", payload);
+      console.log("🔍 RoleName in payload:", payload.roleName);
+      console.log("🔍 Full payload JSON:", JSON.stringify(payload, null, 2));
 
       const response = await fetch("https://localhost:7104/api/Authentication/registerUser", {
         method: "POST",
@@ -3217,7 +3225,19 @@ const TeamHub = () => {
                         <label className="block text-sm font-semibold text-slate-700 mb-2">Role <span className="text-red-500">*</span></label>
                         <select
                           value={credentialFormData.roleId}
-                          onChange={(e) => setCredentialFormData(prev => ({ ...prev, roleId: parseInt(e.target.value) || 0 }))}
+                          onChange={(e) => {
+                            const roleId = parseInt(e.target.value) || 0;
+                            const selectedRole = roleOptions.find(role => role.roleId === roleId || role.id === roleId);
+                            const roleName = selectedRole ? (selectedRole.roleName || selectedRole.name || "") : "";
+                            console.log("🎯 Role Selected - ID:", roleId);
+                            console.log("🎯 Selected Role Object:", selectedRole);
+                            console.log("🎯 Role Name:", roleName);
+                            setCredentialFormData(prev => {
+                              const updated = { ...prev, roleId: roleId, roleName: roleName };
+                              console.log("✅ Updated credentialFormData:", updated);
+                              return updated;
+                            });
+                          }}
                           className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
                         >
                           <option value="0">{rolesLoading ? "Loading roles..." : "-- Select Role --"}</option>

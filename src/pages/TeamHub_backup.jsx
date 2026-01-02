@@ -73,10 +73,10 @@ const TeamHub = () => {
   const availableRoles = [
     { 
       id: 1, 
-      name: "Admin", 
+      name: "SuperAdmin", 
       icon: "👑", 
       color: "from-purple-500 to-indigo-600", 
-      description: "Full system access",
+      description: "Full system access: manage users, roles, settings, and clinic operations",
       permissions: ["User Management", "Roles Management", "Settings", "Clinic Operations"]
     },
     { 
@@ -84,15 +84,15 @@ const TeamHub = () => {
       name: "Doctor", 
       icon: "🩺", 
       color: "from-cyan-400 to-blue-400", 
-      description: "Medical professional access",
+      description: "Access to patient records, treatment plans, prescriptions, and scheduling",
       permissions: ["Patient Records", "Treatment Plans", "Prescriptions", "Scheduling"]
     },
     { 
       id: 3, 
-      name: "Receptionist", 
+      name: "Staff", 
       icon: "📞", 
       color: "from-rose-400 to-pink-400", 
-      description: "Front desk operations",
+      description: "Manage appointments, patient check-ins, billing, and front-desk operations",
       permissions: ["Appointments", "Patient Check-ins", "Billing", "Front-desk Operations"]
     },
     { 
@@ -100,8 +100,32 @@ const TeamHub = () => {
       name: "Patient", 
       icon: "🙋", 
       color: "from-green-400 to-teal-400", 
-      description: "Limited patient access",
+      description: "Limited access: view personal records, appointments, bills, and notifications",
       permissions: ["Personal Records", "Appointments", "Bills", "Notifications"]
+    },
+    { 
+      id: 6, 
+      name: "Nurse", 
+      icon: "⚕️", 
+      color: "from-amber-400 to-orange-400", 
+      description: "Assist doctors, manage patient care, and update medical records",
+      permissions: ["Patient Care", "Medical Records", "Doctor Assistance", "Patient Monitoring"]
+    },
+    { 
+      id: 7, 
+      name: "ClinicAdmin", 
+      icon: "🏥", 
+      color: "from-blue-500 to-cyan-600", 
+      description: "Manage clinic operations, staff, and resources",
+      permissions: ["Clinic Operations", "Staff Management", "Resource Management", "Scheduling"]
+    },
+    { 
+      id: 8, 
+      name: "EntityAdmin", 
+      icon: "🏢", 
+      color: "from-red-500 to-pink-600", 
+      description: "Oversee multiple clinics/entities, manage high-level settings and reporting",
+      permissions: ["Multi-Clinic Oversight", "High-Level Settings", "Reporting", "Strategic Planning"]
     }
   ];
   
@@ -464,6 +488,11 @@ const TeamHub = () => {
 
     setCredentialLoading(true);
     try {
+      console.log("🔴 BEFORE PAYLOAD - Full credentialFormData state:", credentialFormData);
+      console.log("🔴 roleId value:", credentialFormData.roleId);
+      console.log("🔴 roleName value:", credentialFormData.roleName);
+      console.log("🔴 availableRoles array:", availableRoles);
+      
       const payload = {
         firstName: credentialFormData.firstName,
         lastName: credentialFormData.lastName,
@@ -477,6 +506,9 @@ const TeamHub = () => {
       };
 
       console.log("📝 Registering credential:", payload);
+      console.log("🔍 DEBUG - RoleName in payload:", payload.roleName);
+      console.log("🔍 DEBUG - RoleId in payload:", payload.roleId);
+      console.log("🔍 DEBUG - Full payload object:", JSON.stringify(payload, null, 2));
 
       const response = await fetch("https://localhost:7104/api/Authentication/registerUser", {
         method: "POST",
@@ -2792,21 +2824,33 @@ const TeamHub = () => {
                         <select
                           value={credentialFormData.roleId}
                           onChange={(e) => {
-                            const selectedOption = e.target.options[e.target.selectedIndex];
-                            const roleName = selectedOption.dataset.roleName || "";
-                            setCredentialFormData(prev => ({ 
-                              ...prev, 
-                              roleId: parseInt(e.target.value) || 0,
-                              roleName: roleName
+                            const roleId = parseInt(e.target.value) || 0;
+                            // Find the role name from availableRoles array
+                            const selectedRole = availableRoles.find(role => role.id === roleId);
+                            const selectedRoleName = selectedRole ? selectedRole.name : "";
+                            console.log("🎯 Role Selected - ID:", roleId);
+                            console.log("📋 Available Roles:", availableRoles);
+                            console.log("🔍 Selected Role Object:", selectedRole);
+                            console.log("📝 Role Name:", selectedRoleName);
+                            setCredentialFormData(prev => { 
+                              const updated = {
+                                ...prev, 
+                                roleId: roleId,
+                                roleName: selectedRoleName
+                              };
+                              console.log("✅ Updated credentialFormData:", updated);
+                              return updated;
+                            });
                             }));
                           }}
                           className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
                         >
                           <option value="0">-- Select Role --</option>
-                          <option value="1" data-role-name="Admin">Admin - Full system access</option>
-                          <option value="2" data-role-name="Doctor">Doctor - Patient records, treatment plans, prescriptions</option>
-                          <option value="3" data-role-name="Receptionist">Receptionist - Appointments, check-ins, billing</option>
-                          <option value="4" data-role-name="Patient">Patient - View records, appointments, bills</option>
+                          {availableRoles.map(role => (
+                            <option key={role.id} value={role.id}>
+                              {role.name} - {role.description}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>
