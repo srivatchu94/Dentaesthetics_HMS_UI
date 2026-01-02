@@ -6,6 +6,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import TokenExpiryModal from "./components/TokenExpiryModal";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import Home from "./pages/Home";
 import Clinics from "./pages/Clinics";
 import CreateClinic from "./pages/CreateClinic";
@@ -81,6 +82,7 @@ export default function App(){
         <main>
           <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={<div className="max-w-6xl mx-auto"><Home /></div>} />
           <Route path="/clinics" element={<div className="max-w-6xl mx-auto"><Clinics /></div>} />
           <Route path="/clinics/create" element={<div className="max-w-6xl mx-auto"><CreateClinic /></div>} />

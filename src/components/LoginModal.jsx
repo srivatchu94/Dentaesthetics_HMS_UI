@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { loginUser, saveAuthToken } from '../services/authService';
 import { request } from '../services/apiClient';
+import ForgotPasswordModal from './ForgotPasswordModal';
 
 const AUTH_BASE_URL = '/Authentication';
 const OTP_BASE_URL = '/OtpAuthentication';
@@ -10,6 +11,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
   const [userType, setUserType] = useState(null);
   const [loginMethod, setLoginMethod] = useState(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showForgotPasswordEmailDOB, setShowForgotPasswordEmailDOB] = useState(false);
   const [forgotPasswordStep, setForgotPasswordStep] = useState('verification'); // verification, reset, success
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -425,12 +427,13 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
   // User Type Selection
   if (isOpen && !userType) {
     return (
-      <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={handleClose}
+      <>
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={handleClose}
           className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         >
           <motion.div
@@ -517,14 +520,20 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
             </div>
           </motion.div>
         </motion.div>
-      </AnimatePresence>
+        </AnimatePresence>
+        <ForgotPasswordModal 
+          isOpen={showForgotPasswordEmailDOB}
+          onClose={() => setShowForgotPasswordEmailDOB(false)}
+        />
+      </>
     );
   }
 
   // Forgot Password Modal (always prioritize when triggered)
   if (isOpen && showForgotPassword) {
     return (
-      <AnimatePresence>
+      <>
+        <AnimatePresence>
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -739,16 +748,22 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
             </div>
           </motion.div>
         </motion.div>
-      </AnimatePresence>
+        </AnimatePresence>
+        <ForgotPasswordModal 
+          isOpen={showForgotPasswordEmailDOB}
+          onClose={() => setShowForgotPasswordEmailDOB(false)}
+        />
+      </>
     );
   }
 
   // Login Method Selection
   if (isOpen && !loginMethod) {
     return (
-      <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0 }}
+      <>
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={handleClose}
@@ -852,15 +867,21 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
             </div>
           </motion.div>
         </motion.div>
-      </AnimatePresence>
+        </AnimatePresence>
+        <ForgotPasswordModal 
+          isOpen={showForgotPasswordEmailDOB}
+          onClose={() => setShowForgotPasswordEmailDOB(false)}
+        />
+      </>
     );
   }
 
   // Credentials Form
   if (isOpen && loginMethod === 'credentials') {
     return (
-      <AnimatePresence>
-        <motion.div
+      <>
+        <AnimatePresence>
+          <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -983,7 +1004,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
                 {/* Forgot Password Link */}
                 <button
                   type="button"
-                  onClick={() => setShowForgotPassword(true)}
+                  onClick={() => setShowForgotPasswordEmailDOB(true)}
                   className="w-full text-center text-sm text-blue-400 hover:text-blue-300 font-medium py-2 transition"
                 >
                   🔐 Forgot Password?
@@ -992,15 +1013,21 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
             </div>
           </motion.div>
         </motion.div>
-      </AnimatePresence>
+        </AnimatePresence>
+        <ForgotPasswordModal 
+          isOpen={showForgotPasswordEmailDOB}
+          onClose={() => setShowForgotPasswordEmailDOB(false)}
+        />
+      </>
     );
   }
 
   // OTP Form
   if (isOpen && loginMethod === 'otp') {
     return (
-      <AnimatePresence>
-        <motion.div
+      <>
+        <AnimatePresence>
+          <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -1265,233 +1292,25 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
             </div>
           </motion.div>
         </motion.div>
-      </AnimatePresence>
+        </AnimatePresence>
+        <ForgotPasswordModal 
+          isOpen={showForgotPasswordEmailDOB}
+          onClose={() => setShowForgotPasswordEmailDOB(false)}
+        />
+      </>
     );
   }
 
-  // Forgot Password Modal
-  if (showForgotPassword) {
-    return (
-      <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={() => setShowForgotPassword(false)}
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-700 relative"
-          >
-            {/* Back Button */}
-            <button
-              type="button"
-              onClick={() => setShowForgotPassword(false)}
-              style={{ cursor: 'pointer' }}
-              className="absolute top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 bg-slate-700/60 hover:bg-slate-600/80 text-white rounded-lg font-semibold transition-all hover:scale-105 active:scale-95"
-            >
-              ← Back
-            </button>
-
-            <div className="relative z-10 p-8 pt-16">
-              {/* Header */}
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-white mb-1">🔐 Reset Password</h2>
-                <p className="text-gray-400 text-sm">Recover your account access</p>
-              </div>
-
-              {/* Error */}
-              <AnimatePresence>
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="mb-4 p-3 bg-red-500/20 border border-red-500 text-red-200 rounded-lg text-sm font-semibold"
-                  >
-                    ⚠️ {error}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Success Message */}
-              <AnimatePresence>
-                {successMessage && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="mb-4 p-3 bg-green-500/20 border border-green-500 text-green-200 rounded-lg text-sm font-semibold"
-                  >
-                    {successMessage}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Verification Step - Security Questions */}
-              {forgotPasswordStep === 'verification' && (
-                <form onSubmit={handleVerifyForgotPassword} className="space-y-6">
-                  {/* User ID Selection */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-300 mb-2">👤 Select User ID</label>
-                    <p className="text-xs text-gray-500 mb-2">Select your username to verify security questions</p>
-                    <motion.select
-                      whileFocus={{ scale: 1.02 }}
-                      value={forgotPasswordData.userId}
-                      onChange={(e) => {
-                        const selected = allUsers.find(u => u.userId === e.target.value);
-                        setForgotPasswordData({
-                          ...forgotPasswordData,
-                          userId: e.target.value,
-                          username: selected?.username || ''
-                        });
-                        setError('');
-                      }}
-                      className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white focus:border-blue-500 focus:outline-none transition"
-                    >
-                      <option value="">-- Select User ID --</option>
-                      {allUsers.map(user => (
-                        <option key={user.userId} value={user.userId}>
-                          {user.username} ({user.email})
-                        </option>
-                      ))}
-                    </motion.select>
-                  </div>
-
-                  {/* Security Questions */}
-                  <div className="bg-slate-700/30 p-4 rounded-lg">
-                    <p className="text-sm font-semibold text-gray-300 mb-4">🔐 Answer 3 Security Questions</p>
-                    {[0, 1, 2].map((index) => (
-                      <div key={index} className="mb-4 last:mb-0">
-                        <label className="block text-sm font-semibold text-gray-300 mb-2">Question {index + 1}</label>
-                        <motion.select
-                          whileFocus={{ scale: 1.02 }}
-                          value={forgotPasswordData.selectedQuestions[index] || ''}
-                          onChange={(e) => handleSelectQuestion(index, parseInt(e.target.value))}
-                          className="w-full px-4 py-2 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white text-sm focus:border-blue-500 focus:outline-none transition mb-2"
-                        >
-                          <option value="">-- Select Question {index + 1} --</option>
-                          {getAvailableQuestions(index).map(q => (
-                            <option key={q.id} value={q.id}>
-                              {q.question}
-                            </option>
-                          ))}
-                        </motion.select>
-
-                        {forgotPasswordData.selectedQuestions[index] !== null && (
-                          <motion.input
-                            whileFocus={{ scale: 1.02 }}
-                            type="text"
-                            value={forgotPasswordData.answers[index]}
-                            onChange={(e) => handleAnswerChange(index, e.target.value)}
-                            placeholder={`Answer to question ${index + 1}`}
-                            className="w-full px-4 py-2 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white text-sm placeholder-gray-500 focus:border-blue-500 focus:outline-none transition"
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    disabled={
-                      forgotPasswordLoading ||
-                      !forgotPasswordData.userId ||
-                      forgotPasswordData.selectedQuestions.some(q => q === null) ||
-                      forgotPasswordData.answers.some(a => !a.trim())
-                    }
-                    type="submit"
-                    className="w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {forgotPasswordLoading ? '⏳ Verifying Answers...' : '✅ Verify Answers'}
-                  </motion.button>
-                </form>
-              )}
-
-              {/* Password Reset Step */}
-              {forgotPasswordStep === 'reset' && (
-                <form onSubmit={handleVerifyForgotPassword} className="space-y-6">
-                  <div className="bg-blue-500/10 border-l-4 border-blue-500 p-4 rounded">
-                    <p className="text-sm text-blue-300">
-                      ✓ Resetting password for: <span className="font-bold text-blue-200">{forgotPasswordData.username}</span>
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-300 mb-2">🔑 New Password</label>
-                    <motion.input
-                      whileFocus={{ scale: 1.02 }}
-                      type="password"
-                      value={forgotPasswordData.newPassword}
-                      onChange={(e) => {
-                        setForgotPasswordData({ ...forgotPasswordData, newPassword: e.target.value });
-                        setError('');
-                      }}
-                      placeholder="Enter new password (minimum 6 characters)"
-                      className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-300 mb-2">🔐 Confirm Password</label>
-                    <motion.input
-                      whileFocus={{ scale: 1.02 }}
-                      type="password"
-                      value={forgotPasswordData.confirmPassword}
-                      onChange={(e) => {
-                        setForgotPasswordData({ ...forgotPasswordData, confirmPassword: e.target.value });
-                        setError('');
-                      }}
-                      placeholder="Confirm new password"
-                      className="w-full px-4 py-3 bg-slate-700/50 border-2 border-slate-600 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none transition"
-                    />
-                  </div>
-
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    disabled={
-                      forgotPasswordLoading ||
-                      !forgotPasswordData.newPassword ||
-                      !forgotPasswordData.confirmPassword
-                    }
-                    type="submit"
-                    className="w-full py-3 rounded-lg font-bold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {forgotPasswordLoading ? '⏳ Resetting...' : '🚀 Reset Password'}
-                  </motion.button>
-                </form>
-              )}
-
-              {/* Success Step */}
-              {forgotPasswordStep === 'success' && (
-                <div className="text-center space-y-4 py-8">
-                  <motion.div
-                    animate={{ scale: [1, 1.2, 1] }}
-                    transition={{ repeat: Infinity, duration: 0.5 }}
-                    className="text-6xl"
-                  >
-                    ✅
-                  </motion.div>
-                  <h3 className="text-xl font-bold text-green-400">Password Reset Successfully!</h3>
-                  <p className="text-gray-400">Your password has been securely updated.</p>
-                  <p className="text-sm text-gray-500">The login dialog will close in a moment...</p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </motion.div>
-      </AnimatePresence>
-    );
-  }
-
-  return null;
+  return (
+    <>
+      {/* Email/DOB Forgot Password Modal - Always available */}
+      <ForgotPasswordModal 
+        isOpen={showForgotPasswordEmailDOB}
+        onClose={() => setShowForgotPasswordEmailDOB(false)}
+      />
+    </>
+  );
 };
 
 export default LoginModal;
+
