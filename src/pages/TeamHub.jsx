@@ -13,6 +13,7 @@ const TeamHub = () => {
   // Doctor Onboarding Modal States
   const [showDoctorModal, setShowDoctorModal] = useState(false);
   const [isReceptionistMode, setIsReceptionistMode] = useState(false);
+  const [onboardedRoleName, setOnboardedRoleName] = useState("");
   const [activeTab, setActiveTab] = useState("personal");
   const [showPreview, setShowPreview] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -1241,8 +1242,8 @@ const TeamHub = () => {
 
       setShowPreview(false);
       setShowDoctorModal(false);
+      setOnboardedRoleName(roleName);
       setShowSuccessModal(true);
-      alert(`✅ ${roleName} onboarded successfully!`);
       resetDoctorForm();
 
       setTimeout(() => {
@@ -2225,7 +2226,7 @@ const TeamHub = () => {
               
               <div className="text-center space-y-3">
                 <p className="text-xl font-semibold text-green-800">
-                  {isReceptionistMode ? "Receptionist" : "Doctor"} successfully onboarded! 🏥
+                  {onboardedRoleName} successfully onboarded! 🏥
                 </p>
                 <p className="text-green-700">
                   They're officially part of the team now! Time to save some lives! 💪
