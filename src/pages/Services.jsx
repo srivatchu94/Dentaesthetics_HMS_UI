@@ -2,16 +2,24 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import FancyDatePicker from "../components/FancyDatePicker";
+import {
+  createCamp,
+  addCampParticipant,
+} from "../services/campService";
 
 export default function Services(){
   const navigate = useNavigate();
   const [hoveredCard, setHoveredCard] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   
   // Camp modals state
   const [showRegisterCampModal, setShowRegisterCampModal] = useState(false);
   const [showAddParticipantsModal, setShowAddParticipantsModal] = useState(false);
   const [showTrackServicesModal, setShowTrackServicesModal] = useState(false);
   const [showCampReportsModal, setShowCampReportsModal] = useState(false);
+  const [campId, setCampId] = useState(null);
   
   // Camp registration form
   const [campForm, setCampForm] = useState({
@@ -229,6 +237,10 @@ export default function Services(){
         setShowRegisterCampModal(true);
         break;
       case 'add-participants':
+        if (!campId) {
+          setErrorMessage("Please create a camp first!");
+          return;
+        }
         setShowAddParticipantsModal(true);
         break;
       case 'track-services':
@@ -242,38 +254,173 @@ export default function Services(){
     }
   };
   
-  const handleCampFormSubmit = (e) => {
+  const handleCampFormSubmit = async (e) => {
     e.preventDefault();
-    console.log('Camp Registration:', campForm);
-    alert('🎉 Camp registered successfully! Ready to add participants.');
-    setShowRegisterCampModal(false);
-    // Reset form
-    setCampForm({
-      campName: '', campType: '', campDate: '', startTime: '', endTime: '',
-      venueType: '', institutionName: '', address: '', city: '', state: '',
-      pinCode: '', organizedBy: '', contactPerson: '', contactNumber: '',
-      contactEmail: '', expectedParticipants: '', targetAgeGroup: '',
-      servicesOffered: [], campDescription: '', specialNotes: '',
-      budgetAllocated: '', sponsorshipDetails: ''
-    });
+    setLoading(true);
+    
+    try {
+      // Convert time string (HH:mm) to TimeSpan format (HH:mm:ss)
+      const formatTimeToTimeSpan = (timeStr) => {
+        if (!timeStr) return "00:00:00";
+        return `${timeStr}:00`; // Convert "09:30" to "09:30:00"
+      };
+
+      // Convert date string to proper format
+      const campData = {
+        campName: campForm.campName,
+        campType: campForm.campType,
+        campDate: campForm.campDate,
+        startTime: formatTimeToTimeSpan(campForm.startTime),
+        endTime: formatTimeToTimeSpan(campForm.endTime),
+        venueType: campForm.venueType,
+        institutionName: campForm.institutionName,
+        address: campForm.address,
+        city: campForm.city,
+        state: campForm.state,
+        pinCode: campForm.pinCode,
+        organizedBy: campForm.organizedBy,
+        contactPerson: campForm.contactPerson,
+        contactNumber: campForm.contactNumber,
+        contactEmail: campForm.contactEmail,
+        expectedParticipants: parseInt(campForm.expectedParticipants) || 0,
+        targetAgeGroup: campForm.targetAgeGroup,
+        servicesOffered: campForm.servicesOffered.join(', '),
+        campDescription: campForm.campDescription,
+        specialNotes: campForm.specialNotes,
+        budgetAllocated: parseFloat(campForm.budgetAllocated) || 0,
+        sponsorshipDetails: campForm.sponsorshipDetails,
+        isActive: true
+      };
+      
+      console.log('Camp Data being sent:', campData);
+      const response = await createCamp(campData);
+      setCampId(response.campId);
+      setSuccessMessage('🎉 Camp registered successfully!');
+      setShowRegisterCampModal(false);
+      
+      // Reset form
+      setCampForm({
+        campName: '', campType: '', campDate: '', startTime: '', endTime: '',
+        venueType: '', institutionName: '', address: '', city: '', state: '',
+        pinCode: '', organizedBy: '', contactPerson: '', contactNumber: '',
+        contactEmail: '', expectedParticipants: '', targetAgeGroup: '',
+        servicesOffered: [], campDescription: '', specialNotes: '',
+        budgetAllocated: '', sponsorshipDetails: ''
+      });
+      
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      setErrorMessage(`Error creating camp: ${error.message}`);
+      setTimeout(() => setErrorMessage(""), 3000);
+    } finally {
+      setLoading(false);
+    }
   };
   
-  const handleParticipantFormSubmit = (e) => {
+  const handleParticipantFormSubmit = async (e) => {
     e.preventDefault();
-    console.log('Participant Registration:', participantForm);
-    alert('✅ Participant registered successfully!');
-    setShowAddParticipantsModal(false);
+    setLoading(true);
+    
+    if (!campId) {
+      setErrorMessage("Camp ID is missing!");
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      const participantData = {
+        campId: campId,
+        participantName: participantForm.participantName,
+        age: parseInt(participantForm.age) || 0,
+        gender: participantForm.gender,
+        dateOfBirth: participantForm.dateOfBirth,
+        phoneNumber: participantForm.phoneNumber,
+        email: participantForm.email,
+        parentGuardianName: participantForm.parentGuardianName,
+        studentOrStaff: participantForm.studentOrStaff,
+        classStandard: participantForm.classStandard,
+        gradeYear: participantForm.gradeYear,
+        rollNumber: participantForm.rollNumber,
+        department: participantForm.department,
+        existingDentalIssues: participantForm.existingDentalIssues.join(', '),
+        medicalHistory: participantForm.medicalHistory,
+        currentMedications: participantForm.currentMedications,
+        allergies: participantForm.allergies,
+        consentGiven: participantForm.consentGiven,
+        photoConsent: participantForm.photoConsent
+      };
+      
+      console.log('Participant Data being sent:', participantData);
+      await addCampParticipant(participantData);
+      setSuccessMessage('✅ Participant added successfully!');
+      setShowAddParticipantsModal(false);
+      
+      // Reset form
+      setParticipantForm({
+        campName: '',
+        participantName: '',
+        age: '',
+        gender: '',
+        dateOfBirth: '',
+        phoneNumber: '',
+        email: '',
+        parentGuardianName: '',
+        studentOrStaff: '',
+        classStandard: '',
+        gradeYear: '',
+        rollNumber: '',
+        department: '',
+        existingDentalIssues: [],
+        medicalHistory: '',
+        currentMedications: '',
+        allergies: '',
+        consentGiven: false,
+        photoConsent: false
+      });
+      
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (error) {
+      setErrorMessage(`Error adding participant: ${error.message}`);
+      setTimeout(() => setErrorMessage(""), 3000);
+    } finally {
+      setLoading(false);
+    }
   };
   
   const handleTrackServicesSubmit = (e) => {
     e.preventDefault();
     console.log('Service Tracking:', trackServicesForm);
-    alert('🩺 Services tracked successfully!');
+    setSuccessMessage('🩺 Services tracked successfully!');
     setShowTrackServicesModal(false);
+    setTimeout(() => setSuccessMessage(""), 3000);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+      {/* Toast Notifications */}
+      <AnimatePresence>
+        {successMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50"
+          >
+            {successMessage}
+          </motion.div>
+        )}
+        {errorMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 max-w-sm"
+          >
+            {errorMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
       {/* Animated Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -814,15 +961,17 @@ export default function Services(){
                   <button
                     type="button"
                     onClick={() => setShowRegisterCampModal(false)}
-                    className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 rounded-xl font-bold text-gray-700 transition-all"
+                    disabled={loading}
+                    className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 rounded-xl font-bold text-gray-700 transition-all disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl font-bold shadow-lg transition-all"
+                    disabled={loading}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl font-bold shadow-lg transition-all disabled:opacity-50"
                   >
-                    🏕️ Register Camp
+                    {loading ? '⏳ Creating...' : '🏕️ Register Camp'}
                   </button>
                 </div>
               </form>
@@ -1072,15 +1221,17 @@ export default function Services(){
                   <button
                     type="button"
                     onClick={() => setShowAddParticipantsModal(false)}
-                    className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 rounded-xl font-bold text-gray-700 transition-all"
+                    disabled={loading}
+                    className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 rounded-xl font-bold text-gray-700 transition-all disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl font-bold shadow-lg transition-all"
+                    disabled={loading}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white rounded-xl font-bold shadow-lg transition-all disabled:opacity-50"
                   >
-                    👥 Add Participant
+                    {loading ? '⏳ Adding...' : '👥 Add Participant'}
                   </button>
                 </div>
               </form>

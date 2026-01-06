@@ -13,6 +13,7 @@ import PrescriptionPrint from "../components/PrescriptionPrint";
 import InventoryAutoComplete from "../components/InventoryAutoComplete";
 import AddToMasterInventoryModal from "../components/AddToMasterInventoryModal";
 import SuccessModal from "../components/SuccessModal";
+import Assets from "./Assets";
 import { getPatientFullProfile, getPatientVisit, editPatientVisit, getPatientsByClinic } from "../services/patientService";
 
 // Sample data
@@ -7977,97 +7978,7 @@ export default function Doctors() {
 
           {/* Manage Clinic - Equipment & Assets Tab */}
           {activeSection === "manage" && activeTab === "equipment" && (
-            <motion.div
-              key="equipment"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-orange-100/60 overflow-hidden">
-                <div className="p-6 bg-gradient-to-r from-orange-50 to-amber-50 border-b border-orange-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
-                        🦷
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-bold bg-gradient-to-r from-orange-700 to-amber-700 bg-clip-text text-transparent">
-                          Equipment & Assets
-                        </h2>
-                        <p className="text-sm text-stone-600 mt-0.5">Manage clinic equipment and maintenance</p>
-                      </div>
-                    </div>
-                    <button className="px-4 py-2 bg-gradient-to-r from-orange-600 to-amber-600 text-white rounded-lg font-medium hover:shadow-lg transition">
-                      + Add Equipment
-                    </button>
-                  </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-stone-50 border-b border-stone-200">
-                      <tr>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Equipment</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Serial Number</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Purchase Date</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Last Maintenance</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Next Maintenance</th>
-                        <th className="px-6 py-3 text-left font-semibold text-stone-700">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        { equipment: "Dental Chair Unit #1", serial: "DC-2023-001", purchase: "2023-01-15", lastMaint: "2024-10-20", nextMaint: "2025-01-20", status: "Operational" },
-                        { equipment: "X-Ray Machine", serial: "XR-2022-045", purchase: "2022-06-10", lastMaint: "2024-11-05", nextMaint: "2025-02-05", status: "Operational" },
-                        { equipment: "Autoclave Sterilizer", serial: "AS-2023-012", purchase: "2023-03-20", lastMaint: "2024-11-28", nextMaint: "2024-12-28", status: "Due Soon" },
-                        { equipment: "Ultrasonic Scaler", serial: "US-2021-089", purchase: "2021-09-12", lastMaint: "2024-09-15", nextMaint: "2024-12-15", status: "Due Soon" },
-                        { equipment: "LED Curing Light", serial: "LC-2024-003", purchase: "2024-02-01", lastMaint: "2024-11-01", nextMaint: "2025-02-01", status: "Operational" },
-                        { equipment: "Intraoral Camera", serial: "IC-2022-078", purchase: "2022-11-30", lastMaint: "2024-08-10", nextMaint: "2024-11-10", status: "Overdue" }
-                      ].map((item, idx) => (
-                        <motion.tr
-                          key={idx}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className="border-b border-stone-100 hover:bg-orange-50/30 transition"
-                        >
-                          <td className="px-6 py-4 font-medium text-stone-800">{item.equipment}</td>
-                          <td className="px-6 py-4 text-stone-600 text-xs">{item.serial}</td>
-                          <td className="px-6 py-4 text-stone-600 text-xs">{item.purchase}</td>
-                          <td className="px-6 py-4 text-stone-600 text-xs">{item.lastMaint}</td>
-                          <td className="px-6 py-4 text-stone-600 text-xs">{item.nextMaint}</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                              item.status === "Operational" ? "bg-emerald-100 text-emerald-700" :
-                              item.status === "Due Soon" ? "bg-amber-100 text-amber-700" :
-                              "bg-rose-100 text-rose-700"
-                            }`}>
-                              {item.status}
-                            </span>
-                          </td>
-                        </motion.tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="p-6 bg-stone-50 border-t border-stone-200">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-4 bg-white rounded-lg border border-stone-200">
-                      <p className="text-sm text-stone-600 mb-1">Total Equipment Value</p>
-                      <p className="text-2xl font-bold text-orange-700">€124,500</p>
-                    </div>
-                    <div className="p-4 bg-white rounded-lg border border-stone-200">
-                      <p className="text-sm text-stone-600 mb-1">Maintenance This Month</p>
-                      <p className="text-2xl font-bold text-teal-700">3 Items</p>
-                    </div>
-                    <div className="p-4 bg-white rounded-lg border border-stone-200">
-                      <p className="text-sm text-stone-600 mb-1">Overdue Maintenance</p>
-                      <p className="text-2xl font-bold text-rose-700">1 Item</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
+            <Assets />
           )}
         </AnimatePresence>
       </motion.div>

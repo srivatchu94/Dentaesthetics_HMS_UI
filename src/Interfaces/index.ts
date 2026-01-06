@@ -40,3 +40,6 @@ export type {
   CreateSupplierDto,
   UpdateSupplierDto
 } from "./InventoryModel";
+
+// Asset models
+export type { AssetModel, CreateAssetDto, UpdateAssetDto } from "./AssetModel";

@@ -2,7 +2,7 @@
 // Base URL can be configured via Vite env: VITE_API_BASE_URL
 // Fallback assumes local ASP.NET backend listening at /api
 
-import type { ClinicModel, StaffModel, ServiceModel, EnterpriseDataModel, EnterpriseModel } from "../Interfaces";
+import type { ClinicModel, StaffModel, ServiceModel, EnterpriseDataModel, EnterpriseModel, AssetModel, CreateAssetDto, UpdateAssetDto } from "../Interfaces";
 
 const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7104/api";
 
@@ -423,3 +423,70 @@ export function updateClinicInventory(inventoryModel: ClinicInventoryUpdateModel
     throw error;
   });
 }
+
+// Asset Management Endpoints
+export function addAsset(asset: CreateAssetDto): Promise<{ assetID: number }> {
+  console.log('📝 Adding Asset:', asset);
+  return request<{ assetID: number }>('/Clinic/AddAsset', {
+    method: 'POST',
+    body: JSON.stringify(asset)
+  }).then(data => {
+    console.log('✅ ASSET ADDED SUCCESSFULLY:', data);
+    return data;
+  }).catch(error => {
+    console.error('❌ FAILED TO ADD ASSET:', error);
+    throw error;
+  });
+}
+
+export function getAssetsByClinicId(clinicId: number): Promise<AssetModel[]> {
+  console.log('📞 API CALL: getAssetsByClinicId with clinicId:', clinicId);
+  return request<AssetModel[]>(`/Clinic/GetAssetsByClinicId?clinicId=${clinicId}`)
+    .then(data => {
+      console.log('✅ ASSETS FETCHED SUCCESSFULLY:', data);
+      return data;
+    })
+    .catch(error => {
+      console.error('❌ FAILED TO FETCH ASSETS:', error);
+      throw error;
+    });
+}
+
+export function getAssetsByEnterpriseId(enterpriseId: number): Promise<AssetModel[]> {
+  console.log('📞 API CALL: getAssetsByEnterpriseId with enterpriseId:', enterpriseId);
+  return request<AssetModel[]>(`/Clinic/GetAssetsByEnterpriseID?enterpriseId=${enterpriseId}`)
+    .then(data => {
+      console.log('✅ ASSETS FETCHED SUCCESSFULLY:', data);
+      return data;
+    })
+    .catch(error => {
+      console.error('❌ FAILED TO FETCH ASSETS:', error);
+      throw error;
+    });
+}
+
+export function updateAsset(assetId: number, asset: UpdateAssetDto): Promise<void> {
+  console.log('📝 UPDATING ASSET:', asset);
+  return request<void>(`/Clinic/UpdateAsset?assetId=${assetId}`, {
+    method: 'PUT',
+    body: JSON.stringify(asset)
+  }).then(() => {
+    console.log('✅ ASSET UPDATED SUCCESSFULLY');
+  }).catch(error => {
+    console.error('❌ FAILED TO UPDATE ASSET:', error);
+    throw error;
+  });
+}
+
+export function deleteAsset(assetId: number): Promise<void> {
+  console.log('🗑️ DELETING ASSET with ID:', assetId);
+  return request<void>(`/Clinic/DeleteAsset?assetId=${assetId}`, {
+    method: 'DELETE'
+  }).then(() => {
+    console.log('✅ ASSET DELETED SUCCESSFULLY');
+  }).catch(error => {
+    console.error('❌ FAILED TO DELETE ASSET:', error);
+    throw error;
+  });
+}
+
