@@ -3,6 +3,8 @@ import { BASE_URL, request } from './apiClient';
 
 export interface CampRegistrationModel {
   campId?: number;
+  enterpriseId?: number;
+  clinicId?: number;
   campName: string;
   campType: string;
   campDate: string | Date;
@@ -33,6 +35,8 @@ export interface CampRegistrationModel {
 export interface CampParticipantRegistrationModel {
   campId: number;
   participantId?: number;
+  enterpriseId?: number;
+  clinicId?: number;
   participantName: string;
   age: number;
   gender: string;

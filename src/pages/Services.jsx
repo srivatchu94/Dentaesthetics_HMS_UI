@@ -5,7 +5,10 @@ import FancyDatePicker from "../components/FancyDatePicker";
 import {
   createCamp,
   addCampParticipant,
+  getAllCamps,
+  getAllCampParticipants,
 } from "../services/campService";
+import { getSelectedAccess } from "../services/authService";
 
 export default function Services(){
   const navigate = useNavigate();
@@ -19,7 +22,15 @@ export default function Services(){
   const [showAddParticipantsModal, setShowAddParticipantsModal] = useState(false);
   const [showTrackServicesModal, setShowTrackServicesModal] = useState(false);
   const [showCampReportsModal, setShowCampReportsModal] = useState(false);
+  const [showViewCampsModal, setShowViewCampsModal] = useState(false);
+  const [showViewParticipantsModal, setShowViewParticipantsModal] = useState(false);
   const [campId, setCampId] = useState(null);
+  
+  // View camps and participants state
+  const [camps, setCamps] = useState([]);
+  const [participants, setParticipants] = useState([]);
+  const [selectedCampForParticipants, setSelectedCampForParticipants] = useState(null);
+  const [viewLoading, setViewLoading] = useState(false);
   
   // Camp registration form
   const [campForm, setCampForm] = useState({
@@ -201,12 +212,28 @@ export default function Services(){
           color: "from-purple-400 to-purple-500"
         },
         {
+          id: 'view-camps',
+          title: "👁️ View Camps",
+          description: "View all camp details",
+          action: "view-camps",
+          icon: "📋",
+          color: "from-purple-400 to-indigo-500"
+        },
+        {
           id: 'add-participants',
           title: "👥 Add Participants",
           description: "Register camp attendees",
           action: "add-participants",
           icon: "✍️",
           color: "from-pink-400 to-pink-500"
+        },
+        {
+          id: 'view-participants',
+          title: "👥 View Participants",
+          description: "View participant details",
+          action: "view-participants",
+          icon: "👀",
+          color: "from-rose-400 to-pink-500"
         },
         {
           id: 'track-services',
@@ -236,12 +263,18 @@ export default function Services(){
       case 'register-camp':
         setShowRegisterCampModal(true);
         break;
+      case 'view-camps':
+        handleViewCamps();
+        break;
       case 'add-participants':
         if (!campId) {
           setErrorMessage("Please create a camp first!");
           return;
         }
         setShowAddParticipantsModal(true);
+        break;
+      case 'view-participants':
+        setShowViewParticipantsModal(true);
         break;
       case 'track-services':
         setShowTrackServicesModal(true);
@@ -253,12 +286,46 @@ export default function Services(){
         alert(`${action} - Feature coming soon! 🚀`);
     }
   };
+
+  const handleViewCamps = async () => {
+    setViewLoading(true);
+    try {
+      const campsData = await getAllCamps();
+      setCamps(campsData || []);
+      setShowViewCampsModal(true);
+    } catch (error) {
+      setErrorMessage(`Error fetching camps: ${error.message}`);
+      setTimeout(() => setErrorMessage(""), 3000);
+    } finally {
+      setViewLoading(false);
+    }
+  };
+
+  const handleViewParticipants = async (selectedCampId) => {
+    if (!selectedCampId) {
+      setErrorMessage("Please select a camp first!");
+      return;
+    }
+    setViewLoading(true);
+    try {
+      const participantsData = await getAllCampParticipants(selectedCampId);
+      setParticipants(participantsData || []);
+      setSelectedCampForParticipants(selectedCampId);
+    } catch (error) {
+      setErrorMessage(`Error fetching participants: ${error.message}`);
+      setTimeout(() => setErrorMessage(""), 3000);
+    } finally {
+      setViewLoading(false);
+    }
+  };
   
   const handleCampFormSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     
     try {
+      const selectedAccess = getSelectedAccess();
+      
       // Convert time string (HH:mm) to TimeSpan format (HH:mm:ss)
       const formatTimeToTimeSpan = (timeStr) => {
         if (!timeStr) return "00:00:00";
@@ -267,6 +334,8 @@ export default function Services(){
 
       // Convert date string to proper format
       const campData = {
+        enterpriseId: selectedAccess?.enterpriseId,
+        clinicId: selectedAccess?.clinicId,
         campName: campForm.campName,
         campType: campForm.campType,
         campDate: campForm.campDate,
@@ -328,8 +397,12 @@ export default function Services(){
     }
     
     try {
+      const selectedAccess = getSelectedAccess();
+      
       const participantData = {
         campId: campId,
+        enterpriseId: selectedAccess?.enterpriseId,
+        clinicId: selectedAccess?.clinicId,
         participantName: participantForm.participantName,
         age: parseInt(participantForm.age) || 0,
         gender: participantForm.gender,
@@ -1622,6 +1695,266 @@ export default function Services(){
                     <span>📧</span> Email
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* View Camps Modal */}
+      <AnimatePresence>
+        {showViewCampsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowViewCampsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 p-6 text-white z-10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-4xl">📋</span>
+                    <div>
+                      <h2 className="text-2xl font-bold">View All Camps</h2>
+                      <p className="text-purple-100 text-sm">Manage your dental/medical camp events</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowViewCampsModal(false)}
+                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-all"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                {viewLoading ? (
+                  <div className="flex justify-center items-center h-40">
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }}>
+                      <span className="text-4xl">⏳</span>
+                    </motion.div>
+                  </div>
+                ) : camps.length === 0 ? (
+                  <div className="text-center py-12">
+                    <span className="text-6xl">🏕️</span>
+                    <p className="text-gray-500 mt-4 text-lg">No camps found. Create your first camp!</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {camps.map((camp) => (
+                      <motion.div
+                        key={camp.campId}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border-2 border-purple-200 hover:shadow-lg transition-all"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <h3 className="text-lg font-bold text-purple-900 flex-1">{camp.campName}</h3>
+                          <span className="bg-purple-200 text-purple-800 px-3 py-1 rounded-full text-xs font-bold">{camp.campType}</span>
+                        </div>
+                        
+                        <div className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <span>📍</span>
+                            <span>{camp.institutionName}, {camp.city}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <span>📅</span>
+                            <span>{new Date(camp.campDate).toLocaleDateString()}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <span>🕐</span>
+                            <span>{camp.startTime} - {camp.endTime}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <span>👥</span>
+                            <span>{camp.expectedParticipants} Expected Participants</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-700">
+                            <span>📋</span>
+                            <span>{camp.servicesOffered}</span>
+                          </div>
+                          {camp.contactPerson && (
+                            <div className="flex items-center gap-2 text-gray-700">
+                              <span>📞</span>
+                              <span>{camp.contactPerson}: {camp.contactNumber}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="mt-4 pt-4 border-t border-purple-200 flex gap-2">
+                          <button
+                            onClick={() => {
+                              handleViewParticipants(camp.campId);
+                              setShowViewCampsModal(false);
+                              setShowViewParticipantsModal(true);
+                            }}
+                            className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-2 rounded-lg font-semibold transition-all text-sm"
+                          >
+                            👥 View Participants
+                          </button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* View Participants Modal */}
+      <AnimatePresence>
+        {showViewParticipantsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowViewParticipantsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="sticky top-0 bg-gradient-to-r from-rose-500 via-pink-500 to-purple-500 p-6 text-white z-10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-4xl">👥</span>
+                    <div>
+                      <h2 className="text-2xl font-bold">Camp Participants</h2>
+                      <p className="text-rose-100 text-sm">View participant details for this camp</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowViewParticipantsModal(false)}
+                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-all"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="p-6">
+                {viewLoading ? (
+                  <div className="flex justify-center items-center h-40">
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity }}>
+                      <span className="text-4xl">⏳</span>
+                    </motion.div>
+                  </div>
+                ) : participants.length === 0 ? (
+                  <div className="text-center py-12">
+                    <span className="text-6xl">👥</span>
+                    <p className="text-gray-500 mt-4 text-lg">No participants registered yet for this camp</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {participants.map((participant) => (
+                      <motion.div
+                        key={participant.participantId}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="bg-gradient-to-r from-rose-50 to-pink-50 rounded-xl p-5 border-2 border-rose-200 hover:shadow-lg transition-all"
+                      >
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          {/* Personal Information */}
+                          <div>
+                            <h3 className="text-lg font-bold text-rose-900 mb-3">👤 Personal Info</h3>
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <span className="font-semibold text-rose-800">Name:</span>
+                                <p className="text-gray-700">{participant.participantName}</p>
+                              </div>
+                              <div>
+                                <span className="font-semibold text-rose-800">Age:</span>
+                                <p className="text-gray-700">{participant.age} years</p>
+                              </div>
+                              <div>
+                                <span className="font-semibold text-rose-800">Gender:</span>
+                                <p className="text-gray-700">{participant.gender}</p>
+                              </div>
+                              <div>
+                                <span className="font-semibold text-rose-800">DOB:</span>
+                                <p className="text-gray-700">{new Date(participant.dateOfBirth).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Contact Information */}
+                          <div>
+                            <h3 className="text-lg font-bold text-rose-900 mb-3">📞 Contact</h3>
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <span className="font-semibold text-rose-800">Phone:</span>
+                                <p className="text-gray-700">{participant.phoneNumber}</p>
+                              </div>
+                              <div>
+                                <span className="font-semibold text-rose-800">Email:</span>
+                                <p className="text-gray-700">{participant.email}</p>
+                              </div>
+                              <div>
+                                <span className="font-semibold text-rose-800">Guardian:</span>
+                                <p className="text-gray-700">{participant.parentGuardianName}</p>
+                              </div>
+                              <div>
+                                <span className="font-semibold text-rose-800">Type:</span>
+                                <p className="text-gray-700">{participant.studentOrStaff}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Health Information */}
+                          <div>
+                            <h3 className="text-lg font-bold text-rose-900 mb-3">🏥 Health Info</h3>
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <span className="font-semibold text-rose-800">Dental Issues:</span>
+                                <p className="text-gray-700">{participant.existingDentalIssues || 'None'}</p>
+                              </div>
+                              <div>
+                                <span className="font-semibold text-rose-800">Medical History:</span>
+                                <p className="text-gray-700">{participant.medicalHistory || 'None'}</p>
+                              </div>
+                              <div>
+                                <span className="font-semibold text-rose-800">Allergies:</span>
+                                <p className="text-gray-700">{participant.allergies || 'None'}</p>
+                              </div>
+                              <div className="flex gap-2 pt-2">
+                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${participant.consentGiven ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-800'}`}>
+                                  {participant.consentGiven ? '✓ Consent Given' : '✗ No Consent'}
+                                </span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-bold ${participant.photoConsent ? 'bg-blue-200 text-blue-800' : 'bg-gray-200 text-gray-800'}`}>
+                                  {participant.photoConsent ? '📸 Photo OK' : '📸 No Photos'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
               </div>
             </motion.div>
           </motion.div>
