@@ -13,6 +13,7 @@ const TABS = [
   { key: "inventory", path: "/inventory", label: "Inventory", bgColor: "from-emerald-100 to-teal-100", textColor: "text-emerald-800", borderColor: "border-emerald-400", hoverBg: "hover:bg-emerald-200", icon: "📦" },
   { key: "analytics", path: "/analytics", label: "Analytics", bgColor: "from-purple-100 to-pink-100", textColor: "text-purple-800", borderColor: "border-purple-400", hoverBg: "hover:bg-purple-200", icon: "📊" },
   { key: "team-hub", path: "/team-hub", label: "Team Hub", bgColor: "from-indigo-100 to-purple-100", textColor: "text-indigo-800", borderColor: "border-indigo-400", hoverBg: "hover:bg-indigo-200", icon: "🌟" },
+  { key: "superadmin", path: "/superadmin", label: "Super Admin", bgColor: "from-amber-100 to-rose-100", textColor: "text-amber-800", borderColor: "border-amber-400", hoverBg: "hover:bg-amber-200", icon: "🛡️" },
 ];
 
 const CRUD_OPERATIONS = {
@@ -23,6 +24,7 @@ const CRUD_OPERATIONS = {
   inventory: ["view", "clinic"],
   analytics: [],
   "team-hub": [],
+  superadmin: [],
 };
 
 // Sample notifications data
@@ -604,23 +606,23 @@ export default function Header(){
       />
 
       <nav className="w-full bg-gradient-to-r from-coral-50/90 via-peach-50/80 to-cream-50/90 border-b border-coral-200/50 shadow-md sticky top-20 z-30 backdrop-blur-md">
-        <div className="w-full px-6 md:px-12 py-4">
-          <div className="flex gap-6 justify-center relative flex-wrap items-center">
+        <div className="w-full px-4 md:px-8 py-3">
+          <div className="flex gap-3 justify-center relative items-center overflow-x-auto scrollbar-hide">
             {TABS.map((t) => (
               <div
                 key={t.key}
-                className="relative"
+                className="relative flex-shrink-0"
                 onMouseEnter={() => setHoveredTab(t.key)}
                 onMouseLeave={() => setHoveredTab(null)}
               >
                 <NavLink
                   to={t.path}
                   className={({isActive}) =>
-                    `px-6 py-3 font-bold transition-all inline-flex items-center gap-2 rounded-lg border-2 ${t.bgColor} ${t.textColor} ${t.borderColor} ${isActive ? `${t.hoverBg} ring-2 ring-offset-2 scale-105` : `${t.hoverBg}`}`
+                    `px-4 py-2.5 font-bold transition-all inline-flex items-center gap-2 rounded-lg border-2 ${t.bgColor} ${t.textColor} ${t.borderColor} ${isActive ? `${t.hoverBg} ring-2 ring-offset-2 scale-105` : `${t.hoverBg}`} whitespace-nowrap`
                   }
                 >
-                  <span className="text-2xl">{t.icon}</span>
-                  <motion.span whileHover={{ y: -2 }}>{t.label}</motion.span>
+                  <span className="text-xl">{t.icon}</span>
+                  <motion.span whileHover={{ y: -2 }} className="text-sm">{t.label}</motion.span>
                 </NavLink>
 
                 {/* Dropdown Menu */}

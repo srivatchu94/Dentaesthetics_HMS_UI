@@ -267,53 +267,12 @@ const TeamHub = () => {
       bgGradient: "from-blue-50 to-indigo-50",
       options: [
         {
-          id: 'onboard-doctor',
-          title: "🩺 Onboard Doctor",
-          description: "Add new doctors to the system",
-          path: "/doctors",
-          icon: "👨‍⚕️",
-          color: "from-blue-500 to-cyan-500"
-        },
-        {
-          id: 'view-doctors',
-          title: "👀 View Doctors",
-          description: "Browse and manage doctor profiles",
-          path: "/doctors/view",
-          icon: "📋",
-          color: "from-indigo-500 to-purple-500"
-        },
-        {
           id: 'clinic-mapping',
           title: "🏥 Clinic Mapping",
           description: "Map doctors to clinics",
           path: "/doctors/clinic-mapping",
           icon: "🗺️",
           color: "from-purple-500 to-pink-500"
-        }
-      ]
-    },
-    {
-      id: 'admin-staff',
-      title: "💼 Administrative Staff",
-      description: "Manage admin personnel and office staff",
-      gradient: "from-emerald-500 via-teal-500 to-cyan-600",
-      bgGradient: "from-emerald-50 to-teal-50",
-      options: [
-        {
-          id: 'onboard-admin',
-          title: "👔 Onboard Admin",
-          description: "Add administrative staff members",
-          path: "/staff/create",
-          icon: "📝",
-          color: "from-emerald-500 to-teal-500"
-        },
-        {
-          id: 'view-admins',
-          title: "👥 View Staff",
-          description: "Browse administrative personnel",
-          path: "/staff/view",
-          icon: "📊",
-          color: "from-teal-500 to-cyan-500"
         }
       ]
     },
@@ -1373,104 +1332,6 @@ const TeamHub = () => {
             </motion.div>
           ))}
         </div>
-
-        {/* Quick Stats with Beautiful Animations */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6"
-        >
-          <motion.div
-            whileHover={{ scale: 1.05, y: -5 }}
-            transition={{ type: "spring", stiffness: 300 }}
-            className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden"
-          >
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-              className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"
-            />
-            <div className="relative flex items-center justify-between mb-2">
-              <motion.span
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className="text-4xl"
-              >
-                👨‍⚕️
-              </motion.span>
-              <motion.span
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5, type: "spring" }}
-                className="text-3xl font-bold"
-              >
-                24
-              </motion.span>
-            </div>
-            <p className="text-white/90 font-semibold relative">Active Doctors</p>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ scale: 1.05, y: -5 }}
-            transition={{ type: "spring", stiffness: 300 }}
-            className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden"
-          >
-            <motion.div
-              animate={{ rotate: -360 }}
-              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-              className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"
-            />
-            <div className="relative flex items-center justify-between mb-2">
-              <motion.span
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 2, repeat: Infinity, delay: 0.3 }}
-                className="text-4xl"
-              >
-                👔
-              </motion.span>
-              <motion.span
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.6, type: "spring" }}
-                className="text-3xl font-bold"
-              >
-                12
-              </motion.span>
-            </div>
-            <p className="text-white/90 font-semibold relative">Admin Staff</p>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ scale: 1.05, y: -5 }}
-            transition={{ type: "spring", stiffness: 300 }}
-            className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden"
-          >
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-              className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"
-            />
-            <div className="relative flex items-center justify-between mb-2">
-              <motion.span
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 2, repeat: Infinity, delay: 0.6 }}
-                className="text-4xl"
-              >
-                🎯
-              </motion.span>
-              <motion.span
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.7, type: "spring" }}
-                className="text-3xl font-bold"
-              >
-                8
-              </motion.span>
-            </div>
-            <p className="text-white/90 font-semibold relative">Reception Team</p>
-          </motion.div>
-        </motion.div>
 
         {/* Additional Info Card with Animation */}
         <motion.div

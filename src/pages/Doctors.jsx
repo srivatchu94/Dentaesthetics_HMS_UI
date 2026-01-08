@@ -71,6 +71,26 @@ export default function Doctors() {
   const [isDashboardExpanded, setIsDashboardExpanded] = useState(false);
   const [isManageExpanded, setIsManageExpanded] = useState(false);
   
+  // Get doctor name from localStorage
+  const [doctorName, setDoctorName] = useState("");
+  
+  useEffect(() => {
+    try {
+      const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+      const selectedAccess = JSON.parse(localStorage.getItem("selectedAccess") || "{}");
+      
+      // Try to get name from userData first, then from selectedAccess
+      const firstName = userData.firstName || selectedAccess.firstName || "";
+      const lastName = userData.lastName || selectedAccess.lastName || "";
+      
+      if (firstName || lastName) {
+        setDoctorName(`${firstName} ${lastName}`.trim());
+      }
+    } catch (error) {
+      console.error("Error reading user data:", error);
+    }
+  }, []);
+  
   // Appointments management states
   const [appointments, setAppointments] = useState(SAMPLE_APPOINTMENTS);
   const [realAppointments, setRealAppointments] = useState([]);
@@ -5619,7 +5639,7 @@ export default function Doctors() {
               transition={{ delay: 0.3 }}
               className="text-xl text-purple-50"
             >
-              Manage appointments, patients, and clinic operations efficiently
+              {doctorName ? `Welcome, Dr. ${doctorName}` : "Manage appointments, patients, and clinic operations efficiently"}
             </motion.p>
           </div>
         </div>

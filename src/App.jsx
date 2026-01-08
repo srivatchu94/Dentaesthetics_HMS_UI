@@ -23,6 +23,7 @@ import ViewDoctors from "./pages/ViewDoctors";
 import DoctorClinicMapping from "./pages/DoctorClinicMapping";
 import ReceptionistOnboarding from "./pages/ReceptionistOnboarding";
 import ViewStaffDetails from "./pages/ViewStaffDetails";
+import SuperAdmin from "./pages/SuperAdmin";
 import DeletePatients from "./pages/DeletePatients";
 import CrudPage from "./pages/CrudPage";
 import Calendar from "./pages/Calendar";
@@ -106,6 +107,7 @@ export default function App(){
           <Route path="/receptionists/onboard" element={<ReceptionistOnboarding />} />
           <Route path="/staff/onboard" element={<ReceptionistOnboarding />} />
           <Route path="/staff/details" element={<ViewStaffDetails />} />
+          <Route path="/superadmin" element={<div className="max-w-6xl mx-auto"><SuperAdmin /></div>} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/visits" element={<VisitInformation />} />
           <Route path="/clinics/analytics" element={<ClinicAnalytics />} />
