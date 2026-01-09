@@ -621,7 +621,7 @@ export default function Header(){
                     `px-4 py-2.5 font-bold transition-all inline-flex items-center gap-2 rounded-lg border-2 ${t.bgColor} ${t.textColor} ${t.borderColor} ${isActive ? `${t.hoverBg} ring-2 ring-offset-2 scale-105` : `${t.hoverBg}`} whitespace-nowrap`
                   }
                 >
-                  <span className="text-xl">{t.icon}</span>
+                  <span className="text-xl w-6 h-6 flex items-center justify-center">{t.icon}</span>
                   <motion.span whileHover={{ y: -2 }} className="text-sm">{t.label}</motion.span>
                 </NavLink>
 
@@ -655,7 +655,7 @@ export default function Header(){
                         }}
                         className={`w-full px-6 py-4 text-left font-semibold transition-all ${opColor.bg} ${opColor.text} ${idx !== CRUD_OPERATIONS[t.key].length - 1 ? 'border-b border-slate-200' : ''} flex items-center gap-3 cursor-pointer`}
                       >
-                        <span className="text-xl">{opColor.icon}</span>
+                        <span className="text-xl w-6 h-6 flex items-center justify-center flex-shrink-0">{opColor.icon}</span>
                         <span className="capitalize">{op}</span>
                       </motion.button>
                     );

@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocation } from "react-router-dom";
+import { createStaffDetail } from "../services/staffService";
 
 const SUPERADMIN_ENDPOINTS = {
   insert: "https://localhost:7104/api/SuperAdmin/Insert",
@@ -9,11 +11,23 @@ const SUPERADMIN_ENDPOINTS = {
 };
 
 const ENTERPRISE_ENDPOINTS = {
-  list: "https://localhost:7104/api/Enterprise/All"
+  list: "https://localhost:7104/api/Enterprise/GetAllEnterprises",
+  getAll: "https://localhost:7104/api/Enterprise/GetAllEnterprises",
+  create: "https://localhost:7104/api/Enterprise/CreateEnterprise",
+  update: "https://localhost:7104/api/Enterprise/EditEnterpriseInfo",
+  delete: (id) => `https://localhost:7104/api/Enterprise/DeleteEnterprise?id=${id}`
 };
 
 const CLINIC_ENDPOINTS = {
-  list: "https://localhost:7104/api/Clinic/All"
+  list: "https://localhost:7104/api/Clinic/All",
+  create: "https://localhost:7104/api/Clinic/CreateClinicInfo",
+  getByEnterpriseId: (id) => `https://localhost:7104/api/Clinic/GetClinicByID?id=${id}`,
+  update: (id) => `https://localhost:7104/api/Clinic/${id}`,
+  delete: (id) => `https://localhost:7104/api/Clinic/${id}`
+};
+
+const ROLE_ENDPOINTS = {
+  getAll: "https://localhost:7104/api/RoleMaster/GetAllRolesForStaff"
 };
 
 const initialForm = {
@@ -36,6 +50,8 @@ const initialForm = {
 
 const toInputDate = (value) => {
   if (!value) return "";
+  const isoMatch = typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}/);
+  if (isoMatch) return isoMatch[0];
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().split("T")[0];
@@ -43,7 +59,8 @@ const toInputDate = (value) => {
 
 const toIsoOrNull = (value) => (value ? new Date(value).toISOString() : null);
 
-export default function SuperAdmin(){
+export default function SuperAdmin() {
+  const location = useLocation();
   const [activeCard, setActiveCard] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
@@ -61,8 +78,164 @@ export default function SuperAdmin(){
   const [clinics, setClinics] = useState([]);
   const [enterpriseLoading, setEnterpriseLoading] = useState(false);
   const [clinicLoading, setClinicLoading] = useState(false);
+  const [selectedEnterpriseId, setSelectedEnterpriseId] = useState(0);
+  const [enterpriseSearchQuery, setEnterpriseSearchQuery] = useState("");
+  // Enterprise view/edit/delete modal states
+  const [showViewEnterpriseModal, setShowViewEnterpriseModal] = useState(false);
+  const [viewingEnterprise, setViewingEnterprise] = useState(null);
+  const [enterpriseEditMode, setEnterpriseEditMode] = useState(false);
+  const [enterpriseEditData, setEnterpriseEditData] = useState(null);
+  const [enterpriseEditLoading, setEnterpriseEditLoading] = useState(false);
+  const [enterpriseEditError, setEnterpriseEditError] = useState("");
+  const [enterpriseEditSuccess, setEnterpriseEditSuccess] = useState("");
+  // Enterprise Create Modal state
+  const [showCreateEnterpriseModal, setShowCreateEnterpriseModal] = useState(false);
+  const [createEnterpriseActiveTab, setCreateEnterpriseActiveTab] = useState("details");
+  const [enterpriseForm, setEnterpriseForm] = useState({
+    name: "",
+    registrationNumber: "",
+    contactEmail: "",
+    contactPhone: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    country: "",
+    postalCode: "",
+    website: "",
+    establishedDate: null,
+    notes: "",
+  });
+  const [enterpriseFormLoading, setEnterpriseFormLoading] = useState(false);
+  const [showDeleteEnterpriseModal, setShowDeleteEnterpriseModal] = useState(false);
+  const [deletingEnterprise, setDeletingEnterprise] = useState(null);
+  // Create Clinic Modal states
+  const [showCreateClinicModal, setShowCreateClinicModal] = useState(false);
+  const [createClinicActiveTab, setCreateClinicActiveTab] = useState("basic");
+  const [creatingClinic, setCreatingClinic] = useState(false);
+  const [clinicFormError, setClinicFormError] = useState("");
+  const [createClinicForm, setCreateClinicForm] = useState({
+    clinicId: 0,
+    enterpriseId: 0,
+    clinicName: "",
+    clinicCode: "",
+    contactEmail: "",
+    contactPhone: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    country: "",
+    postalCode: "",
+    openingHours: "",
+    isActive: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdBy: 0,
+    updatedBy: 0
+  });
+  const [clinicHours, setClinicHours] = useState({
+    monday: { isOpen: true, open: "09:00", close: "17:00" },
+    tuesday: { isOpen: true, open: "09:00", close: "17:00" },
+    wednesday: { isOpen: true, open: "09:00", close: "17:00" },
+    thursday: { isOpen: true, open: "09:00", close: "17:00" },
+    friday: { isOpen: true, open: "09:00", close: "17:00" },
+    saturday: { isOpen: false, open: "09:00", close: "17:00" },
+    sunday: { isOpen: false, open: "09:00", close: "17:00" }
+  });
+  // View Clinics states
+  const [hoveredCard, setHoveredCard] = useState(null);
+  const [viewClinicsLoading, setViewClinicsLoading] = useState(false);
+  const [viewingClinic, setViewingClinic] = useState(null);
+  const [showViewClinicModal, setShowViewClinicModal] = useState(false);
+  const [clinicEditMode, setClinicEditMode] = useState(false);
+  const [clinicEditData, setClinicEditData] = useState(null);
+  const [clinicSaveLoading, setClinicSaveLoading] = useState(false);
+  const [clinicSaveError, setClinicSaveError] = useState("");
+  const [clinicSaveSuccess, setClinicSaveSuccess] = useState("");
+  const [showDeleteClinicModal, setShowDeleteClinicModal] = useState(false);
+  const [clinicToDelete, setClinicToDelete] = useState(null);
+  const [deletingClinic, setDeletingClinic] = useState(false);
+  // List Clinics modal states
+  const [showListClinicsModal, setShowListClinicsModal] = useState(false);
+  const [listClinicsEnterpriseId, setListClinicsEnterpriseId] = useState(0);
+  const [listClinicsData, setListClinicsData] = useState([]);
+  const [listClinicsLoading, setListClinicsLoading] = useState(false);
+  const [listClinicsError, setListClinicsError] = useState("");
+  // Inline edit within View modal
+  const [viewEditMode, setViewEditMode] = useState(false);
+  const [viewEditData, setViewEditData] = useState(null);
+  const [viewSaveLoading, setViewSaveLoading] = useState(false);
+  const [viewSaveError, setViewSaveError] = useState("");
+  const [viewSaveSuccess, setViewSaveSuccess] = useState("");
+
+  // Onboard Staff (TeamHub parity)
+  const [showOnboardStaffModal, setShowOnboardStaffModal] = useState(false);
+  const [staffFormError, setStaffFormError] = useState("");
+  const [creatingStaff, setCreatingStaff] = useState(false);
+  const [onboardStaffActiveStep, setOnboardStaffActiveStep] = useState("personal");
+  const [roles, setRoles] = useState([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const staffSteps = [
+    { key: "personal", icon: "👤", label: "Personal Info" },
+    { key: "contact", icon: "📞", label: "Contact" },
+    { key: "professional", icon: "🎓", label: "Professional" },
+    { key: "employment", icon: "💼", label: "Employment" },
+    { key: "compliance", icon: "📋", label: "Compliance" },
+    { key: "profile", icon: "✨", label: "Profile" }
+  ];
+  const [staffForm, setStaffForm] = useState({
+    staffId: "",
+    enterpriseId: "",
+    clinicId: "",
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    gender: "",
+    email: "",
+    phone: "",
+    address: "",
+    licenseNumber: "",
+    licenseExpiry: "",
+    specialtyId: "",
+    yearsExperience: "",
+    education: "",
+    certifications: "",
+    languages: "",
+    joiningDate: "",
+    employmentStatus: "Active",
+    availability: "",
+    insuranceDetails: "",
+    emergencyContact: "",
+    bio: "",
+    profilePhotoUrl: "",
+    achievements: "",
+    publications: "",
+    socialLinks: "",
+    rolesAssigned: "Reception"
+  });
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successData, setSuccessData] = useState({ name: "", isEdit: false });
+
+  // View Staff States
+  const [showViewStaffModal, setShowViewStaffModal] = useState(false);
+  const [viewStaffFilters, setViewStaffFilters] = useState({
+    enterpriseId: "",
+    clinicId: "",
+    rolesAssigned: "",
+    
+  });
+  const [staffList, setStaffList] = useState([]);
+  const [staffListLoading, setStaffListLoading] = useState(false);
+  const [staffListError, setStaffListError] = useState("");
+  
+  // Staff Detail Modal States
+  const [showStaffDetailModal, setShowStaffDetailModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
+  const [staffDetailLoading, setStaffDetailLoading] = useState(false);
+  const [staffDetailError, setStaffDetailError] = useState("");
+  const [isEditingStaff, setIsEditingStaff] = useState(false);
+  const [editStaffForm, setEditStaffForm] = useState(null);
 
   const filteredList = useMemo(() => {
     const query = filterQuery.trim().toLowerCase();
@@ -132,6 +305,71 @@ export default function SuperAdmin(){
     }
   };
 
+  const fetchRoles = async () => {
+    try {
+      setRolesLoading(true);
+      console.log("📡 Fetching roles from:", ROLE_ENDPOINTS.getAll);
+      const token = localStorage.getItem("accessToken");
+      console.log("🔑 Token available:", !!token);
+      
+      const response = await fetch(ROLE_ENDPOINTS.getAll, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { Authorization: `Bearer ${token}` })
+        }
+      });
+
+      console.log("📊 Roles API Response Status:", response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(`❌ Unable to load roles (${response.status}):`, errorText);
+        setRoles([]);
+        return;
+      }
+
+      const data = await response.json();
+      console.log("📦 Raw roles data:", JSON.stringify(data));
+      
+      // Handle multiple possible response formats
+      let fetchedRoles = [];
+      if (Array.isArray(data)) {
+        fetchedRoles = data;
+      } else if (data.data && Array.isArray(data.data)) {
+        fetchedRoles = data.data;
+      } else if (data.roles && Array.isArray(data.roles)) {
+        fetchedRoles = data.roles;
+      } else if (data.result && Array.isArray(data.result)) {
+        fetchedRoles = data.result;
+      } else {
+        console.warn("⚠️ Unexpected response format:", data);
+        fetchedRoles = [];
+      }
+      
+      console.log("🔍 Fetched roles array:", fetchedRoles);
+      
+      // Extract role names if they're objects with a name/roleName property
+      const roleNames = fetchedRoles.map((r) => {
+        if (typeof r === "string") return r;
+        if (typeof r === "object" && r !== null) {
+          return r.name || r.roleName || r.Name || r.RoleName || r.role || r.Role || r.roleTitle || r.RoleTitle || "";
+        }
+        return "";
+      });
+      
+      // Filter out SuperAdmin role and remove empty values
+      const filtered = roleNames.filter((r) => r && r.toLowerCase() !== "superadmin" && r.toLowerCase() !== "super admin");
+      console.log("✅ Roles loaded:", filtered);
+      setRoles(filtered);
+    } catch (err) {
+      console.error("❌ Error fetching roles:", err);
+      setRoles([]);
+    } finally {
+      setRolesLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -191,6 +429,8 @@ export default function SuperAdmin(){
       setShowSuccessModal(true);
       setForm(initialForm);
       setEditingId("");
+      // Switch to view and refresh list so user sees latest data
+      setActiveCard("view");
       fetchSuperAdmins();
     } catch (err) {
       setError(err.message || "Something went wrong while saving");
@@ -224,6 +464,26 @@ export default function SuperAdmin(){
   const handleView = (admin) => {
     setViewingAdmin(admin);
     setShowViewModal(true);
+    setViewEditMode(false);
+    setViewSaveError("");
+    setViewSaveSuccess("");
+    setViewEditData({
+      adminId: admin.adminId || "",
+      firstName: admin.firstName || "",
+      lastName: admin.lastName || "",
+      email: admin.email || "",
+      phone: admin.phone || "",
+      dateOfBirth: admin.dateOfBirth ? toInputDate(admin.dateOfBirth) : "",
+      gender: admin.gender || "",
+      address: admin.address || "",
+      education: admin.education || "",
+      languages: admin.languages || "",
+      yearsExperience: admin.yearsExperience ?? "",
+      joiningDate: admin.joiningDate ? toInputDate(admin.joiningDate) : "",
+      employmentStatus: admin.employmentStatus || (admin.isActive ? "Active" : "Inactive"),
+      availability: admin.availability || "",
+      isActive: admin.isActive !== undefined ? !!admin.isActive : true
+    });
   };
 
   const handleDelete = (admin) => {
@@ -286,31 +546,224 @@ export default function SuperAdmin(){
     }
   };
 
+  const saveViewEdits = async () => {
+    if (!viewEditData || !viewEditData.adminId) return;
+    setViewSaveError("");
+    setViewSaveSuccess("");
+    try {
+      setViewSaveLoading(true);
+      const payload = {
+        FirstName: viewEditData.firstName,
+        LastName: viewEditData.lastName,
+        DateOfBirth: toIsoOrNull(viewEditData.dateOfBirth),
+        Gender: viewEditData.gender,
+        Email: viewEditData.email,
+        Phone: viewEditData.phone,
+        Address: viewEditData.address,
+        Education: viewEditData.education,
+        Languages: viewEditData.languages,
+        YearsExperience: viewEditData.yearsExperience ? Number(viewEditData.yearsExperience) : 0,
+        JoiningDate: toIsoOrNull(viewEditData.joiningDate),
+        EmploymentStatus: viewEditData.employmentStatus,
+        Availability: viewEditData.availability,
+        UpdatedAt: new Date().toISOString(),
+        IsActive: !!viewEditData.isActive
+      };
+      const endpoint = SUPERADMIN_ENDPOINTS.update(viewEditData.adminId);
+      const response = await fetch(endpoint, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok && response.status !== 204) {
+        const message = await response.text();
+        throw new Error(message || "Unable to update super admin");
+      }
+      setViewSaveSuccess("Changes saved successfully");
+      // Refresh list and the viewingAdmin object
+      await fetchSuperAdmins();
+      setViewingAdmin({
+        ...viewingAdmin,
+        ...viewEditData,
+        dateOfBirth: viewEditData.dateOfBirth,
+        joiningDate: viewEditData.joiningDate,
+        isActive: !!viewEditData.isActive
+      });
+      setViewEditMode(false);
+    } catch (err) {
+      setViewSaveError(err.message || "Failed to save changes");
+    } finally {
+      setViewSaveLoading(false);
+    }
+  };
+
   const fetchEnterprises = async () => {
     try {
       setEnterpriseLoading(true);
       setError("");
+      console.log("🏢 Fetching enterprises from:", ENTERPRISE_ENDPOINTS.list);
+      
       const response = await fetch(ENTERPRISE_ENDPOINTS.list, {
+        method: "GET",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
         }
       });
+      
+      console.log("📡 Response status:", response.status);
+      
       if (!response.ok) {
         throw new Error(`Unable to load enterprises (${response.status})`);
       }
       const data = await response.json();
+      console.log("📊 Raw data from API:", data);
+      
       const payload = Array.isArray(data) ? data : data.data || [];
+      console.log("📦 Payload array:", payload);
+      
       const normalized = payload.map((item) => ({
         enterpriseId: item.enterpriseId || item.enterpriseID || item.id || "",
-        enterpriseName: item.enterpriseName || item.name || "",
-        enterpriseEmail: item.enterpriseEmail || item.email || "",
-        enterprisePhone: item.enterprisePhone || item.phone || "",
-        isActive: item.isActive ?? item.IsActive ?? true
+        enterpriseName: item.enterpriseName || item.EnterpriseName || item.name || "",
+        registrationNumber: item.registrationNumber || item.RegistrationNumber || "",
+        contactEmail: item.contactEmail || item.ContactEmail || item.email || "",
+        contactPhone: item.contactPhone || item.ContactPhone || item.phone || "",
+        addressLine1: item.addressLine1 || item.AddressLine1 || "",
+        addressLine2: item.addressLine2 || item.AddressLine2 || "",
+        city: item.city || item.City || "",
+        state: item.state || item.State || "",
+        country: item.country || item.Country || "",
+        postalCode: item.postalCode || item.PostalCode || "",
+        isActive: item.isActive ?? item.IsActive ?? true,
+        createdAt: item.createdAt || item.CreatedAt || "",
+        updatedAt: item.updatedAt || item.UpdatedAt || ""
       }));
+      console.log("✅ Normalized enterprises:", normalized);
       setEnterprises(normalized);
+      console.log("✅ Enterprises set successfully, count:", normalized.length);
     } catch (err) {
+      console.error("❌ Error fetching enterprises:", err);
       setError(err.message || "Failed to fetch enterprises");
+    } finally {
+      setEnterpriseLoading(false);
+    }
+  };
+
+  const handleViewEnterprise = (enterprise) => {
+    setViewingEnterprise(enterprise);
+    setShowViewEnterpriseModal(true);
+    setEnterpriseEditMode(false);
+    setEnterpriseEditError("");
+    setEnterpriseEditSuccess("");
+    setEnterpriseEditData({
+      enterpriseId: enterprise.enterpriseId || "",
+      enterpriseName: enterprise.enterpriseName || "",
+      registrationNumber: enterprise.registrationNumber || "",
+      contactEmail: enterprise.contactEmail || "",
+      contactPhone: enterprise.contactPhone || "",
+      addressLine1: enterprise.addressLine1 || "",
+      addressLine2: enterprise.addressLine2 || "",
+      city: enterprise.city || "",
+      state: enterprise.state || "",
+      country: enterprise.country || "",
+      postalCode: enterprise.postalCode || "",
+      isActive: enterprise.isActive !== undefined ? !!enterprise.isActive : true
+    });
+  };
+
+  const saveEnterpriseEdits = async () => {
+    if (!enterpriseEditData || !enterpriseEditData.enterpriseId) return;
+    setEnterpriseEditError("");
+    setEnterpriseEditSuccess("");
+    try {
+      setEnterpriseEditLoading(true);
+      const now = new Date().toISOString();
+      const payload = {
+        EnterpriseId: enterpriseEditData.enterpriseId,
+        EnterpriseName: enterpriseEditData.enterpriseName,
+        RegistrationNumber: enterpriseEditData.registrationNumber,
+        ContactEmail: enterpriseEditData.contactEmail,
+        ContactPhone: enterpriseEditData.contactPhone,
+        AddressLine1: enterpriseEditData.addressLine1,
+        AddressLine2: enterpriseEditData.addressLine2,
+        City: enterpriseEditData.city,
+        State: enterpriseEditData.state,
+        Country: enterpriseEditData.country,
+        PostalCode: enterpriseEditData.postalCode,
+        IsActive: !!enterpriseEditData.isActive,
+        UpdatedAt: now
+      };
+      const endpoint = ENTERPRISE_ENDPOINTS.update;
+      const response = await fetch(endpoint, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok && response.status !== 200 && response.status !== 201 && response.status !== 204) {
+        const message = await response.text();
+        throw new Error(message || "Unable to update enterprise");
+      }
+      setEnterpriseEditSuccess("Changes saved successfully");
+      await fetchEnterprises();
+      setViewingEnterprise({
+        ...viewingEnterprise,
+        ...enterpriseEditData
+      });
+      setEnterpriseEditMode(false);
+    } catch (err) {
+      setEnterpriseEditError(err.message || "Failed to save changes");
+    } finally {
+      setEnterpriseEditLoading(false);
+    }
+  };
+
+  const handleDeleteEnterprise = (enterprise) => {
+    setDeletingEnterprise(enterprise);
+    setShowDeleteEnterpriseModal(true);
+  };
+
+  const confirmDeleteEnterprise = async () => {
+    if (!deletingEnterprise) return;
+    try {
+      setEnterpriseLoading(true);
+      const deleteUrl = ENTERPRISE_ENDPOINTS.delete(deletingEnterprise.enterpriseId);
+      console.log("🗑️ Deleting enterprise:", deletingEnterprise.enterpriseId);
+      console.log("📡 DELETE URL:", deleteUrl);
+      
+      const response = await fetch(deleteUrl, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+      
+      console.log("📡 Response status:", response.status);
+      
+      if (!response.ok && response.status !== 200 && response.status !== 201 && response.status !== 204) {
+        const message = await response.text();
+        console.error("❌ Delete failed:", message);
+        throw new Error(message || "Unable to delete enterprise");
+      }
+      
+      console.log("✅ Enterprise deleted successfully");
+      setSuccess("Enterprise deleted successfully");
+      setShowDeleteEnterpriseModal(false);
+      setDeletingEnterprise(null);
+      setShowViewEnterpriseModal(false);
+      console.log("🔄 Refreshing enterprise list...");
+      await fetchEnterprises();
+      console.log("✅ Enterprise list refreshed");
+    } catch (err) {
+      console.error("❌ Delete error:", err);
+      setError(err.message || "Failed to delete enterprise");
+      setShowDeleteEnterpriseModal(false);
     } finally {
       setEnterpriseLoading(false);
     }
@@ -348,10 +801,709 @@ export default function SuperAdmin(){
     }
   };
 
+  // Load clinics for a specific enterprise
+  const loadClinicsForEnterprise = async (enterpriseId) => {
+    if (!enterpriseId || enterpriseId === 0) {
+      setClinics([]);
+      setError("Please select an enterprise");
+      return;
+    }
+    
+    try {
+      setViewClinicsLoading(true);
+      setError("");
+      console.log("🏥 Loading clinics for enterprise ID:", enterpriseId);
+      
+      const response = await fetch(CLINIC_ENDPOINTS.getByEnterpriseId(enterpriseId), {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Unable to load clinics (${response.status})`);
+      }
+      
+      const data = await response.json();
+      const payload = Array.isArray(data) ? data : data.data || [];
+      
+      const normalized = payload.map((item) => ({
+        clinicId: item.clinicId || item.ClinicId || "",
+        enterpriseId: item.enterpriseId || item.EnterpriseId || "",
+        clinicName: item.clinicName || item.ClinicName || "",
+        clinicCode: item.clinicCode || item.ClinicCode || "",
+        contactEmail: item.contactEmail || item.ContactEmail || item.clinicEmail || item.ClinicEmail || "",
+        contactPhone: item.contactPhone || item.ContactPhone || item.clinicPhone || item.ClinicPhone || "",
+        addressLine1: item.addressLine1 || item.AddressLine1 || item.clinicAddress || item.ClinicAddress || "",
+        addressLine2: item.addressLine2 || item.AddressLine2 || "",
+        city: item.city || item.City || item.clinicCity || item.ClinicCity || "",
+        state: item.state || item.State || "",
+        country: item.country || item.Country || "",
+        postalCode: item.postalCode || item.PostalCode || "",
+        openingHours: item.openingHours || item.OpeningHours || item.operatingHours || item.OperatingHours || "",
+        isActive: item.isActive ?? item.IsActive ?? true
+      }));
+      
+      console.log("✅ Clinics loaded:", normalized.length);
+      setClinics(normalized);
+    } catch (err) {
+      console.error("❌ Error loading clinics:", err);
+      setError(err.message || "Failed to fetch clinics for this enterprise");
+      setClinics([]);
+    } finally {
+      setViewClinicsLoading(false);
+    }
+  };
+
+  // Edit clinic function
+  const saveClinicEdits = async () => {
+    if (!clinicEditData) return;
+    
+    try {
+      setClinicSaveLoading(true);
+      setClinicSaveError("");
+      setClinicSaveSuccess("");
+      
+      const now = new Date().toISOString();
+      const clinicModel = {
+        ClinicId: clinicEditData.clinicId,
+        EnterpriseId: clinicEditData.enterpriseId,
+        ClinicName: clinicEditData.clinicName,
+        ClinicCode: clinicEditData.clinicCode,
+        ContactEmail: clinicEditData.contactEmail,
+        ContactPhone: clinicEditData.contactPhone,
+        AddressLine1: clinicEditData.addressLine1,
+        AddressLine2: clinicEditData.addressLine2,
+        City: clinicEditData.city,
+        State: clinicEditData.state,
+        Country: clinicEditData.country || "",
+        PostalCode: clinicEditData.postalCode,
+        OpeningHours: clinicEditData.openingHours,
+        IsActive: !!clinicEditData.isActive,
+        CreatedAt: viewingClinic.createdAt || clinicEditData.createdAt || now,
+        UpdatedAt: now
+      };
+      
+      console.log("🏥 Updating clinic with ID:", clinicEditData.clinicId);
+      console.log("📡 API URL:", CLINIC_ENDPOINTS.update(clinicEditData.clinicId));
+      console.log("📦 Clinic Model:", clinicModel);
+      
+      const response = await fetch(CLINIC_ENDPOINTS.update(clinicEditData.clinicId), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        },
+        body: JSON.stringify(clinicModel)
+      });
+      
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to update clinic");
+      }
+      
+      console.log("✅ Clinic updated successfully");
+      setClinicSaveSuccess("✅ Clinic updated successfully!");
+      setClinicEditMode(false);
+      
+      // Show success notification
+      setSuccess("✅ Clinic updated successfully!");
+      
+      // Refresh clinics list
+      if (selectedEnterpriseId > 0) {
+        await loadClinicsForEnterprise(selectedEnterpriseId);
+      }
+      
+      // Close modal after delay
+      setTimeout(() => {
+        setShowViewClinicModal(false);
+        setClinicSaveSuccess("");
+        setSuccess("");
+      }, 2000);
+    } catch (err) {
+      console.error("❌ Error updating clinic:", err);
+      setClinicSaveError(err.message || "Failed to update clinic");
+    } finally {
+      setClinicSaveLoading(false);
+    }
+  };
+
+  // Delete clinic function
+  const handleDeleteClinic = (clinic) => {
+    setClinicToDelete(clinic);
+    setShowDeleteClinicModal(true);
+  };
+
+  const confirmDeleteClinic = async () => {
+    if (!clinicToDelete) return;
+    
+    try {
+      setDeletingClinic(true);
+      console.log("🗑️ Deleting clinic:", clinicToDelete.clinicId);
+      
+      const response = await fetch(CLINIC_ENDPOINTS.delete(clinicToDelete.clinicId), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+      
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to delete clinic");
+      }
+      
+      console.log("✅ Clinic deleted successfully");
+      setShowDeleteClinicModal(false);
+      setShowViewClinicModal(false);
+      
+      // Show success notification
+      setSuccess("🎉 Clinic deleted successfully!");
+      
+      // Refresh clinics list
+      if (selectedEnterpriseId > 0) {
+        await loadClinicsForEnterprise(selectedEnterpriseId);
+      }
+      
+      // Clear success message after delay
+      setTimeout(() => {
+        setSuccess("");
+      }, 3000);
+    } catch (err) {
+      console.error("❌ Error deleting clinic:", err);
+      setError(err.message || "Failed to delete clinic");
+      setShowDeleteClinicModal(false);
+    } finally {
+      setDeletingClinic(false);
+      setClinicToDelete(null);
+    }
+  };
+
+  // Create Staff (TeamHub parity)
+  const handleCreateStaff = async () => {
+    setStaffFormError("");
+    // Basic required checks similar to TeamHub
+    if (!staffForm.firstName || !staffForm.lastName || !staffForm.email || !staffForm.phone) {
+      setStaffFormError("First name, last name, email, and phone are required");
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const isClinicalRole = ["Doctor", "Nurse"].includes(staffForm.rolesAssigned);
+    
+    const payload = {
+      staffId: staffForm.staffId || undefined,
+      enterpriseId: staffForm.enterpriseId ? parseInt(staffForm.enterpriseId) : null,
+      clinicId: staffForm.clinicId ? parseInt(staffForm.clinicId) : null,
+      firstName: staffForm.firstName,
+      lastName: staffForm.lastName,
+      dateOfBirth: staffForm.dateOfBirth ? new Date(staffForm.dateOfBirth).toISOString() : null,
+      gender: staffForm.gender || null,
+      email: staffForm.email || null,
+      phone: staffForm.phone || null,
+      address: staffForm.address || null,
+      ...(isClinicalRole && {
+        licenseNumber: staffForm.licenseNumber || null,
+        licenseExpiry: staffForm.licenseExpiry ? new Date(staffForm.licenseExpiry).toISOString() : null,
+        specialtyId: staffForm.specialtyId ? parseInt(staffForm.specialtyId) : null
+      }),
+      yearsExperience: staffForm.yearsExperience ? parseInt(staffForm.yearsExperience) : null,
+      education: staffForm.education || null,
+      certifications: staffForm.certifications || null,
+      languages: staffForm.languages || null,
+      joiningDate: staffForm.joiningDate ? new Date(staffForm.joiningDate).toISOString() : null,
+      employmentStatus: staffForm.employmentStatus || "Active",
+      availability: staffForm.availability || null,
+      insuranceDetails: staffForm.insuranceDetails || null,
+      emergencyContact: staffForm.emergencyContact || null,
+      bio: staffForm.bio || null,
+      profilePhotoUrl: staffForm.profilePhotoUrl || null,
+      achievements: staffForm.achievements || null,
+      publications: staffForm.publications || null,
+      socialLinks: staffForm.socialLinks || null,
+      rolesAssigned: staffForm.rolesAssigned || "Reception",
+      createdAt: nowIso,
+      updatedAt: nowIso
+    };
+
+    console.log("=== SENDING TO CreateRoleBasedProfile API ===");
+    console.log("Role:", staffForm.rolesAssigned, "| Is Clinical:", isClinicalRole);
+    console.log("Full Payload:", payload);
+
+    try {
+      setCreatingStaff(true);
+      await createStaffDetail(payload);
+      setShowOnboardStaffModal(false);
+      setSuccessData({ 
+        name: `${staffForm.firstName} ${staffForm.lastName}`, 
+        isEdit: false 
+      });
+      setShowSuccessModal(true);
+      // Reset form
+      setStaffForm({
+        staffId: "",
+        enterpriseId: "",
+        clinicId: "",
+        firstName: "",
+        lastName: "",
+        dateOfBirth: "",
+        gender: "",
+        email: "",
+        phone: "",
+        address: "",
+        licenseNumber: "",
+        licenseExpiry: "",
+        specialtyId: "",
+        yearsExperience: "",
+        education: "",
+        certifications: "",
+        languages: "",
+        joiningDate: "",
+        employmentStatus: "Active",
+        availability: "",
+        insuranceDetails: "",
+        emergencyContact: "",
+        bio: "",
+        profilePhotoUrl: "",
+        achievements: "",
+        publications: "",
+        socialLinks: "",
+        rolesAssigned: "Reception"
+      });
+    } catch (err) {
+      console.error("❌ Error onboarding staff:", err);
+      setStaffFormError(err.message || "Failed to onboard staff");
+    } finally {
+      setCreatingStaff(false);
+    }
+  };
+
+  async function fetchStaffProfiles() {
+    // Validate required filters
+    if (!viewStaffFilters.enterpriseId || !viewStaffFilters.clinicId) {
+      setStaffListError("Enterprise and Clinic are required");
+      return;
+    }
+
+    try {
+      setStaffListLoading(true);
+      setStaffListError("");
+  
+      // Build query parameters
+      const params = new URLSearchParams();
+      params.append("enterpriseId", viewStaffFilters.enterpriseId);
+      params.append("clinicId", viewStaffFilters.clinicId);
+      
+      // Send 'all' if role not selected, otherwise send selected role
+      const roleValue = viewStaffFilters.rolesAssigned || "all";
+      params.append("rolesAssigned", roleValue);
+      
+      const url = `https://localhost:7104/api/StaffDetail/GetStaffDetailsbyRole?${params.toString()}`;
+      console.log("📡 Fetching staff profiles:", url);
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+  
+      if (!response.ok) {
+        throw new Error(`Unable to load staff profiles (${response.status})`);
+      }
+  
+      const data = await response.json();
+      console.log("📊 Raw API response:", data);
+      console.log("📊 Response type:", typeof data, "Is Array:", Array.isArray(data));
+      
+      const staffArray = Array.isArray(data) ? data : data.data || [];
+      console.log("📊 Staff array length:", staffArray.length);
+      
+      if (staffArray.length > 0) {
+        console.log("🔍 FIRST ITEM KEYS:", Object.keys(staffArray[0]));
+        console.log("🔍 FIRST ITEM FULL DATA:", JSON.stringify(staffArray[0], null, 2));
+      }
+      
+      // Normalize staff data to match StaffDetailModel properties
+      const normalizedStaff = staffArray.map((item, idx) => {
+        // API returns nested structure: { role, id, profile: {...} }
+        const profile = item.profile || item;
+        
+        const normalized = {
+          staffId: profile.StaffId || item.id || "",
+          firstName: profile.FirstName || "",
+          lastName: profile.LastName || "",
+          email: profile.Email || "",
+          phone: profile.Phone || "",
+          rolesAssigned: (item.role && item.role.trim()) || "",
+          employmentStatus: profile.EmploymentStatus || "Unknown",
+          // Additional fields for edit form population
+          address: profile.Address ?? "",
+          gender: profile.Gender ?? "",
+          dateOfBirth: profile.DateOfBirth ?? "",
+          yearsExperience: profile.YearsExperience ?? "",
+          education: profile.Education ?? "",
+          certifications: profile.Certifications ?? "",
+          languages: profile.Languages ?? "",
+          joiningDate: profile.JoiningDate ?? "",
+          availability: profile.Availability ?? "",
+          insuranceDetails: profile.InsuranceDetails ?? "",
+          emergencyContact: profile.EmergencyContact ?? "",
+          bio: profile.Bio ?? "",
+          profilePhotoUrl: profile.ProfilePhotoUrl ?? "",
+          achievements: profile.Achievements ?? "",
+          publications: profile.Publications ?? "",
+          socialLinks: profile.SocialLinks ?? "",
+          licenseNumber: profile.LicenseNumber ?? "",
+          licenseExpiry: profile.LicenseExpiry ?? "",
+          specialtyId: profile.SpecialtyId ?? ""
+        };
+        
+        if (idx === 0) {
+          console.log("📝 NORMALIZED FIRST ITEM:", normalized);
+          console.log("📝 Source role:", item.role);
+          console.log("📝 Source profile StaffId:", profile.StaffId);
+        }
+        
+        return normalized;
+      });
+      
+      console.log("✅ Loaded staff profiles:", normalizedStaff.length);
+      console.log("📦 All normalized data:", normalizedStaff);
+      console.log("📊 Staff IDs present:", normalizedStaff.filter(s => s.staffId).length, "/ 13");
+      console.log("📊 Roles present:", normalizedStaff.filter(s => s.rolesAssigned).length, "with role");
+      setStaffList(normalizedStaff);
+    } catch (err) {
+      console.error("❌ Error fetching staff profiles:", err);
+      setStaffListError(err.message || "Failed to fetch staff profiles");
+      setStaffList([]);
+    } finally {
+      setStaffListLoading(false);
+    }
+  }
+
+  // Open staff detail modal
+  function handleViewStaffDetail(staff) {
+    setSelectedStaff(staff);
+    setShowStaffDetailModal(true);
+    setStaffDetailError("");
+  }
+
+  // Helper function to convert ISO datetime to date input format (YYYY-MM-DD)
+  function formatDateForInput(dateString) {
+    if (!dateString) return "";
+    // Extract date portion directly to avoid timezone issues
+    // ISO format: "2021-09-17T00:00:00" -> "2021-09-17"
+    if (typeof dateString === 'string' && dateString.includes('T')) {
+      return dateString.split('T')[0];
+    }
+    // Fallback for other formats
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "";
+    // Use UTC methods to avoid timezone shifts
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  // Handle staff edit - show edit form
+  function handleEditStaff() {
+    if (!selectedStaff) return;
+    console.log("✏️ Opening edit form for staff:", selectedStaff.staffId);
+    console.log("✏️ Selected staff complete data:", selectedStaff);
+    
+    // Pre-fill edit form with current staff data
+    setEditStaffForm({
+      firstName: selectedStaff.firstName || "",
+      lastName: selectedStaff.lastName || "",
+      email: selectedStaff.email || "",
+      phone: selectedStaff.phone || "",
+      address: selectedStaff.address || "",
+      gender: selectedStaff.gender || "",
+      dateOfBirth: formatDateForInput(selectedStaff.dateOfBirth),
+      yearsExperience: selectedStaff.yearsExperience || "",
+      education: selectedStaff.education || "",
+      certifications: selectedStaff.certifications || "",
+      languages: selectedStaff.languages || "",
+      joiningDate: formatDateForInput(selectedStaff.joiningDate),
+      employmentStatus: selectedStaff.employmentStatus || "Active",
+      availability: selectedStaff.availability || "",
+      insuranceDetails: selectedStaff.insuranceDetails || "",
+      emergencyContact: selectedStaff.emergencyContact || "",
+      bio: selectedStaff.bio || "",
+      profilePhotoUrl: selectedStaff.profilePhotoUrl || "",
+      achievements: selectedStaff.achievements || "",
+      publications: selectedStaff.publications || "",
+      socialLinks: selectedStaff.socialLinks || "",
+      licenseNumber: selectedStaff.licenseNumber || "",
+      licenseExpiry: formatDateForInput(selectedStaff.licenseExpiry),
+      specialtyId: selectedStaff.specialtyId || ""
+    });
+    
+    console.log("✏️ Edit form initialized:", {
+      firstName: selectedStaff.firstName,
+      address: selectedStaff.address,
+      bio: selectedStaff.bio,
+      gender: selectedStaff.gender
+    });
+    
+    setIsEditingStaff(true);
+    setStaffDetailError("");
+  }
+
+  // Handle staff save after editing
+  async function handleSaveEditStaff() {
+    if (!selectedStaff || !editStaffForm) return;
+    
+    try {
+      setStaffDetailLoading(true);
+      setStaffDetailError("");
+      console.log("💾 Saving staff:", selectedStaff.staffId);
+      
+      // Build the payload matching StaffDetailModel
+      const payload = {
+        StaffId: selectedStaff.staffId,
+        FirstName: editStaffForm.firstName,
+        LastName: editStaffForm.lastName,
+        Email: editStaffForm.email,
+        Phone: editStaffForm.phone,
+        EmploymentStatus: editStaffForm.employmentStatus,
+        RolesAssigned: selectedStaff.rolesAssigned || "Reception",
+        Address: editStaffForm.address || "",
+        Gender: editStaffForm.gender || "",
+        DateOfBirth: editStaffForm.dateOfBirth || null,
+        YearsExperience: editStaffForm.yearsExperience ? parseInt(editStaffForm.yearsExperience) : 0,
+        Education: editStaffForm.education || "",
+        Certifications: editStaffForm.certifications || "",
+        Languages: editStaffForm.languages || "",
+        JoiningDate: editStaffForm.joiningDate || null,
+        Availability: editStaffForm.availability || "",
+        InsuranceDetails: editStaffForm.insuranceDetails || "",
+        EmergencyContact: editStaffForm.emergencyContact || "",
+        Bio: editStaffForm.bio || "",
+        ProfilePhotoUrl: editStaffForm.profilePhotoUrl || "",
+        Achievements: editStaffForm.achievements || "",
+        Publications: editStaffForm.publications || "",
+        SocialLinks: editStaffForm.socialLinks || "",
+        LicenseNumber: editStaffForm.licenseNumber || "",
+        LicenseExpiry: editStaffForm.licenseExpiry || null,
+        SpecialtyId: editStaffForm.specialtyId || "",
+        SpecialtyId: selectedStaff.specialtyId || null,
+        EnterpriseID: selectedStaff.enterpriseID || viewStaffFilters.enterpriseId,
+        ClinicID: selectedStaff.clinicID || viewStaffFilters.clinicId
+      };
+      
+      const roleParam = encodeURIComponent(selectedStaff.rolesAssigned || "Reception");
+      const url = `https://localhost:7104/api/StaffDetail/EditRoleBasedProfile/${selectedStaff.staffId}?rolesAssigned=${roleParam}`;
+      console.log("📡 Edit URL:", url);
+      console.log("📦 Edit Payload:", payload);
+      
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Unable to update staff (${response.status})`);
+      }
+      
+      console.log("✅ Staff updated successfully");
+      setSuccessData({
+        name: `${editStaffForm.firstName} ${editStaffForm.lastName}`,
+        isEdit: true
+      });
+      setShowSuccessModal(true);
+      setShowStaffDetailModal(false);
+      setIsEditingStaff(false);
+      setEditStaffForm(null);
+      
+      // Refresh staff list
+      await fetchStaffProfiles();
+    } catch (err) {
+      console.error("❌ Error editing staff:", err);
+      setStaffDetailError(err.message || "Failed to update staff");
+    } finally {
+      setStaffDetailLoading(false);
+    }
+  }
+
+  // Cancel edit
+  function handleCancelEdit() {
+    setIsEditingStaff(false);
+    setEditStaffForm(null);
+    setStaffDetailError("");
+  }
+
+  // Handle staff delete
+  async function handleDeleteStaff() {
+    if (!selectedStaff) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedStaff.firstName} ${selectedStaff.lastName}?`)) {
+      return;
+    }
+    
+    try {
+      setStaffDetailLoading(true);
+      console.log("🗑️ Deleting staff:", selectedStaff.staffId);
+      
+      // Build query parameters
+      const params = new URLSearchParams({
+        rolesAssigned: selectedStaff.rolesAssigned,
+        profileId: selectedStaff.staffId,
+        firstName: selectedStaff.firstName,
+        lastName: selectedStaff.lastName
+      });
+      
+      const url = `https://localhost:7104/api/StaffDetail/DeleteRoleBasedProfile?${params.toString()}`;
+      console.log("🗑️ Delete URL:", url);
+      
+      const response = await fetch(url, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Delete API error response:", errorText);
+        throw new Error(`Failed to delete staff (${response.status}): ${errorText}`);
+      }
+      
+      console.log("✅ Staff deleted successfully");
+      setShowStaffDetailModal(false);
+      setSelectedStaff(null);
+      // Refresh staff list
+      await fetchStaffProfiles();
+    } catch (err) {
+      console.error("❌ Error deleting staff:", err);
+      setStaffDetailError(err.message || "Failed to delete staff");
+    } finally {
+      setStaffDetailLoading(false);
+    }
+  }
+
+  // Filter enterprises by search query
+  const filteredEnterprises = useMemo(() => {
+    const query = enterpriseSearchQuery.trim().toLowerCase();
+    if (!query) return enterprises;
+    return enterprises.filter(ent => 
+      (ent.enterpriseName || "").toLowerCase().includes(query)
+    );
+  }, [enterprises, enterpriseSearchQuery]);
+
+  // Load clinics for a specific enterprise
+  const loadClinicsForEnterprise_old = async (enterpriseId) => {
+    if (!enterpriseId || enterpriseId === 0) {
+      setListClinicsError("Please select an enterprise");
+      return;
+    }
+    
+    try {
+      setListClinicsLoading(true);
+      setListClinicsError("");
+      const response = await fetch(CLINIC_ENDPOINTS.list, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Unable to load clinics (${response.status})`);
+      }
+
+      const data = await response.json();
+      const allClinics = Array.isArray(data) ? data : data.data || [];
+      
+      // Filter clinics for the selected enterprise
+      const enterpriseClinics = allClinics.filter(
+        (clinic) => clinic.enterpriseId === enterpriseId || clinic.enterpriseID === enterpriseId
+      );
+      
+      setListClinicsData(enterpriseClinics);
+    } catch (err) {
+      setListClinicsError(err.message || "Failed to load clinics");
+    } finally {
+      setListClinicsLoading(false);
+    }
+  };
+
   // Initialize data on component mount
   useEffect(() => {
     fetchSuperAdmins();
+    fetchRoles();
   }, []);
+
+  // Reset to main page when navigating to SuperAdmin route
+  useEffect(() => {
+    // Reset activeCard to show main options whenever navigation occurs (using location.key)
+    // location.key changes even when clicking the same nav link
+    setActiveCard(null);
+    setError("");
+    setSuccess("");
+    setShowViewModal(false);
+  }, [location.key]);
+
+  // Refresh super admins list when view modal closes to show latest data
+  useEffect(() => {
+    if (!showViewModal) {
+      // Modal was just closed, refresh the list so updated data appears
+      fetchSuperAdmins();
+    }
+  }, [showViewModal]);
+
+  // Load enterprises when viewing clinics
+  useEffect(() => {
+    if (activeCard === "clinics") {
+      console.log("📋 View Clinics activated, loading enterprises...");
+      fetchEnterprises();
+    }
+  }, [activeCard]);
+
+  // Fetch clinics based on enterprise ID in staff form
+  useEffect(() => {
+    if (staffForm.enterpriseId) {
+      const fetchClinicsForEnterprise = async () => {
+        try {
+          const response = await fetch(CLINIC_ENDPOINTS.getByEnterpriseId(staffForm.enterpriseId), {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+            }
+          });
+
+          if (!response.ok) {
+            console.warn(`Unable to load clinics for enterprise ${staffForm.enterpriseId}`);
+            return;
+          }
+
+          const data = await response.json();
+          const fetchedClinics = Array.isArray(data) ? data : data.data || [];
+          setClinics(fetchedClinics);
+          console.log("✅ Clinics loaded for enterprise:", staffForm.enterpriseId, fetchedClinics);
+        } catch (err) {
+          console.error("❌ Error fetching clinics:", err);
+        }
+      };
+
+      fetchClinicsForEnterprise();
+    } else {
+      setClinics([]);
+    }
+  }, [staffForm.enterpriseId]);
 
   const activeAccent = activeCard === "onboard" ? "from-teal-500 to-emerald-500" : "from-indigo-500 to-purple-500";
 
@@ -392,25 +1544,101 @@ export default function SuperAdmin(){
       bgGradient: "from-blue-50 to-teal-50",
       options: [
         {
+          id: 'add-enterprise',
+          title: "➕ Add Enterprise",
+          description: "Create new enterprise",
+          icon: "➕",
+          color: "from-cyan-500 to-blue-500",
+          action: () => setShowCreateEnterpriseModal(true)
+        },
+        {
           id: 'view-enterprises',
-          title: "🏢 View Enterprises",
-          description: "Browse all enterprises",
-          icon: "🏢",
+          title: "🏢 Manage Enterprise",
+          description: "View and edit enterprises",
+          icon: "⚙️",
           color: "from-blue-500 to-cyan-500",
           action: () => {
             setActiveCard("enterprises");
             fetchEnterprises();
           }
+        }
+      ]
+    },
+    {
+      id: 'clinic-management',
+      title: "🏥 Clinic Management",
+      description: "Manage clinic locations and operations",
+      gradient: "from-emerald-500 via-teal-500 to-cyan-600",
+      bgGradient: "from-emerald-50 to-cyan-50",
+      options: [
+        {
+          id: 'add-clinic',
+          title: "➕ Add Clinic",
+          description: "Create new clinic location",
+          icon: "➕",
+          color: "from-emerald-400 to-teal-400",
+          action: () => {
+            console.log("🏥 Add Clinic clicked, loading enterprises...");
+            setShowCreateClinicModal(true);
+            setCreateClinicActiveTab("basic");
+            setClinicFormError("");
+            fetchEnterprises();
+          }
         },
         {
           id: 'view-clinics',
-          title: "🏥 View Clinics",
-          description: "Browse all clinics",
-          icon: "🏥",
-          color: "from-green-500 to-teal-500",
+          title: "🏥 Manage Clinics",
+          description: "View and edit clinic locations",
+          icon: "⚙️",
+          color: "from-teal-500 to-emerald-500",
           action: () => {
+            console.log("🏥 View Clinics clicked, loading enterprises...");
             setActiveCard("clinics");
+            setSelectedEnterpriseId(0);
+            setEnterpriseSearchQuery("");
+            setClinics([]);
+            fetchEnterprises();
+          }
+        }
+      ]
+    },
+    {
+      id: 'staff-onboarding',
+      title: "🔔 Recruit & Integrate",
+      description: "Onboard staff and manage roles (TeamHub parity)",
+      gradient: "from-purple-500 via-indigo-500 to-blue-500",
+      bgGradient: "from-purple-50 to-indigo-50",
+      options: [
+        {
+          id: 'onboard-staff',
+          title: "🎭 Onboard Staff",
+          description: "Add reception team members",
+          icon: "🔔",
+          color: "from-indigo-500 to-purple-500",
+          action: () => {
+            setShowOnboardStaffModal(true);
+            setStaffFormError("");
+            fetchEnterprises();
             fetchClinics();
+          }
+        },
+        {
+          id: 'view-staff',
+          title: "👁️ View Staff Details",
+          description: "Search and manage reception staff",
+          icon: "💬",
+          color: "from-blue-500 to-cyan-500",
+          action: () => {
+            setShowViewStaffModal(true);
+            setStaffListError("");
+            setStaffList([]);
+            setViewStaffFilters({
+              enterpriseId: "",
+              clinicId: "",
+              rolesAssigned: "",
+            });
+            fetchEnterprises();
+            fetchRoles();
           }
         }
       ]
@@ -852,12 +2080,6 @@ export default function SuperAdmin(){
                               View
                             </button>
                             <button
-                              onClick={() => handleEdit(admin)}
-                              className="px-3 py-2 rounded-lg bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-xs font-semibold shadow-sm hover:shadow-md"
-                            >
-                              Edit
-                            </button>
-                            <button
                               onClick={() => handleDelete(admin)}
                               className="px-3 py-2 rounded-lg bg-gradient-to-r from-rose-500 to-red-500 text-white text-xs font-semibold shadow-sm hover:shadow-md"
                             >
@@ -903,24 +2125,36 @@ export default function SuperAdmin(){
                   <table className="min-w-full text-sm">
                     <thead className="bg-slate-50 text-slate-700">
                       <tr>
-                        {["Enterprise ID", "Name", "Location", "Contact Phone", "Contact Email"].map((h) => (
+                        {["Enterprise ID", "Name", "Contact Email", "Contact Phone", "Status", "Actions"].map((h) => (
                           <th key={h} className="px-4 py-3 text-left font-semibold">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {enterpriseLoading ? (
-                        <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-500">Loading...</td></tr>
+                        <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">Loading...</td></tr>
                       ) : enterprises.length === 0 ? (
-                        <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-500">No enterprises found</td></tr>
+                        <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-500">No enterprises found</td></tr>
                       ) : (
                         enterprises.map((enterprise, idx) => (
                           <tr key={enterprise.enterpriseId || idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                             <td className="px-4 py-3 text-slate-800 font-semibold">{enterprise.enterpriseId}</td>
                             <td className="px-4 py-3 text-slate-800 font-semibold">{enterprise.enterpriseName}</td>
-                            <td className="px-4 py-3 text-slate-700">{enterprise.headquartersLocation}</td>
-                            <td className="px-4 py-3 text-slate-700">{enterprise.contactPhone}</td>
-                            <td className="px-4 py-3 text-slate-700">{enterprise.contactEmail}</td>
+                            <td className="px-4 py-3 text-slate-700">{enterprise.contactEmail || 'N/A'}</td>
+                            <td className="px-4 py-3 text-slate-700">{enterprise.contactPhone || 'N/A'}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${enterprise.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
+                                {enterprise.isActive ? "Active" : "Inactive"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => handleViewEnterprise(enterprise)}
+                                className="px-3 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs font-semibold shadow-sm hover:shadow-md"
+                              >
+                                View/Edit
+                              </button>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -947,39 +2181,103 @@ export default function SuperAdmin(){
                     <h2 className="text-2xl font-bold text-slate-800">View Clinics</h2>
                   </div>
                   <button
-                    onClick={fetchClinics}
+                    onClick={() => {
+                      setSelectedEnterpriseId(0);
+                      setEnterpriseSearchQuery("");
+                      setClinics([]);
+                      fetchEnterprises();
+                    }}
                     className="px-4 py-2 rounded-xl bg-gradient-to-r from-green-500 to-teal-500 text-white font-semibold shadow-md hover:shadow-lg"
                   >
                     Refresh
                   </button>
                 </div>
 
+                {success && (
+                  <div className="pointer-events-none fixed right-6 top-6 z-[60]">
+                    <div className="pointer-events-auto max-w-sm rounded-2xl bg-white/95 shadow-2xl border border-emerald-100 px-4 py-3 flex items-start gap-3">
+                      <div className="shrink-0 text-2xl">🎉</div>
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-800">Success</p>
+                        <p className="text-sm text-slate-700">{success}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {error && <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3">{error}</div>}
+
+                {/* Enterprise Selection */}
+                <div className="space-y-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                  <label className="block text-sm font-semibold text-slate-700">Select Enterprise</label>
+                  <select
+                    value={selectedEnterpriseId}
+                    onChange={(e) => {
+                      const entId = parseInt(e.target.value);
+                      setSelectedEnterpriseId(entId);
+                      if (entId > 0) {
+                        loadClinicsForEnterprise(entId);
+                      } else {
+                        setClinics([]);
+                      }
+                    }}
+                    className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-green-400 focus:border-transparent bg-white"
+                  >
+                    <option value={0}>-- Select an Enterprise --</option>
+                    {enterprises.map((ent) => (
+                      <option key={ent.enterpriseId} value={ent.enterpriseId}>
+                        {ent.enterpriseName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
                 <div className="overflow-x-auto border border-slate-100/80 rounded-2xl bg-white/95 shadow-sm backdrop-blur-sm">
                   <table className="min-w-full text-sm">
                     <thead className="bg-slate-50 text-slate-700">
                       <tr>
-                        {["Clinic ID", "Enterprise ID", "Name", "City", "Phone", "Email", "Hours"].map((h) => (
+                        {["Clinic ID", "Name", "Code", "City", "Phone", "Email", "Hours", "Status", "Actions"].map((h) => (
                           <th key={h} className="px-4 py-3 text-left font-semibold">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {clinicLoading ? (
-                        <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">Loading...</td></tr>
+                      {viewClinicsLoading ? (
+                        <tr><td colSpan={9} className="px-4 py-6 text-center text-slate-500">Loading clinics...</td></tr>
+                      ) : selectedEnterpriseId === 0 ? (
+                        <tr><td colSpan={9} className="px-4 py-6 text-center text-slate-500">Select an enterprise to view clinics</td></tr>
                       ) : clinics.length === 0 ? (
-                        <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">No clinics found</td></tr>
+                        <tr><td colSpan={9} className="px-4 py-6 text-center text-slate-500">No clinics found for this enterprise</td></tr>
                       ) : (
                         clinics.map((clinic, idx) => (
                           <tr key={clinic.clinicId || idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}>
                             <td className="px-4 py-3 text-slate-800 font-semibold">{clinic.clinicId}</td>
-                            <td className="px-4 py-3 text-slate-700">{clinic.enterpriseId}</td>
                             <td className="px-4 py-3 text-slate-800 font-semibold">{clinic.clinicName}</td>
-                            <td className="px-4 py-3 text-slate-700">{clinic.clinicCity}</td>
-                            <td className="px-4 py-3 text-slate-700">{clinic.clinicPhone}</td>
-                            <td className="px-4 py-3 text-slate-700">{clinic.clinicEmail}</td>
-                            <td className="px-4 py-3 text-slate-700">{clinic.operatingHours}</td>
+                            <td className="px-4 py-3 text-slate-700">{clinic.clinicCode || 'N/A'}</td>
+                            <td className="px-4 py-3 text-slate-700">{clinic.city || 'N/A'}</td>
+                            <td className="px-4 py-3 text-slate-700">{clinic.contactPhone || 'N/A'}</td>
+                            <td className="px-4 py-3 text-slate-700">{clinic.contactEmail || 'N/A'}</td>
+                            <td className="px-4 py-3 text-slate-700">{clinic.openingHours || 'N/A'}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${clinic.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
+                                {clinic.isActive ? "Active" : "Inactive"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                onClick={() => {
+                                  setViewingClinic(clinic);
+                                  setClinicEditData(clinic);
+                                  setClinicEditMode(false);
+                                  setShowViewClinicModal(true);
+                                  setClinicSaveError("");
+                                  setClinicSaveSuccess("");
+                                }}
+                                className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-xs font-semibold hover:shadow-lg transition-all"
+                              >
+                                View/Edit
+                              </button>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -987,6 +2285,836 @@ export default function SuperAdmin(){
                   </table>
                 </div>
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* View Staff Modal */}
+        <AnimatePresence>
+          {showViewStaffModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 flex items-center justify-center z-50 p-4"
+              style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="relative max-w-6xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              >
+                {/* Header */}
+                <div className="relative z-20 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-4xl">👁️</span>
+                      <div>
+                        <h2 className="text-2xl font-bold text-white">View Staff Details</h2>
+                        <p className="text-purple-100 text-sm">Search and filter staff members</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowViewStaffModal(false)}
+                      className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="relative z-10 flex-1 overflow-y-auto px-8 py-6 scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-slate-100">
+                  {staffListError && (
+                    <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 mb-4">
+                      {staffListError}
+                    </div>
+                  )}
+
+                  {/* Filter Form */}
+                  <div className="bg-slate-50 rounded-2xl p-6 mb-6">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                      <span>🔍</span> Search Filters
+                    </h3>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                      {/* Enterprise (Required) */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Enterprise <span className="text-rose-500">*</span>
+                        </label>
+                        <select
+                          value={viewStaffFilters.enterpriseId}
+                          onChange={(e) => {
+                            setViewStaffFilters({
+                              ...viewStaffFilters,
+                              enterpriseId: e.target.value,
+                              clinicId: ""
+                            });
+                            if (e.target.value) {
+                              loadClinicsForEnterprise(parseInt(e.target.value));
+                            } else {
+                              setClinics([]);
+                            }
+                          }}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                        >
+                          <option value="">-- Select Enterprise --</option>
+                          {enterprises.map((ent) => (
+                            <option key={ent.enterpriseId} value={ent.enterpriseId}>
+                              {ent.enterpriseName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Clinic (Required) */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Clinic <span className="text-rose-500">*</span>
+                        </label>
+                        <select
+                          value={viewStaffFilters.clinicId}
+                          onChange={(e) =>
+                            setViewStaffFilters({ ...viewStaffFilters, clinicId: e.target.value })
+                          }
+                          disabled={!viewStaffFilters.enterpriseId}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent disabled:bg-slate-100 disabled:cursor-not-allowed"
+                        >
+                          <option value="">-- Select Clinic --</option>
+                          {clinics.map((clinic) => (
+                            <option key={clinic.clinicId} value={clinic.clinicId}>
+                              {clinic.clinicName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Role (Optional) */}
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Role <span className="text-slate-400 text-xs">(optional)</span>
+                        </label>
+                        <select
+                          value={viewStaffFilters.rolesAssigned}
+                          onChange={(e) =>
+                            setViewStaffFilters({ ...viewStaffFilters, rolesAssigned: e.target.value })
+                          }
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                        >
+                          <option value="">-- Select Role --</option>
+                          {roles.map((roleName) => (
+                            <option key={roleName} value={roleName}>
+                              {roleName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Optional filters removed as requested */}
+
+                    {/* Search Button */}
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        onClick={fetchStaffProfiles}
+                        disabled={staffListLoading}
+                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all"
+                      >
+                        {staffListLoading ? "Searching..." : "🔍 Search Staff"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Staff Results */}
+                  {staffList.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-6 py-4 border-b border-slate-200">
+                        <h3 className="text-lg font-bold text-slate-800">
+                          📋 Staff Members ({staffList.length})
+                        </h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Profile ID</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Name</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Email</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Phone</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Role</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {staffList.map((staff, idx) => (
+                              <tr 
+                                key={staff.staffId || idx} 
+                                onClick={() => handleViewStaffDetail(staff)}
+                                className="hover:bg-indigo-50 transition-colors cursor-pointer"
+                              >
+                                <td className="px-6 py-4 text-sm text-slate-700">{staff.staffId || "N/A"}</td>
+                                <td className="px-6 py-4 text-sm font-medium text-slate-900">
+                                  {staff.firstName} {staff.lastName}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-slate-700">{staff.email || "N/A"}</td>
+                                <td className="px-6 py-4 text-sm text-slate-700">{staff.phone || "N/A"}</td>
+                                <td className="px-6 py-4 text-sm text-slate-700">{staff.rolesAssigned || "N/A"}</td>
+                                <td className="px-6 py-4">
+                                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                    staff.employmentStatus === "Active" 
+                                      ? "bg-emerald-100 text-emerald-700" 
+                                      : "bg-slate-100 text-slate-700"
+                                  }`}>
+                                    {staff.employmentStatus || "Unknown"}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {staffList.length === 0 && !staffListLoading && !staffListError && (
+                    <div className="text-center py-12 text-slate-500">
+                      <span className="text-4xl mb-2 block">🔍</span>
+                      <p className="text-lg">Enter search criteria above to find staff members</p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Staff Detail Modal */}
+        <AnimatePresence>
+          {showStaffDetailModal && selectedStaff && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 flex items-center justify-center z-50 p-4"
+              style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="relative max-w-2xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              >
+                {/* Header */}
+                <div className="relative z-20 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="text-4xl">👤</span>
+                      <div>
+                        <h2 className="text-2xl font-bold text-white">{selectedStaff.firstName} {selectedStaff.lastName}</h2>
+                        <p className="text-purple-100 text-sm">{selectedStaff.rolesAssigned || "No Role"}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowStaffDetailModal(false)}
+                      className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="relative z-10 flex-1 overflow-y-auto px-8 py-6 scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-slate-100">
+                  {staffDetailError && (
+                    <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 mb-4">
+                      {staffDetailError}
+                    </div>
+                  )}
+
+                  {/* View Mode - Profile Info */}
+                  {!isEditingStaff && (
+                    <div className="bg-slate-50 rounded-2xl p-6 mb-6">
+                      <h3 className="text-lg font-bold text-slate-800 mb-4">📋 Profile Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-600 uppercase">Profile ID</label>
+                          <p className="text-sm text-slate-900 font-medium">{selectedStaff.staffId || "N/A"}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-600 uppercase">Role</label>
+                          <p className="text-sm text-slate-900 font-medium">{selectedStaff.rolesAssigned || "N/A"}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-600 uppercase">Email</label>
+                          <p className="text-sm text-slate-900 font-medium">{selectedStaff.email || "N/A"}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-600 uppercase">Phone</label>
+                          <p className="text-sm text-slate-900 font-medium">{selectedStaff.phone || "N/A"}</p>
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-600 uppercase">Employment Status</label>
+                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                            selectedStaff.employmentStatus === "Active" || selectedStaff.employmentStatus === "Full-time"
+                              ? "bg-emerald-100 text-emerald-700" 
+                              : "bg-slate-100 text-slate-700"
+                          }`}>
+                            {selectedStaff.employmentStatus || "Unknown"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Edit Mode - Form */}
+                  {isEditingStaff && editStaffForm && (
+                    <div className="space-y-6">
+                      {/* Personal Information */}
+                      <div className="bg-slate-50 rounded-2xl p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">👤 Personal Information</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">First Name</label>
+                            <input type="text" value={editStaffForm.firstName} onChange={(e) => setEditStaffForm({...editStaffForm, firstName: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Last Name</label>
+                            <input type="text" value={editStaffForm.lastName} onChange={(e) => setEditStaffForm({...editStaffForm, lastName: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Gender</label>
+                            <select value={editStaffForm.gender} onChange={(e) => setEditStaffForm({...editStaffForm, gender: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent">
+                              <option value="">-- Select --</option>
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Date of Birth</label>
+                            <input type="date" value={editStaffForm.dateOfBirth} onChange={(e) => setEditStaffForm({...editStaffForm, dateOfBirth: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Contact Information */}
+                      <div className="bg-slate-50 rounded-2xl p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">📞 Contact Information</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
+                            <input type="email" value={editStaffForm.email} onChange={(e) => setEditStaffForm({...editStaffForm, email: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Phone</label>
+                            <input type="tel" value={editStaffForm.phone} onChange={(e) => setEditStaffForm({...editStaffForm, phone: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Address</label>
+                            <input type="text" value={editStaffForm.address} onChange={(e) => setEditStaffForm({...editStaffForm, address: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Emergency Contact</label>
+                            <input type="text" value={editStaffForm.emergencyContact} onChange={(e) => setEditStaffForm({...editStaffForm, emergencyContact: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Professional Information */}
+                      <div className="bg-slate-50 rounded-2xl p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">💼 Professional Information</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Years of Experience</label>
+                            <input type="number" value={editStaffForm.yearsExperience} onChange={(e) => setEditStaffForm({...editStaffForm, yearsExperience: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Education</label>
+                            <input type="text" value={editStaffForm.education} onChange={(e) => setEditStaffForm({...editStaffForm, education: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Certifications</label>
+                            <input type="text" value={editStaffForm.certifications} onChange={(e) => setEditStaffForm({...editStaffForm, certifications: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Languages</label>
+                            <input type="text" value={editStaffForm.languages} onChange={(e) => setEditStaffForm({...editStaffForm, languages: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          
+                          {/* Clinical fields - only for Doctor and Nurse */}
+                          {(selectedStaff.rolesAssigned?.toLowerCase() === 'doctor' || selectedStaff.rolesAssigned?.toLowerCase() === 'nurse') && (
+                            <>
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1">License Number</label>
+                                <input type="text" value={editStaffForm.licenseNumber} onChange={(e) => setEditStaffForm({...editStaffForm, licenseNumber: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1">License Expiry</label>
+                                <input type="date" value={editStaffForm.licenseExpiry} onChange={(e) => setEditStaffForm({...editStaffForm, licenseExpiry: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-1">Specialty ID</label>
+                                <input type="text" value={editStaffForm.specialtyId} onChange={(e) => setEditStaffForm({...editStaffForm, specialtyId: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Employment Details */}
+                      <div className="bg-slate-50 rounded-2xl p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">📋 Employment Details</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Joining Date</label>
+                            <input type="date" value={editStaffForm.joiningDate} onChange={(e) => setEditStaffForm({...editStaffForm, joiningDate: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Employment Status</label>
+                            <select value={editStaffForm.employmentStatus} onChange={(e) => setEditStaffForm({...editStaffForm, employmentStatus: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent">
+                              <option value="Active">Active</option>
+                              <option value="Full-time">Full-time</option>
+                              <option value="Part-time">Part-time</option>
+                              <option value="Inactive">Inactive</option>
+                              <option value="On Leave">On Leave</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Availability</label>
+                            <input type="text" value={editStaffForm.availability} onChange={(e) => setEditStaffForm({...editStaffForm, availability: e.target.value})} placeholder="e.g., Mon-Fri 9-5" className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Insurance Details</label>
+                            <input type="text" value={editStaffForm.insuranceDetails} onChange={(e) => setEditStaffForm({...editStaffForm, insuranceDetails: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Additional Information */}
+                      <div className="bg-slate-50 rounded-2xl p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-4">✨ Additional Information</h3>
+                        <div className="grid grid-cols-1 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Bio</label>
+                            <textarea value={editStaffForm.bio} onChange={(e) => setEditStaffForm({...editStaffForm, bio: e.target.value})} rows="3" className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Profile Photo URL</label>
+                            <input type="text" value={editStaffForm.profilePhotoUrl} onChange={(e) => setEditStaffForm({...editStaffForm, profilePhotoUrl: e.target.value})} className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Achievements</label>
+                            <textarea value={editStaffForm.achievements} onChange={(e) => setEditStaffForm({...editStaffForm, achievements: e.target.value})} rows="2" className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Publications</label>
+                            <textarea value={editStaffForm.publications} onChange={(e) => setEditStaffForm({...editStaffForm, publications: e.target.value})} rows="2" className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Social Links</label>
+                            <input type="text" value={editStaffForm.socialLinks} onChange={(e) => setEditStaffForm({...editStaffForm, socialLinks: e.target.value})} placeholder="LinkedIn, Twitter, etc." className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => isEditingStaff ? handleCancelEdit() : setShowStaffDetailModal(false)}
+                      className="px-6 py-3 rounded-xl bg-slate-200 text-slate-800 font-semibold hover:bg-slate-300 transition-colors"
+                    >
+                      {isEditingStaff ? "Cancel" : "Close"}
+                    </button>
+                    {!isEditingStaff && (
+                      <>
+                        <button
+                          onClick={handleEditStaff}
+                          disabled={staffDetailLoading}
+                          className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all"
+                        >
+                          ✏️ {staffDetailLoading ? "Processing..." : "Edit"}
+                        </button>
+                        <button
+                          onClick={handleDeleteStaff}
+                          disabled={staffDetailLoading}
+                          className="px-6 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all"
+                        >
+                          🗑️ {staffDetailLoading ? "Processing..." : "Delete"}
+                        </button>
+                      </>
+                    )}
+                    {isEditingStaff && (
+                      <button
+                        onClick={handleSaveEditStaff}
+                        disabled={staffDetailLoading}
+                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all"
+                      >
+                        💾 {staffDetailLoading ? "Saving..." : "Save"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* View/Edit Clinic Modal */}
+        <AnimatePresence>
+          {showViewClinicModal && viewingClinic && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => {
+                if (!clinicEditMode) {
+                  setShowViewClinicModal(false);
+                  setClinicSaveError("");
+                  setClinicSaveSuccess("");
+                }
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-500/10" />
+                
+                {/* Header */}
+                <div className="relative z-10 px-8 pt-6 pb-4 border-b border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                        <span>🏥</span> {clinicEditMode ? "Edit Clinic" : "Clinic Details"}
+                      </h2>
+                      <p className="text-sm text-slate-600 mt-1">{viewingClinic.clinicName}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowViewClinicModal(false);
+                        setClinicEditMode(false);
+                        setClinicSaveError("");
+                        setClinicSaveSuccess("");
+                      }}
+                      className="text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="relative z-10 flex-1 overflow-y-auto px-8 py-6 scrollbar-thin scrollbar-thumb-emerald-400 scrollbar-track-slate-100">
+                  {clinicSaveError && (
+                    <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 mb-4">
+                      {clinicSaveError}
+                    </div>
+                  )}
+                  {clinicSaveSuccess && (
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 mb-4">
+                      {clinicSaveSuccess}
+                    </div>
+                  )}
+
+                  <div className="space-y-6">
+                    {/* Basic Info */}
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 mb-3">📋 Basic Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">Clinic Name</label>
+                          {clinicEditMode ? (
+                            <input
+                              type="text"
+                              value={clinicEditData?.clinicName || ""}
+                              onChange={(e) => setClinicEditData({...clinicEditData, clinicName: e.target.value})}
+                              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                            />
+                          ) : (
+                            <p className="text-slate-900">{viewingClinic.clinicName || "N/A"}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">Clinic Code</label>
+                          {clinicEditMode ? (
+                            <input
+                              type="text"
+                              value={clinicEditData?.clinicCode || ""}
+                              onChange={(e) => setClinicEditData({...clinicEditData, clinicCode: e.target.value})}
+                              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                            />
+                          ) : (
+                            <p className="text-slate-900">{viewingClinic.clinicCode || "N/A"}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contact Info */}
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 mb-3">📞 Contact Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
+                          {clinicEditMode ? (
+                            <input
+                              type="email"
+                              value={clinicEditData?.contactEmail || ""}
+                              onChange={(e) => setClinicEditData({...clinicEditData, contactEmail: e.target.value})}
+                              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                            />
+                          ) : (
+                            <p className="text-slate-900">{viewingClinic.contactEmail || "N/A"}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">Phone</label>
+                          {clinicEditMode ? (
+                            <input
+                              type="tel"
+                              value={clinicEditData?.contactPhone || ""}
+                              onChange={(e) => setClinicEditData({...clinicEditData, contactPhone: e.target.value})}
+                              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                            />
+                          ) : (
+                            <p className="text-slate-900">{viewingClinic.contactPhone || "N/A"}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Address */}
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 mb-3">📍 Address</h3>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">Address Line 1</label>
+                          {clinicEditMode ? (
+                            <input
+                              type="text"
+                              value={clinicEditData?.addressLine1 || ""}
+                              onChange={(e) => setClinicEditData({...clinicEditData, addressLine1: e.target.value})}
+                              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                            />
+                          ) : (
+                            <p className="text-slate-900">{viewingClinic.addressLine1 || "N/A"}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">Address Line 2</label>
+                          {clinicEditMode ? (
+                            <input
+                              type="text"
+                              value={clinicEditData?.addressLine2 || ""}
+                              onChange={(e) => setClinicEditData({...clinicEditData, addressLine2: e.target.value})}
+                              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                            />
+                          ) : (
+                            <p className="text-slate-900">{viewingClinic.addressLine2 || "N/A"}</p>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">City</label>
+                            {clinicEditMode ? (
+                              <input
+                                type="text"
+                                value={clinicEditData?.city || ""}
+                                onChange={(e) => setClinicEditData({...clinicEditData, city: e.target.value})}
+                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                              />
+                            ) : (
+                              <p className="text-slate-900">{viewingClinic.city || "N/A"}</p>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">State</label>
+                            {clinicEditMode ? (
+                              <input
+                                type="text"
+                                value={clinicEditData?.state || ""}
+                                onChange={(e) => setClinicEditData({...clinicEditData, state: e.target.value})}
+                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                              />
+                            ) : (
+                              <p className="text-slate-900">{viewingClinic.state || "N/A"}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Country</label>
+                            {clinicEditMode ? (
+                              <input
+                                type="text"
+                                value={clinicEditData?.country || ""}
+                                onChange={(e) => setClinicEditData({...clinicEditData, country: e.target.value})}
+                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                              />
+                            ) : (
+                              <p className="text-slate-900">{viewingClinic.country || "N/A"}</p>
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Postal Code</label>
+                            {clinicEditMode ? (
+                              <input
+                                type="text"
+                                value={clinicEditData?.postalCode || ""}
+                                onChange={(e) => setClinicEditData({...clinicEditData, postalCode: e.target.value})}
+                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                              />
+                            ) : (
+                              <p className="text-slate-900">{viewingClinic.postalCode || "N/A"}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Operating Hours */}
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 mb-3">🕐 Operating Hours</h3>
+                      {clinicEditMode ? (
+                        <textarea
+                          value={clinicEditData?.openingHours || ""}
+                          onChange={(e) => setClinicEditData({...clinicEditData, openingHours: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 resize-none"
+                          rows="6"
+                        />
+                      ) : (
+                        <pre className="text-slate-900 whitespace-pre-wrap font-sans">{viewingClinic.openingHours || "N/A"}</pre>
+                      )}
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-800 mb-3">⚙️ Settings</h3>
+                      {clinicEditMode ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="editClinicIsActive"
+                            checked={clinicEditData?.isActive ?? true}
+                            onChange={(e) => setClinicEditData({...clinicEditData, isActive: e.target.checked})}
+                            className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-400"
+                          />
+                          <label htmlFor="editClinicIsActive" className="text-sm font-semibold text-slate-700">
+                            Clinic is Active
+                          </label>
+                        </div>
+                      ) : (
+                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${viewingClinic.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}>
+                          {viewingClinic.isActive ? "Active" : "Inactive"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="relative z-10 px-8 py-4 border-t border-slate-200 bg-white">
+                  <div className="flex gap-3 justify-end">
+                    {clinicEditMode ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            setClinicEditMode(false);
+                            setClinicEditData(viewingClinic);
+                            setClinicSaveError("");
+                          }}
+                          className="px-4 py-2 rounded-xl border-2 border-slate-300 text-slate-700 font-semibold hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={saveClinicEdits}
+                          disabled={clinicSaveLoading}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                        >
+                          {clinicSaveLoading ? "Saving..." : "💾 Save Changes"}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleDeleteClinic(viewingClinic)}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white font-semibold hover:shadow-lg transition-all"
+                        >
+                          🗑️ Delete
+                        </button>
+                        <button
+                          onClick={() => setClinicEditMode(true)}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold hover:shadow-lg transition-all"
+                        >
+                          ✏️ Edit
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Delete Clinic Confirmation Modal */}
+        <AnimatePresence>
+          {showDeleteClinicModal && clinicToDelete && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => !deletingClinic && setShowDeleteClinicModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8"
+              >
+                <div className="text-center">
+                  <div className="mx-auto w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mb-4">
+                    <span className="text-3xl">🗑️</span>
+                  </div>
+                  <h3 className="text-2xl font-bold text-slate-900 mb-2">Delete Clinic?</h3>
+                  <p className="text-slate-600 mb-6">
+                    Are you sure you want to delete <span className="font-semibold">{clinicToDelete.clinicName}</span>? This action cannot be undone.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowDeleteClinicModal(false)}
+                      disabled={deletingClinic}
+                      className="flex-1 px-4 py-2 rounded-xl border-2 border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmDeleteClinic}
+                      disabled={deletingClinic}
+                      className="flex-1 px-4 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+                    >
+                      {deletingClinic ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1006,10 +3134,10 @@ export default function SuperAdmin(){
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.9, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-8 relative overflow-hidden"
+                className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col relative overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10" />
-                <div className="relative z-10">
+                <div className="relative z-10 p-8 flex flex-col h-full overflow-hidden">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 text-white flex items-center justify-center text-2xl shadow-lg">👤</div>
@@ -1028,67 +3156,175 @@ export default function SuperAdmin(){
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Email</p>
-                      <p className="text-slate-800">{viewingAdmin.email}</p>
+                  {/* Edit toggle and messages */}
+                  <div className="flex-1 overflow-y-auto space-y-4 pr-4 scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-slate-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex gap-2">
+                      {viewSaveError && (
+                        <div className="px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm">{viewSaveError}</div>
+                      )}
+                      {viewSaveSuccess && (
+                        <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">{viewSaveSuccess}</div>
+                      )}
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Phone</p>
-                      <p className="text-slate-800">{viewingAdmin.phone || 'N/A'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Gender</p>
-                      <p className="text-slate-800">{viewingAdmin.gender || 'N/A'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Date of Birth</p>
-                      <p className="text-slate-800">{viewingAdmin.dateOfBirth ? toInputDate(viewingAdmin.dateOfBirth) : 'N/A'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Years of Experience</p>
-                      <p className="text-slate-800">{viewingAdmin.yearsExperience || 0} years</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Joining Date</p>
-                      <p className="text-slate-800">{viewingAdmin.joiningDate ? toInputDate(viewingAdmin.joiningDate) : 'N/A'}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Employment Status</p>
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                        viewingAdmin.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        {viewingAdmin.employmentStatus || (viewingAdmin.isActive ? 'Active' : 'Inactive')}
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Education</p>
-                      <p className="text-slate-800">{viewingAdmin.education || 'N/A'}</p>
-                    </div>
-                    <div className="space-y-1 md:col-span-2">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Languages</p>
-                      <p className="text-slate-800">{viewingAdmin.languages || 'N/A'}</p>
-                    </div>
-                    <div className="space-y-1 md:col-span-2">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Availability</p>
-                      <p className="text-slate-800">{viewingAdmin.availability || 'N/A'}</p>
-                    </div>
-                    <div className="space-y-1 md:col-span-2">
-                      <p className="text-xs font-semibold text-slate-500 uppercase">Address</p>
-                      <p className="text-slate-800">{viewingAdmin.address || 'N/A'}</p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 flex gap-3">
                     <button
                       onClick={() => {
-                        setShowViewModal(false);
-                        handleEdit(viewingAdmin);
+                        if (viewEditMode) {
+                          // cancel
+                          setViewEditMode(false);
+                          setViewEditData({
+                            adminId: viewingAdmin.adminId || "",
+                            firstName: viewingAdmin.firstName || "",
+                            lastName: viewingAdmin.lastName || "",
+                            email: viewingAdmin.email || "",
+                            phone: viewingAdmin.phone || "",
+                            dateOfBirth: viewingAdmin.dateOfBirth ? toInputDate(viewingAdmin.dateOfBirth) : "",
+                            gender: viewingAdmin.gender || "",
+                            address: viewingAdmin.address || "",
+                            education: viewingAdmin.education || "",
+                            languages: viewingAdmin.languages || "",
+                            yearsExperience: viewingAdmin.yearsExperience ?? "",
+                            joiningDate: viewingAdmin.joiningDate ? toInputDate(viewingAdmin.joiningDate) : "",
+                            employmentStatus: viewingAdmin.employmentStatus || (viewingAdmin.isActive ? "Active" : "Inactive"),
+                            availability: viewingAdmin.availability || "",
+                            isActive: viewingAdmin.isActive !== undefined ? !!viewingAdmin.isActive : true
+                          });
+                        } else {
+                          setViewEditMode(true);
+                        }
                       }}
-                      className="px-5 py-3 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-semibold shadow-lg hover:shadow-xl"
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold ${viewEditMode ? 'bg-slate-100 text-slate-700 border border-slate-300' : 'bg-indigo-600 text-white'} hover:opacity-90`}
                     >
-                      Edit Details
+                      {viewEditMode ? 'Cancel Edit' : 'Edit'}
                     </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Email */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Email</p>
+                      {viewEditMode ? (
+                        <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.email} onChange={(e)=>setViewEditData({...viewEditData,email:e.target.value})} />
+                      ) : (
+                        <p className="text-slate-800">{viewingAdmin.email}</p>
+                      )}
+                    </div>
+                    {/* Phone */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Phone</p>
+                      {viewEditMode ? (
+                        <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.phone} onChange={(e)=>setViewEditData({...viewEditData,phone:e.target.value})} />
+                      ) : (
+                        <p className="text-slate-800">{viewingAdmin.phone || 'N/A'}</p>
+                      )}
+                    </div>
+                    {/* Gender */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Gender</p>
+                      {viewEditMode ? (
+                        <select className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.gender} onChange={(e)=>setViewEditData({...viewEditData,gender:e.target.value})}>
+                          <option value="">Select</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      ) : (
+                        <p className="text-slate-800">{viewingAdmin.gender || 'N/A'}</p>
+                      )}
+                    </div>
+                    {/* DOB */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Date of Birth</p>
+                      {viewEditMode ? (
+                        <input type="date" className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.dateOfBirth} onChange={(e)=>setViewEditData({...viewEditData,dateOfBirth:e.target.value})} />
+                      ) : (
+                        <p className="text-slate-800">{viewingAdmin.dateOfBirth ? toInputDate(viewingAdmin.dateOfBirth) : 'N/A'}</p>
+                      )}
+                    </div>
+                    {/* Experience */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Years of Experience</p>
+                      {viewEditMode ? (
+                        <input type="number" min="0" className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.yearsExperience} onChange={(e)=>setViewEditData({...viewEditData,yearsExperience:e.target.value})} />
+                      ) : (
+                        <p className="text-slate-800">{viewingAdmin.yearsExperience || 0} years</p>
+                      )}
+                    </div>
+                    {/* Joining Date */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Joining Date</p>
+                      {viewEditMode ? (
+                        <input type="date" className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.joiningDate} onChange={(e)=>setViewEditData({...viewEditData,joiningDate:e.target.value})} />
+                      ) : (
+                        <p className="text-slate-800">{viewingAdmin.joiningDate ? toInputDate(viewingAdmin.joiningDate) : 'N/A'}</p>
+                      )}
+                    </div>
+                    {/* Employment Status */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Employment Status</p>
+                      {viewEditMode ? (
+                        <select className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.employmentStatus} onChange={(e)=>setViewEditData({...viewEditData,employmentStatus:e.target.value})}>
+                          <option value="Active">Active</option>
+                          <option value="Inactive">Inactive</option>
+                        </select>
+                      ) : (
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                          viewingAdmin.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {viewingAdmin.employmentStatus || (viewingAdmin.isActive ? 'Active' : 'Inactive')}
+                        </span>
+                      )}
+                    </div>
+                    {/* Education */}
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Education</p>
+                      {viewEditMode ? (
+                        <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.education} onChange={(e)=>setViewEditData({...viewEditData,education:e.target.value})} />
+                      ) : (
+                        <p className="text-slate-800">{viewingAdmin.education || 'N/A'}</p>
+                      )}
+                    </div>
+                    {/* Languages */}
+                    <div className="space-y-1 md:col-span-2">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Languages</p>
+                      {viewEditMode ? (
+                        <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.languages} onChange={(e)=>setViewEditData({...viewEditData,languages:e.target.value})} />
+                      ) : (
+                        <p className="text-slate-800">{viewingAdmin.languages || 'N/A'}</p>
+                      )}
+                    </div>
+                    {/* Availability */}
+                    <div className="space-y-1 md:col-span-2">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Availability</p>
+                      {viewEditMode ? (
+                        <textarea className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.availability} onChange={(e)=>setViewEditData({...viewEditData,availability:e.target.value})} />
+                      ) : (
+                        <p className="text-slate-800">{viewingAdmin.availability || 'N/A'}</p>
+                      )}
+                    </div>
+                    {/* Address */}
+                    <div className="space-y-1 md:col-span-2">
+                      <p className="text-xs font-semibold text-slate-500 uppercase">Address</p>
+                      {viewEditMode ? (
+                        <textarea className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.address} onChange={(e)=>setViewEditData({...viewEditData,address:e.target.value})} />
+                      ) : (
+                        <p className="text-slate-800">{viewingAdmin.address || 'N/A'}</p>
+                      )}
+                    </div>
+                  </div>
+                  </div>
+
+                  {/* Sticky Footer */}
+                  <div className="mt-6 flex gap-3 flex-shrink-0 border-t border-slate-200 pt-4">
+                    {viewEditMode ? (
+                      <button
+                        onClick={saveViewEdits}
+                        disabled={viewSaveLoading}
+                        className="px-5 py-3 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60"
+                      >
+                        {viewSaveLoading ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    ) : null}
                     <button
                       onClick={() => setShowViewModal(false)}
                       className="px-5 py-3 rounded-xl border border-slate-200 text-slate-700 bg-white hover:border-slate-300 font-semibold"
@@ -1315,6 +3551,1778 @@ export default function SuperAdmin(){
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Create Enterprise Modal */}
+        <AnimatePresence>
+          {showCreateEnterpriseModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => {
+                setShowCreateEnterpriseModal(false);
+                setCreateEnterpriseActiveTab("basic");
+                setEnterpriseForm({
+                  enterpriseName: "",
+                  registrationNumber: "",
+                  contactEmail: "",
+                  contactPhone: "",
+                  addressLine1: "",
+                  addressLine2: "",
+                  city: "",
+                  state: "",
+                  country: "",
+                  postalCode: "",
+                  isActive: true
+                });
+                setError("");
+                setSuccess("");
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-blue-500/10" />
+                
+                {/* Header */}
+                <div className="relative z-10 px-8 pt-6 pb-4 border-b border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900">Create Enterprise</h2>
+                      <p className="text-sm text-slate-600 mt-1">Add a new enterprise to the system</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowCreateEnterpriseModal(false);
+                        setCreateEnterpriseActiveTab("basic");
+                        setEnterpriseForm({
+                          enterpriseName: "",
+                          registrationNumber: "",
+                          contactEmail: "",
+                          contactPhone: "",
+                          addressLine1: "",
+                          addressLine2: "",
+                          city: "",
+                          state: "",
+                          country: "",
+                          postalCode: "",
+                          isActive: true
+                        });
+                        setError("");
+                        setSuccess("");
+                      }}
+                      className="text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  {/* Tabs */}
+                  <div className="flex gap-2 mt-4">
+                    <button
+                      onClick={() => setCreateEnterpriseActiveTab("basic")}
+                      className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                        createEnterpriseActiveTab === "basic"
+                          ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-md"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      Basic Info
+                    </button>
+                    <button
+                      onClick={() => setCreateEnterpriseActiveTab("contact")}
+                      className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                        createEnterpriseActiveTab === "contact"
+                          ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-md"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      Contact
+                    </button>
+                    <button
+                      onClick={() => setCreateEnterpriseActiveTab("address")}
+                      className={`px-4 py-2 rounded-lg font-semibold transition-all ${
+                        createEnterpriseActiveTab === "address"
+                          ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-md"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      Address
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="relative z-10 flex-1 overflow-y-auto px-8 py-6 scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-slate-100">
+                  {error && (
+                    <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 mb-4">
+                      {error}
+                    </div>
+                  )}
+                  {success && (
+                    <div className="rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 mb-4">
+                      {success}
+                    </div>
+                  )}
+
+                  {/* Basic Info Tab */}
+                  {createEnterpriseActiveTab === "basic" && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Enterprise Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={enterpriseForm.enterpriseName}
+                          onChange={(e) => setEnterpriseForm({...enterpriseForm, enterpriseName: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                          placeholder="Enter enterprise name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Registration Number
+                        </label>
+                        <input
+                          type="text"
+                          value={enterpriseForm.registrationNumber}
+                          onChange={(e) => setEnterpriseForm({...enterpriseForm, registrationNumber: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                          placeholder="Enter registration number"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="createEnterpriseIsActive"
+                          checked={enterpriseForm.isActive}
+                          onChange={(e) => setEnterpriseForm({...enterpriseForm, isActive: e.target.checked})}
+                          className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-400"
+                        />
+                        <label htmlFor="createEnterpriseIsActive" className="text-sm font-semibold text-slate-700">
+                          Active
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contact Tab */}
+                  {createEnterpriseActiveTab === "contact" && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Contact Email *
+                        </label>
+                        <input
+                          type="email"
+                          value={enterpriseForm.contactEmail}
+                          onChange={(e) => setEnterpriseForm({...enterpriseForm, contactEmail: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                          placeholder="contact@enterprise.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Contact Phone
+                        </label>
+                        <input
+                          type="tel"
+                          value={enterpriseForm.contactPhone}
+                          onChange={(e) => setEnterpriseForm({...enterpriseForm, contactPhone: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                          placeholder="+1 (555) 123-4567"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Address Tab */}
+                  {createEnterpriseActiveTab === "address" && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Address Line 1
+                        </label>
+                        <input
+                          type="text"
+                          value={enterpriseForm.addressLine1}
+                          onChange={(e) => setEnterpriseForm({...enterpriseForm, addressLine1: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                          placeholder="Street address"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Address Line 2
+                        </label>
+                        <input
+                          type="text"
+                          value={enterpriseForm.addressLine2}
+                          onChange={(e) => setEnterpriseForm({...enterpriseForm, addressLine2: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                          placeholder="Apartment, suite, unit, etc. (optional)"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">
+                            City
+                          </label>
+                          <input
+                            type="text"
+                            value={enterpriseForm.city}
+                            onChange={(e) => setEnterpriseForm({...enterpriseForm, city: e.target.value})}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                            placeholder="City"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">
+                            State
+                          </label>
+                          <input
+                            type="text"
+                            value={enterpriseForm.state}
+                            onChange={(e) => setEnterpriseForm({...enterpriseForm, state: e.target.value})}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                            placeholder="State"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">
+                            Country
+                          </label>
+                          <input
+                            type="text"
+                            value={enterpriseForm.country}
+                            onChange={(e) => setEnterpriseForm({...enterpriseForm, country: e.target.value})}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                            placeholder="Country"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">
+                            Postal Code
+                          </label>
+                          <input
+                            type="text"
+                            value={enterpriseForm.postalCode}
+                            onChange={(e) => setEnterpriseForm({...enterpriseForm, postalCode: e.target.value})}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
+                            placeholder="ZIP/Postal code"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer with Actions */}
+                <div className="relative z-10 px-8 py-4 border-t border-slate-200 bg-white">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={async () => {
+                        setError("");
+                        setSuccess("");
+
+                        if (!enterpriseForm.enterpriseName || !enterpriseForm.contactEmail) {
+                          setError("Enterprise name and contact email are required");
+                          return;
+                        }
+
+                        try {
+                          setEnterpriseFormLoading(true);
+                          const now = new Date().toISOString();
+                          const payload = {
+                            EnterpriseName: enterpriseForm.enterpriseName,
+                            RegistrationNumber: enterpriseForm.registrationNumber,
+                            ContactEmail: enterpriseForm.contactEmail,
+                            ContactPhone: enterpriseForm.contactPhone,
+                            AddressLine1: enterpriseForm.addressLine1,
+                            AddressLine2: enterpriseForm.addressLine2,
+                            City: enterpriseForm.city,
+                            State: enterpriseForm.state,
+                            Country: enterpriseForm.country,
+                            PostalCode: enterpriseForm.postalCode,
+                            IsActive: !!enterpriseForm.isActive,
+                            CreatedAt: now,
+                            UpdatedAt: now
+                          };
+
+                          const response = await fetch(ENTERPRISE_ENDPOINTS.create, {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+                            },
+                            body: JSON.stringify(payload)
+                          });
+
+                          if (!response.ok && response.status !== 200 && response.status !== 201 && response.status !== 204) {
+                            const message = await response.text();
+                            throw new Error(message || "Unable to create enterprise");
+                          }
+
+                          console.log("✅ Enterprise created successfully");
+                          setSuccess("Enterprise created successfully!");
+                          setError(""); // Clear any previous errors
+                          
+                          // Refresh enterprises list
+                          try {
+                            await fetchEnterprises();
+                            console.log("✅ Enterprises list refreshed");
+                          } catch (fetchErr) {
+                            console.error("Failed to refresh enterprises after creation:", fetchErr);
+                            // Don't show error to user, enterprise was created successfully
+                          }
+
+                          // Close modal after a short delay
+                          setTimeout(() => {
+                            setShowCreateEnterpriseModal(false);
+                            setCreateEnterpriseActiveTab("basic");
+                            setEnterpriseForm({
+                              enterpriseName: "",
+                              registrationNumber: "",
+                              contactEmail: "",
+                              contactPhone: "",
+                              addressLine1: "",
+                              addressLine2: "",
+                              city: "",
+                              state: "",
+                              country: "",
+                              postalCode: "",
+                              isActive: true
+                            });
+                            setError("");
+                            setSuccess("");
+                          }, 1500);
+                        } catch (err) {
+                          setError(err.message || "Failed to create enterprise");
+                        } finally {
+                          setEnterpriseFormLoading(false);
+                        }
+                      }}
+                      disabled={enterpriseFormLoading}
+                      className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all"
+                    >
+                      {enterpriseFormLoading ? "Creating..." : "Create Enterprise"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowCreateEnterpriseModal(false);
+                        setCreateEnterpriseActiveTab("basic");
+                        setEnterpriseForm({
+                          enterpriseName: "",
+                          registrationNumber: "",
+                          contactEmail: "",
+                          contactPhone: "",
+                          addressLine1: "",
+                          addressLine2: "",
+                          city: "",
+                          state: "",
+                          country: "",
+                          postalCode: "",
+                          isActive: true
+                        });
+                        setError("");
+                        setSuccess("");
+                      }}
+                      disabled={enterpriseFormLoading}
+                      className="px-6 py-3 rounded-xl border border-slate-200 text-slate-700 bg-white hover:border-slate-300 font-semibold disabled:opacity-60 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* View/Edit Enterprise Modal */}
+        <AnimatePresence>
+          {showViewEnterpriseModal && viewingEnterprise && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => setShowViewEnterpriseModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-cyan-500/10" />
+                <div className="relative z-10 p-8 flex flex-col h-full overflow-hidden">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white flex items-center justify-center text-2xl shadow-lg">🏢</div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-slate-900">{viewingEnterprise.enterpriseName}</h2>
+                        <p className="text-sm text-slate-600">Enterprise Details</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowViewEnterpriseModal(false)}
+                      className="text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-4 pr-2" style={{scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9'}}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex gap-2">
+                        {enterpriseEditError && (
+                          <div className="px-3 py-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm">{enterpriseEditError}</div>
+                        )}
+                        {enterpriseEditSuccess && (
+                          <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">{enterpriseEditSuccess}</div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (enterpriseEditMode) {
+                            setEnterpriseEditMode(false);
+                            setEnterpriseEditData({
+                              enterpriseId: viewingEnterprise.enterpriseId || "",
+                              enterpriseName: viewingEnterprise.enterpriseName || "",
+                              registrationNumber: viewingEnterprise.registrationNumber || "",
+                              contactEmail: viewingEnterprise.contactEmail || "",
+                              contactPhone: viewingEnterprise.contactPhone || "",
+                              addressLine1: viewingEnterprise.addressLine1 || "",
+                              addressLine2: viewingEnterprise.addressLine2 || "",
+                              city: viewingEnterprise.city || "",
+                              state: viewingEnterprise.state || "",
+                              country: viewingEnterprise.country || "",
+                              postalCode: viewingEnterprise.postalCode || "",
+                              isActive: viewingEnterprise.isActive !== undefined ? !!viewingEnterprise.isActive : true
+                            });
+                          } else {
+                            setEnterpriseEditMode(true);
+                          }
+                        }}
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold ${enterpriseEditMode ? 'bg-slate-100 text-slate-700 border border-slate-300' : 'bg-blue-600 text-white'} hover:opacity-90`}
+                      >
+                        {enterpriseEditMode ? 'Cancel Edit' : 'Edit'}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-500 uppercase">Enterprise Name</p>
+                        {enterpriseEditMode ? (
+                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.enterpriseName} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,enterpriseName:e.target.value})} />
+                        ) : (
+                          <p className="text-slate-800">{viewingEnterprise.enterpriseName}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-500 uppercase">Registration Number</p>
+                        {enterpriseEditMode ? (
+                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.registrationNumber} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,registrationNumber:e.target.value})} />
+                        ) : (
+                          <p className="text-slate-800">{viewingEnterprise.registrationNumber || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-500 uppercase">Contact Email</p>
+                        {enterpriseEditMode ? (
+                          <input type="email" className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.contactEmail} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,contactEmail:e.target.value})} />
+                        ) : (
+                          <p className="text-slate-800">{viewingEnterprise.contactEmail}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-500 uppercase">Contact Phone</p>
+                        {enterpriseEditMode ? (
+                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.contactPhone} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,contactPhone:e.target.value})} />
+                        ) : (
+                          <p className="text-slate-800">{viewingEnterprise.contactPhone || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1 md:col-span-2">
+                        <p className="text-xs font-semibold text-slate-500 uppercase">Address Line 1</p>
+                        {enterpriseEditMode ? (
+                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.addressLine1} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,addressLine1:e.target.value})} />
+                        ) : (
+                          <p className="text-slate-800">{viewingEnterprise.addressLine1 || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1 md:col-span-2">
+                        <p className="text-xs font-semibold text-slate-500 uppercase">Address Line 2</p>
+                        {enterpriseEditMode ? (
+                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.addressLine2} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,addressLine2:e.target.value})} />
+                        ) : (
+                          <p className="text-slate-800">{viewingEnterprise.addressLine2 || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-500 uppercase">City</p>
+                        {enterpriseEditMode ? (
+                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.city} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,city:e.target.value})} />
+                        ) : (
+                          <p className="text-slate-800">{viewingEnterprise.city || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-500 uppercase">State</p>
+                        {enterpriseEditMode ? (
+                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.state} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,state:e.target.value})} />
+                        ) : (
+                          <p className="text-slate-800">{viewingEnterprise.state || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-500 uppercase">Country</p>
+                        {enterpriseEditMode ? (
+                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.country} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,country:e.target.value})} />
+                        ) : (
+                          <p className="text-slate-800">{viewingEnterprise.country || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-500 uppercase">Postal Code</p>
+                        {enterpriseEditMode ? (
+                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.postalCode} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,postalCode:e.target.value})} />
+                        ) : (
+                          <p className="text-slate-800">{viewingEnterprise.postalCode || 'N/A'}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-slate-500 uppercase">Status</p>
+                        {enterpriseEditMode ? (
+                          <select className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.isActive} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,isActive:e.target.value === 'true'})}>
+                            <option value={true}>Active</option>
+                            <option value={false}>Inactive</option>
+                          </select>
+                        ) : (
+                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                            viewingEnterprise.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'
+                          }`}>
+                            {viewingEnterprise.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex gap-3 flex-shrink-0 border-t border-slate-200 pt-4">
+                    {enterpriseEditMode ? (
+                      <button
+                        onClick={saveEnterpriseEdits}
+                        disabled={enterpriseEditLoading}
+                        className="px-5 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60"
+                      >
+                        {enterpriseEditLoading ? 'Saving...' : 'Save Changes'}
+                      </button>
+                    ) : null}
+                    <button
+                      onClick={() => handleDeleteEnterprise(viewingEnterprise)}
+                      className="px-5 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => setShowViewEnterpriseModal(false)}
+                      className="px-5 py-3 rounded-xl border border-slate-200 text-slate-700 bg-white hover:border-slate-300 font-semibold"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Delete Enterprise Modal */}
+        <AnimatePresence>
+          {showDeleteEnterpriseModal && deletingEnterprise && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => setShowDeleteEnterpriseModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-rose-500/10 to-red-500/10" />
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500 to-red-500 text-white flex items-center justify-center text-2xl shadow-lg">⚠️</div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900">Confirm Delete</h2>
+                      <p className="text-sm text-slate-600">This action cannot be undone</p>
+                    </div>
+                  </div>
+                  <p className="text-slate-700 mb-6">Are you sure you want to delete <strong>{deletingEnterprise.enterpriseName}</strong>?</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={confirmDeleteEnterprise}
+                      disabled={enterpriseLoading}
+                      className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60"
+                    >
+                      {enterpriseLoading ? 'Deleting...' : 'Delete'}
+                    </button>
+                    <button
+                      onClick={() => setShowDeleteEnterpriseModal(false)}
+                      className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-slate-700 bg-white hover:border-slate-300 font-semibold"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* List Clinics Modal */}
+        <AnimatePresence>
+          {showListClinicsModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => {
+                setShowListClinicsModal(false);
+                setListClinicsEnterpriseId(0);
+                setListClinicsData([]);
+                setListClinicsError("");
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-500/10" />
+                
+                {/* Header */}
+                <div className="relative z-10 px-8 pt-6 pb-4 border-b border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                        <span>🏥</span> List Clinics
+                      </h2>
+                      <p className="text-sm text-slate-600 mt-1">View all clinics for an enterprise</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowListClinicsModal(false);
+                        setListClinicsEnterpriseId(0);
+                        setListClinicsData([]);
+                        setListClinicsError("");
+                      }}
+                      className="text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter Section */}
+                <div className="relative z-10 px-8 py-4 bg-slate-50 border-b border-slate-200">
+                  <div className="flex gap-4 items-end">
+                    <div className="flex-1">
+                      <label className="block text-sm font-semibold text-slate-700 mb-1">
+                        Select Enterprise *
+                      </label>
+                      <select
+                        value={listClinicsEnterpriseId}
+                        onChange={(e) => {
+                          const enterpriseId = parseInt(e.target.value);
+                          setListClinicsEnterpriseId(enterpriseId);
+                          setListClinicsData([]);
+                          setListClinicsError("");
+                        }}
+                        className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                      >
+                        <option value="0">-- Select an Enterprise --</option>
+                        {enterprises.map((enterprise) => (
+                          <option key={enterprise.enterpriseId} value={enterprise.enterpriseId}>
+                            {enterprise.enterpriseName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      onClick={() => loadClinicsForEnterprise(listClinicsEnterpriseId)}
+                      disabled={listClinicsEnterpriseId === 0 || listClinicsLoading}
+                      className="px-6 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-md hover:shadow-lg disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                    >
+                      {listClinicsLoading ? "Loading..." : "Load Clinics"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="relative z-10 flex-1 overflow-y-auto px-8 py-6 scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-slate-100">
+                  {listClinicsError && (
+                    <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 mb-4">
+                      {listClinicsError}
+                    </div>
+                  )}
+
+                  {listClinicsLoading ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mb-4"></div>
+                      <p className="text-slate-600">Loading clinics...</p>
+                    </div>
+                  ) : listClinicsData.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <div className="text-6xl mb-4">🏥</div>
+                      <p className="text-lg text-slate-600">
+                        {listClinicsEnterpriseId === 0 
+                          ? "Select an enterprise to view clinics"
+                          : "No clinics found for this enterprise"}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b-2 border-emerald-200">
+                            <th className="px-4 py-3 text-left text-sm font-bold text-slate-700">Clinic ID</th>
+                            <th className="px-4 py-3 text-left text-sm font-bold text-slate-700">Clinic Name</th>
+                            <th className="px-4 py-3 text-left text-sm font-bold text-slate-700">City</th>
+                            <th className="px-4 py-3 text-left text-sm font-bold text-slate-700">Phone</th>
+                            <th className="px-4 py-3 text-left text-sm font-bold text-slate-700">Email</th>
+                            <th className="px-4 py-3 text-left text-sm font-bold text-slate-700">Hours</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {listClinicsData.map((clinic, index) => (
+                            <motion.tr
+                              key={clinic.clinicId}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.05 }}
+                              className="border-b border-slate-100 hover:bg-emerald-50/50 transition-colors"
+                            >
+                              <td className="px-4 py-3 text-sm text-slate-700">{clinic.clinicId}</td>
+                              <td className="px-4 py-3 text-sm font-semibold text-slate-800">{clinic.clinicName}</td>
+                              <td className="px-4 py-3 text-sm text-slate-700">{clinic.clinicCity}</td>
+                              <td className="px-4 py-3 text-sm text-slate-700">{clinic.clinicPhone}</td>
+                              <td className="px-4 py-3 text-sm text-slate-700">{clinic.clinicEmail}</td>
+                              <td className="px-4 py-3 text-sm text-slate-700">{clinic.operatingHours}</td>
+                            </motion.tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="relative z-10 px-8 py-4 border-t border-slate-200 bg-white">
+                  <button
+                    onClick={() => {
+                      setShowListClinicsModal(false);
+                      setListClinicsEnterpriseId(0);
+                      setListClinicsData([]);
+                      setListClinicsError("");
+                    }}
+                    className="px-6 py-2 rounded-lg border border-slate-200 text-slate-700 bg-white hover:border-slate-300 font-semibold transition-all"
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Onboard Staff Modal */}
+        <AnimatePresence>
+          {showOnboardStaffModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => {
+                setShowOnboardStaffModal(false);
+                setStaffFormError("");
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-sky-500/10" />
+
+                {/* Header */}
+                <div className="relative z-10 px-8 pt-6 pb-4 border-b border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                        <span>👨‍⚕️</span> Onboard Staff
+                      </h2>
+                      <p className="text-sm text-slate-600 mt-1">Fill in all required information to add a new team member to your organization</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowOnboardStaffModal(false);
+                        setStaffFormError("");
+                      }}
+                      className="text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="relative z-10 flex-1 overflow-y-auto px-8 py-6 space-y-6 scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-slate-100">
+                  {staffFormError && (
+                    <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3">
+                      {staffFormError}
+                    </div>
+                  )}
+
+                  {/* Stepper */}
+                  <div className="flex flex-wrap gap-2 sticky top-0 bg-white pt-2 pb-4 z-20">
+                    {staffSteps.map((s) => {
+                      const active = s.key === onboardStaffActiveStep;
+                      return (
+                        <button
+                          key={s.key}
+                          onClick={() => setOnboardStaffActiveStep(s.key)}
+                          className={`px-3 py-2 rounded-xl border text-sm font-semibold transition-all ${active ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"}`}
+                        >
+                          <span className="mr-2">{s.icon}</span>{s.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Step Content */}
+                  {onboardStaffActiveStep === "personal" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Enterprise ID *</label>
+                        <select
+                          value={staffForm.enterpriseId}
+                          onChange={(e) => setStaffForm({...staffForm, enterpriseId: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                        >
+                          <option value="">Select enterprise</option>
+                          {enterprises.map((enterprise) => (
+                            <option key={enterprise.enterpriseId} value={enterprise.enterpriseId}>
+                              {(enterprise.enterpriseName || "Enterprise")} ({enterprise.enterpriseId})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Clinic ID *</label>
+                        <select
+                          value={staffForm.clinicId}
+                          onChange={(e) => setStaffForm({...staffForm, clinicId: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                        >
+                          <option value="">Select clinic</option>
+                          {clinics.map((clinic) => (
+                            <option key={clinic.clinicId || clinic.clinicID} value={clinic.clinicId || clinic.clinicID}>
+                              {(clinic.clinicName || clinic.name || "Clinic")} ({clinic.clinicId || clinic.clinicID})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Assign Role *</label>
+                        <select
+                          value={staffForm.rolesAssigned}
+                          onChange={(e) => setStaffForm({...staffForm, rolesAssigned: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          disabled={rolesLoading}
+                        >
+                          <option value="">{rolesLoading ? "Loading roles..." : "Select role"}</option>
+                          {roles.map((r) => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">First Name *</label>
+                        <input
+                          type="text"
+                          value={staffForm.firstName}
+                          onChange={(e) => setStaffForm({...staffForm, firstName: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="Enter first name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Last Name *</label>
+                        <input
+                          type="text"
+                          value={staffForm.lastName}
+                          onChange={(e) => setStaffForm({...staffForm, lastName: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="Enter last name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Date of Birth *</label>
+                        <input
+                          type="date"
+                          value={staffForm.dateOfBirth}
+                          onChange={(e) => setStaffForm({...staffForm, dateOfBirth: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="dd-mm-yyyy"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Gender *</label>
+                        <select
+                          value={staffForm.gender}
+                          onChange={(e) => setStaffForm({...staffForm, gender: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                        >
+                          <option value="">Select gender</option>
+                          <option value="Male">Male</option>
+                          <option value="Female">Female</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {onboardStaffActiveStep === "contact" && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Email *</label>
+                        <input
+                          type="email"
+                          value={staffForm.email}
+                          onChange={(e) => setStaffForm({...staffForm, email: e.target.value})}
+                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="doctor@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Phone *</label>
+                        <input
+                          type="tel"
+                          value={staffForm.phone}
+                          onChange={(e) => setStaffForm({...staffForm, phone: e.target.value})}
+                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="+91 98765 43210"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Address</label>
+                        <textarea
+                          value={staffForm.address}
+                          onChange={(e) => setStaffForm({...staffForm, address: e.target.value})}
+                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          rows="2"
+                          placeholder="Enter full address"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Emergency Contact *</label>
+                        <input
+                          type="text"
+                          value={staffForm.emergencyContact}
+                          onChange={(e) => setStaffForm({...staffForm, emergencyContact: e.target.value})}
+                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="Emergency contact number"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {onboardStaffActiveStep === "professional" && (
+                    <div className="space-y-4">
+                      <div className={`rounded-lg border p-3 flex gap-2 ${["Doctor", "Nurse"].includes(staffForm.rolesAssigned) ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200"}`}>
+                        <span className="text-lg">{["Doctor", "Nurse"].includes(staffForm.rolesAssigned) ? "✅" : "ℹ️"}</span>
+                        <span className={`text-sm ${["Doctor", "Nurse"].includes(staffForm.rolesAssigned) ? "text-blue-700" : "text-gray-600"}`}>
+                          {["Doctor", "Nurse"].includes(staffForm.rolesAssigned) ? "Clinical role: license and specialty are required" : "Non-clinical role: license and specialty are optional"}
+                        </span>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">License Number</label>
+                        <input
+                          type="text"
+                          value={staffForm.licenseNumber}
+                          onChange={(e) => setStaffForm({...staffForm, licenseNumber: e.target.value})}
+                          disabled={!["Doctor", "Nurse"].includes(staffForm.rolesAssigned)}
+                          className={`w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all ${
+                            ["Doctor", "Nurse"].includes(staffForm.rolesAssigned)
+                              ? "border-slate-200 bg-white"
+                              : "border-slate-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60"
+                          }`}
+                          placeholder="Medical license number"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">License Expiry</label>
+                        <input
+                          type="date"
+                          value={staffForm.licenseExpiry}
+                          onChange={(e) => setStaffForm({...staffForm, licenseExpiry: e.target.value})}
+                          disabled={!["Doctor", "Nurse"].includes(staffForm.rolesAssigned)}
+                          className={`w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all ${
+                            ["Doctor", "Nurse"].includes(staffForm.rolesAssigned)
+                              ? "border-slate-200 bg-white"
+                              : "border-slate-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60"
+                          }`}
+                          placeholder="dd-mm-yyyy"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Specialty ID</label>
+                        <input
+                          type="number"
+                          value={staffForm.specialtyId}
+                          onChange={(e) => setStaffForm({...staffForm, specialtyId: e.target.value})}
+                          disabled={!["Doctor", "Nurse"].includes(staffForm.rolesAssigned)}
+                          className={`w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all ${
+                            ["Doctor", "Nurse"].includes(staffForm.rolesAssigned)
+                              ? "border-slate-200 bg-white"
+                              : "border-slate-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60"
+                          }`}
+                          placeholder="Specialty ID"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Years of Experience *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={staffForm.yearsExperience}
+                          onChange={(e) => setStaffForm({...staffForm, yearsExperience: e.target.value})}
+                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="Years"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Education *</label>
+                        <input
+                          type="text"
+                          value={staffForm.education}
+                          onChange={(e) => setStaffForm({...staffForm, education: e.target.value})}
+                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="Educational qualifications"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Certifications</label>
+                        <input
+                          type="text"
+                          value={staffForm.certifications}
+                          onChange={(e) => setStaffForm({...staffForm, certifications: e.target.value})}
+                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="Professional certifications"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Languages</label>
+                        <input
+                          type="text"
+                          value={staffForm.languages}
+                          onChange={(e) => setStaffForm({...staffForm, languages: e.target.value})}
+                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="English, Hindi, etc."
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {onboardStaffActiveStep === "employment" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Joining Date</label>
+                        <input
+                          type="date"
+                          value={staffForm.joiningDate}
+                          onChange={(e) => setStaffForm({...staffForm, joiningDate: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Employment Status</label>
+                        <select
+                          value={staffForm.employmentStatus}
+                          onChange={(e) => setStaffForm({...staffForm, employmentStatus: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                        >
+                          <option value="Active">Active</option>
+                          <option value="Inactive">Inactive</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Availability</label>
+                        <input
+                          type="text"
+                          value={staffForm.availability}
+                          onChange={(e) => setStaffForm({...staffForm, availability: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="e.g., Mon-Fri, 9-5"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {onboardStaffActiveStep === "compliance" && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Insurance Details</label>
+                        <input
+                          type="text"
+                          value={staffForm.insuranceDetails}
+                          onChange={(e) => setStaffForm({...staffForm, insuranceDetails: e.target.value})}
+                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="Insurance details"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {onboardStaffActiveStep === "profile" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Bio</label>
+                        <textarea
+                          value={staffForm.bio}
+                          onChange={(e) => setStaffForm({...staffForm, bio: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          rows="2"
+                          placeholder="Short professional summary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Profile Photo URL</label>
+                        <input
+                          type="text"
+                          value={staffForm.profilePhotoUrl}
+                          onChange={(e) => setStaffForm({...staffForm, profilePhotoUrl: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="https://..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Achievements</label>
+                        <input
+                          type="text"
+                          value={staffForm.achievements}
+                          onChange={(e) => setStaffForm({...staffForm, achievements: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="Comma-separated"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Publications</label>
+                        <input
+                          type="text"
+                          value={staffForm.publications}
+                          onChange={(e) => setStaffForm({...staffForm, publications: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="Comma-separated"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Social Links</label>
+                        <input
+                          type="text"
+                          value={staffForm.socialLinks}
+                          onChange={(e) => setStaffForm({...staffForm, socialLinks: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          placeholder="Comma-separated"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer with Actions */}
+                <div className="relative z-10 px-8 py-4 border-t border-slate-200 bg-white">
+                  <div className="flex gap-3 justify-between">
+                    <button
+                      onClick={() => {
+                        const idx = staffSteps.findIndex(s => s.key === onboardStaffActiveStep);
+                        if (idx > 0) setOnboardStaffActiveStep(staffSteps[idx - 1].key);
+                      }}
+                      className="px-6 py-3 rounded-xl border border-slate-200 text-slate-700 bg-white hover:border-slate-300 font-semibold disabled:opacity-60 transition-all"
+                      disabled={creatingStaff || staffSteps.findIndex(s => s.key === onboardStaffActiveStep) === 0}
+                    >
+                      ← Previous
+                    </button>
+
+                    {staffSteps.findIndex(s => s.key === onboardStaffActiveStep) < staffSteps.length - 1 ? (
+                      <button
+                        onClick={() => {
+                          if (onboardStaffActiveStep === "personal") {
+                            if (!staffForm.enterpriseId || !staffForm.clinicId || !staffForm.rolesAssigned || !staffForm.firstName || !staffForm.lastName || !staffForm.dateOfBirth || !staffForm.gender) {
+                              setStaffFormError("Please complete all required fields in Personal Info");
+                              return;
+                            }
+                          }
+                          const idx = staffSteps.findIndex(s => s.key === onboardStaffActiveStep);
+                          setStaffFormError("");
+                          setOnboardStaffActiveStep(staffSteps[idx + 1].key);
+                        }}
+                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-sky-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all"
+                        disabled={creatingStaff}
+                      >
+                        Next →
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleCreateStaff}
+                        disabled={creatingStaff}
+                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-sky-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all"
+                      >
+                        {creatingStaff ? "Creating..." : "Create Staff"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Create Clinic Modal */}
+        <AnimatePresence>
+          {showCreateClinicModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => {
+                setShowCreateClinicModal(false);
+                setCreateClinicActiveTab("basic");
+                setClinicFormError("");
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-teal-500/10" />
+                
+                {/* Header */}
+                <div className="relative z-10 px-8 pt-6 pb-4 border-b border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                        <span>🏥</span> Create New Clinic
+                      </h2>
+                      <p className="text-sm text-slate-600 mt-1">Register a new clinic location</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowCreateClinicModal(false);
+                        setCreateClinicActiveTab("basic");
+                        setClinicFormError("");
+                      }}
+                      className="text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  {/* Tabs */}
+                  <div className="flex gap-2 mt-4">
+                    {[
+                      { key: "basic", label: "Basic Info", icon: "📋" },
+                      { key: "contact", label: "Contact", icon: "📞" },
+                      { key: "address", label: "Address", icon: "📍" },
+                      { key: "hours", label: "Operating Hours & Settings", icon: "⚙️" }
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        onClick={() => setCreateClinicActiveTab(tab.key)}
+                        className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${
+                          createClinicActiveTab === tab.key
+                            ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md"
+                            : "text-slate-600 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span>{tab.icon}</span>
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="relative z-10 flex-1 overflow-y-auto px-8 py-6 scrollbar-thin scrollbar-thumb-slate-400 scrollbar-track-slate-100">
+                  {clinicFormError && (
+                    <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 mb-4">
+                      {clinicFormError}
+                    </div>
+                  )}
+
+                  {/* Basic Info Tab */}
+                  {createClinicActiveTab === "basic" && (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                        <span>📋</span> Basic Information
+                      </h3>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Select Enterprise *
+                        </label>
+                        <select
+                          value={createClinicForm.enterpriseId}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            console.log("🏢 Enterprise selected:", val);
+                            setCreateClinicForm({...createClinicForm, enterpriseId: val});
+                          }}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                        >
+                          <option value="0">-- Select an Enterprise ({enterprises.length} available) --</option>
+                          {enterprises.length > 0 ? (
+                            enterprises.map((enterprise) => {
+                              console.log("📝 Rendering enterprise option:", enterprise.enterpriseName, enterprise.enterpriseId);
+                              return (
+                                <option key={enterprise.enterpriseId} value={enterprise.enterpriseId}>
+                                  {enterprise.enterpriseName}
+                                </option>
+                              );
+                            })
+                          ) : (
+                            <option disabled>No enterprises available</option>
+                          )}
+                        </select>
+                        {createClinicForm.enterpriseId === 0 && (
+                          <p className="text-xs text-rose-600 font-semibold mt-1">
+                            ⚠️ Enterprise selection is required
+                          </p>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">
+                            Clinic Name *
+                          </label>
+                          <input
+                            type="text"
+                            value={createClinicForm.clinicName}
+                            onChange={(e) => setCreateClinicForm({...createClinicForm, clinicName: e.target.value})}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                            placeholder="Enter clinic name"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">
+                            Clinic Code *
+                          </label>
+                          <input
+                            type="text"
+                            value={createClinicForm.clinicCode}
+                            onChange={(e) => setCreateClinicForm({...createClinicForm, clinicCode: e.target.value})}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                            placeholder="e.g., CLINIC-001"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Contact Tab */}
+                  {createClinicActiveTab === "contact" && (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                        <span>📞</span> Contact Information
+                      </h3>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Email Address *
+                        </label>
+                        <input
+                          type="email"
+                          value={createClinicForm.contactEmail}
+                          onChange={(e) => setCreateClinicForm({...createClinicForm, contactEmail: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                          placeholder="clinic@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Phone Number *
+                        </label>
+                        <input
+                          type="tel"
+                          value={createClinicForm.contactPhone}
+                          onChange={(e) => setCreateClinicForm({...createClinicForm, contactPhone: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                          placeholder="+1 (555) 000-0000"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Address Tab */}
+                  {createClinicActiveTab === "address" && (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                        <span>📍</span> Address Information
+                      </h3>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Address Line 1 *
+                        </label>
+                        <input
+                          type="text"
+                          value={createClinicForm.addressLine1}
+                          onChange={(e) => setCreateClinicForm({...createClinicForm, addressLine1: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                          placeholder="Street address"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          Address Line 2
+                        </label>
+                        <input
+                          type="text"
+                          value={createClinicForm.addressLine2}
+                          onChange={(e) => setCreateClinicForm({...createClinicForm, addressLine2: e.target.value})}
+                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                          placeholder="Apartment, suite, etc. (optional)"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">
+                            City *
+                          </label>
+                          <input
+                            type="text"
+                            value={createClinicForm.city}
+                            onChange={(e) => setCreateClinicForm({...createClinicForm, city: e.target.value})}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                            placeholder="City"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">
+                            State
+                          </label>
+                          <input
+                            type="text"
+                            value={createClinicForm.state}
+                            onChange={(e) => setCreateClinicForm({...createClinicForm, state: e.target.value})}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                            placeholder="State"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">
+                            Country
+                          </label>
+                          <input
+                            type="text"
+                            value={createClinicForm.country}
+                            onChange={(e) => setCreateClinicForm({...createClinicForm, country: e.target.value})}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                            placeholder="Country"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 mb-1">
+                            Postal Code
+                          </label>
+                          <input
+                            type="text"
+                            value={createClinicForm.postalCode}
+                            onChange={(e) => setCreateClinicForm({...createClinicForm, postalCode: e.target.value})}
+                            className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
+                            placeholder="ZIP/Postal code"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Operating Hours & Settings Tab */}
+                  {createClinicActiveTab === "hours" && (
+                    <div className="space-y-6">
+                      <div className="max-h-[45vh] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-emerald-400 scrollbar-track-slate-100">
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+                          <span>🕐</span> Operating Hours
+                        </h3>
+                        <div className="space-y-3">
+                          {[
+                            { key: "monday", label: "Monday" },
+                            { key: "tuesday", label: "Tuesday" },
+                            { key: "wednesday", label: "Wednesday" },
+                            { key: "thursday", label: "Thursday" },
+                            { key: "friday", label: "Friday" },
+                            { key: "saturday", label: "Saturday" },
+                            { key: "sunday", label: "Sunday" }
+                          ].map(day => (
+                            <div key={day.key} className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg">
+                              <div className="flex items-center gap-2 w-32">
+                                <input
+                                  type="checkbox"
+                                  id={`clinic-${day.key}`}
+                                  checked={clinicHours[day.key].isOpen}
+                                  onChange={(e) => setClinicHours({
+                                    ...clinicHours,
+                                    [day.key]: { ...clinicHours[day.key], isOpen: e.target.checked }
+                                  })}
+                                  className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-400"
+                                />
+                                <label htmlFor={`clinic-${day.key}`} className="text-sm font-semibold text-slate-700">
+                                  {day.label}
+                                </label>
+                              </div>
+                              {clinicHours[day.key].isOpen ? (
+                                <div className="flex items-center gap-2 flex-1">
+                                  <input
+                                    type="time"
+                                    value={clinicHours[day.key].open}
+                                    onChange={(e) => setClinicHours({
+                                      ...clinicHours,
+                                      [day.key]: { ...clinicHours[day.key], open: e.target.value }
+                                    })}
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent text-sm"
+                                  />
+                                  <span className="text-slate-500 font-semibold">→</span>
+                                  <input
+                                    type="time"
+                                    value={clinicHours[day.key].close}
+                                    onChange={(e) => setClinicHours({
+                                      ...clinicHours,
+                                      [day.key]: { ...clinicHours[day.key], close: e.target.value }
+                                    })}
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent text-sm"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="flex-1 text-sm text-slate-400 italic">Closed</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="pt-4 border-t border-slate-200">
+                        <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg">
+                          <input
+                            type="checkbox"
+                            id="createClinicIsActive"
+                            checked={createClinicForm.isActive}
+                            onChange={(e) => setCreateClinicForm({...createClinicForm, isActive: e.target.checked})}
+                            className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-400"
+                          />
+                          <label htmlFor="createClinicIsActive" className="text-sm font-semibold text-emerald-700">
+                            ✅ Clinic is Active
+                          </label>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-3">
+                          ✨ Tip: Check the days your clinic operates and set opening/closing times. Unchecked days will show as closed.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer with Actions */}
+                <div className="relative z-10 px-8 py-4 border-t border-slate-200 bg-white">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={async () => {
+                        setClinicFormError("");
+                        
+                        if (!createClinicForm.clinicName || !createClinicForm.clinicCode) {
+                          setClinicFormError("Clinic name and code are required");
+                          return;
+                        }
+                        
+                        if (createClinicForm.enterpriseId === 0) {
+                          setClinicFormError("Please select an enterprise");
+                          return;
+                        }
+                        
+                        if (!createClinicForm.contactEmail || !createClinicForm.contactPhone) {
+                          setClinicFormError("Email and phone are required");
+                          return;
+                        }
+                        
+                        if (!createClinicForm.addressLine1 || !createClinicForm.city) {
+                          setClinicFormError("Address line 1 and city are required");
+                          return;
+                        }
+                        
+                        try {
+                          setCreatingClinic(true);
+                          const now = new Date().toISOString();
+                          
+                          // Format clinic hours into a string
+                          const formattedHours = Object.entries(clinicHours)
+                            .map(([day, hours]) => {
+                              const dayName = day.charAt(0).toUpperCase() + day.slice(1);
+                              if (hours.isOpen) {
+                                return `${dayName}: ${hours.open} - ${hours.close}`;
+                              } else {
+                                return `${dayName}: Closed`;
+                              }
+                            })
+                            .join("\n");
+                          
+                          const clinicModel = {
+                            ClinicId: 0,
+                            EnterpriseId: createClinicForm.enterpriseId,
+                            ClinicName: createClinicForm.clinicName,
+                            ClinicCode: createClinicForm.clinicCode,
+                            ContactEmail: createClinicForm.contactEmail,
+                            ContactPhone: createClinicForm.contactPhone,
+                            AddressLine1: createClinicForm.addressLine1,
+                            AddressLine2: createClinicForm.addressLine2,
+                            City: createClinicForm.city,
+                            State: createClinicForm.state,
+                            Country: createClinicForm.country || "",
+                            PostalCode: createClinicForm.postalCode,
+                            OpeningHours: formattedHours,
+                            IsActive: !!createClinicForm.isActive,
+                            CreatedAt: now,
+                            UpdatedAt: now
+                          };
+                          
+                          console.log("🏥 Creating clinic:", clinicModel);
+                          
+                          const response = await fetch(CLINIC_ENDPOINTS.create, {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+                            },
+                            body: JSON.stringify(clinicModel)
+                          });
+                          
+                          console.log("📡 Response status:", response.status);
+                          
+                          if (!response.ok && response.status !== 200 && response.status !== 201 && response.status !== 204) {
+                            const message = await response.text();
+                            console.error("❌ Create clinic failed:", message);
+                            throw new Error(message || "Unable to create clinic");
+                          }
+                          
+                          console.log("✅ Clinic created successfully");
+                          setSuccess("Clinic created successfully! 🎉");
+                          setClinicFormError("");
+                          
+                          // Refresh clinics list
+                          try {
+                            await fetchClinics();
+                            console.log("✅ Clinics list refreshed");
+                          } catch (fetchErr) {
+                            console.error("Failed to refresh clinics after creation:", fetchErr);
+                          }
+                          
+                          // Close modal after a short delay
+                          setTimeout(() => {
+                            setShowCreateClinicModal(false);
+                            setCreateClinicActiveTab("basic");
+                            setClinicFormError("");
+                            setCreateClinicForm({
+                              clinicId: 0,
+                              enterpriseId: 0,
+                              clinicName: "",
+                              clinicCode: "",
+                              contactEmail: "",
+                              contactPhone: "",
+                              addressLine1: "",
+                              addressLine2: "",
+                              city: "",
+                              state: "",
+                              country: "",
+                              postalCode: "",
+                              openingHours: "",
+                              isActive: true,
+                              createdAt: new Date().toISOString(),
+                              updatedAt: new Date().toISOString(),
+                              createdBy: 0,
+                              updatedBy: 0
+                            });
+                            setClinicHours({
+                              monday: { isOpen: true, open: "09:00", close: "17:00" },
+                              tuesday: { isOpen: true, open: "09:00", close: "17:00" },
+                              wednesday: { isOpen: true, open: "09:00", close: "17:00" },
+                              thursday: { isOpen: true, open: "09:00", close: "17:00" },
+                              friday: { isOpen: true, open: "09:00", close: "17:00" },
+                              saturday: { isOpen: false, open: "09:00", close: "17:00" },
+                              sunday: { isOpen: false, open: "09:00", close: "17:00" }
+                            });
+                          }, 1500);
+                        } catch (err) {
+                          setClinicFormError(err.message || "Failed to create clinic");
+                        } finally {
+                          setCreatingClinic(false);
+                        }
+                      }}
+                      disabled={creatingClinic}
+                      className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all"
+                    >
+                      {creatingClinic ? "Creating..." : "Create Clinic"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowCreateClinicModal(false);
+                        setCreateClinicActiveTab("basic");
+                        setClinicFormError("");
+                      }}
+                      disabled={creatingClinic}
+                      className="px-6 py-3 rounded-xl border border-slate-200 text-slate-700 bg-white hover:border-slate-300 font-semibold disabled:opacity-60 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               </motion.div>
             </motion.div>
           )}
