@@ -9,9 +9,11 @@ import {
   getAllCampParticipants,
   updateCampParticipant,
   deleteCampParticipant,
+  getCampsByClinicId,
   CampRegistrationModel,
   CampParticipantRegistrationModel,
 } from "../services/campService";
+import { getSelectedAccess } from "../services/authService";
 
 export default function Camps() {
   const [camps, setCamps] = useState<CampRegistrationModel[]>([]);
@@ -20,6 +22,7 @@ export default function Camps() {
   const [selectedCampTab, setSelectedCampTab] = useState<"list" | "create">("list");
   const [showCampModal, setShowCampModal] = useState(false);
   const [showParticipantModal, setShowParticipantModal] = useState(false);
+  const [showViewParticipantsModal, setShowViewParticipantsModal] = useState(false);
   const [editingCamp, setEditingCamp] = useState<CampRegistrationModel | null>(null);
   const [selectedCamp, setSelectedCamp] = useState<CampRegistrationModel | null>(null);
   const [participants, setParticipants] = useState<CampParticipantRegistrationModel[]>([]);
@@ -30,6 +33,21 @@ export default function Camps() {
   const [deleteTarget, setDeleteTarget] = useState<{ type: "camp" | "participant"; id: number } | null>(null);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedCampForParticipants, setSelectedCampForParticipants] = useState<number | null>(null);
+
+  // Funny deletion messages
+  const funnyDeleteMessages = [
+    "🎉 Participant successfully evaporated from the system!",
+    "✨ Another one bites the dust! Participant deleted with style!",
+    "🚀 Participant sent to the digital void! Bye-bye!",
+    "💫 Poof! Like magic, the participant has vanished!",
+    "🎊 One less participant to worry about! Crisis averted!",
+    "🌈 Participant deleted! They'll be back... in another camp!",
+    "⚡ ZAP! Participant obliterated from existence!",
+    "🎭 Exit stage left! Participant has left the building!",
+    "🏆 Successfully removed! One less tooth to track!",
+    "🎪 The participant has left the circus! 🎯",
+  ];
 
   const [campForm, setCampForm] = useState<CampRegistrationModel>({
     campName: "",
@@ -112,6 +130,25 @@ export default function Camps() {
     fetchCamps();
   }, []);
 
+  // Load camps for the modal when it opens
+  useEffect(() => {
+    if (showViewParticipantsModal) {
+      const selectedAccess = getSelectedAccess();
+      if (selectedAccess?.clinicId) {
+        // Fetch camps by clinic ID for the modal
+        getCampsByClinicId(selectedAccess.clinicId)
+          .then((data) => {
+            setCamps(data || []);
+            setErrorMessage("");
+          })
+          .catch((error) => {
+            setErrorMessage(`Error loading camps: ${(error as Error).message}`);
+            console.error(error);
+          });
+      }
+    }
+  }, [showViewParticipantsModal]);
+
   const handleCreateOrUpdateCamp = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -180,26 +217,43 @@ export default function Camps() {
   const handleAddParticipant = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (!selectedCamp?.campId) return;
+      const campIdToUse = selectedCamp?.campId || selectedCampForParticipants || 0;
+      if (!campIdToUse) return;
+      
+      const wasEditing = !!editingParticipant?.participantId;
       
       if (editingParticipant?.participantId) {
         await updateCampParticipant({
           ...participantForm,
-          campId: selectedCamp.campId,
+          campId: campIdToUse,
           participantId: editingParticipant.participantId,
         });
-        setSuccessMessage("Participant updated successfully!");
+        setSuccessMessage("✅ Participant updated successfully!");
       } else {
         await addCampParticipant({
           ...participantForm,
-          campId: selectedCamp.campId,
+          campId: campIdToUse,
         });
-        setSuccessMessage("Participant added successfully!");
+        setSuccessMessage("✅ Participant added successfully!");
       }
       resetParticipantForm();
       setEditingParticipant(null);
       setShowParticipantModal(false);
-      fetchParticipants(selectedCamp.campId);
+      
+      // Refresh participants list
+      if (selectedCampForParticipants) {
+        fetchParticipants(selectedCampForParticipants);
+        // If editing, reopen the View Participants modal
+        if (wasEditing) {
+          setTimeout(() => setShowViewParticipantsModal(true), 300);
+        }
+      } else if (selectedCamp?.campId) {
+        fetchParticipants(selectedCamp.campId);
+        // If editing, reopen the View Participants modal
+        if (wasEditing) {
+          setTimeout(() => setShowViewParticipantsModal(true), 300);
+        }
+      }
       setTimeout(() => setSuccessMessage(""), 3000);
     } catch (error) {
       setErrorMessage(`Error saving participant: ${(error as Error).message}`);
@@ -209,13 +263,17 @@ export default function Camps() {
   const handleDeleteParticipant = async (participantId: number) => {
     try {
       await deleteCampParticipant(participantId);
-      setSuccessMessage("Participant deleted successfully!");
-      if (selectedCamp?.campId) {
+      const randomMessage = funnyDeleteMessages[Math.floor(Math.random() * funnyDeleteMessages.length)];
+      setSuccessMessage(randomMessage);
+      // Refresh participants list from either modal or regular view
+      if (selectedCampForParticipants) {
+        fetchParticipants(selectedCampForParticipants);
+      } else if (selectedCamp?.campId) {
         fetchParticipants(selectedCamp.campId);
       }
       setShowDeleteConfirm(false);
       setDeleteTarget(null);
-      setTimeout(() => setSuccessMessage(""), 3000);
+      setTimeout(() => setSuccessMessage(""), 4000);
     } catch (error) {
       setErrorMessage(`Error deleting participant: ${(error as Error).message}`);
     }
@@ -308,14 +366,107 @@ export default function Camps() {
       {/* Main Content */}
       <div className="p-8">
         <AnimatePresence mode="wait">
-          {!showParticipantsList ? (
-            // Camps List View
-            <motion.div
-              key="camps-list"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
+          {/* Camps List View */}
+          <motion.div
+            key="camps-list"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+              {/* Quick Action Tiles */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+                {/* View Participants Tile */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() => {
+                    const selectedAccess = getSelectedAccess();
+                    if (selectedAccess?.clinicId) {
+                      getCampsByClinicId(selectedAccess.clinicId)
+                        .then((data) => {
+                          setCamps(data || []);
+                          setSelectedCampForParticipants(null);
+                          setParticipants([]);
+                          setShowViewParticipantsModal(true);
+                          setErrorMessage("");
+                        })
+                        .catch((error) => {
+                          setErrorMessage(`Error loading camps: ${(error as Error).message}`);
+                          console.error(error);
+                        });
+                    }
+                  }}
+                  className="bg-gradient-to-br from-cyan-500 via-teal-500 to-emerald-500 rounded-xl shadow-lg hover:shadow-2xl transition cursor-pointer p-8 text-white"
+                >
+                  <div className="text-5xl mb-4">👥</div>
+                  <h3 className="text-2xl font-bold mb-2">List Participants</h3>
+                  <p className="text-cyan-100 mb-4">View and manage all participants across camps</p>
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <span>Click to get started</span>
+                    <span>→</span>
+                  </div>
+                </motion.div>
+
+                {/* Manage Camps Tile */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1 }}
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() => {
+                    setCampForm({
+                      campName: "",
+                      campType: "",
+                      campDate: "",
+                      startTime: "",
+                      endTime: "",
+                      venueType: "",
+                      institutionName: "",
+                      address: "",
+                      city: "",
+                      state: "",
+                      pinCode: "",
+                      organizedBy: "",
+                      contactPerson: "",
+                      contactNumber: "",
+                      contactEmail: "",
+                      expectedParticipants: 0,
+                      targetAgeGroup: "",
+                      servicesOffered: "",
+                      campDescription: "",
+                      specialNotes: "",
+                      budgetAllocated: 0,
+                      sponsorshipDetails: "",
+                    });
+                    setEditingCamp(null);
+                    setShowCampModal(true);
+                  }}
+                  className="bg-gradient-to-br from-purple-500 via-pink-500 to-rose-500 rounded-xl shadow-lg hover:shadow-2xl transition cursor-pointer p-8 text-white"
+                >
+                  <div className="text-5xl mb-4">🏕️</div>
+                  <h3 className="text-2xl font-bold mb-2">Create Camp</h3>
+                  <p className="text-purple-100 mb-4">Create a new dental camp</p>
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <span>Add new camp</span>
+                    <span>→</span>
+                  </div>
+                </motion.div>
+
+                {/* Camp Statistics Tile */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 rounded-xl shadow-lg p-8 text-white"
+                >
+                  <div className="text-5xl mb-4">📊</div>
+                  <h3 className="text-2xl font-bold mb-2">Total Camps</h3>
+                  <p className="text-5xl font-bold mb-2">{camps.length}</p>
+                  <p className="text-indigo-100">Active in your clinic</p>
+                </motion.div>
+              </div>
+
               {/* Camps Controls */}
               <div className="mb-8">
                 <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
@@ -328,6 +479,7 @@ export default function Camps() {
                       className="w-full px-4 py-3 rounded-lg border-2 border-purple-200 focus:border-purple-500 focus:outline-none transition"
                     />
                   </div>
+
                   <button
                     onClick={() => {
                       setCampForm({
@@ -458,7 +610,7 @@ export default function Camps() {
                       {/* Actions */}
                       <div className="bg-gray-50 px-6 py-4 flex gap-3">
                         <button
-                          onClick={() => viewCampDetails(camp)}
+                          onClick={() => setShowViewParticipantsModal(true)}
                           className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-semibold text-sm"
                         >
                           👥 Participants
@@ -484,143 +636,216 @@ export default function Camps() {
                 </div>
               )}
             </motion.div>
-          ) : (
-            // Participants View
-            <motion.div
-              key="participants-view"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              {/* Back Button */}
-              <button
-                onClick={() => {
-                  setShowParticipantsList(false);
-                  setSelectedCamp(null);
-                  resetParticipantForm();
-                }}
-                className="mb-6 px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
-              >
-                ← Back to Camps
-              </button>
+          </AnimatePresence>
+        </div>
 
-              {/* Camp Header */}
-              <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-                <h2 className="text-3xl font-bold text-gray-800">{selectedCamp?.campName}</h2>
-                <p className="text-gray-600 mt-1">{selectedCamp?.institutionName}</p>
-                <p className="text-gray-500 text-sm mt-2">
-                  📅 {new Date(selectedCamp?.campDate || "").toLocaleDateString()} | 📍 {selectedCamp?.city}, {selectedCamp?.state}
-                </p>
+      {/* View Participants Modal */}
+      <AnimatePresence>
+        {showViewParticipantsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto"
+            >
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-teal-600 to-cyan-600 text-white p-6 sticky top-0 z-10">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-3xl font-bold">🏥 Camp Participants</h2>
+                    <p className="text-cyan-100 text-sm mt-1">View participant details for this camp</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowViewParticipantsModal(false);
+                      setSelectedCampForParticipants(null);
+                      setParticipants([]);
+                    }}
+                    className="text-3xl hover:text-cyan-200 transition"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
 
-              {/* Add Participant Button */}
-              <div className="mb-6">
+              {/* Modal Content */}
+              <div className="p-8">
+                {/* Camp Selection Section */}
+                <div className="mb-8 bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-lg border-2 border-blue-200">
+                  <label className="block text-lg font-bold text-gray-800 mb-4">🏕️ Select a Camp</label>
+                  <div className="flex gap-3 items-end">
+                    <div className="flex-1">
+                      <select
+                        value={selectedCampForParticipants || ""}
+                        onChange={(e) => setSelectedCampForParticipants(parseInt(e.target.value))}
+                        className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:border-blue-500 focus:outline-none bg-white text-gray-800 font-semibold"
+                      >
+                        <option value="">-- Select Camp --</option>
+                        {camps.map((camp) => (
+                          <option key={camp.campId} value={camp.campId}>
+                            {camp.campName} - {camp.institutionName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (selectedCampForParticipants) {
+                          fetchParticipants(selectedCampForParticipants);
+                        }
+                      }}
+                      disabled={!selectedCampForParticipants}
+                      className="px-8 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold rounded-lg hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      🔍 View Participants
+                    </button>
+                  </div>
+                </div>
+
+                {/* Participants Grid */}
+                {selectedCampForParticipants && (
+                  <>
+                    {loadingParticipants ? (
+                      <div className="text-center py-16">
+                        <div className="inline-block animate-spin text-6xl mb-4">⏳</div>
+                        <p className="text-gray-600 text-lg font-semibold">Loading participants...</p>
+                      </div>
+                    ) : participants.length === 0 ? (
+                      <div className="text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                        <p className="text-gray-600 text-xl mb-3">📭 No participants found for this camp</p>
+                        <p className="text-gray-500">Try selecting a different camp or add new participants</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-800 mb-4">
+                          {participants.length} Participant{participants.length !== 1 ? 's' : ''} Found
+                        </h3>
+                        <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+                          {/* Table Header */}
+                          <div className="overflow-x-auto">
+                            <table className="w-full border-collapse" style={{ tableLayout: 'auto' }}>
+                              <thead>
+                                <tr className="bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500 sticky top-0 z-10">
+                                  <th className="px-4 py-3 text-left text-xs font-bold text-white border border-blue-400 whitespace-nowrap">Name</th>
+                                  <th className="px-4 py-3 text-center text-xs font-bold text-white border border-blue-400 whitespace-nowrap">Age</th>
+                                  <th className="px-4 py-3 text-center text-xs font-bold text-white border border-blue-400 whitespace-nowrap">Gender</th>
+                                  <th className="px-4 py-3 text-left text-xs font-bold text-white border border-blue-400 whitespace-nowrap">Phone</th>
+                                  <th className="px-4 py-3 text-left text-xs font-bold text-white border border-blue-400 whitespace-nowrap">Email</th>
+                                  <th className="px-4 py-3 text-left text-xs font-bold text-white border border-blue-400 whitespace-nowrap">Category</th>
+                                  <th className="px-4 py-3 text-center text-xs font-bold text-white border border-blue-400 whitespace-nowrap w-20">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {participants.map((participant, index) => (
+                                  <motion.tr
+                                    key={participant.participantId}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: index * 0.05 }}
+                                    className={`hover:bg-blue-50 transition-colors border ${
+                                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                                    }`}
+                                    style={{ display: 'table-row' }}
+                                  >
+                                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 border border-gray-200 whitespace-nowrap">
+                                      {participant.participantName}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-center text-gray-700 font-medium border border-gray-200 whitespace-nowrap">{participant.age}</td>
+                                    <td className="px-4 py-3 text-sm text-center text-gray-700 border border-gray-200 whitespace-nowrap">
+                                      <span className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">
+                                        {participant.gender || 'N/A'}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-gray-700 border border-gray-200 whitespace-nowrap">
+                                      <a href={`tel:${participant.phoneNumber}`} className="text-blue-600 hover:underline">
+                                        {participant.phoneNumber || 'N/A'}
+                                      </a>
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-gray-700 border border-gray-200 whitespace-nowrap max-w-xs overflow-hidden text-ellipsis" title={participant.email || ''}>
+                                      {participant.email || 'N/A'}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-gray-700 border border-gray-200 whitespace-nowrap">
+                                      <div className="flex gap-0.5 flex-wrap">
+                                        {participant.studentOrStaff && (
+                                          <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded font-semibold">
+                                            {participant.studentOrStaff}
+                                          </span>
+                                        )}
+                                        {participant.consentGiven && (
+                                          <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded font-semibold">
+                                            ✓
+                                          </span>
+                                        )}
+                                        {participant.photoConsent && (
+                                          <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded font-semibold">
+                                            📸
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-center border border-gray-200 whitespace-nowrap">
+                                      <div className="flex gap-1 justify-center">
+                                        <motion.button
+                                          whileHover={{ scale: 1.15 }}
+                                          whileTap={{ scale: 0.85 }}
+                                          onClick={() => {
+                                            handleEditParticipant(participant);
+                                            setShowViewParticipantsModal(false);
+                                          }}
+                                          className="p-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors font-bold"
+                                          title="Edit"
+                                        >
+                                          ✏️
+                                        </motion.button>
+                                        <motion.button
+                                          whileHover={{ scale: 1.15 }}
+                                          whileTap={{ scale: 0.85 }}
+                                          onClick={() => {
+                                            setDeleteTarget({ type: "participant", id: participant.participantId || 0 });
+                                            setShowDeleteConfirm(true);
+                                          }}
+                                          className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors font-bold"
+                                          title="Delete"
+                                        >
+                                          🗑️
+                                        </motion.button>
+                                      </div>
+                                    </td>
+                                  </motion.tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="bg-gray-50 border-t p-6 sticky bottom-0">
                 <button
                   onClick={() => {
-                    resetParticipantForm();
-                    setEditingParticipant(null);
-                    setShowParticipantModal(true);
+                    setShowViewParticipantsModal(false);
+                    setSelectedCampForParticipants(null);
+                    setParticipants([]);
                   }}
-                  className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:shadow-lg transition font-semibold"
+                  className="w-full px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-bold"
                 >
-                  ➕ Add Participant
+                  Close
                 </button>
               </div>
-
-              {/* Participants List */}
-              {loadingParticipants ? (
-                <div className="text-center py-12">
-                  <div className="inline-block animate-spin">⏳</div>
-                  <p className="text-gray-600 mt-2">Loading participants...</p>
-                </div>
-              ) : participants.length === 0 ? (
-                <div className="text-center py-12 bg-white rounded-lg">
-                  <p className="text-gray-500 text-lg">📭 No participants registered</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {participants.map((participant, index) => (
-                    <motion.div
-                      key={participant.participantId}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition"
-                    >
-                      {/* Header */}
-                      <div className="bg-gradient-to-r from-blue-400 to-cyan-400 p-4 text-white">
-                        <h4 className="font-bold text-lg">{participant.participantName}</h4>
-                        <p className="text-blue-100 text-sm">{participant.studentOrStaff}</p>
-                      </div>
-
-                      {/* Details */}
-                      <div className="p-4 space-y-2">
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <p className="text-gray-500 text-xs font-semibold">Age</p>
-                            <p className="text-gray-800 font-semibold">{participant.age}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500 text-xs font-semibold">Gender</p>
-                            <p className="text-gray-800 font-semibold">{participant.gender}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500 text-xs font-semibold">Phone</p>
-                            <p className="text-gray-800 text-sm">{participant.phoneNumber}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500 text-xs font-semibold">Email</p>
-                            <p className="text-gray-800 text-sm truncate">{participant.email}</p>
-                          </div>
-                        </div>
-
-                        {participant.existingDentalIssues && (
-                          <div className="pt-2 border-t">
-                            <p className="text-gray-500 text-xs font-semibold">Dental Issues</p>
-                            <p className="text-gray-700 text-sm">{participant.existingDentalIssues}</p>
-                          </div>
-                        )}
-
-                        <div className="flex gap-2 pt-2">
-                          {participant.consentGiven && (
-                            <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-semibold">
-                              ✓ Consent
-                            </span>
-                          )}
-                          {participant.photoConsent && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-semibold">
-                              📸 Photo OK
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="bg-gray-50 px-4 py-3 flex gap-2">
-                        <button
-                          onClick={() => handleEditParticipant(participant)}
-                          className="flex-1 px-3 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition font-semibold text-sm"
-                        >
-                          ✏️ Edit
-                        </button>
-                        <button
-                          onClick={() => {
-                            setDeleteTarget({ type: "participant", id: participant.participantId || 0 });
-                            setShowDeleteConfirm(true);
-                          }}
-                          className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition font-semibold text-sm"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Camp Modal */}
       <AnimatePresence>
@@ -895,9 +1120,14 @@ export default function Camps() {
               className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white p-6 flex justify-between items-center sticky top-0 z-10">
-                <h2 className="text-2xl font-bold">
-                  {editingParticipant ? "✏️ Edit Participant" : "➕ Add Participant"}
-                </h2>
+                <div>
+                  <h2 className="text-2xl font-bold">
+                    {editingParticipant ? "✏️ Edit Participant" : "➕ Add Participant"}
+                  </h2>
+                  {editingParticipant && (
+                    <p className="text-cyan-100 text-sm mt-1">ID: {editingParticipant.participantId}</p>
+                  )}
+                </div>
                 <button
                   onClick={() => {
                     setShowParticipantModal(false);

@@ -57,6 +57,16 @@ export interface CampParticipantRegistrationModel {
   photoConsent: boolean;
   registrationDate?: string | Date;
   registrationStatus?: string;
+  service?: string;
+}
+
+export interface CampServiceMasterModel {
+  campServiceId: number;
+  campServiceCode: string;
+  campServiceName: string;
+  isActive: boolean;
+  createdDate: string | Date;
+  modifiedDate?: string | Date;
 }
 
 const CAMP_API_URL = `${BASE_URL}/Camp`;
@@ -73,6 +83,27 @@ export async function getAllCamps(): Promise<CampRegistrationModel[]> {
   return request<CampRegistrationModel[]>('/Camp/GetAllCamps', {
     method: 'GET',
   });
+}
+
+export async function getCampsByClinicId(clinicId: number): Promise<CampRegistrationModel[]> {
+  console.log('🏕️ getCampsByClinicId called with clinicId:', clinicId);
+  console.log('📍 Full API URL:', `${CAMP_API_URL}/GetAllCampsbyClinicID?ClinicID=${clinicId}`);
+  
+  if (!clinicId || clinicId === 0) {
+    console.error('❌ Invalid clinicId provided:', clinicId);
+    throw new Error('Clinic ID is required and must be greater than 0');
+  }
+  
+  try {
+    const response = await request<CampRegistrationModel[]>(`/Camp/GetAllCampsbyClinicID?ClinicID=${clinicId}`, {
+      method: 'GET',
+    });
+    console.log('✅ Camps fetched successfully:', response);
+    return response;
+  } catch (error) {
+    console.error('❌ Error fetching camps by clinic ID:', error);
+    throw error;
+  }
 }
 
 export async function updateCamp(camp: CampRegistrationModel): Promise<string> {
@@ -92,10 +123,30 @@ export async function deleteCamp(campId: number): Promise<string> {
 export async function addCampParticipant(
   participant: CampParticipantRegistrationModel
 ): Promise<{ participantId: number }> {
-  return request<{ participantId: number }>('/Camp/AddCampParticipant', {
-    method: 'POST',
-    body: JSON.stringify(participant),
-  });
+  console.log('👥 addCampParticipant called with data:', participant);
+  console.log('📍 Full API URL:', `${CAMP_API_URL}/AddCampParticipant`);
+  
+  if (!participant.campId || participant.campId === 0) {
+    console.error('❌ Invalid campId provided:', participant.campId);
+    throw new Error('Camp ID is required and must be greater than 0');
+  }
+  
+  if (!participant.participantName || participant.participantName.trim() === '') {
+    console.error('❌ Participant name is required');
+    throw new Error('Participant name is required');
+  }
+  
+  try {
+    const response = await request<{ participantId: number }>('/Camp/AddCampParticipant', {
+      method: 'POST',
+      body: JSON.stringify(participant),
+    });
+    console.log('✅ Participant added successfully:', response);
+    return response;
+  } catch (error) {
+    console.error('❌ Error adding participant:', error);
+    throw error;
+  }
 }
 
 export async function getAllCampParticipants(campId: number): Promise<CampParticipantRegistrationModel[]> {
@@ -117,4 +168,49 @@ export async function deleteCampParticipant(participantId: number): Promise<stri
   return request<string>(`/Camp/DeleteCampParticipant?participantId=${participantId}`, {
     method: 'DELETE',
   });
+}
+
+// Camp Service Master APIs
+export async function getAllCampServices(): Promise<CampServiceMasterModel[]> {
+  return request<CampServiceMasterModel[]>('/Camp/GetAllCampServices', {
+    method: 'GET',
+  });
+}
+
+export async function addCampService(service: CampServiceMasterModel): Promise<{ campServiceId: number }> {
+  console.log('🔧 addCampService called with data:', service);
+  console.log('📍 Full API URL:', `${CAMP_API_URL}/AddCampService`);
+  
+  try {
+    const response = await request<{ campServiceId: number }>('/Camp/AddCampService', {
+      method: 'POST',
+      body: JSON.stringify(service),
+    });
+    console.log('✅ Camp Service added successfully:', response);
+    return response;
+  } catch (error) {
+    console.error('❌ Error adding camp service:', error);
+    throw error;
+  }
+}
+
+export async function getServicesByCampID(campId: number): Promise<CampServiceMasterModel[]> {
+  console.log('🏕️ getServicesByCampID called with campId:', campId);
+  console.log('📍 Full API URL:', `${CAMP_API_URL}/GetservicesbyCampID?id=${campId}`);
+  
+  if (!campId || campId === 0) {
+    console.error('❌ Invalid campId provided:', campId);
+    throw new Error('Camp ID is required and must be greater than 0');
+  }
+  
+  try {
+    const response = await request<CampServiceMasterModel[]>(`/Camp/GetservicesbyCampID?id=${campId}`, {
+      method: 'GET',
+    });
+    console.log('✅ Services fetched successfully for camp:', response);
+    return response;
+  } catch (error) {
+    console.error('❌ Error fetching services by camp ID:', error);
+    throw error;
+  }
 }

@@ -607,7 +607,7 @@ export default function Header(){
 
       <nav className="w-full bg-gradient-to-r from-coral-50/90 via-peach-50/80 to-cream-50/90 border-b border-coral-200/50 shadow-md sticky top-20 z-30 backdrop-blur-md">
         <div className="w-full px-4 md:px-8 py-3">
-          <div className="flex gap-3 justify-center relative items-center overflow-x-auto scrollbar-hide">
+          <div className="flex gap-3 justify-center relative items-center overflow-hidden">
             {TABS.map((t) => (
               <div
                 key={t.key}
