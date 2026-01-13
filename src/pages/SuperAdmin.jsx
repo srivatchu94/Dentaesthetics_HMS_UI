@@ -1582,7 +1582,6 @@ export default function SuperAdmin() {
         SocialLinks: editStaffForm.socialLinks || "",
         LicenseNumber: editStaffForm.licenseNumber || "",
         LicenseExpiry: editStaffForm.licenseExpiry || null,
-        SpecialtyId: editStaffForm.specialtyId || "",
         SpecialtyId: selectedStaff.specialtyId || null,
         EnterpriseID: selectedStaff.enterpriseID || viewStaffFilters.enterpriseId,
         ClinicID: selectedStaff.clinicID || viewStaffFilters.clinicId

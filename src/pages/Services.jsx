@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import FancyDatePicker from "../components/FancyDatePicker";
+import CampStatisticsModal from "../components/CampStatisticsModal";
 import {
   createCamp,
   addCampParticipant,
@@ -125,8 +126,7 @@ export default function Services(){
   // Camp modals state
   const [showRegisterCampModal, setShowRegisterCampModal] = useState(false);
   const [showAddParticipantsModal, setShowAddParticipantsModal] = useState(false);
-  const [showTrackServicesModal, setShowTrackServicesModal] = useState(false);
-  const [showCampReportsModal, setShowCampReportsModal] = useState(false);
+  const [showCampStatisticsModal, setShowCampStatisticsModal] = useState(false);
   const [showViewCampsModal, setShowViewCampsModal] = useState(false);
   const [showViewParticipantsModal, setShowViewParticipantsModal] = useState(false);
   const [showEditParticipantModal, setShowEditParticipantModal] = useState(false);
@@ -392,20 +392,12 @@ export default function Services(){
           color: "from-cyan-400 to-teal-500"
         },
         {
-          id: 'track-services',
-          title: "🩺 Track Services",
-          description: "Record services provided",
-          action: "track-services",
-          icon: "📋",
-          color: "from-rose-400 to-rose-500"
-        },
-        {
-          id: 'camp-reports',
-          title: "📊 Camp Reports",
-          description: "View attendance & stats",
-          action: "camp-reports",
-          icon: "📈",
-          color: "from-fuchsia-400 to-purple-500"
+          id: 'camp-statistics',
+          title: "📈 Camp Statistics",
+          description: "Generate beautiful statistics & reports",
+          action: "camp-statistics",
+          icon: "⭐",
+          color: "from-pink-400 to-rose-500"
         }
       ]
     }
@@ -428,11 +420,8 @@ export default function Services(){
       case 'list-participants':
         handleListParticipants();
         break;
-      case 'track-services':
-        setShowTrackServicesModal(true);
-        break;
-      case 'camp-reports':
-        setShowCampReportsModal(true);
+      case 'camp-statistics':
+        setShowCampStatisticsModal(true);
         break;
       default:
         alert(`${action} - Feature coming soon! 🚀`);
@@ -1218,9 +1207,9 @@ export default function Services(){
                   onHoverStart={() => setHoveredCard(option.id)}
                   onHoverEnd={() => setHoveredCard(null)}
                   onClick={() => handleServiceAction(option.action)}
-                  className="relative cursor-pointer group"
+                  className="relative cursor-pointer group h-full"
                 >
-                  <div className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${option.color} p-6 shadow-lg hover:shadow-2xl transition-all duration-300`}>
+                  <div className={`relative overflow-hidden rounded-xl bg-gradient-to-br ${option.color} p-6 shadow-lg hover:shadow-2xl transition-all duration-300 h-full flex flex-col justify-between`}>
                     {/* Animated shine effect */}
                     <motion.div
                       animate={{
@@ -2229,394 +2218,6 @@ export default function Services(){
         )}
       </AnimatePresence>
 
-      {/* Track Services Modal */}
-      <AnimatePresence>
-        {showTrackServicesModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowTrackServicesModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
-            >
-              {/* Header */}
-              <div className="sticky top-0 bg-gradient-to-r from-rose-500 to-pink-500 p-6 text-white z-10">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-4xl">🩺</span>
-                    <div>
-                      <h2 className="text-2xl font-bold">Track Services</h2>
-                      <p className="text-rose-100 text-sm">Record services provided to participant</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowTrackServicesModal(false)}
-                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-all"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              {/* Form */}
-              <form onSubmit={handleTrackServicesSubmit} className="p-6 space-y-6">
-                {/* Participant Selection */}
-                <div className="bg-rose-50 rounded-xl p-5">
-                  <h3 className="text-lg font-bold text-rose-900 mb-4 flex items-center gap-2">
-                    <span>👤</span> Select Participant
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">Camp Name *</label>
-                      <select
-                        required
-                        value={trackServicesForm.campName}
-                        onChange={(e) => setTrackServicesForm({...trackServicesForm, campName: e.target.value})}
-                        className="w-full px-4 py-2 border-2 border-rose-200 rounded-lg focus:border-rose-500 focus:ring-2 focus:ring-rose-100 outline-none"
-                      >
-                        <option value="">Select Camp</option>
-                        <option value="Dental Health Awareness Camp 2025">Dental Health Awareness Camp 2025</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">Participant *</label>
-                      <select
-                        required
-                        value={trackServicesForm.participantName}
-                        onChange={(e) => setTrackServicesForm({...trackServicesForm, participantName: e.target.value})}
-                        className="w-full px-4 py-2 border-2 border-rose-200 rounded-lg focus:border-rose-500 focus:ring-2 focus:ring-rose-100 outline-none"
-                      >
-                        <option value="">Select Participant</option>
-                        <option value="John Doe">John Doe</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Examination Details */}
-                <div className="bg-blue-50 rounded-xl p-5">
-                  <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
-                    <span>📋</span> Examination Details
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">Examined By *</label>
-                      <input
-                        type="text"
-                        required
-                        value={trackServicesForm.examinedBy}
-                        onChange={(e) => setTrackServicesForm({...trackServicesForm, examinedBy: e.target.value})}
-                        className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
-                        placeholder="Doctor name"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">Oral Hygiene Status</label>
-                      <select
-                        value={trackServicesForm.oralHygieneStatus}
-                        onChange={(e) => setTrackServicesForm({...trackServicesForm, oralHygieneStatus: e.target.value})}
-                        className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
-                      >
-                        <option value="">Select Status</option>
-                        <option value="Good">Good</option>
-                        <option value="Fair">Fair</option>
-                        <option value="Poor">Poor</option>
-                      </select>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">Chief Complaint</label>
-                      <textarea
-                        value={trackServicesForm.chiefComplaint}
-                        onChange={(e) => setTrackServicesForm({...trackServicesForm, chiefComplaint: e.target.value})}
-                        rows={2}
-                        className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Clinical Findings */}
-                <div className="bg-purple-50 rounded-xl p-5">
-                  <h3 className="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
-                    <span>🔍</span> Clinical Findings
-                  </h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">Dental Issues Found</label>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {['Dental Caries', 'Gingivitis', 'Periodontitis', 'Missing Teeth', 'Malocclusion', 'None'].map(issue => (
-                          <label key={issue} className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={trackServicesForm.dentalIssuesFound.includes(issue)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setTrackServicesForm({...trackServicesForm, dentalIssuesFound: [...trackServicesForm.dentalIssuesFound, issue]});
-                                } else {
-                                  setTrackServicesForm({...trackServicesForm, dentalIssuesFound: trackServicesForm.dentalIssuesFound.filter(i => i !== issue)});
-                                }
-                              }}
-                              className="w-4 h-4 text-purple-600 rounded"
-                            />
-                            <span className="text-sm text-gray-700">{issue}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-1">Clinical Notes</label>
-                      <textarea
-                        value={trackServicesForm.clinicalNotes}
-                        onChange={(e) => setTrackServicesForm({...trackServicesForm, clinicalNotes: e.target.value})}
-                        rows={3}
-                        className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-100 outline-none resize-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Services Provided */}
-                <div className="bg-green-50 rounded-xl p-5">
-                  <h3 className="text-lg font-bold text-green-900 mb-4 flex items-center gap-2">
-                    <span>✅</span> Services Provided at Camp
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {['Oral Examination', 'Teeth Cleaning', 'Fluoride Application', 'Oral Hygiene Education', 'Medication Provided', 'Referral Given'].map(service => (
-                      <label key={service} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={trackServicesForm.servicesProvided.includes(service)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setTrackServicesForm({...trackServicesForm, servicesProvided: [...trackServicesForm.servicesProvided, service]});
-                            } else {
-                              setTrackServicesForm({...trackServicesForm, servicesProvided: trackServicesForm.servicesProvided.filter(s => s !== service)});
-                            }
-                          }}
-                          className="w-4 h-4 text-green-600 rounded"
-                        />
-                        <span className="text-sm text-gray-700">{service}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Follow-up & Referral */}
-                <div className="bg-amber-50 rounded-xl p-5">
-                  <h3 className="text-lg font-bold text-amber-900 mb-4 flex items-center gap-2">
-                    <span>📅</span> Follow-up & Referral
-                  </h3>
-                  <div className="space-y-4">
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={trackServicesForm.requiresFollowup}
-                          onChange={(e) => setTrackServicesForm({...trackServicesForm, requiresFollowup: e.target.checked})}
-                          className="w-5 h-5 text-amber-600 rounded"
-                        />
-                        <span className="text-sm font-semibold text-gray-700">Requires Follow-up</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={trackServicesForm.referralRequired}
-                          onChange={(e) => setTrackServicesForm({...trackServicesForm, referralRequired: e.target.checked})}
-                          className="w-5 h-5 text-amber-600 rounded"
-                        />
-                        <span className="text-sm font-semibold text-gray-700">Referral Required</span>
-                      </label>
-                    </div>
-                    {trackServicesForm.referralRequired && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1">Referral Date</label>
-                          <input
-                            type="date"
-                            value={trackServicesForm.referralDate}
-                            onChange={(e) => setTrackServicesForm({...trackServicesForm, referralDate: e.target.value})}
-                            className="w-full px-4 py-2 border-2 border-amber-200 rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-1">Priority</label>
-                          <select
-                            value={trackServicesForm.priority}
-                            onChange={(e) => setTrackServicesForm({...trackServicesForm, priority: e.target.value})}
-                            className="w-full px-4 py-2 border-2 border-amber-200 rounded-lg focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none"
-                          >
-                            <option value="">Select Priority</option>
-                            <option value="Urgent">Urgent</option>
-                            <option value="Routine">Routine</option>
-                          </select>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowTrackServicesModal(false)}
-                    className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 rounded-xl font-bold text-gray-700 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white rounded-xl font-bold shadow-lg transition-all"
-                  >
-                    🩺 Save Services
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Camp Reports Modal */}
-      <AnimatePresence>
-        {showCampReportsModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowCampReportsModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto"
-            >
-              {/* Header */}
-              <div className="sticky top-0 bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500 p-6 text-white z-10">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-4xl">📊</span>
-                    <div>
-                      <h2 className="text-2xl font-bold">Camp Reports</h2>
-                      <p className="text-purple-100 text-sm">View attendance, statistics & analytics</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowCampReportsModal(false)}
-                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-all"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              {/* Filters */}
-              <div className="p-6 bg-gradient-to-r from-purple-50 to-pink-50">
-                <h3 className="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
-                  <span>🔍</span> Report Filters
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <select className="px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 outline-none">
-                    <option>Select Camp</option>
-                    <option>Dental Health Awareness Camp 2025</option>
-                  </select>
-                  <FancyDatePicker label="Report Date" value={reportFilterDate} onChange={setReportFilterDate} />
-                  <button className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-bold hover:from-purple-600 hover:to-pink-600 transition-all">
-                    Generate Report
-                  </button>
-                </div>
-              </div>
-
-              {/* Statistics */}
-              <div className="p-6 space-y-6">
-                {/* Camp Summary */}
-                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5">
-                  <h3 className="text-lg font-bold text-purple-900 mb-4">📈 Camp Summary</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-lg p-4 text-center shadow-sm">
-                      <div className="text-3xl mb-2">🏕️</div>
-                      <div className="text-2xl font-bold text-purple-600">5</div>
-                      <div className="text-xs text-gray-600">Total Camps</div>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 text-center shadow-sm">
-                      <div className="text-3xl mb-2">👥</div>
-                      <div className="text-2xl font-bold text-pink-600">342</div>
-                      <div className="text-xs text-gray-600">Participants</div>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 text-center shadow-sm">
-                      <div className="text-3xl mb-2">✅</div>
-                      <div className="text-2xl font-bold text-green-600">320</div>
-                      <div className="text-xs text-gray-600">Examined</div>
-                    </div>
-                    <div className="bg-white rounded-lg p-4 text-center shadow-sm">
-                      <div className="text-3xl mb-2">📊</div>
-                      <div className="text-2xl font-bold text-blue-600">93.6%</div>
-                      <div className="text-xs text-gray-600">Attendance</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Service Metrics */}
-                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-5">
-                  <h3 className="text-lg font-bold text-blue-900 mb-4">🩺 Services Provided</h3>
-                  <div className="space-y-3">
-                    {[
-                      { service: 'Oral Examinations', count: 320, color: 'blue' },
-                      { service: 'Teeth Cleanings', count: 215, color: 'cyan' },
-                      { service: 'Fluoride Applications', count: 180, color: 'teal' },
-                      { service: 'Medications Distributed', count: 95, color: 'green' },
-                      { service: 'Referrals Given', count: 42, color: 'amber' }
-                    ].map(item => (
-                      <div key={item.service} className="flex items-center gap-3">
-                        <div className="flex-1">
-                          <div className="flex justify-between mb-1">
-                            <span className="text-sm font-semibold text-gray-700">{item.service}</span>
-                            <span className="text-sm font-bold text-gray-900">{item.count}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div className={`bg-gradient-to-r from-${item.color}-400 to-${item.color}-500 h-2 rounded-full`} style={{width: `${(item.count/320)*100}%`}}></div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Export Options */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <button className="px-4 py-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-lg font-bold hover:from-red-600 hover:to-rose-600 transition-all flex items-center justify-center gap-2">
-                    <span>📄</span> PDF
-                  </button>
-                  <button className="px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-bold hover:from-green-600 hover:to-emerald-600 transition-all flex items-center justify-center gap-2">
-                    <span>📊</span> Excel
-                  </button>
-                  <button className="px-4 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg font-bold hover:from-blue-600 hover:to-cyan-600 transition-all flex items-center justify-center gap-2">
-                    <span>🖨️</span> Print
-                  </button>
-                  <button className="px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-bold hover:from-purple-600 hover:to-pink-600 transition-all flex items-center justify-center gap-2">
-                    <span>📧</span> Email
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* View Camps Modal */}
       <AnimatePresence>
         {showViewCampsModal && (
@@ -3480,6 +3081,12 @@ export default function Services(){
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Camp Statistics Modal */}
+      <CampStatisticsModal
+        isOpen={showCampStatisticsModal}
+        onClose={() => setShowCampStatisticsModal(false)}
+      />
     </div>
   );
 }

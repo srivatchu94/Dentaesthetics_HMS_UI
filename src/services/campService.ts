@@ -69,6 +69,13 @@ export interface CampServiceMasterModel {
   modifiedDate?: string | Date;
 }
 
+export interface CampReportModel {
+  enterpriseId: number;
+  clinicId: number;
+  serviceName: string;
+  noOfParticipants: number;
+}
+
 const CAMP_API_URL = `${BASE_URL}/Camp`;
 
 // Camp Management APIs
@@ -211,6 +218,53 @@ export async function getServicesByCampID(campId: number): Promise<CampServiceMa
     return response;
   } catch (error) {
     console.error('❌ Error fetching services by camp ID:', error);
+    throw error;
+  }
+}
+
+// Camp Reports API
+export async function getCampReports(
+  campId?: number,
+  registrationDate?: string
+): Promise<CampReportModel[]> {
+  console.log('📊 getCampReports called');
+  console.log('  campId:', campId, '(type:', typeof campId + ')');
+  console.log('  registrationDate:', registrationDate, '(type:', typeof registrationDate + ')');
+  
+  try {
+    // Build query string with optional parameters
+    const params = new URLSearchParams();
+    if (campId && campId > 0) {
+      params.append('campid', campId.toString());
+      console.log('  ✓ Added campid to params:', campId);
+    } else {
+      console.log('  ✗ campId not added (value:', campId, ')');
+    }
+    
+    if (registrationDate) {
+      params.append('registrationDate', registrationDate);
+      console.log('  ✓ Added registrationDate to params:', registrationDate);
+    } else {
+      console.log('  ✗ registrationDate not added (value:', registrationDate, ')');
+    }
+    
+    const queryString = params.toString();
+    const url = `/Camp/GetCampReports${queryString ? '?' + queryString : ''}`;
+    
+    console.log('📍 API Endpoint Details:');
+    console.log('  BASE_URL:', CAMP_API_URL);
+    console.log('  Path:', url);
+    console.log('  Full URL:', `${CAMP_API_URL}${url}`);
+    console.log('  Query String:', queryString || '(none)');
+    
+    const response = await request<CampReportModel[]>(url, {
+      method: 'GET',
+    });
+    console.log('✅ Camp reports fetched successfully:', response);
+    return response;
+  } catch (error) {
+    console.error('❌ Error fetching camp reports:', error);
+    console.error('  Error details:', error.message);
     throw error;
   }
 }

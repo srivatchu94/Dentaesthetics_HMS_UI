@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import {
   createCamp,
   getAllCamps,
@@ -16,6 +17,7 @@ import {
 import { getSelectedAccess } from "../services/authService";
 
 export default function Camps() {
+  const navigate = useNavigate();
   const [camps, setCamps] = useState<CampRegistrationModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -458,12 +460,17 @@ export default function Camps() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.2 }}
-                  className="bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 rounded-xl shadow-lg p-8 text-white"
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() => navigate('/camps/reports')}
+                  className="bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 rounded-xl shadow-lg hover:shadow-2xl transition cursor-pointer p-8 text-white"
                 >
                   <div className="text-5xl mb-4">📊</div>
-                  <h3 className="text-2xl font-bold mb-2">Total Camps</h3>
-                  <p className="text-5xl font-bold mb-2">{camps.length}</p>
-                  <p className="text-indigo-100">Active in your clinic</p>
+                  <h3 className="text-2xl font-bold mb-2">Camp Reports</h3>
+                  <p className="text-indigo-100 mb-4">Generate and export camp participation reports</p>
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <span>View analytics</span>
+                    <span>→</span>
+                  </div>
                 </motion.div>
               </div>
 
@@ -481,37 +488,10 @@ export default function Camps() {
                   </div>
 
                   <button
-                    onClick={() => {
-                      setCampForm({
-                        campName: "",
-                        campType: "",
-                        campDate: "",
-                        startTime: "",
-                        endTime: "",
-                        venueType: "",
-                        institutionName: "",
-                        address: "",
-                        city: "",
-                        state: "",
-                        pinCode: "",
-                        organizedBy: "",
-                        contactPerson: "",
-                        contactNumber: "",
-                        contactEmail: "",
-                        expectedParticipants: 0,
-                        targetAgeGroup: "",
-                        servicesOffered: "",
-                        campDescription: "",
-                        specialNotes: "",
-                        budgetAllocated: 0,
-                        sponsorshipDetails: "",
-                      });
-                      setEditingCamp(null);
-                      setShowCampModal(true);
-                    }}
-                    className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition font-semibold"
+                    onClick={() => navigate('/camps/reports')}
+                    className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:shadow-lg transition font-semibold"
                   >
-                    ➕ Create New Camp
+                    📊 View Reports
                   </button>
                 </div>
               </div>
