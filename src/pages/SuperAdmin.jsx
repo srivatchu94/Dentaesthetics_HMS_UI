@@ -1,7 +1,19 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "react-router-dom";
 import { createStaffDetail } from "../services/staffService";
+import {
+  AppointmentListModal,
+  CreateAppointmentModal,
+  EditAppointmentModal,
+  DeleteAppointmentModal,
+  CreatePatientModal,
+  ManagePatientModal,
+  InventoryListModal,
+  CreateInventoryModal,
+  EditInventoryModal,
+  DeleteInventoryModal
+} from "../components/AppointmentManagement";
 
 const SUPERADMIN_ENDPOINTS = {
   insert: "https://localhost:7104/api/SuperAdmin/Insert",
@@ -76,6 +88,7 @@ export default function SuperAdmin() {
   const [deletingAdmin, setDeletingAdmin] = useState(null);
   const [enterprises, setEnterprises] = useState([]);
   const [clinics, setClinics] = useState([]);
+  const [doctors, setDoctors] = useState([]);
   const [enterpriseLoading, setEnterpriseLoading] = useState(false);
   const [clinicLoading, setClinicLoading] = useState(false);
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState(0);
@@ -236,6 +249,201 @@ export default function SuperAdmin() {
   const [staffDetailError, setStaffDetailError] = useState("");
   const [isEditingStaff, setIsEditingStaff] = useState(false);
   const [editStaffForm, setEditStaffForm] = useState(null);
+
+  // Appointment Management States
+  const [showAppointmentListModal, setShowAppointmentListModal] = useState(false);
+  const [showCreateAppointmentModal, setShowCreateAppointmentModal] = useState(false);
+  const [showEditAppointmentModal, setShowEditAppointmentModal] = useState(false);
+  const [showDeleteAppointmentModal, setShowDeleteAppointmentModal] = useState(false);
+  const [appointments, setAppointments] = useState([]);
+  const [appointmentLoading, setAppointmentLoading] = useState(false);
+  const [appointmentError, setAppointmentError] = useState("");
+  const [appointmentSuccess, setAppointmentSuccess] = useState("");
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [appointmentToDelete, setAppointmentToDelete] = useState(null);
+  const [appointmentFilterQuery, setAppointmentFilterQuery] = useState("");
+  const [appointmentFilterEnterprise, setAppointmentFilterEnterprise] = useState("");
+  const [appointmentFilterClinic, setAppointmentFilterClinic] = useState("");
+  const [appointmentFilterFirstName, setAppointmentFilterFirstName] = useState("");
+  const [appointmentFilterLastName, setAppointmentFilterLastName] = useState("");
+  const [appointmentFilterDoctor, setAppointmentFilterDoctor] = useState("");
+  const [createAppointmentActiveTab, setCreateAppointmentActiveTab] = useState("basic");
+  const [editAppointmentActiveTab, setEditAppointmentActiveTab] = useState("basic");
+  const [createAppointmentForm, setCreateAppointmentForm] = useState({
+    patientId: "",
+    clinicId: "",
+    doctorId: "",
+    enterpriseId: "",
+    firstName: "",
+    lastName: "",
+    phoneNumber: "",
+    email: "",
+    appointmentDate: "",
+    startTime: "",
+    endTime: "",
+    durationMinutes: "30",
+    appointmentType: "Consultation",
+    reasonForVisit: "",
+    notes: "",
+    roomNumber: "",
+    telehealthLink: "",
+    status: "Scheduled",
+    isConfirmed: false,
+    billableAmount: "",
+    paymentStatus: "Pending",
+    appointmentClinics: []
+  });
+  const [editAppointmentForm, setEditAppointmentForm] = useState(null);
+  const [lastAppointmentFilters, setLastAppointmentFilters] = useState({
+    clinicId: null,
+    firstName: null,
+    lastName: null,
+    doctorId: null,
+    appointmentDate: null
+  });
+  const [appointmentFormError, setAppointmentFormError] = useState("");
+  const [appointmentFormLoading, setAppointmentFormLoading] = useState(false);
+  const [deletingAppointment, setDeletingAppointment] = useState(false);
+
+  // Patient Management States
+  const [showCreatePatientModal, setShowCreatePatientModal] = useState(false);
+  const [createPatientForm, setCreatePatientForm] = useState({
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    gender: "",
+    bloodGroup: "",
+    maritalStatus: "",
+    enterpriseId: "",
+    clinicId: "",
+    role: "Patient",
+    phoneNumber: "",
+    alternatePhone: "",
+    email: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    emergencyContactRelation: "",
+    allergies: "",
+    chronicConditions: "",
+    currentMedications: "",
+    pastSurgeries: "",
+    familyMedicalHistory: "",
+    smokingStatus: "",
+    alcoholConsumption: "",
+    exerciseFrequency: "",
+    lastDentalVisit: "",
+    dietaryRestrictions: "",
+    additionalMedicalNotes: "",
+    insuranceProvider: "",
+    policyNumber: "",
+    groupNumber: "",
+    insurancePhone: "",
+    policyHolderName: "",
+    relationshipToHolder: "",
+    coverageStartDate: "",
+    coverageEndDate: "",
+    copayAmount: "",
+    deductibleAmount: "",
+    coveragePercentage: "",
+    isPrimaryInsurance: false,
+    patientClinics: []
+  });
+  const [createPatientActiveTab, setCreatePatientActiveTab] = useState("patient-info");
+  const [patientFormError, setPatientFormError] = useState("");
+  const [patientFormLoading, setPatientFormLoading] = useState(false);
+  const [showManagePatientModal, setShowManagePatientModal] = useState(false);
+  const [patientSearchId, setPatientSearchId] = useState("");
+  const [patientProfile, setPatientProfile] = useState(null);
+  const [patientProfileLoading, setPatientProfileLoading] = useState(false);
+  const [patientProfileError, setPatientProfileError] = useState("");
+  const [showEditPatientModal, setShowEditPatientModal] = useState(false);
+  const [editPatientForm, setEditPatientForm] = useState(null);
+  const [editPatientActiveTab, setEditPatientActiveTab] = useState("patient-info");
+  const [showDeletePatientModal, setShowDeletePatientModal] = useState(false);
+  const [patientToDelete, setPatientToDelete] = useState(null);
+  const [deletingPatient, setDeletingPatient] = useState(false);
+
+  // Inventory Management States
+  const [showInventoryListModal, setShowInventoryListModal] = useState(false);
+  const [showCreateInventoryModal, setShowCreateInventoryModal] = useState(false);
+  const [showEditInventoryModal, setShowEditInventoryModal] = useState(false);
+  const [showDeleteInventoryModal, setShowDeleteInventoryModal] = useState(false);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState("");
+  const [inventorySuccess, setInventorySuccess] = useState("");
+  const [selectedInventoryItem, setSelectedInventoryItem] = useState(null);
+  const [inventoryToDelete, setInventoryToDelete] = useState(null);
+  const [inventoryFilterQuery, setInventoryFilterQuery] = useState("");
+  const [inventoryFilterCategory, setInventoryFilterCategory] = useState("");
+  const [inventoryFilterStatus, setInventoryFilterStatus] = useState("");
+  const [createInventoryForm, setCreateInventoryForm] = useState({
+    itemName: "",
+    itemCode: "",
+    category: "",
+    subCategory: "",
+    unit: "Box",
+    isActive: true
+  });
+  const [editInventoryForm, setEditInventoryForm] = useState(null);
+  const [deletingInventory, setDeletingInventory] = useState(false);
+  const [inventoryFormError, setInventoryFormError] = useState("");
+  const [inventoryFormLoading, setInventoryFormLoading] = useState(false);
+
+  // Clinic Inventory States
+  const [showClinicInventoryListModal, setShowClinicInventoryListModal] = useState(false);
+  const [showCreateClinicInventoryModal, setShowCreateClinicInventoryModal] = useState(false);
+  const [clinicInventoryItems, setClinicInventoryItems] = useState([]);
+  const [clinicInventoryLoading, setClinicInventoryLoading] = useState(false);
+  const [clinicInventoryError, setClinicInventoryError] = useState("");
+  const [createClinicInventoryForm, setCreateClinicInventoryForm] = useState({
+    itemId: "",
+    enterpriseId: "",
+    clinicId: "",
+    quantityAvailable: "",
+    reorderLevel: "",
+    minimumStock: "",
+    storageLocation: "",
+    status: "Available"
+  });
+
+  const APPOINTMENT_ENDPOINTS = {
+    list: "https://localhost:7104/api/Appointments/GetAll",
+    create: "https://localhost:7104/api/Appointments/CreateAppointment",
+    update: "https://localhost:7104/api/Appointments/UpdateAppointment",
+    delete: (id) => `https://localhost:7104/api/Appointments/DeleteAppointment?id=${id}`,
+    getByClinic: (clinicId) => `https://localhost:7104/api/Appointments/GetByClinic/${clinicId}`,
+    getByDoctor: (doctorId) => `https://localhost:7104/api/Appointments/GetByDoctor/${doctorId}`,
+    getByPatient: (patientId) => `https://localhost:7104/api/Appointments/GetByPatient/${patientId}`
+  };
+
+  const PATIENT_ENDPOINTS = {
+    getFullProfile: (patientId) => `https://localhost:7104/api/Patient/details/fullProfile?patientId=${patientId}`,
+    update: (patientId) => `https://localhost:7104/api/Patient/Update/${patientId}`,
+    delete: (patientId) => `https://localhost:7104/api/Patient/Delete/${patientId}`
+  };
+
+  const INVENTORY_ENDPOINTS = {
+    master: {
+      list: "https://localhost:7104/api/InventoryMaster/GetAll",
+      create: "https://localhost:7104/api/InventoryMaster/Create",
+      update: (id) => `https://localhost:7104/api/InventoryMaster/Update/${id}`,
+      delete: (id) => `https://localhost:7104/api/InventoryMaster/Delete/${id}`
+    },
+    clinic: {
+      list: "https://localhost:7104/api/ClinicInventory/GetAll",
+      create: "https://localhost:7104/api/ClinicInventory/Create",
+      update: (id) => `https://localhost:7104/api/ClinicInventory/Update/${id}`,
+      delete: (id) => `https://localhost:7104/api/ClinicInventory/Delete/${id}`,
+      getByClinic: (clinicId) => `https://localhost:7104/api/ClinicInventory/GetByClinic/${clinicId}`
+    }
+  };
 
   const filteredList = useMemo(() => {
     const query = filterQuery.trim().toLowerCase();
@@ -604,12 +812,13 @@ export default function SuperAdmin() {
     try {
       setEnterpriseLoading(true);
       setError("");
-      console.log("🏢 Fetching enterprises from:", ENTERPRISE_ENDPOINTS.list);
+      console.log("🏢 Fetching enterprises from: https://localhost:7104/api/Enterprise/GetAllEnterprises");
       
-      const response = await fetch(ENTERPRISE_ENDPOINTS.list, {
+      const response = await fetch("https://localhost:7104/api/Enterprise/GetAllEnterprises", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
+          // Include token when available; API will ignore if not required
           Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
         }
       });
@@ -617,7 +826,9 @@ export default function SuperAdmin() {
       console.log("📡 Response status:", response.status);
       
       if (!response.ok) {
-        throw new Error(`Unable to load enterprises (${response.status})`);
+        const errorText = await response.text();
+        console.error("❌ Error response:", errorText);
+        throw new Error(`Unable to load enterprises (${response.status}): ${errorText}`);
       }
       const data = await response.json();
       console.log("📊 Raw data from API:", data);
@@ -814,11 +1025,10 @@ export default function SuperAdmin() {
       setError("");
       console.log("🏥 Loading clinics for enterprise ID:", enterpriseId);
       
-      const response = await fetch(CLINIC_ENDPOINTS.getByEnterpriseId(enterpriseId), {
+      const response = await fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${enterpriseId}`, {
         method: "GET",
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          "Content-Type": "application/json"
         }
       });
       
@@ -827,13 +1037,16 @@ export default function SuperAdmin() {
       }
       
       const data = await response.json();
+      console.log("📊 Raw clinic data received:", data);
+      
       const payload = Array.isArray(data) ? data : data.data || [];
+      console.log("📊 Parsed clinics array:", payload);
       
       const normalized = payload.map((item) => ({
-        clinicId: item.clinicId || item.ClinicId || "",
-        enterpriseId: item.enterpriseId || item.EnterpriseId || "",
-        clinicName: item.clinicName || item.ClinicName || "",
-        clinicCode: item.clinicCode || item.ClinicCode || "",
+        clinicId: item.clinicId || item.ClinicId || item.clinic_id || "",
+        enterpriseId: item.enterpriseId || item.EnterpriseId || item.enterprise_id || "",
+        clinicName: item.clinicName || item.ClinicName || item.clinic_name || "",
+        clinicCode: item.clinicCode || item.ClinicCode || item.clinic_code || "",
         contactEmail: item.contactEmail || item.ContactEmail || item.clinicEmail || item.ClinicEmail || "",
         contactPhone: item.contactPhone || item.ContactPhone || item.clinicPhone || item.ClinicPhone || "",
         addressLine1: item.addressLine1 || item.AddressLine1 || item.clinicAddress || item.ClinicAddress || "",
@@ -846,7 +1059,7 @@ export default function SuperAdmin() {
         isActive: item.isActive ?? item.IsActive ?? true
       }));
       
-      console.log("✅ Clinics loaded:", normalized.length);
+      console.log("✅ Clinics normalized:", normalized.length, normalized);
       setClinics(normalized);
     } catch (err) {
       console.error("❌ Error loading clinics:", err);
@@ -854,6 +1067,83 @@ export default function SuperAdmin() {
       setClinics([]);
     } finally {
       setViewClinicsLoading(false);
+    }
+  };
+
+  // Fetch all doctors
+  const fetchDoctors = async () => {
+    try {
+      console.log("👨‍⚕️ Fetching doctors...");
+      const response = await fetch("https://localhost:7104/api/Doctors/GetAll", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+
+      if (!response.ok) {
+        console.warn("⚠️ Failed to fetch doctors:", response.status);
+        return;
+      }
+
+      const data = await response.json();
+      const doctorsList = Array.isArray(data) ? data : data.data || [];
+      const normalized = doctorsList.map((item) => ({
+        doctorId: item.doctorId || item.doctorID || item.id || "",
+        firstName: item.firstName || item.FirstName || "",
+        lastName: item.lastName || item.LastName || "",
+        name: `${item.firstName || item.FirstName || ""} ${item.lastName || item.LastName || ""}`.trim(),
+        email: item.email || item.Email || "",
+        phone: item.phone || item.Phone || "",
+        specialization: item.specialization || item.Specialization || ""
+      }));
+      setDoctors(normalized);
+      console.log("✅ Doctors loaded:", normalized.length);
+    } catch (err) {
+      console.error("❌ Error fetching doctors:", err);
+      // Don't show error to user, just log it
+    }
+  };
+
+  // Fetch doctors by clinic ID
+  const fetchDoctorsByClinic = async (clinicId) => {
+    if (!clinicId) {
+      setDoctors([]);
+      return;
+    }
+
+    try {
+      console.log("👨‍⚕️ Fetching doctors for clinic ID:", clinicId);
+      const response = await fetch(`https://localhost:7104/api/StaffDetail/GetDoctorsForClinicID?clinicId=${clinicId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!response.ok) {
+        console.warn("⚠️ Failed to fetch doctors for clinic:", response.status);
+        return;
+      }
+
+      const data = await response.json();
+      console.log("📊 Raw doctors data received:", data);
+      const doctorsList = Array.isArray(data) ? data : data.data || [];
+      const normalized = doctorsList.map((item) => ({
+        doctorId: item.doctorId || item.doctorID || item.id || "",
+        firstName: item.firstName || item.FirstName || "",
+        lastName: item.lastName || item.LastName || "",
+        name: `${item.firstName || item.FirstName || ""} ${item.lastName || item.LastName || ""}`.trim(),
+        email: item.email || item.Email || "",
+        phone: item.phone || item.Phone || "",
+        specialization: item.specialization || item.Specialization || ""
+      }));
+      setDoctors(normalized);
+      console.log("✅ Doctors for clinic loaded:", normalized.length);
+    } catch (err) {
+      console.error("❌ Error fetching doctors for clinic:", err);
+      // Don't show error to user, just log it
     }
   };
 
@@ -1412,11 +1702,10 @@ export default function SuperAdmin() {
     try {
       setListClinicsLoading(true);
       setListClinicsError("");
-      const response = await fetch(CLINIC_ENDPOINTS.list, {
+      const response = await fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${enterpriseId}`, {
         method: "GET",
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          "Content-Type": "application/json"
         }
       });
 
@@ -1425,12 +1714,7 @@ export default function SuperAdmin() {
       }
 
       const data = await response.json();
-      const allClinics = Array.isArray(data) ? data : data.data || [];
-      
-      // Filter clinics for the selected enterprise
-      const enterpriseClinics = allClinics.filter(
-        (clinic) => clinic.enterpriseId === enterpriseId || clinic.enterpriseID === enterpriseId
-      );
+      const enterpriseClinics = Array.isArray(data) ? data : data.data || [];
       
       setListClinicsData(enterpriseClinics);
     } catch (err) {
@@ -1440,10 +1724,721 @@ export default function SuperAdmin() {
     }
   };
 
+  // ============ APPOINTMENT CRUD FUNCTIONS ============
+
+  const fetchAppointments = async (clinicId = null, firstName = null, lastName = null, doctorId = null, appointmentDate = null) => {
+    try {
+      setAppointmentLoading(true);
+      setAppointmentError("");
+      
+      // Clinic ID and Appointment Date are required
+      if (!clinicId) {
+        setAppointmentError("Please select a clinic to filter appointments");
+        setAppointmentLoading(false);
+        return;
+      }
+      
+      if (!appointmentDate) {
+        setAppointmentError("Please select an appointment date to filter appointments");
+        setAppointmentLoading(false);
+        return;
+      }
+      
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+      queryParams.append("clinicId", clinicId);
+      queryParams.append("appointmentDate", appointmentDate);
+      if (firstName) {
+        queryParams.append("firstName", firstName);
+      }
+      if (lastName) {
+        queryParams.append("lastName", lastName);
+      }
+      if (doctorId) {
+        queryParams.append("doctorId", doctorId);
+      }
+
+      const queryString = queryParams.toString();
+      const url = `https://localhost:7104/api/Appointments/GetAppointmentsSuperAdmin?${queryString}`;
+
+      console.log("📋 Fetching appointments from:", url);
+      console.log("   Clinic ID:", clinicId);
+      console.log("   Appointment Date:", appointmentDate);
+      console.log("   First Name:", firstName || "null");
+      console.log("   Last Name:", lastName || "null");
+      console.log("   Doctor ID:", doctorId || "null");
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Appointments fetch error:", response.status, errorText);
+        throw new Error(`Failed to load appointments (${response.status})`);
+      }
+
+      const data = await response.json();
+      console.log("✅ Appointments loaded:", data);
+      const appointmentsList = Array.isArray(data) ? data : data.data || [];
+      setAppointments(appointmentsList);
+    } catch (err) {
+      console.error("❌ Error fetching appointments:", err);
+      setAppointmentError(err.message || "Failed to load appointments");
+    } finally {
+      setAppointmentLoading(false);
+    }
+  };
+
+  const handleCreateAppointment = async () => {
+    setAppointmentFormError("");
+
+    // Validation
+    if (!createAppointmentForm.patientId || !createAppointmentForm.clinicId || !createAppointmentForm.appointmentDate) {
+      setAppointmentFormError("Patient ID, Clinic, and Appointment Date are required");
+      return;
+    }
+
+    if (!createAppointmentForm.firstName || !createAppointmentForm.lastName || !createAppointmentForm.phoneNumber) {
+      setAppointmentFormError("First name, last name, and phone number are required");
+      return;
+    }
+
+    // Parse and format data properly
+    const patientId = parseInt(createAppointmentForm.patientId);
+    const clinicId = parseInt(createAppointmentForm.clinicId);
+    const enterpriseId = parseInt(createAppointmentForm.enterpriseId) || 0;
+    
+    // Keep doctorId as string, or null if empty
+    const doctorId = createAppointmentForm.doctorId && String(createAppointmentForm.doctorId).trim() !== "" ? String(createAppointmentForm.doctorId).trim() : null;
+    const durationMinutes = createAppointmentForm.durationMinutes ? parseInt(createAppointmentForm.durationMinutes) : null;
+    const billableAmount = createAppointmentForm.billableAmount ? parseFloat(createAppointmentForm.billableAmount) : null;
+
+    // Format appointment date as date only (e.g., "2026-01-12")
+    // Format appointment date as date only (e.g., "2026-01-12")
+    // Use split to avoid timezone issues
+    const appointmentDateOnly = createAppointmentForm.appointmentDate 
+      ? createAppointmentForm.appointmentDate.split('T')[0]
+      : null;
+
+    // Format times as TimeSpan "HH:mm:ss" format
+    const formatTimeToTimeSpan = (timeString) => {
+      if (!timeString) return null;
+      // If it's in format "HH:mm", add ":00" to make "HH:mm:00"
+      if (timeString.match(/^\d{1,2}:\d{2}$/)) {
+        return timeString + ":00";
+      }
+      // If it's already in "HH:mm:ss" format, return as is
+      if (timeString.match(/^\d{1,2}:\d{2}:\d{2}$/)) {
+        return timeString;
+      }
+      return null;
+    };
+
+    const startTime = formatTimeToTimeSpan(createAppointmentForm.startTime);
+    const endTime = formatTimeToTimeSpan(createAppointmentForm.endTime);
+
+    // Validate critical numeric fields
+    if (isNaN(patientId) || isNaN(clinicId)) {
+      setAppointmentFormError("Patient ID and Clinic ID must be valid numbers");
+      return;
+    }
+
+    const payload = {
+      patientId: patientId,
+      clinicId: clinicId,
+      doctorId: doctorId,
+      attendingPhysician: createAppointmentForm.attendingPhysician ? createAppointmentForm.attendingPhysician.trim() : null,
+      enterpriseId: enterpriseId,
+      firstName: createAppointmentForm.firstName.trim(),
+      lastName: createAppointmentForm.lastName.trim(),
+      phoneNumber: createAppointmentForm.phoneNumber.trim(),
+      email: createAppointmentForm.email ? createAppointmentForm.email.trim() : null,
+      appointmentDate: appointmentDateOnly,
+      startTime: startTime,
+      endTime: endTime,
+      durationMinutes: durationMinutes,
+      appointmentType: createAppointmentForm.appointmentType || "Consultation",
+      reasonForVisit: createAppointmentForm.reasonForVisit ? createAppointmentForm.reasonForVisit.trim() : null,
+      notes: createAppointmentForm.notes ? createAppointmentForm.notes.trim() : null,
+      roomNumber: createAppointmentForm.roomNumber ? createAppointmentForm.roomNumber.trim() : null,
+      telehealthLink: createAppointmentForm.telehealthLink ? createAppointmentForm.telehealthLink.trim() : null,
+      status: createAppointmentForm.status || "Scheduled",
+      isConfirmed: createAppointmentForm.isConfirmed === true,
+      billableAmount: billableAmount,
+      paidAmount: createAppointmentForm.paidAmount ? parseFloat(createAppointmentForm.paidAmount) : null,
+      pendingAmount: createAppointmentForm.pendingAmount ? parseFloat(createAppointmentForm.pendingAmount) : null,
+      paymentStatus: createAppointmentForm.paymentStatus || "Pending",
+      createdBy: null,
+      updatedBy: null
+    };
+
+    console.log("📋 Creating appointment with payload:", payload);
+
+    try {
+      setAppointmentFormLoading(true);
+      const response = await fetch(APPOINTMENT_ENDPOINTS.create, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        // Try to get error details from response
+        let errorMessage = `Failed to create appointment (${response.status})`;
+        try {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await response.json();
+            console.error("❌ Server error response:", errorData);
+            if (errorData.message) {
+              errorMessage = errorData.message;
+            } else if (errorData.errors) {
+              errorMessage = Object.values(errorData.errors).join(", ");
+            }
+          } else {
+            // Try to get raw text response
+            const errorText = await response.clone().text();
+            console.error("❌ Server error (raw text):", errorText);
+            // Show first 200 chars of error
+            errorMessage = errorText.substring(0, 200) || `Failed to create appointment (${response.status})`;
+          }
+        } catch (e) {
+          console.error("❌ Error parsing response:", e);
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.log("✅ Appointment created successfully:", result);
+      
+      setAppointmentSuccess(`Appointment created successfully for ${createAppointmentForm.firstName} ${createAppointmentForm.lastName}`);
+      setShowCreateAppointmentModal(false);
+      
+      // Reset form
+      setCreateAppointmentForm({
+        patientId: "",
+        clinicId: "",
+        doctorId: "",
+        enterpriseId: "",
+        firstName: "",
+        lastName: "",
+        phoneNumber: "",
+        email: "",
+        appointmentDate: "",
+        startTime: "",
+        endTime: "",
+        durationMinutes: "30",
+        appointmentType: "Consultation",
+        reasonForVisit: "",
+        notes: "",
+        roomNumber: "",
+        telehealthLink: "",
+        status: "Scheduled",
+        isConfirmed: false,
+        billableAmount: "",
+        paymentStatus: "Pending",
+        appointmentClinics: []
+      });
+
+      // Refresh list
+      await fetchAppointments();
+      
+      // Show success
+      setTimeout(() => setAppointmentSuccess(""), 3000);
+    } catch (err) {
+      console.error("❌ Error creating appointment:", err);
+      setAppointmentFormError(err.message || "Failed to create appointment");
+    } finally {
+      setAppointmentFormLoading(false);
+    }
+  };
+
+  const handleUpdateAppointment = async () => {
+    setAppointmentFormError("");
+
+    if (!editAppointmentForm || !editAppointmentForm.appointmentId) {
+      setAppointmentFormError("Invalid appointment selected");
+      return;
+    }
+
+    // Parse and format data properly
+    const appointmentId = parseInt(editAppointmentForm.appointmentId);
+    const patientId = parseInt(editAppointmentForm.patientId);
+    const clinicId = parseInt(editAppointmentForm.clinicId);
+    const enterpriseId = parseInt(editAppointmentForm.enterpriseId) || 0;
+    
+    // Keep doctorId as string, or null if empty
+    const doctorId = editAppointmentForm.doctorId && String(editAppointmentForm.doctorId).trim() !== "" ? String(editAppointmentForm.doctorId).trim() : null;
+    const durationMinutes = editAppointmentForm.durationMinutes ? parseInt(editAppointmentForm.durationMinutes) : null;
+    const billableAmount = editAppointmentForm.billableAmount ? parseFloat(editAppointmentForm.billableAmount) : null;
+    
+    // Parse visitId and createdBy as integers
+    const visitId = editAppointmentForm.visitId && editAppointmentForm.visitId !== "" ? parseInt(editAppointmentForm.visitId) : null;
+    const createdByInt = editAppointmentForm.createdBy && editAppointmentForm.createdBy !== "" ? parseInt(editAppointmentForm.createdBy) : null;
+
+    // Format appointment date as date only (e.g., "2026-01-12")
+    // Use split to avoid timezone issues
+    const appointmentDateOnly = editAppointmentForm.appointmentDate 
+      ? editAppointmentForm.appointmentDate.split('T')[0]
+      : null;
+
+    // Format times as TimeSpan "HH:mm:ss" format
+    const formatTimeToTimeSpan = (timeString) => {
+      if (!timeString) return null;
+      // If it's in format "HH:mm", add ":00" to make "HH:mm:00"
+      if (timeString.match(/^\d{1,2}:\d{2}$/)) {
+        return timeString + ":00";
+      }
+      // If it's already in "HH:mm:ss" format, return as is
+      if (timeString.match(/^\d{1,2}:\d{2}:\d{2}$/)) {
+        return timeString;
+      }
+      return null;
+    };
+
+    const startTime = formatTimeToTimeSpan(editAppointmentForm.startTime);
+    const endTime = formatTimeToTimeSpan(editAppointmentForm.endTime);
+
+    // Validate critical numeric fields
+    if (isNaN(appointmentId) || isNaN(patientId) || isNaN(clinicId)) {
+      setAppointmentFormError("Appointment ID, Patient ID, and Clinic ID must be valid numbers");
+      return;
+    }
+
+    const payload = {
+      appointmentId: appointmentId,
+      patientId: patientId,
+      clinicId: clinicId,
+      doctorId: doctorId,
+      visitId: visitId,
+      attendingPhysician: editAppointmentForm.attendingPhysician || null,
+      enterpriseId: enterpriseId,
+      firstName: editAppointmentForm.firstName.trim(),
+      lastName: editAppointmentForm.lastName.trim(),
+      phoneNumber: editAppointmentForm.phoneNumber.trim(),
+      email: editAppointmentForm.email ? editAppointmentForm.email.trim() : null,
+      appointmentDate: appointmentDateOnly,
+      startTime: startTime,
+      endTime: endTime,
+      durationMinutes: durationMinutes,
+      appointmentType: editAppointmentForm.appointmentType || "Consultation",
+      reasonForVisit: editAppointmentForm.reasonForVisit ? editAppointmentForm.reasonForVisit.trim() : null,
+      notes: editAppointmentForm.notes ? editAppointmentForm.notes.trim() : null,
+      roomNumber: editAppointmentForm.roomNumber ? editAppointmentForm.roomNumber.trim() : null,
+      telehealthLink: editAppointmentForm.telehealthLink ? editAppointmentForm.telehealthLink.trim() : null,
+      status: editAppointmentForm.status || "Scheduled",
+      isConfirmed: editAppointmentForm.isConfirmed === true,
+      billableAmount: billableAmount,
+      paidAmount: editAppointmentForm.paidAmount && editAppointmentForm.paidAmount !== "" ? parseFloat(editAppointmentForm.paidAmount) : null,
+      pendingAmount: editAppointmentForm.pendingAmount && editAppointmentForm.pendingAmount !== "" ? parseFloat(editAppointmentForm.pendingAmount) : null,
+      paymentStatus: editAppointmentForm.paymentStatus || "Pending",
+      createdAt: editAppointmentForm.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdBy: createdByInt,
+      updatedBy: null
+    };
+
+    console.log("📋 Updating appointment with payload:", payload);
+    console.log("� Paid from form:", editAppointmentForm.paid, "Type:", typeof editAppointmentForm.paid);
+    console.log("💰 Pending from form:", editAppointmentForm.pending, "Type:", typeof editAppointmentForm.pending);
+    console.log("�📋 Payload JSON:", JSON.stringify(payload, null, 2));
+
+    try {
+      setAppointmentFormLoading(true);
+      const response = await fetch(APPOINTMENT_ENDPOINTS.update, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        // Try to get error details from response
+        let errorMessage = `Failed to update appointment (${response.status})`;
+        try {
+          const contentType = response.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await response.json();
+            console.error("❌ Server error response:", errorData);
+            if (errorData.message) {
+              errorMessage = errorData.message;
+            } else if (errorData.errors) {
+              errorMessage = Object.values(errorData.errors).join(", ");
+            }
+          } else {
+            // Try to get raw text response
+            const errorText = await response.clone().text();
+            console.error("❌ Server error (raw text):", errorText);
+            // Show first 200 chars of error
+            errorMessage = errorText.substring(0, 200) || `Failed to update appointment (${response.status})`;
+          }
+        } catch (e) {
+          console.error("❌ Error parsing response:", e);
+        }
+        throw new Error(errorMessage);
+      }
+
+      const result = await response.json();
+      console.log("✅ Appointment updated successfully:", result);
+      
+      setAppointmentSuccess("Appointment updated successfully");
+      setShowEditAppointmentModal(false);
+      setShowAppointmentListModal(false);
+      setEditAppointmentForm(null);
+      
+      setTimeout(() => setAppointmentSuccess(""), 3000);
+    } catch (err) {
+      console.error("❌ Error updating appointment:", err);
+      setAppointmentFormError(err.message || "Failed to update appointment");
+    } finally {
+      setAppointmentFormLoading(false);
+    }
+  };
+
+  const handleDeleteAppointment = async () => {
+    if (!appointmentToDelete) {
+      setAppointmentError("No appointment selected");
+      return;
+    }
+
+    console.log("🗑️ Appointment to delete:", appointmentToDelete);
+    console.log("🗑️ Appointment ID:", appointmentToDelete.appointmentId);
+    console.log("🗑️ Delete URL:", APPOINTMENT_ENDPOINTS.delete(appointmentToDelete.appointmentId));
+
+    try {
+      setDeletingAppointment(true);
+      const deleteUrl = APPOINTMENT_ENDPOINTS.delete(appointmentToDelete.appointmentId);
+      console.log("🗑️ Calling DELETE endpoint:", deleteUrl);
+      
+      const response = await fetch(deleteUrl, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+
+      if (!response.ok) {
+        console.error("❌ Delete failed with status:", response.status);
+        throw new Error(`Failed to delete appointment (${response.status})`);
+      }
+
+      setAppointmentSuccess("Appointment deleted successfully");
+      setShowDeleteAppointmentModal(false);
+      setShowAppointmentListModal(false);
+      setAppointmentToDelete(null);
+      setTimeout(() => setAppointmentSuccess(""), 3000);
+    } catch (err) {
+      console.error("❌ Error deleting appointment:", err);
+      setAppointmentError(err.message || "Failed to delete appointment");
+    } finally {
+      setDeletingAppointment(false);
+    }
+  };
+
+  const filteredAppointments = useMemo(() => {
+    const query = appointmentFilterQuery.trim().toLowerCase();
+    if (!query) return appointments;
+    return appointments.filter((apt) => {
+      const fields = [
+        apt.firstName,
+        apt.lastName,
+        apt.email,
+        apt.phoneNumber,
+        apt.appointmentType,
+        apt.status,
+        apt.reasonForVisit
+      ].map((f) => (f || "").toString().toLowerCase());
+      return fields.some((f) => f.includes(query));
+    });
+  }, [appointmentFilterQuery, appointments]);
+
+  // ============ INVENTORY MANAGEMENT HANDLERS ============
+
+  const fetchInventoryItems = async () => {
+    try {
+      setInventoryLoading(true);
+      const response = await fetch(INVENTORY_ENDPOINTS.master.list, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+
+      if (!response.ok) {
+        console.error("❌ Failed to fetch inventory:", response.status);
+        return;
+      }
+
+      const data = await response.json();
+      const items = Array.isArray(data) ? data : data.data || [];
+      console.log("✅ Inventory items loaded:", items);
+      setInventoryItems(items);
+    } catch (err) {
+      console.error("❌ Error fetching inventory:", err);
+      setInventoryError("Failed to load inventory items");
+    } finally {
+      setInventoryLoading(false);
+    }
+  };
+
+  const handleCreateInventory = async () => {
+    if (!createInventoryForm.itemName || !createInventoryForm.itemCode || !createInventoryForm.category) {
+      setInventoryFormError("Item Name, Code, and Category are required");
+      return;
+    }
+
+    try {
+      setInventoryFormLoading(true);
+      const response = await fetch(INVENTORY_ENDPOINTS.master.create, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        },
+        body: JSON.stringify(createInventoryForm)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create inventory (${response.status})`);
+      }
+
+      setInventorySuccess("Inventory item created successfully");
+      setShowCreateInventoryModal(false);
+      setCreateInventoryForm({
+        itemName: "",
+        itemCode: "",
+        category: "",
+        subCategory: "",
+        unit: "Box",
+        isActive: true
+      });
+      fetchInventoryItems();
+      setTimeout(() => setInventorySuccess(""), 3000);
+    } catch (err) {
+      console.error("❌ Error creating inventory:", err);
+      setInventoryFormError(err.message || "Failed to create inventory item");
+    } finally {
+      setInventoryFormLoading(false);
+    }
+  };
+
+  const handleUpdateInventory = async () => {
+    if (!editInventoryForm || !editInventoryForm.itemId) {
+      setInventoryFormError("No inventory selected");
+      return;
+    }
+
+    try {
+      setInventoryFormLoading(true);
+      const response = await fetch(INVENTORY_ENDPOINTS.master.update(editInventoryForm.itemId), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        },
+        body: JSON.stringify(editInventoryForm)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update inventory (${response.status})`);
+      }
+
+      setInventorySuccess("Inventory item updated successfully");
+      setShowEditInventoryModal(false);
+      setEditInventoryForm(null);
+      fetchInventoryItems();
+      setTimeout(() => setInventorySuccess(""), 3000);
+    } catch (err) {
+      console.error("❌ Error updating inventory:", err);
+      setInventoryFormError(err.message || "Failed to update inventory item");
+    } finally {
+      setInventoryFormLoading(false);
+    }
+  };
+
+  const handleDeleteInventory = async () => {
+    if (!inventoryToDelete || !inventoryToDelete.itemId) {
+      setInventoryError("No inventory selected");
+      return;
+    }
+
+    try {
+      setDeletingInventory(true);
+      const response = await fetch(INVENTORY_ENDPOINTS.master.delete(inventoryToDelete.itemId), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete inventory (${response.status})`);
+      }
+
+      setInventorySuccess("Inventory item deleted successfully");
+      setShowDeleteInventoryModal(false);
+      setShowInventoryListModal(false);
+      setInventoryToDelete(null);
+      fetchInventoryItems();
+      setTimeout(() => setInventorySuccess(""), 3000);
+    } catch (err) {
+      console.error("❌ Error deleting inventory:", err);
+      setInventoryError(err.message || "Failed to delete inventory item");
+    } finally {
+      setDeletingInventory(false);
+    }
+  };
+
+  const filteredInventoryItems = useMemo(() => {
+    const query = inventoryFilterQuery.trim().toLowerCase();
+    const items = inventoryItems.filter((item) => {
+      if (inventoryFilterCategory && item.category !== inventoryFilterCategory) return false;
+      if (inventoryFilterStatus && item.isActive.toString() !== inventoryFilterStatus) return false;
+      
+      const fields = [
+        item.itemName,
+        item.itemCode,
+        item.category,
+        item.subCategory
+      ].map((f) => (f || "").toString().toLowerCase());
+      
+      if (!query) return true;
+      return fields.some((f) => f.includes(query));
+    });
+    return items;
+  }, [inventoryFilterQuery, inventoryFilterCategory, inventoryFilterStatus, inventoryItems]);
+
+  // ============ PATIENT MANAGEMENT HANDLERS ============
+
+  const handleSearchPatient = async () => {
+    if (!patientSearchId) {
+      setPatientProfileError("Please enter a Patient ID");
+      return;
+    }
+
+    try {
+      setPatientProfileLoading(true);
+      setPatientProfileError("");
+      setPatientProfile(null);
+
+      const response = await fetch(PATIENT_ENDPOINTS.getFullProfile(patientSearchId), {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("Patient not found");
+        }
+        throw new Error(`Failed to fetch patient (${response.status})`);
+      }
+
+      const data = await response.json();
+      console.log("✅ Patient profile loaded:", data);
+      setPatientProfile(data);
+    } catch (err) {
+      console.error("❌ Error fetching patient:", err);
+      setPatientProfileError(err.message || "Failed to load patient profile");
+    } finally {
+      setPatientProfileLoading(false);
+    }
+  };
+
+  const handleUpdatePatient = async () => {
+    if (!editPatientForm || !editPatientForm.patientId) {
+      setPatientFormError("No patient selected");
+      return;
+    }
+
+    try {
+      setPatientFormLoading(true);
+      setPatientFormError("");
+
+      const response = await fetch(PATIENT_ENDPOINTS.update(editPatientForm.patientId), {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        },
+        body: JSON.stringify(editPatientForm)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update patient (${response.status})`);
+      }
+
+      setAppointmentSuccess("Patient updated successfully");
+      setShowEditPatientModal(false);
+      setEditPatientForm(null);
+      // Refresh the patient profile
+      if (patientSearchId) {
+        handleSearchPatient();
+      }
+      setTimeout(() => setAppointmentSuccess(""), 3000);
+    } catch (err) {
+      console.error("❌ Error updating patient:", err);
+      setPatientFormError(err.message || "Failed to update patient");
+    } finally {
+      setPatientFormLoading(false);
+    }
+  };
+
+  const handleDeletePatient = async () => {
+    if (!patientToDelete || !patientToDelete.patientId) {
+      setPatientProfileError("No patient selected");
+      return;
+    }
+
+    try {
+      setDeletingPatient(true);
+      const response = await fetch(PATIENT_ENDPOINTS.delete(patientToDelete.patientId), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete patient (${response.status})`);
+      }
+
+      setAppointmentSuccess("Patient deleted successfully");
+      setShowDeletePatientModal(false);
+      setShowManagePatientModal(false);
+      setPatientToDelete(null);
+      setPatientProfile(null);
+      setPatientSearchId("");
+      setTimeout(() => setAppointmentSuccess(""), 3000);
+    } catch (err) {
+      console.error("❌ Error deleting patient:", err);
+      setPatientProfileError(err.message || "Failed to delete patient");
+    } finally {
+      setDeletingPatient(false);
+    }
+  };
+
   // Initialize data on component mount
   useEffect(() => {
     fetchSuperAdmins();
     fetchRoles();
+    fetchEnterprises();
+    fetchClinics();
+    fetchDoctors();
   }, []);
 
   // Reset to main page when navigating to SuperAdmin route
@@ -1504,6 +2499,96 @@ export default function SuperAdmin() {
       setClinics([]);
     }
   }, [staffForm.enterpriseId]);
+
+  // Fetch clinics based on enterprise ID in appointment form
+  useEffect(() => {
+    if (createAppointmentForm.enterpriseId) {
+      const fetchClinicsForAppointment = async () => {
+        try {
+          console.log("📋 Loading clinics for appointment, enterprise ID:", createAppointmentForm.enterpriseId);
+          const response = await fetch(CLINIC_ENDPOINTS.getByEnterpriseId(createAppointmentForm.enterpriseId), {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+            }
+          });
+
+          if (!response.ok) {
+            console.warn(`Unable to load clinics for enterprise ${createAppointmentForm.enterpriseId}`);
+            setAppointmentFormError(`Failed to load clinics (${response.status})`);
+            return;
+          }
+
+          const data = await response.json();
+          const fetchedClinics = Array.isArray(data) ? data : data.data || [];
+          console.log("✅ Clinics loaded for appointment enterprise:", createAppointmentForm.enterpriseId, fetchedClinics);
+          
+          // Update clinics in state - create a temporary appointments clinics state
+          // We'll store it in the form as appointmentClinics
+          setCreateAppointmentForm((prev) => ({
+            ...prev,
+            appointmentClinics: fetchedClinics
+          }));
+        } catch (err) {
+          console.error("❌ Error fetching clinics for appointment:", err);
+          setAppointmentFormError("Failed to load clinics");
+        }
+      };
+
+      fetchClinicsForAppointment();
+    } else {
+      setCreateAppointmentForm((prev) => ({
+        ...prev,
+        appointmentClinics: [],
+        clinicId: ""
+      }));
+    }
+  }, [createAppointmentForm.enterpriseId]);
+
+  // Handle patient form clinic loading when enterprise changes
+  useEffect(() => {
+    if (createPatientForm.enterpriseId) {
+      const fetchClinicsForPatient = async () => {
+        try {
+          const response = await fetch(
+            `https://localhost:7104/api/Clinic/GetByEnterprise/${createPatientForm.enterpriseId}`,
+            {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+              }
+            }
+          );
+
+          if (!response.ok) {
+            console.warn(`Unable to load clinics for enterprise ${createPatientForm.enterpriseId}`);
+            return;
+          }
+
+          const data = await response.json();
+          const fetchedClinics = Array.isArray(data) ? data : data.data || [];
+          console.log("✅ Clinics loaded for patient enterprise:", createPatientForm.enterpriseId, fetchedClinics);
+          
+          setCreatePatientForm((prev) => ({
+            ...prev,
+            patientClinics: fetchedClinics
+          }));
+        } catch (err) {
+          console.error("❌ Error fetching clinics for patient:", err);
+        }
+      };
+
+      fetchClinicsForPatient();
+    } else {
+      setCreatePatientForm((prev) => ({
+        ...prev,
+        patientClinics: [],
+        clinicId: ""
+      }));
+    }
+  }, [createPatientForm.enterpriseId]);
 
   const activeAccent = activeCard === "onboard" ? "from-teal-500 to-emerald-500" : "from-indigo-500 to-purple-500";
 
@@ -1639,6 +2724,169 @@ export default function SuperAdmin() {
             });
             fetchEnterprises();
             fetchRoles();
+          }
+        },
+        {
+          id: 'doctor-clinic-mapping',
+          title: "🔗 Doctor-Clinic Mapping",
+          description: "Map doctors to multiple clinic locations",
+          icon: "🏥",
+          color: "from-violet-500 to-indigo-500",
+          action: () => {
+            window.location.href = "/doctors/clinic-mapping";
+          }
+        }
+      ]
+    },
+    {
+      id: 'patient-management',
+      title: "👥 Patient Management",
+      description: "Manage patient information and records",
+      gradient: "from-teal-500 via-cyan-500 to-blue-600",
+      bgGradient: "from-teal-50 to-blue-50",
+      options: [
+        {
+          id: 'create-patient',
+          title: "➕ Create Patient",
+          description: "Add new patient to the system",
+          icon: "🆕",
+          color: "from-teal-500 to-cyan-500",
+          action: () => {
+            window.location.href = "/patients/register";
+          }
+        },
+        {
+          id: 'manage-patient',
+          title: "📋 Manage Patients",
+          description: "Search and manage patient records",
+          icon: "👤",
+          color: "from-cyan-500 to-blue-500",
+          action: () => {
+            setShowManagePatientModal(true);
+            setPatientSearchId("");
+            setPatientProfile(null);
+            setPatientProfileError("");
+          }
+        }
+      ]
+    },
+    {
+      id: 'appointment-management',
+      title: "📅 Appointment Management",
+      description: "Manage patient appointments and scheduling",
+      gradient: "from-rose-500 via-pink-500 to-red-600",
+      bgGradient: "from-rose-50 to-red-50",
+      options: [
+        {
+          id: 'add-appointment',
+          title: "➕ Create Appointment",
+          description: "Schedule new patient appointment",
+          icon: "📅",
+          color: "from-rose-500 to-pink-500",
+          action: () => {
+            setShowCreateAppointmentModal(true);
+            setCreateAppointmentActiveTab("basic");
+            setAppointmentFormError("");
+            setCreateAppointmentForm({
+              patientId: "",
+              clinicId: "",
+              doctorId: "",
+              enterpriseId: "",
+              firstName: "",
+              lastName: "",
+              phoneNumber: "",
+              email: "",
+              appointmentDate: "",
+              startTime: "",
+              endTime: "",
+              durationMinutes: "30",
+              appointmentType: "Consultation",
+              reasonForVisit: "",
+              notes: "",
+              roomNumber: "",
+              telehealthLink: "",
+              status: "Scheduled",
+              isConfirmed: false,
+              billableAmount: "",
+              paymentStatus: "Pending",
+              appointmentClinics: []
+            });
+            fetchEnterprises();
+            fetchClinics();
+          }
+        },
+        {
+          id: 'view-appointments',
+          title: "📋 Manage Appointments",
+          description: "View and edit appointments",
+          icon: "📊",
+          color: "from-pink-500 to-rose-500",
+          action: () => {
+            setShowAppointmentListModal(true);
+            setAppointmentFilterQuery("");
+            setAppointmentError("");
+            // Clear all filters
+            setAppointmentFilterEnterprise("");
+            setAppointmentFilterClinic("");
+            setAppointmentFilterFirstName("");
+            setAppointmentFilterLastName("");
+            setAppointmentFilterDoctor("");
+            setAppointmentFilterDate("");
+            setAppointments([]);
+          }
+        }
+      ]
+    },
+    {
+      id: 'inventory-management',
+      title: "📦 Inventory Management",
+      description: "Manage medical supplies and equipment inventory",
+      gradient: "from-violet-500 via-purple-500 to-indigo-600",
+      bgGradient: "from-violet-50 to-indigo-50",
+      options: [
+        {
+          id: 'add-inventory',
+          title: "➕ Add Inventory Item",
+          description: "Add new inventory item to master",
+          icon: "📦",
+          color: "from-violet-500 to-purple-500",
+          action: () => {
+            setShowCreateInventoryModal(true);
+            setCreateInventoryForm({
+              itemName: "",
+              itemCode: "",
+              category: "",
+              subCategory: "",
+              unit: "Box",
+              isActive: true
+            });
+            setInventoryFormError("");
+          }
+        },
+        {
+          id: 'view-inventory',
+          title: "📊 Manage Inventory",
+          description: "View and edit inventory items",
+          icon: "📋",
+          color: "from-purple-500 to-violet-500",
+          action: () => {
+            setShowInventoryListModal(true);
+            setInventoryFilterQuery("");
+            setInventoryFilterCategory("");
+            setInventoryFilterStatus("");
+            setInventoryError("");
+            fetchInventoryItems();
+          }
+        },
+        {
+          id: 'clinic-inventory',
+          title: "🏥 Clinic Stock",
+          description: "Manage inventory across clinics",
+          icon: "📈",
+          color: "from-indigo-500 to-violet-500",
+          action: () => {
+            setShowClinicInventoryListModal(true);
+            setClinicInventoryError("");
           }
         }
       ]
@@ -5327,6 +6575,278 @@ export default function SuperAdmin() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Appointment Success Notification */}
+        <AnimatePresence>
+          {appointmentSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-6 right-6 z-50 bg-gradient-to-r from-green-400 to-green-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3"
+            >
+              <div className="text-2xl">✅</div>
+              <div>
+                <div className="font-bold">{appointmentSuccess}</div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Inventory Success Notification */}
+        <AnimatePresence>
+          {inventorySuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed top-24 right-6 z-50 bg-gradient-to-r from-violet-400 to-purple-600 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3"
+            >
+              <div className="text-2xl">✅</div>
+              <div>
+                <div className="font-bold">{inventorySuccess}</div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Appointment Management Modals */}
+        <AppointmentListModal
+          show={showAppointmentListModal}
+          onClose={() => setShowAppointmentListModal(false)}
+          appointments={appointments}
+          loading={appointmentLoading}
+          error={appointmentError}
+          filterQuery={appointmentFilterQuery}
+          setFilterQuery={setAppointmentFilterQuery}
+          onEdit={(apt) => {
+            setEditAppointmentForm({
+              ...apt,
+              doctorId: appointmentFilterDoctor || apt.doctorId
+            });
+            setShowEditAppointmentModal(true);
+          }}
+          onDelete={(apt) => {
+            setAppointmentToDelete(apt);
+            setShowDeleteAppointmentModal(true);
+          }}
+          filteredAppointments={filteredAppointments}
+          enterpriseId={appointmentFilterEnterprise}
+          clinicId={appointmentFilterClinic}
+          firstName={appointmentFilterFirstName}
+          lastName={appointmentFilterLastName}
+          doctorId={appointmentFilterDoctor}
+          setEnterpriseIdFilter={setAppointmentFilterEnterprise}
+          setClinicIdFilter={setAppointmentFilterClinic}
+          setFirstNameFilter={setAppointmentFilterFirstName}
+          setLastNameFilter={setAppointmentFilterLastName}
+          setDoctorIdFilter={setAppointmentFilterDoctor}
+          enterprises={enterprises}
+          clinics={clinics}
+          doctors={doctors}
+          onEnterpriseChange={useCallback((enterpriseId) => {
+            setAppointmentFilterClinic("");
+            if (enterpriseId) {
+              loadClinicsForEnterprise(enterpriseId);
+            }
+          }, [loadClinicsForEnterprise])}
+          onClinicChange={useCallback((clinicId) => {
+            if (clinicId) {
+              fetchDoctorsByClinic(clinicId);
+            } else {
+              setDoctors([]);
+            }
+          }, [fetchDoctorsByClinic])}
+          onApplyFilters={useCallback((filters) => {
+            setLastAppointmentFilters(filters);
+            fetchAppointments(
+              filters.clinicId,
+              filters.firstName,
+              filters.lastName,
+              filters.doctorId,
+              filters.appointmentDate
+            );
+          }, [fetchAppointments])}
+        />
+
+        <CreateAppointmentModal
+          show={showCreateAppointmentModal}
+          onClose={() => {
+            setShowCreateAppointmentModal(false);
+            setCreateAppointmentActiveTab("basic");
+            setAppointmentFormError("");
+          }}
+          form={createAppointmentForm}
+          setForm={setCreateAppointmentForm}
+          onSubmit={handleCreateAppointment}
+          loading={appointmentFormLoading}
+          error={appointmentFormError}
+          activeTab={createAppointmentActiveTab}
+          setActiveTab={setCreateAppointmentActiveTab}
+          enterprises={enterprises}
+          clinics={clinics}
+          doctors={doctors}
+          onEnterpriseChange={useCallback((enterpriseId) => {
+            setCreateAppointmentForm((prev) => ({
+              ...prev,
+              clinicId: "",
+              doctorId: "",
+              appointmentClinics: []
+            }));
+            if (enterpriseId) {
+              loadClinicsForEnterprise(enterpriseId);
+            }
+          }, [loadClinicsForEnterprise])}
+          onClinicChange={(clinicId) => {
+            if (clinicId) {
+              fetchDoctorsByClinic(clinicId);
+            } else {
+              setDoctors([]);
+            }
+          }}
+        />
+
+        <EditAppointmentModal
+          show={showEditAppointmentModal}
+          onClose={() => {
+            setShowEditAppointmentModal(false);
+            setEditAppointmentActiveTab("basic");
+            setAppointmentFormError("");
+          }}
+          form={editAppointmentForm}
+          onFormChange={(field, value) => {
+            setEditAppointmentForm(prev => ({
+              ...prev,
+              [field]: value
+            }));
+          }}
+          onSubmit={handleUpdateAppointment}
+          loading={appointmentFormLoading}
+          error={appointmentFormError}
+          activeTab={editAppointmentActiveTab}
+          setActiveTab={setEditAppointmentActiveTab}
+          clinicDoctors={doctors}
+        />
+
+        <DeleteAppointmentModal
+          show={showDeleteAppointmentModal}
+          onClose={() => {
+            setShowDeleteAppointmentModal(false);
+            setAppointmentToDelete(null);
+          }}
+          appointment={appointmentToDelete}
+          onConfirm={handleDeleteAppointment}
+          loading={deletingAppointment}
+        />
+
+        {/* Patient Management Modals */}
+        <CreatePatientModal
+          show={showCreatePatientModal}
+          onClose={() => {
+            setShowCreatePatientModal(false);
+            setCreatePatientActiveTab("patient-info");
+            setPatientFormError("");
+          }}
+          form={createPatientForm}
+          setForm={setCreatePatientForm}
+          onSubmit={() => {
+            // TODO: Add create patient handler
+            console.log("Create patient submitted:", createPatientForm);
+          }}
+          loading={patientFormLoading}
+          error={patientFormError}
+          activeTab={createPatientActiveTab}
+          setActiveTab={setCreatePatientActiveTab}
+          enterprises={enterprises}
+          clinics={clinics}
+        />
+
+        <ManagePatientModal
+          show={showManagePatientModal}
+          onClose={() => {
+            setShowManagePatientModal(false);
+            setPatientSearchId("");
+            setPatientProfile(null);
+            setPatientProfileError("");
+          }}
+          searchId={patientSearchId}
+          setSearchId={setPatientSearchId}
+          onSearch={handleSearchPatient}
+          patientProfile={patientProfile}
+          loading={patientProfileLoading}
+          error={patientProfileError}
+        />
+
+        {/* Inventory Management Modals */}
+        <InventoryListModal
+          show={showInventoryListModal}
+          onClose={() => setShowInventoryListModal(false)}
+          items={inventoryItems}
+          loading={inventoryLoading}
+          error={inventoryError}
+          filterQuery={inventoryFilterQuery}
+          setFilterQuery={setInventoryFilterQuery}
+          filterCategory={inventoryFilterCategory}
+          setFilterCategory={setInventoryFilterCategory}
+          filterStatus={inventoryFilterStatus}
+          setFilterStatus={setInventoryFilterStatus}
+          onEdit={(item) => {
+            setEditInventoryForm(item);
+            setShowEditInventoryModal(true);
+            setInventoryFormError("");
+          }}
+          onDelete={(item) => {
+            setInventoryToDelete(item);
+            setShowDeleteInventoryModal(true);
+          }}
+          filteredItems={filteredInventoryItems}
+        />
+
+        <CreateInventoryModal
+          show={showCreateInventoryModal}
+          onClose={() => {
+            setShowCreateInventoryModal(false);
+            setCreateInventoryForm({
+              itemName: "",
+              itemCode: "",
+              category: "",
+              subCategory: "",
+              unit: "Box",
+              isActive: true
+            });
+            setInventoryFormError("");
+          }}
+          form={createInventoryForm}
+          setForm={setCreateInventoryForm}
+          onSubmit={handleCreateInventory}
+          loading={inventoryFormLoading}
+          error={inventoryFormError}
+        />
+
+        <EditInventoryModal
+          show={showEditInventoryModal}
+          onClose={() => {
+            setShowEditInventoryModal(false);
+            setEditInventoryForm(null);
+            setInventoryFormError("");
+          }}
+          form={editInventoryForm}
+          setForm={setEditInventoryForm}
+          onSubmit={handleUpdateInventory}
+          loading={inventoryFormLoading}
+          error={inventoryFormError}
+        />
+
+        <DeleteInventoryModal
+          show={showDeleteInventoryModal}
+          onClose={() => {
+            setShowDeleteInventoryModal(false);
+            setInventoryToDelete(null);
+          }}
+          item={inventoryToDelete}
+          onConfirm={handleDeleteInventory}
+          loading={deletingInventory}
+        />
       </div>
     </div>
   );

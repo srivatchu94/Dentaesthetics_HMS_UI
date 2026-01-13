@@ -35,7 +35,7 @@ export function getEnterprise(id: number): Promise<EnterpriseModel> {
 
 // Get all enterprises
 export function getAllEnterprises(): Promise<EnterpriseModel[]> {
-  return request<EnterpriseModel[]>("/Enterprise");
+  return request<EnterpriseModel[]>("/Enterprise/GetAllEnterprises");
 }
 
 // Clinics
