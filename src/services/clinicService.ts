@@ -26,7 +26,16 @@ export function getClinic(clinicId: number): Promise<ClinicModel> {
 // Get clinics by Enterprise ID
 // Backend endpoint expects `id` query param to be the Enterprise ID
 export function getClinicsByEnterpriseId(enterpriseId: number): Promise<ClinicModel[]> {
-  return request<ClinicModel[]>(`/Clinic/GetClinicByID?id=${enterpriseId}`);
+  console.log(`📞 Fetching clinics for enterprise ${enterpriseId} from /Clinic/GetClinicByID?id=${enterpriseId}`);
+  return request<ClinicModel[]>(`/Clinic/GetClinicByID?id=${enterpriseId}`)
+    .then((data) => {
+      console.log(`✅ Clinics loaded for enterprise ${enterpriseId}:`, data);
+      return data;
+    })
+    .catch((err) => {
+      console.error(`❌ Failed to load clinics for enterprise ${enterpriseId}:`, err);
+      throw err;
+    });
 }
 
 export function createClinic(payload: CreateClinicDto): Promise<ClinicModel> {

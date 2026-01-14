@@ -21,6 +21,7 @@ import TeamHub from "./pages/TeamHub";
 import Doctors from "./pages/Doctors";
 import ViewDoctors from "./pages/ViewDoctors";
 import DoctorClinicMapping from "./pages/DoctorClinicMapping";
+import DoctorClinicMappingSuperAdmin from "./pages/DoctorClinicMappingSuperAdmin";
 import ReceptionistOnboarding from "./pages/ReceptionistOnboarding";
 import ViewStaffDetails from "./pages/ViewStaffDetails";
 import SuperAdmin from "./pages/SuperAdmin";
@@ -105,6 +106,7 @@ export default function App(){
           <Route path="/doctors" element={<Doctors />} />
           <Route path="/doctors/view" element={<ViewDoctors />} />
           <Route path="/doctors/clinic-mapping" element={<DoctorClinicMapping />} />
+          <Route path="/superadmin/clinic-mapping" element={<DoctorClinicMappingSuperAdmin />} />
           <Route path="/receptionists/onboard" element={<ReceptionistOnboarding />} />
           <Route path="/staff/onboard" element={<ReceptionistOnboarding />} />
           <Route path="/staff/details" element={<ViewStaffDetails />} />

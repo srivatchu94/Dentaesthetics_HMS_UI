@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { createStaffDetail } from "../services/staffService";
 import {
   AppointmentListModal,
@@ -73,6 +73,7 @@ const toIsoOrNull = (value) => (value ? new Date(value).toISOString() : null);
 
 export default function SuperAdmin() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [activeCard, setActiveCard] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
@@ -357,6 +358,7 @@ export default function SuperAdmin() {
   const [createPatientActiveTab, setCreatePatientActiveTab] = useState("patient-info");
   const [patientFormError, setPatientFormError] = useState("");
   const [patientFormLoading, setPatientFormLoading] = useState(false);
+  const [patientSuccess, setPatientSuccess] = useState("");
   const [showManagePatientModal, setShowManagePatientModal] = useState(false);
   const [patientSearchId, setPatientSearchId] = useState("");
   const [patientProfile, setPatientProfile] = useState(null);
@@ -431,9 +433,10 @@ export default function SuperAdmin() {
 
   const INVENTORY_ENDPOINTS = {
     master: {
-      list: "https://localhost:7104/api/InventoryMaster/GetAll",
-      create: "https://localhost:7104/api/InventoryMaster/Create",
-      update: (id) => `https://localhost:7104/api/InventoryMaster/Update/${id}`,
+      list: "https://localhost:7104/api/Inventory/GetAllInventoryMasterItems",
+      create: "https://localhost:7104/api/Inventory/AddInventoryMasterItem",
+      createBulk: "https://localhost:7104/api/Inventory/AddInventoryMasterItemsBulk",
+      update: (id) => `https://localhost:7104/api/Inventory/UpdateInventoryMasterItem`,
       delete: (id) => `https://localhost:7104/api/InventoryMaster/Delete/${id}`
     },
     clinic: {
@@ -2161,6 +2164,115 @@ export default function SuperAdmin() {
     });
   }, [appointmentFilterQuery, appointments]);
 
+  // ============ PATIENT MANAGEMENT HANDLERS ============
+
+  const handleCreatePatient = async () => {
+    if (!createPatientForm.firstName || !createPatientForm.lastName || !createPatientForm.clinicId) {
+      setPatientFormError("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      setPatientFormLoading(true);
+      setPatientFormError("");
+
+      const payload = {
+        patient: {
+          patientId: 0,
+          clinicID: createPatientForm.clinicId,
+          patientFirstName: createPatientForm.firstName,
+          patientLastName: createPatientForm.lastName,
+          patientDOB: createPatientForm.dateOfBirth ? new Date(createPatientForm.dateOfBirth).toISOString() : new Date().toISOString(),
+          patientGender: createPatientForm.gender || "",
+          patientBloodType: createPatientForm.bloodGroup || ""
+        },
+        patientContact: {
+          patientId: 0,
+          patientAddress: `${createPatientForm.addressLine1 || ""} ${createPatientForm.addressLine2 || ""}`.trim(),
+          patientCity: createPatientForm.city || "",
+          patientPhone: createPatientForm.phoneNumber || "",
+          patientEmail: createPatientForm.email || "",
+          patientEmergencyContact: createPatientForm.emergencyContactPhone || ""
+        },
+        patientMedicalInfo: {
+          patientId: 0,
+          patientMedicalHistory: createPatientForm.pastSurgeries || "",
+          patientAllergies: createPatientForm.allergies || "",
+          patientCurrentMedications: createPatientForm.currentMedications || "",
+          patientPrimaryPhysician: "",
+          no_of_visits: 0,
+          lastVisitedDate: createPatientForm.lastDentalVisit ? new Date(createPatientForm.lastDentalVisit).toISOString() : new Date().toISOString(),
+          chronicDiseases: createPatientForm.chronicConditions || "",
+          medicalHistory: createPatientForm.familyMedicalHistory || ""
+        },
+        patientInsurance: {
+          patientId: 0,
+          patientInsuranceProvider: createPatientForm.insuranceProvider || ""
+        }
+      };
+
+      const response = await fetch("https://localhost:7104/api/Patient/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to register patient (${response.status})`);
+      }
+
+      const data = await response.json();
+      
+      setPatientSuccess("Patient registered successfully!");
+      setShowCreatePatientModal(false);
+      setCreatePatientForm({
+        firstName: "",
+        lastName: "",
+        dateOfBirth: "",
+        gender: "",
+        bloodGroup: "",
+        maritalStatus: "",
+        enterpriseId: "",
+        clinicId: "",
+        role: "Patient",
+        phoneNumber: "",
+        alternatePhone: "",
+        email: "",
+        addressLine1: "",
+        addressLine2: "",
+        city: "",
+        state: "",
+        postalCode: "",
+        country: "",
+        emergencyContactName: "",
+        emergencyContactPhone: "",
+        emergencyContactRelation: "",
+        allergies: "",
+        chronicConditions: "",
+        currentMedications: "",
+        pastSurgeries: "",
+        familyMedicalHistory: "",
+        smokingStatus: "",
+        alcoholConsumption: "",
+        exerciseFrequency: "",
+        lastDentalVisit: "",
+        dietaryRestrictions: "",
+        additionalMedicalNotes: "",
+        insuranceProvider: "",
+        policyNumber: ""
+      });
+      setTimeout(() => setPatientSuccess(""), 3000);
+    } catch (err) {
+      console.error("❌ Error registering patient:", err);
+      setPatientFormError(err.message || "Failed to register patient");
+    } finally {
+      setPatientFormLoading(false);
+    }
+  };
+
   // ============ INVENTORY MANAGEMENT HANDLERS ============
 
   const fetchInventoryItems = async () => {
@@ -2191,14 +2303,30 @@ export default function SuperAdmin() {
   };
 
   const handleCreateInventory = async () => {
-    if (!createInventoryForm.itemName || !createInventoryForm.itemCode || !createInventoryForm.category) {
-      setInventoryFormError("Item Name, Code, and Category are required");
-      return;
+    const isMultipleMode = Array.isArray(createInventoryForm);
+    
+    // Validate
+    if (isMultipleMode) {
+      // Validate all items
+      for (let i = 0; i < createInventoryForm.length; i++) {
+        const item = createInventoryForm[i];
+        if (!item.itemName || !item.itemCode || !item.category) {
+          setInventoryFormError(`Item ${i + 1}: Name, Code, and Category are required`);
+          return;
+        }
+      }
+    } else {
+      // Validate single item
+      if (!createInventoryForm.itemName || !createInventoryForm.itemCode || !createInventoryForm.category) {
+        setInventoryFormError("Item Name, Code, and Category are required");
+        return;
+      }
     }
 
     try {
       setInventoryFormLoading(true);
-      const response = await fetch(INVENTORY_ENDPOINTS.master.create, {
+      const endpoint = isMultipleMode ? INVENTORY_ENDPOINTS.master.createBulk : INVENTORY_ENDPOINTS.master.create;
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2211,14 +2339,18 @@ export default function SuperAdmin() {
         throw new Error(`Failed to create inventory (${response.status})`);
       }
 
-      setInventorySuccess("Inventory item created successfully");
+      const successMsg = isMultipleMode 
+        ? `${createInventoryForm.length} inventory items created successfully` 
+        : "Inventory item created successfully";
+      
+      setInventorySuccess(successMsg);
       setShowCreateInventoryModal(false);
       setCreateInventoryForm({
         itemName: "",
         itemCode: "",
         category: "",
         subCategory: "",
-        unit: "Box",
+        unit: "",
         isActive: true
       });
       fetchInventoryItems();
@@ -2240,7 +2372,7 @@ export default function SuperAdmin() {
     try {
       setInventoryFormLoading(true);
       const response = await fetch(INVENTORY_ENDPOINTS.master.update(editInventoryForm.itemId), {
-        method: "PUT",
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
@@ -2466,6 +2598,18 @@ export default function SuperAdmin() {
     }
   }, [activeCard]);
 
+  // Load enterprises when Create Patient modal opens
+  useEffect(() => {
+    if (showCreatePatientModal) {
+      console.log("📋 Create Patient modal opened, loading enterprises...");
+      console.log("Current enterprises:", enterprises);
+      fetchEnterprises().then(() => {
+        console.log("✅ Enterprises fetched for patient modal");
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCreatePatientModal]);
+
   // Fetch clinics based on enterprise ID in staff form
   useEffect(() => {
     if (staffForm.enterpriseId) {
@@ -2550,8 +2694,9 @@ export default function SuperAdmin() {
     if (createPatientForm.enterpriseId) {
       const fetchClinicsForPatient = async () => {
         try {
+          console.log("📋 Loading clinics for patient, enterprise ID:", createPatientForm.enterpriseId);
           const response = await fetch(
-            `https://localhost:7104/api/Clinic/GetByEnterprise/${createPatientForm.enterpriseId}`,
+            `https://localhost:7104/api/Clinic/GetClinicByID?id=${createPatientForm.enterpriseId}`,
             {
               method: "GET",
               headers: {
@@ -2732,7 +2877,7 @@ export default function SuperAdmin() {
           icon: "🏥",
           color: "from-violet-500 to-indigo-500",
           action: () => {
-            window.location.href = "/doctors/clinic-mapping";
+            window.location.href = "/superadmin/clinic-mapping";
           }
         }
       ]
@@ -2845,21 +2990,12 @@ export default function SuperAdmin() {
       options: [
         {
           id: 'add-inventory',
-          title: "➕ Add Inventory Item",
-          description: "Add new inventory item to master",
+          title: "📦 Add Inventory Items",
+          description: "Add single or multiple inventory items",
           icon: "📦",
           color: "from-violet-500 to-purple-500",
           action: () => {
-            setShowCreateInventoryModal(true);
-            setCreateInventoryForm({
-              itemName: "",
-              itemCode: "",
-              category: "",
-              subCategory: "",
-              unit: "Box",
-              isActive: true
-            });
-            setInventoryFormError("");
+            navigate('/inventory/add-master');
           }
         },
         {
@@ -2884,8 +3020,7 @@ export default function SuperAdmin() {
           icon: "📈",
           color: "from-indigo-500 to-violet-500",
           action: () => {
-            setShowClinicInventoryListModal(true);
-            setClinicInventoryError("");
+            navigate('/inventory/clinic');
           }
         }
       ]
@@ -6748,10 +6883,7 @@ export default function SuperAdmin() {
           }}
           form={createPatientForm}
           setForm={setCreatePatientForm}
-          onSubmit={() => {
-            // TODO: Add create patient handler
-            console.log("Create patient submitted:", createPatientForm);
-          }}
+          onSubmit={handleCreatePatient}
           loading={patientFormLoading}
           error={patientFormError}
           activeTab={createPatientActiveTab}

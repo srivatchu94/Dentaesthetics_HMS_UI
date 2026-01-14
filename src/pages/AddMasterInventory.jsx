@@ -3,16 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { request } from '../services/apiClient';
 
-/**
- * @typedef {Object} InventoryMasterItem
- * @property {string} itemName
- * @property {string} itemCode
- * @property {string} category
- * @property {string} subCategory
- * @property {string} unit
- * @property {boolean} isActive
- */
-
 export default function AddMasterInventory() {
   const navigate = useNavigate();
   const [items, setItems] = useState([
@@ -30,19 +20,17 @@ export default function AddMasterInventory() {
   const [successMessage, setSuccessMessage] = useState('');
   const [errors, setErrors] = useState({});
 
-  const categories = ['Supplies', 'Medication', 'Materials', 'Equipment', 'Consumables'];
   const subCategories = {
-    'Supplies': ['Protective Gear', 'Cleaning Supplies', 'Gloves', 'Masks'],
-    'Medication': ['Anesthetics', 'Antibiotics', 'Pain Relievers', 'Fluoride'],
-    'Materials': ['Composites', 'Cements', 'Adhesives', 'Crowns'],
-    'Equipment': ['Drills', 'Scalers', 'Mirrors', 'Chairs'],
-    'Consumables': ['Bibs', 'Cups', 'Tips', 'Suction']
+    'Equipment': ['Dental Chair', 'X-Ray Machine', 'Autoclave', 'Compressor', 'Suction Unit'],
+    'Materials': ['Cements', 'Composites', 'Acrylics', 'Bonding Agents', 'Impression Materials'],
+    'Medication': ['Antibiotics', 'Analgesics', 'Antiinflammatories', 'Anthelmintic', 'Antacids'],
+    'Consumables': ['Gauze', 'Cotton', 'Gloves', 'Masks', 'Disposables'],
+    'Instruments': ['Scalers', 'Mirrors', 'Explorers', 'Forceps', 'Elevators'],
+    'Supplies': ['General Supplies', 'Office Supplies', 'Cleaning Materials', 'Safety Equipment']
   };
-  const units = ['Box', 'Tablet', 'Piece', 'Bottle', 'Pack', 'Set', 'Carton', 'Unit'];
 
   const validateItem = (item, index) => {
     const itemErrors = {};
-
     if (!item.itemName.trim()) itemErrors.itemName = 'Item name is required';
     if (!item.itemCode.trim()) itemErrors.itemCode = 'Item code/SKU is required';
     if (!item.category) itemErrors.category = 'Category is required';
@@ -62,17 +50,14 @@ export default function AddMasterInventory() {
   };
 
   const handleAddRow = () => {
-    setItems([
-      ...items,
-      {
-        itemName: '',
-        itemCode: '',
-        category: '',
-        subCategory: '',
-        unit: '',
-        isActive: true
-      }
-    ]);
+    setItems([...items, {
+      itemName: '',
+      itemCode: '',
+      category: '',
+      subCategory: '',
+      unit: '',
+      isActive: true
+    }]);
   };
 
   const handleRemoveRow = (index) => {
@@ -89,17 +74,13 @@ export default function AddMasterInventory() {
   const handleItemChange = (index, field, value) => {
     const updatedItems = [...items];
     updatedItems[index] = { ...updatedItems[index], [field]: value };
-
-    // Reset sub-category if category changes
     if (field === 'category') {
       updatedItems[index].subCategory = '';
     }
-
     setItems(updatedItems);
   };
 
   const handleSubmit = async () => {
-    // Validate all items
     let isValid = true;
     for (let i = 0; i < items.length; i++) {
       if (!validateItem(items[i], i)) {
@@ -114,9 +95,15 @@ export default function AddMasterInventory() {
 
     setLoading(true);
     try {
-      await request('/inventory/AddInventoryMasterItemsBulk', {
+      const endpoint = items.length === 1 
+        ? '/Inventory/AddInventoryMasterItem' 
+        : '/Inventory/AddInventoryMasterItemsBulk';
+      
+      const payload = items.length === 1 ? items[0] : items;
+
+      await request(endpoint, {
         method: 'POST',
-        body: JSON.stringify(items)
+        body: JSON.stringify(payload)
       });
 
       setSuccessMessage(`Successfully added ${items.length} inventory item(s)`);
@@ -124,7 +111,7 @@ export default function AddMasterInventory() {
 
       setTimeout(() => {
         setShowSuccessModal(false);
-        navigate('/inventory/view-master');
+        navigate('/superadmin');
       }, 2500);
     } catch (error) {
       alert(`Error: ${error?.message || 'Failed to add items'}`);
@@ -134,26 +121,28 @@ export default function AddMasterInventory() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-12 flex items-center gap-4"
+        className="mb-12"
       >
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('/inventory')}
-          className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg shadow-lg"
-        >
-          ← Back
-        </motion.button>
-        <div>
-          <h1 className="text-4xl font-extrabold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-            ➕ Add Master Inventory Items
-          </h1>
-          <p className="text-gray-600 mt-2">Add multiple inventory items in bulk to your master catalog</p>
+        <div className="flex items-center gap-4 mb-4">
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => navigate('/superadmin')}
+            className="p-3 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+          >
+            <span className="text-2xl">←</span>
+          </motion.button>
+          <div>
+            <h1 className="text-4xl font-bold text-white">
+              ➕ Add Master Inventory Items
+            </h1>
+            <p className="text-slate-400 mt-2">Add multiple inventory items in bulk to your master catalog</p>
+          </div>
         </div>
       </motion.div>
 
@@ -161,18 +150,18 @@ export default function AddMasterInventory() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white rounded-2xl shadow-xl overflow-hidden border-2 border-emerald-300 mb-8"
+        className="bg-slate-800/50 backdrop-blur rounded-2xl shadow-2xl overflow-hidden border border-slate-700/50 mb-8"
       >
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white">
+              <tr className="bg-gradient-to-r from-violet-600 to-purple-600 text-white border-b border-slate-700">
                 <th className="px-6 py-4 text-left font-bold">Item Name</th>
                 <th className="px-6 py-4 text-left font-bold">SKU/Code</th>
                 <th className="px-6 py-4 text-left font-bold">Category</th>
                 <th className="px-6 py-4 text-left font-bold">Sub Category</th>
                 <th className="px-6 py-4 text-left font-bold">Unit</th>
-                <th className="px-6 py-4 text-left font-bold">Active</th>
+                <th className="px-6 py-4 text-center font-bold">Active</th>
                 <th className="px-6 py-4 text-center font-bold">Action</th>
               </tr>
             </thead>
@@ -181,125 +170,121 @@ export default function AddMasterInventory() {
                 {items.map((item, index) => (
                   <motion.tr
                     key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className={`border-b-2 hover:bg-emerald-50 transition-colors ${
-                      errors[index] ? 'bg-red-50' : ''
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className={`border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors ${
+                      errors[index] ? 'bg-red-900/20' : ''
                     }`}
                   >
+                    {/* Item Name */}
                     <td className="px-6 py-4">
                       <input
                         type="text"
                         placeholder="e.g., Composite Resin"
                         value={item.itemName}
                         onChange={(e) => handleItemChange(index, 'itemName', e.target.value)}
-                        className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 ${
-                          errors[index]?.itemName
-                            ? 'border-red-500 focus:ring-red-400'
-                            : 'border-emerald-300 focus:ring-emerald-400'
+                        className={`w-full px-3 py-2 text-sm bg-slate-700/50 border rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none transition ${
+                          errors[index]?.itemName ? 'border-red-500' : 'border-slate-600'
                         }`}
                       />
                       {errors[index]?.itemName && (
-                        <p className="text-red-600 text-sm mt-1">{errors[index].itemName}</p>
+                        <p className="text-red-400 text-xs mt-1">{errors[index].itemName}</p>
                       )}
                     </td>
 
+                    {/* SKU/Code */}
                     <td className="px-6 py-4">
                       <input
                         type="text"
                         placeholder="e.g., CR-001"
                         value={item.itemCode}
                         onChange={(e) => handleItemChange(index, 'itemCode', e.target.value)}
-                        className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 ${
-                          errors[index]?.itemCode
-                            ? 'border-red-500 focus:ring-red-400'
-                            : 'border-emerald-300 focus:ring-emerald-400'
+                        className={`w-full px-3 py-2 text-sm bg-slate-700/50 border rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none transition ${
+                          errors[index]?.itemCode ? 'border-red-500' : 'border-slate-600'
                         }`}
                       />
                       {errors[index]?.itemCode && (
-                        <p className="text-red-600 text-sm mt-1">{errors[index].itemCode}</p>
+                        <p className="text-red-400 text-xs mt-1">{errors[index].itemCode}</p>
                       )}
                     </td>
 
+                    {/* Category */}
                     <td className="px-6 py-4">
                       <select
                         value={item.category}
                         onChange={(e) => handleItemChange(index, 'category', e.target.value)}
-                        className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 ${
-                          errors[index]?.category
-                            ? 'border-red-500 focus:ring-red-400'
-                            : 'border-emerald-300 focus:ring-emerald-400'
+                        className={`w-full px-3 py-2 text-sm bg-slate-700/50 border rounded-lg text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none transition ${
+                          errors[index]?.category ? 'border-red-500' : 'border-slate-600'
                         }`}
                       >
                         <option value="">Select Category</option>
-                        {categories.map(cat => (
+                        {['Supplies', 'Equipment', 'Medication', 'Consumables', 'Instruments'].map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
                         ))}
                       </select>
                       {errors[index]?.category && (
-                        <p className="text-red-600 text-sm mt-1">{errors[index].category}</p>
+                        <p className="text-red-400 text-xs mt-1">{errors[index].category}</p>
                       )}
                     </td>
 
+                    {/* Sub Category */}
                     <td className="px-6 py-4">
                       <select
                         value={item.subCategory}
                         onChange={(e) => handleItemChange(index, 'subCategory', e.target.value)}
                         disabled={!item.category}
-                        className="w-full px-3 py-2 border-2 border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:bg-gray-100"
+                        className="w-full px-3 py-2 text-sm bg-slate-700/50 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <option value="">Select Sub Category</option>
-                        {item.category && subCategories[item.category]?.map(sub => (
+                        <option value="">
+                          {item.category ? 'Select Sub-Category' : 'Select Category First'}
+                        </option>
+                        {item.category && subCategories[item.category]?.map((sub) => (
                           <option key={sub} value={sub}>{sub}</option>
                         ))}
                       </select>
                     </td>
 
+                    {/* Unit */}
                     <td className="px-6 py-4">
-                      <select
+                      <input
+                        type="text"
+                        placeholder="e.g., Box, Piece, Bottle"
                         value={item.unit}
                         onChange={(e) => handleItemChange(index, 'unit', e.target.value)}
-                        className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 ${
-                          errors[index]?.unit
-                            ? 'border-red-500 focus:ring-red-400'
-                            : 'border-emerald-300 focus:ring-emerald-400'
+                        className={`w-full px-3 py-2 text-sm bg-slate-700/50 border rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none transition ${
+                          errors[index]?.unit ? 'border-red-500' : 'border-slate-600'
                         }`}
-                      >
-                        <option value="">Select Unit</option>
-                        {units.map(u => (
-                          <option key={u} value={u}>{u}</option>
-                        ))}
-                      </select>
+                      />
                       {errors[index]?.unit && (
-                        <p className="text-red-600 text-sm mt-1">{errors[index].unit}</p>
+                        <p className="text-red-400 text-xs mt-1">{errors[index].unit}</p>
                       )}
                     </td>
 
+                    {/* Active Checkbox */}
                     <td className="px-6 py-4 text-center">
-                      <label className="flex items-center justify-center gap-2 cursor-pointer">
+                      <label className="flex items-center justify-center cursor-pointer">
                         <input
                           type="checkbox"
                           checked={item.isActive}
                           onChange={(e) => handleItemChange(index, 'isActive', e.target.checked)}
-                          className="w-5 h-5 accent-emerald-500"
+                          className="w-5 h-5 rounded border-slate-500 text-violet-500 focus:ring-2 focus:ring-violet-500"
                         />
-                        <span className={`font-semibold ${item.isActive ? 'text-green-600' : 'text-gray-400'}`}>
-                          {item.isActive ? '✓' : '✗'}
-                        </span>
                       </label>
                     </td>
 
+                    {/* Action Button */}
                     <td className="px-6 py-4 text-center">
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handleRemoveRow(index)}
-                        disabled={items.length === 1}
-                        className="px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 text-white font-bold rounded-lg shadow-md disabled:cursor-not-allowed"
-                      >
-                        🗑️ Remove
-                      </motion.button>
+                      {items.length > 1 && (
+                        <motion.button
+                          onClick={() => handleRemoveRow(index)}
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="px-3 py-1 bg-red-500/20 hover:bg-red-500/40 text-red-400 rounded-lg text-sm font-semibold border border-red-500/50 transition"
+                        >
+                          🗑️ Remove
+                        </motion.button>
+                      )}
                     </td>
                   </motion.tr>
                 ))}
@@ -309,56 +294,52 @@ export default function AddMasterInventory() {
         </div>
       </motion.div>
 
-      {/* Action Buttons */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex gap-4 flex-wrap mb-8"
+      {/* Add Another Row Button */}
+      <motion.button
+        onClick={handleAddRow}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        className="w-full py-3 mb-6 border-2 border-dashed border-violet-400/50 text-violet-400 rounded-lg hover:bg-violet-500/10 transition-colors font-semibold"
       >
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={handleAddRow}
-          className="px-8 py-4 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white font-bold rounded-xl shadow-lg"
-        >
-          ➕ Add Another Row
-        </motion.button>
+        ➕ Add Another Row
+      </motion.button>
 
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={handleSubmit}
-          disabled={loading}
-          className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold rounded-xl shadow-lg disabled:cursor-not-allowed"
-        >
-          {loading ? '⏳ Saving...' : '✅ Save All Items'}
-        </motion.button>
+      {/* Tips Section */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4 mb-8"
+      >
+        <p className="text-blue-300 font-semibold">💡 Tips:</p>
+        <ul className="text-blue-300/80 text-sm mt-2 space-y-1">
+          <li>✓ You can add multiple items at once - use "Add Another Row" button</li>
+          <li>✓ Select a category to enable sub-category dropdown</li>
+          <li>✓ Check the Active checkbox to mark items as active</li>
+          <li>✓ All fields except Sub-Category are required</li>
+        </ul>
+      </motion.div>
 
+      {/* Action Buttons */}
+      <div className="flex gap-4 justify-end">
         <motion.button
+          onClick={() => navigate('/superadmin')}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => navigate('/inventory')}
-          className="px-8 py-4 bg-gray-400 hover:bg-gray-500 text-white font-bold rounded-xl shadow-lg"
+          className="px-8 py-3 rounded-lg border border-slate-600 text-slate-300 font-bold hover:bg-slate-700 transition-colors"
         >
           ❌ Cancel
         </motion.button>
-      </motion.div>
-
-      {/* Info Box */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="bg-gradient-to-r from-yellow-100 to-orange-100 border-2 border-yellow-400 rounded-xl p-6 mb-8"
-      >
-        <h3 className="text-lg font-bold text-yellow-900 mb-3">💡 Tips:</h3>
-        <ul className="space-y-2 text-yellow-800">
-          <li>✓ You can add multiple items at once - use "Add Another Row" button</li>
-          <li>✓ All fields marked with asterisk (*) are mandatory</li>
-          <li>✓ SKU/Code should be unique and easy to remember</li>
-          <li>✓ Once saved, you can edit items from the View Master Inventory page</li>
-        </ul>
-      </motion.div>
+        <motion.button
+          onClick={handleSubmit}
+          disabled={loading}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="px-8 py-3 rounded-lg bg-gradient-to-r from-violet-500 to-purple-600 text-white font-bold hover:shadow-lg hover:shadow-violet-500/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? '⏳ Saving...' : `✅ Save All Items (${items.length})`}
+        </motion.button>
+      </div>
 
       {/* Success Modal */}
       <AnimatePresence>
@@ -373,7 +354,7 @@ export default function AddMasterInventory() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
-              className="bg-white rounded-2xl p-8 shadow-2xl border-4 border-emerald-500 max-w-md mx-auto"
+              className="bg-slate-800 rounded-2xl p-8 shadow-2xl border-4 border-violet-500 max-w-md mx-auto"
             >
               <div className="text-center">
                 <motion.div
@@ -383,9 +364,9 @@ export default function AddMasterInventory() {
                 >
                   ✅
                 </motion.div>
-                <h2 className="text-3xl font-bold text-emerald-600 mb-4">Success!</h2>
-                <p className="text-gray-700 text-lg mb-6">{successMessage}</p>
-                <p className="text-sm text-gray-500">Redirecting to inventory list...</p>
+                <h2 className="text-3xl font-bold text-white mb-4">Success!</h2>
+                <p className="text-slate-300 text-lg mb-6">{successMessage}</p>
+                <p className="text-sm text-slate-400">Redirecting...</p>
               </div>
             </motion.div>
           </motion.div>

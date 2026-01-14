@@ -20,7 +20,16 @@ export interface CreateClinicalSpecialtyDto {
 export interface UpdateClinicalSpecialtyDto extends Partial<CreateClinicalSpecialtyDto> {}
 
 export function listClinicalSpecialties(): Promise<ClinicalSpecialtyModel[]> {
-  return request<ClinicalSpecialtyModel[]>("/ClinicalSpecialty/GetAllSpecialties");
+  console.log('📞 Fetching specialties from /ClinicalSpecialty/GetAllSpecialties');
+  return request<ClinicalSpecialtyModel[]>("/ClinicalSpecialty/GetAllSpecialties")
+    .then((data) => {
+      console.log('✅ Specialties API response:', data);
+      return data;
+    })
+    .catch((err) => {
+      console.error('❌ Specialties API error:', err);
+      throw err;
+    });
 }
 
 export function getClinicalSpecialty(specialtyId: number): Promise<ClinicalSpecialtyModel> {
@@ -137,10 +146,19 @@ export function searchDoctors(params: {
 import type { DoctorClinicMapping } from '../Interfaces/DoctorClinicMappingModel';
 
 export function mapDoctorToClinics(mappings: DoctorClinicMapping[]): Promise<DoctorClinicMapping[]> {
+  console.log('📤 Sending doctor-clinic mappings to /DoctorProfile/MapDoctortoClinics:', mappings);
   return request<DoctorClinicMapping[]>("/DoctorProfile/MapDoctortoClinics", {
     method: "POST",
     body: JSON.stringify(mappings)
-  });
+  })
+    .then((data) => {
+      console.log('✅ Mappings saved successfully:', data);
+      return data;
+    })
+    .catch((err) => {
+      console.error('❌ Failed to save mappings:', err);
+      throw err;
+    });
 }
 
 export function getDoctorClinicMappings(doctorId: number): Promise<DoctorClinicMapping[]> {
@@ -156,8 +174,29 @@ export function getDoctorsByEnterpriseId(enterpriseId: number): Promise<DoctorPr
   return request<DoctorProfileModel[]>(`/DoctorProfile/GetDoctorsByEnterpriseID?enterpriseId=${enterpriseId}`);
 }
 
+// Get doctors for mapping with filters
+export function getDoctorsForMapping(params: {
+  enterpriseId: string;
+  profileId?: string;
+  firstName?: string;
+  lastName?: string;
+}): Promise<DoctorProfileModel[]> {
+  const queryParams = new URLSearchParams();
+  
+  queryParams.append('enterpriseId', params.enterpriseId);
+  if (params.profileId) queryParams.append('profileId', params.profileId);
+  if (params.firstName) queryParams.append('firstName', params.firstName);
+  if (params.lastName) queryParams.append('lastName', params.lastName);
+  
+  console.log('🔍 Calling GetDoctorsForMapping endpoint with params:', params);
+  console.log('📝 Query string:', queryParams.toString());
+  
+  return request<DoctorProfileModel[]>(`/StaffDetail/GetDoctorsForMapping?${queryParams.toString()}`);
+}
+
 export function getDoctorsByClinicId(clinicId: number): Promise<DoctorProfileModel[]> {
-  return request<DoctorProfileModel[]>(`/DoctorProfile/GetDoctorsByClinicID?ClinicID=${clinicId}`);
+  // Backend endpoint signature: [HttpGet("GetDoctorsForClinicID")] GetDoctorsByClinicId([FromQuery] int clinicId)
+  return request<DoctorProfileModel[]>(`/DoctorProfile/GetDoctorsForClinicID?clinicId=${clinicId}`);
 }
 
 // Get clinics by enterprise ID

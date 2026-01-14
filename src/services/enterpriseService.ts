@@ -1,5 +1,4 @@
-// Enterprise API Service
-import { request } from './apiClient';
+import { request, BASE_URL } from './apiClient';
 import type { EnterpriseDataModel, EnterpriseModel } from '../Interfaces';
 
 export function getEnterpriseData(): Promise<EnterpriseDataModel> {
@@ -18,7 +17,18 @@ export function createEnterprise(enterprise: EnterpriseModel): Promise<Enterpris
 }
 
 export function listEnterprises(): Promise<EnterpriseModel[]> {
-  return request<EnterpriseModel[]>("/Enterprise/GetAllEnterprises");
+  const endpoint = "/Enterprise/GetAllEnterprises";
+  const fullUrl = `${BASE_URL}${endpoint}`;
+  console.log(`📞 Fetching enterprises from ${fullUrl}`);
+  return request<EnterpriseModel[]>(endpoint)
+    .then((data) => {
+      console.log(`✅ Enterprises API response (${fullUrl}):`, data);
+      return data;
+    })
+    .catch((err) => {
+      console.error(`❌ Enterprises API error (${fullUrl}):`, err);
+      throw err;
+    });
 }
 
 export function updateEnterprise(enterprise: EnterpriseModel): Promise<EnterpriseModel> {

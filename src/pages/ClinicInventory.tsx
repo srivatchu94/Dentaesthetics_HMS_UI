@@ -14,7 +14,7 @@ import {
   addInventoryMasterItemsBulk
 } from '../services/inventoryService';
 import { listEnterprises } from '../services/enterpriseService';
-import { listClinics } from '../services/clinicService';
+import { listClinics, getClinicsByEnterpriseId } from '../services/clinicService';
 import type { ClinicInventory, InventoryMaster, EnterpriseModel, ClinicModel, InventoryAddRow, MasterInventoryAddRow } from '../Interfaces';
 
 export default function ClinicInventory() {
@@ -115,9 +115,8 @@ export default function ClinicInventory() {
     setInventoryItems([]);
     
     try {
-      const clinicList = await listClinics();
-      const filteredClinics = clinicList.filter(c => c.enterpriseId === enterpriseId);
-      setClinics(filteredClinics);
+      const clinicList = await getClinicsByEnterpriseId(enterpriseId);
+      setClinics(clinicList);
     } catch (error) {
       console.error('Error loading clinics:', error);
     }

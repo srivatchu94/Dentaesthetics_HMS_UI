@@ -1342,6 +1342,9 @@ export function CreatePatientModal({
 }) {
   if (!show) return null;
 
+  console.log("🔍 CreatePatientModal - Enterprises received:", enterprises);
+  console.log("🔍 CreatePatientModal - Enterprises count:", enterprises?.length);
+
   const tabs = [
     { key: "patient-info", label: "Patient Info", icon: "👤" },
     { key: "contact", label: "Contact", icon: "📞" },
@@ -1416,6 +1419,7 @@ export function CreatePatientModal({
             {/* Patient Info Tab */}
             {activeTab === "patient-info" && (
               <div className="space-y-4">
+                {/* Enterprise and Clinic Selection - First */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Enterprise *</label>
@@ -1456,6 +1460,7 @@ export function CreatePatientModal({
                   </div>
                 </div>
 
+                {/* Name Fields */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">First Name *</label>
@@ -2074,12 +2079,20 @@ export function InventoryListModal({
   onDelete,
   filteredItems = []
 }) {
-  const [expandedId, setExpandedId] = useState(null);
-
   if (!show) return null;
 
   const categories = [...new Set(items.map(item => item.category))];
-  const statuses = ["Active", "Inactive"];
+
+  const getCategoryIcon = (category) => {
+    const icons = {
+      'Medication': '💊',
+      'Supplies': '📦',
+      'Equipment': '🔧',
+      'Consumables': '🧪',
+      'Instruments': '🔬'
+    };
+    return icons[category] || '📦';
+  };
 
   return (
     <motion.div
@@ -2089,56 +2102,52 @@ export function InventoryListModal({
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-violet-500 to-indigo-600 text-white p-6 flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold">📦 Inventory Management</h2>
-            <p className="text-violet-100 text-sm mt-1">Manage inventory items</p>
-          </div>
+        <div className="bg-gradient-to-r from-violet-500 to-indigo-600 text-white p-6">
           <button
             onClick={onClose}
-            className="text-2xl hover:bg-white/20 rounded-lg p-2 transition-colors"
+            className="flex items-center gap-2 text-white/80 hover:text-white mb-3 transition-colors"
           >
-            ✕
+            <span className="text-xl">←</span>
+            <span className="text-sm font-semibold">Back</span>
           </button>
+          <h2 className="text-3xl font-bold">📋 Master Inventory Items</h2>
+          <p className="text-violet-100 text-sm mt-2">Total: <span className="font-bold">{items.length}</span> items</p>
         </div>
 
         {/* Filters */}
         <div className="border-b border-slate-200 p-6 bg-slate-50">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <input
-              type="text"
-              placeholder="Search by item name or code..."
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
-            />
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
-            >
-              <option value="">All Categories</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
-            >
-              <option value="">All Status</option>
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold text-slate-700 mb-2">🔍 Search by Name or SKU</label>
+              <input
+                type="text"
+                placeholder="Search items..."
+                value={filterQuery}
+                onChange={(e) => setFilterQuery(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">📂 Filter by Category</label>
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+              >
+                <option value="">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -2159,64 +2168,62 @@ export function InventoryListModal({
           {filteredItems.length === 0 && !loading ? (
             <div className="text-center text-slate-500 py-8">No inventory items found</div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredItems.map((item) => (
                 <motion.div
                   key={item.itemId}
-                  className="border border-slate-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
-                  onClick={() => setExpandedId(expandedId === item.itemId ? null : item.itemId)}
+                  className="border-2 border-slate-200 rounded-xl p-4 hover:shadow-lg hover:border-violet-300 transition-all bg-white"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
                 >
-                  <div className="p-4 bg-gradient-to-r from-violet-50 to-indigo-50 flex items-center justify-between cursor-pointer">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-slate-900">{item.itemName}</h3>
-                      <p className="text-sm text-slate-600">Code: {item.itemCode}</p>
+                  {/* Status Badge */}
+                  <div className="flex items-start justify-between mb-3">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      item.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-700"
+                    }`}>
+                      {item.isActive ? "✓ Active" : "○ Inactive"}
+                    </span>
+                    <span className="text-3xl">{getCategoryIcon(item.category)}</span>
+                  </div>
+
+                  {/* Item Name */}
+                  <h3 className="font-bold text-lg text-slate-900 mb-2">{item.itemName}</h3>
+
+                  {/* Details Grid */}
+                  <div className="space-y-1.5 mb-4 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 font-semibold">SKU:</span>
+                      <span className="text-slate-900">{item.itemCode}</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        item.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                      }`}>
-                        {item.isActive ? "Active" : "Inactive"}
-                      </span>
-                      <span className="text-2xl">{expandedId === item.itemId ? "▼" : "▶"}</span>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 font-semibold">Category:</span>
+                      <span className="text-slate-900">{item.category}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 font-semibold">Sub:</span>
+                      <span className="text-slate-900">{item.subCategory || "-"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 font-semibold">Unit:</span>
+                      <span className="text-slate-900">{item.unit}</span>
                     </div>
                   </div>
 
-                  {expandedId === item.itemId && (
-                    <div className="p-4 border-t border-slate-200 bg-white space-y-3">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <span className="text-sm font-semibold text-slate-700">Category:</span>
-                          <p className="text-slate-900">{item.category}</p>
-                        </div>
-                        <div>
-                          <span className="text-sm font-semibold text-slate-700">Sub-Category:</span>
-                          <p className="text-slate-900">{item.subCategory || "-"}</p>
-                        </div>
-                        <div>
-                          <span className="text-sm font-semibold text-slate-700">Unit:</span>
-                          <p className="text-slate-900">{item.unit}</p>
-                        </div>
-                        <div>
-                          <span className="text-sm font-semibold text-slate-700">Created:</span>
-                          <p className="text-slate-900">{new Date(item.createdAt).toLocaleDateString()}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2 pt-4">
-                        <button
-                          onClick={() => onEdit(item)}
-                          className="flex-1 px-4 py-2 bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition-colors font-semibold"
-                        >
-                          ✏️ Edit
-                        </button>
-                        <button
-                          onClick={() => onDelete(item)}
-                          className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-semibold"
-                        >
-                          🗑️ Delete
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onEdit(item)}
+                      className="flex-1 px-3 py-2 bg-violet-500 text-white rounded-lg hover:bg-violet-600 transition-colors font-semibold text-sm"
+                    >
+                      ✏️ Edit
+                    </button>
+                    <button
+                      onClick={() => onDelete(item)}
+                      className="flex-1 px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-semibold text-sm"
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
                 </motion.div>
               ))}
             </div>
@@ -2238,30 +2245,84 @@ export function CreateInventoryModal({
 }) {
   if (!show) return null;
 
-  const handleChange = (e) => {
+  const subCategories = {
+    'Equipment': ['Drills', 'Scalers', 'Mirrors', 'Chairs', 'X-Ray Machines'],
+    'Materials': ['Composites', 'Cements', 'Adhesives', 'Crowns', 'Filling Materials'],
+    'Medication': ['Anesthetics', 'Antibiotics', 'Pain Relievers', 'Fluoride', 'Antiseptics'],
+    'Consumables': ['Gloves', 'Masks', 'Bibs', 'Cups', 'Tips', 'Suction'],
+    'Instruments': ['Forceps', 'Elevators', 'Probes', 'Scalpels', 'Syringes']
+  };
+
+  // Check if form is an array (multiple items) or single item
+  const isMultipleMode = Array.isArray(form);
+  const items = isMultipleMode ? form : [form];
+
+  const handleChange = (index, e) => {
     const { name, value, type, checked } = e.target;
-    setForm({
-      ...form,
-      [name]: type === "checkbox" ? checked : value
-    });
+    
+    if (isMultipleMode) {
+      const updatedItems = [...items];
+      updatedItems[index] = {
+        ...updatedItems[index],
+        [name]: type === "checkbox" ? checked : value
+      };
+      
+      // Reset subcategory when category changes
+      if (name === 'category') {
+        updatedItems[index].subCategory = '';
+      }
+      
+      setForm(updatedItems);
+    } else {
+      const newForm = {
+        ...form,
+        [name]: type === "checkbox" ? checked : value
+      };
+      
+      // Reset subcategory when category changes
+      if (name === 'category') {
+        newForm.subCategory = '';
+      }
+      
+      setForm(newForm);
+    }
+  };
+
+  const handleAddRow = () => {
+    if (isMultipleMode) {
+      setForm([...items, {
+        itemName: "",
+        itemCode: "",
+        category: "",
+        subCategory: "",
+        unit: "Box",
+        isActive: true
+      }]);
+    }
+  };
+
+  const handleRemoveRow = (index) => {
+    if (isMultipleMode && items.length > 1) {
+      setForm(items.filter((_, i) => i !== index));
+    }
   };
 
   return (
     <motion.div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-2xl"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-violet-500 to-purple-600 text-white p-6 flex justify-between items-center">
-          <h2 className="text-2xl font-bold">➕ Add Inventory Item</h2>
+          <h2 className="text-2xl font-bold">➕ Add Inventory Item{isMultipleMode && 's'}</h2>
           <button
             onClick={onClose}
             className="text-2xl hover:bg-white/20 rounded-lg p-2 transition-colors"
@@ -2271,103 +2332,134 @@ export function CreateInventoryModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto flex-1">
           {error && (
             <div className="bg-red-50 border border-red-300 text-red-700 p-4 rounded-lg">
               {error}
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Item Name *</label>
-            <input
-              type="text"
-              name="itemName"
-              value={form.itemName}
-              onChange={handleChange}
-              placeholder="e.g., Dental Braces, Filling Material"
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-              required
-            />
-          </div>
+          {items.map((item, index) => (
+            <div key={index} className="border-2 border-violet-200 rounded-xl p-4 space-y-4 bg-violet-50/30">
+              {isMultipleMode && (
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-bold text-violet-700">Item #{index + 1}</h3>
+                  {items.length > 1 && (
+                    <button
+                      onClick={() => handleRemoveRow(index)}
+                      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-semibold"
+                    >
+                      🗑️ Remove
+                    </button>
+                  )}
+                </div>
+              )}
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Item Code (SKU) *</label>
-            <input
-              type="text"
-              name="itemCode"
-              value={form.itemCode}
-              onChange={handleChange}
-              placeholder="e.g., DB-001"
-              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Category *</label>
-              <select
-                name="category"
-                value={form.category}
-                onChange={handleChange}
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                required
-              >
-                <option value="">Select Category</option>
-                <option value="Supplies">Supplies</option>
-                <option value="Equipment">Equipment</option>
-                <option value="Medication">Medication</option>
-                <option value="Consumables">Consumables</option>
-                <option value="Instruments">Instruments</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Sub-Category</label>
-              <input
-                type="text"
-                name="subCategory"
-                value={form.subCategory}
-                onChange={handleChange}
-                placeholder="e.g., Orthodontic"
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Unit *</label>
-              <select
-                name="unit"
-                value={form.unit}
-                onChange={handleChange}
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                required
-              >
-                <option value="Box">Box</option>
-                <option value="Piece">Piece</option>
-                <option value="Bottle">Bottle</option>
-                <option value="Tablet">Tablet</option>
-                <option value="Pack">Pack</option>
-                <option value="Unit">Unit</option>
-              </select>
-            </div>
-
-            <div className="flex items-end">
-              <label className="flex items-center gap-3 cursor-pointer">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Item Name *</label>
                 <input
-                  type="checkbox"
-                  name="isActive"
-                  checked={form.isActive}
-                  onChange={handleChange}
-                  className="w-5 h-5 rounded border-slate-300 text-violet-500 focus:ring-2 focus:ring-violet-500"
+                  type="text"
+                  name="itemName"
+                  value={item.itemName}
+                  onChange={(e) => handleChange(index, e)}
+                  placeholder="e.g., Dental Braces, Filling Material"
+                  className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  required
                 />
-                <span className="text-sm font-semibold text-slate-700">Active</span>
-              </label>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Item Code (SKU) *</label>
+                <input
+                  type="text"
+                  name="itemCode"
+                  value={item.itemCode}
+                  onChange={(e) => handleChange(index, e)}
+                  placeholder="e.g., DB-001"
+                  className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Category *</label>
+                  <select
+                    name="category"
+                    value={item.category}
+                    onChange={(e) => handleChange(index, e)}
+                    className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Select Category</option>
+                    <option value="Supplies">Supplies</option>
+                    <option value="Equipment">Equipment</option>
+                    <option value="Medication">Medication</option>
+                    <option value="Consumables">Consumables</option>
+                    <option value="Instruments">Instruments</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Sub-Category</label>
+                  <select
+                    name="subCategory"
+                    value={item.subCategory}
+                    onChange={(e) => handleChange(index, e)}
+                    disabled={!item.category}
+                    className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">
+                      {item.category ? 'Select Sub-Category' : 'Select Category First'}
+                    </option>
+                    {item.category && subCategories[item.category]?.map((sub) => (
+                      <option key={sub} value={sub}>{sub}</option>
+                    ))}
+                  </select>
+                  {!item.category && (
+                    <p className="text-xs text-gray-500 mt-1">Please select a category first</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Unit *</label>
+                  <input
+                    type="number"
+                    name="unit"
+                    value={item.unit}
+                    onChange={(e) => handleChange(index, e)}
+                    placeholder="e.g., 1, 10, 100"
+                    className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="isActive"
+                      checked={item.isActive}
+                      onChange={(e) => handleChange(index, e)}
+                      className="w-5 h-5 rounded border-slate-300 text-violet-500 focus:ring-2 focus:ring-violet-500"
+                    />
+                    <span className="text-sm font-semibold text-slate-700">Active</span>
+                  </label>
+                </div>
+              </div>
             </div>
-          </div>
+          ))}
+
+          {isMultipleMode && (
+            <button
+              onClick={handleAddRow}
+              className="w-full py-3 border-2 border-dashed border-violet-300 text-violet-600 rounded-lg hover:bg-violet-50 transition-colors font-semibold"
+            >
+              ➕ Add Another Item
+            </button>
+          )}
         </div>
 
         {/* Footer */}
@@ -2383,7 +2475,7 @@ export function CreateInventoryModal({
             disabled={loading}
             className="px-6 py-2 rounded-lg bg-gradient-to-r from-violet-500 to-purple-600 text-white font-semibold hover:shadow-lg transition-all disabled:opacity-50"
           >
-            {loading ? "Creating..." : "💾 Create Item"}
+            {loading ? "Creating..." : isMultipleMode ? `💾 Save All Items (${items.length})` : "💾 Create Item"}
           </button>
         </div>
       </motion.div>
@@ -2402,12 +2494,27 @@ export function EditInventoryModal({
 }) {
   if (!show) return null;
 
+  const subCategories = {
+    'Equipment': ['Drills', 'Scalers', 'Mirrors', 'Chairs', 'X-Ray Machines'],
+    'Materials': ['Composites', 'Cements', 'Adhesives', 'Crowns', 'Filling Materials'],
+    'Medication': ['Anesthetics', 'Antibiotics', 'Pain Relievers', 'Fluoride', 'Antiseptics'],
+    'Consumables': ['Gloves', 'Masks', 'Bibs', 'Cups', 'Tips', 'Suction'],
+    'Instruments': ['Forceps', 'Elevators', 'Probes', 'Scalpels', 'Syringes']
+  };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setForm({
+    const newForm = {
       ...form,
       [name]: type === "checkbox" ? checked : value
-    });
+    };
+    
+    // Reset subcategory when category changes
+    if (name === 'category') {
+      newForm.subCategory = '';
+    }
+    
+    setForm(newForm);
   };
 
   return (
@@ -2489,14 +2596,23 @@ export function EditInventoryModal({
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">Sub-Category</label>
-              <input
-                type="text"
+              <select
                 name="subCategory"
                 value={form?.subCategory || ""}
                 onChange={handleChange}
-                placeholder="e.g., Orthodontic"
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-              />
+                disabled={!form?.category}
+                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-violet-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">
+                  {form?.category ? 'Select Sub-Category' : 'Select Category First'}
+                </option>
+                {form?.category && subCategories[form.category]?.map((sub) => (
+                  <option key={sub} value={sub}>{sub}</option>
+                ))}
+              </select>
+              {!form?.category && (
+                <p className="text-xs text-gray-500 mt-1">Please select a category first</p>
+              )}
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { getAccessToken } from "../services/tokenManager";
 import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient, getAllPatientsByClinicID, getPatientVisit } from "../services/patientService";
 import { visitService } from "../services/visitService";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
@@ -261,9 +262,24 @@ export default function Patients() {
 
   // Also check on initial mount
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
+    const token = getAccessToken();
     setIsUserLoggedIn(!!token);
     console.log('✅ Initial login check:', !!token);
+    
+    // Debug: Log all credentials
+    if (token) {
+      console.log('🔐 User is logged in');
+      console.log('📋 Token:', token.substring(0, 20) + '...');
+      const userData = localStorage.getItem('userData');
+      if (userData) {
+        const user = JSON.parse(userData);
+        console.log('👤 User Data:', { username: user.username, userId: user.userId });
+      }
+    } else {
+      console.log('❌ No token found in sessionStorage');
+      console.log('📦 Available sessionStorage keys:', Object.keys(sessionStorage));
+      console.log('📦 Available localStorage keys:', Object.keys(localStorage));
+    }
   }, []);
 
 
@@ -1125,8 +1141,8 @@ export default function Patients() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               { id: 'new-appointment', title: '📅 New Appointment', description: 'Book patient appointment', icon: '📅', color: 'from-cyan-400 to-blue-400', action: () => {
-                // Real-time token check - using correct accessToken key
-                const currentToken = localStorage.getItem('accessToken');
+                // Real-time token check - using correct sessionStorage key
+                const currentToken = getAccessToken();
                 if (!currentToken) {
                   setShowNotLoggedInModal(true);
                 } else {
