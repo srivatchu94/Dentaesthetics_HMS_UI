@@ -13,6 +13,7 @@ import PrescriptionPrint from "../components/PrescriptionPrint";
 import InventoryAutoComplete from "../components/InventoryAutoComplete";
 import AddToMasterInventoryModal from "../components/AddToMasterInventoryModal";
 import SuccessModal from "../components/SuccessModal";
+import ScheduleAppointmentsModal from "../components/ScheduleAppointmentsModal";
 import Assets from "./Assets";
 import { getPatientFullProfile, getPatientVisit, editPatientVisit, getPatientsByClinic } from "../services/patientService";
 
@@ -101,6 +102,7 @@ export default function Doctors() {
   const [viewingMyAppointments, setViewingMyAppointments] = useState(false);
   const [showAppointmentDetails, setShowAppointmentDetails] = useState(false);
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
   const [prescriptionForm, setPrescriptionForm] = useState({
     medications: [{ name: '', dosage: '', frequency: '', duration: '', instructions: '' }]
@@ -1294,7 +1296,6 @@ export default function Doctors() {
   const manageClinicTabs = [
     { key: "settings", label: "Clinic Settings", icon: "⚙️", gradient: "from-slate-500 to-stone-600" },
     { key: "staff", label: "Staff Management", icon: "👔", gradient: "from-blue-500 to-indigo-600" },
-    { key: "schedule", label: "Schedule & Hours", icon: "🗓️", gradient: "from-violet-500 to-purple-600" },
     { key: "billing", label: "Billing & Insurance", icon: "💰", gradient: "from-emerald-500 to-teal-600" },
     { key: "inventory", label: "Inventory", icon: "📦", gradient: "from-amber-500 to-orange-600" },
     { key: "reports", label: "Reports & Analytics", icon: "📈", gradient: "from-orange-500 to-red-600" },
@@ -5839,8 +5840,12 @@ export default function Doctors() {
                     <motion.button
                       key={tab.key}
                       onClick={() => {
-                        setActiveSection("dashboard");
-                        setActiveTab(tab.key);
+                        if (tab.key === "schedule") {
+                          setShowScheduleModal(true);
+                        } else {
+                          setActiveSection("dashboard");
+                          setActiveTab(tab.key);
+                        }
                       }}
                       whileHover={{ x: isSidebarCollapsed ? 0 : 3, scale: isSidebarCollapsed ? 1.08 : 1 }}
                       whileTap={{ scale: 0.95 }}
@@ -9318,6 +9323,12 @@ export default function Doctors() {
         onSubmit={handleAddMasterItems}
         isLoading={loadingMasterModal}
         initialItemName={autocompleteNewItemName}
+      />
+
+      {/* Schedule Appointments Modal */}
+      <ScheduleAppointmentsModal
+        isOpen={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
       />
     </div>
   );

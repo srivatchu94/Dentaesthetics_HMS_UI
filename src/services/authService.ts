@@ -4,11 +4,8 @@ import {
   saveAccessToken,
   getAccessToken,
   saveUserData,
-  getUserData,
   saveUserAccess,
-  getUserAccess,
   saveSelectedAccess,
-  getSelectedAccess,
   clearAllTokens,
   updateTokenExpiry,
   getTokenExpiry,
@@ -139,7 +136,7 @@ export const getAuthUserData = (): any | null => {
 
 // Backward compatibility alias
 export const getUserData = (): any | null => {
-  const data = localStorage.getItem(STORAGE_KEYS.USER_DATA_LS_KEY);
+  const data = localStorage.getItem(STORAGE_KEYS.USER_DATA_LS);
   return data ? JSON.parse(data) : null;
 };
 
@@ -152,7 +149,7 @@ export const getAuthUserAccess = (): UserAccess[] => {
 
 // Backward compatibility alias
 export const getUserAccess = (): UserAccess[] => {
-  const access = localStorage.getItem(STORAGE_KEYS.USER_ACCESS_LS_KEY);
+  const access = localStorage.getItem(STORAGE_KEYS.USER_ACCESS_LS);
   return access ? JSON.parse(access) : [];
 };
 
@@ -196,7 +193,7 @@ export const getSelectedAccess = (): { enterpriseId: number; clinicId: number; r
     console.log('   - roleIds:', parsed.roleIds);
     console.log('═══════════════════════════════════════════════════════');
     return parsed;
-    return parsed;
+
   } catch (error) {
     console.error('❌ Failed to parse selected access from localStorage:', error);
     return null;
@@ -477,8 +474,8 @@ const showSessionExpiredPopup = (): void => {
  * Show inactivity popup
  */
 const showInactivityPopup = (): void => {
-  const sessionMetadata = getSessionMetadata();
-  const timeoutMinutes = sessionMetadata?.inactivityTimeoutMinutes || 30;
+  const timeoutStr = getSessionMetadata(STORAGE_KEYS.INACTIVITY_TIMEOUT_LS);
+  const timeoutMinutes = parseInt(timeoutStr || '30');
   
   const popup = document.createElement('div');
   popup.style.cssText = `
@@ -687,14 +684,14 @@ export const debugAuthState = (): void => {
   const userData = getUserData();
   const userAccess = getUserAccess();
   const selectedAccess = getSelectedAccess();
-  const sessionMetadata = getSessionMetadata();
+  const sessionId = getSessionMetadata(STORAGE_KEYS.SESSION_ID_SS);
   
   console.log('Access Token:', token ? `${token.substring(0, 30)}... (${token.length} chars)` : '❌ MISSING');
   console.log('Refresh Token:', '🔒 HttpOnly Cookie (Cannot access from JavaScript - handled by browser)');
   console.log('User Data:', userData || '❌ MISSING');
   console.log('User Access:', userAccess || '❌ MISSING');
   console.log('Selected Access:', selectedAccess || '❌ MISSING');
-  console.log('Session Metadata:', sessionMetadata || '❌ MISSING');
+  console.log('Session ID:', sessionId || '❌ MISSING');
   console.log('════════════════════════════════════════');
   
   if (!token) {

@@ -19,6 +19,11 @@ export function getAppointment(appointmentId: number): Promise<AppointmentsModel
 }
 
 export function updateAppointment(appointment: AppointmentsModel): Promise<AppointmentsModel> {
+  console.log("🔍 DEBUG: updateAppointment called");
+  console.log("📊 Appointment data to update:", appointment);
+  console.log("🆔 Appointment ID:", appointment.appointmentId);
+  console.log("📤 Sending PUT request to /Appointments/UpdateAppointment");
+  
   return request<AppointmentsModel>(`/Appointments/UpdateAppointment`, {
     method: "PUT",
     body: JSON.stringify(appointment)
@@ -174,8 +179,32 @@ export function getCalendarAppointments(): Promise<AppointmentsModel[]> {
   }
 }
 
-export function getAppointmentsByDate(date: string): Promise<AppointmentsModel[]> {
-  return request<AppointmentsModel[]>(`/Appointments/GetByDate?date=${date}`);
+export function getAppointmentsByDate(enterpriseId: number, clinicId: number, date: string): Promise<AppointmentsModel[]> {
+  return request<AppointmentsModel[]>(`/Appointments/CalendarAppointments?enterpriseId=${enterpriseId}&clinicId=${clinicId}&date=${date}`);
+}
+
+// Get appointment by ID with filters
+export function getAppointmentById(params: {
+  clinicId?: number;
+  firstName?: string;
+  lastName?: string;
+  doctorId?: number;
+  appointmentDate?: string;
+}): Promise<AppointmentsModel> {
+  const queryString = new URLSearchParams();
+  if (params.clinicId) queryString.append('clinicId', params.clinicId.toString());
+  if (params.firstName) queryString.append('firstName', params.firstName);
+  if (params.lastName) queryString.append('lastName', params.lastName);
+  if (params.doctorId) queryString.append('doctorId', params.doctorId.toString());
+  if (params.appointmentDate) queryString.append('appointmentDate', params.appointmentDate);
+  
+  const endpoint = `/Appointments/GetAppointmentById?${queryString.toString()}`;
+  console.log("🔍 DEBUG: getAppointmentById called");
+  console.log("📊 Input params:", params);
+  console.log("📤 Query string:", queryString.toString());
+  console.log("🔗 Full endpoint:", endpoint);
+  
+  return request<AppointmentsModel>(endpoint);
 }
 
 // Get appointments with filters
@@ -198,7 +227,34 @@ export function getAppointmentsByFilters(params: AppointmentFilterParams): Promi
   if (params.doctorId) queryParams.append('doctorId', params.doctorId);
   if (params.appointmentDate) queryParams.append('appointmentDate', params.appointmentDate);
   
-  return request<AppointmentsModel[]>(`/Appointments/GetAppointmentById?${queryParams.toString()}`);
+  const endpoint = `/Appointments/GetAppointmentById?${queryParams.toString()}`;
+  console.log("🔍 DEBUG: getAppointmentsByFilters called");
+  console.log("📊 Input params:", params);
+  console.log("📤 Query string:", queryParams.toString());
+  console.log("🔗 Full endpoint:", endpoint);
+  
+  return request<AppointmentsModel[]>(endpoint);
+}
+
+// Get appointments by clinic and date (simple filters)
+export function getAppointmentsByClinicAndDate(clinicId: number, appointmentDate: string): Promise<AppointmentsModel[]> {
+  const queryParams = new URLSearchParams();
+  queryParams.append('clinicId', clinicId.toString());
+  queryParams.append('appointmentDate', appointmentDate);
+  
+  const endpoint = `/Appointments/GetAppointmentById?${queryParams.toString()}`;
+  console.log("════════════════════════════════════════════════════════════════");
+  console.log("🔥🔥🔥 getAppointmentsByClinicAndDate FUNCTION CALLED 🔥🔥🔥");
+  console.log("════════════════════════════════════════════════════════════════");
+  console.log("✅ API ENDPOINT: /Appointments/GetAppointmentById");
+  console.log("✅ METHOD: GET");
+  console.log("✅ QUERY PARAMS: clinicId=" + clinicId + ", appointmentDate=" + appointmentDate);
+  console.log("🏥 Clinic ID:", clinicId);
+  console.log("📅 Appointment Date:", appointmentDate);
+  console.log("🔗 Full URL:", endpoint);
+  console.log("════════════════════════════════════════════════════════════════");
+  
+  return request<AppointmentsModel[]>(endpoint);
 }
 
 // Get appointments by doctor ID with date filter
