@@ -82,7 +82,7 @@ export default function ReceptionistOnboarding() {
     const loadEnterprises = async () => {
       try {
         setLoadingEnterprises(true);
-        const response = await fetch("https://localhost:7104/api/Enterprise", {
+        const response = await fetch("`${API_BASE_URL}/Enterprise", {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -116,7 +116,7 @@ export default function ReceptionistOnboarding() {
       try {
         setLoadingClinics(true);
         const response = await fetch(
-          `https://localhost:7104/api/Clinic/GetClinicByID?id=${form.enterpriseId}`,
+          ``${API_BASE_URL}/Clinic/GetClinicByID?id=${form.enterpriseId}`,
           {
             method: "GET",
             headers: {
@@ -304,7 +304,7 @@ export default function ReceptionistOnboarding() {
     setError("");
     setSuccessMessage("");
     
-    const apiUrl = "https://localhost:7104/api/StaffDetail/CreateRoleBasedProfile";
+    const apiUrl = "`${API_BASE_URL}/StaffDetail/CreateRoleBasedProfile";
     console.log("🎯 Calling API:", apiUrl);
     console.log("📋 Method: POST");
     console.log("🔑 Auth Token:", localStorage.getItem("accessToken") ? "Present" : "Missing");
@@ -932,3 +932,5 @@ export default function ReceptionistOnboarding() {
     </div>
   );
 }
+
+

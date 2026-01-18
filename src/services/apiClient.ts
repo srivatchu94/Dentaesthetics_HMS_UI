@@ -1,7 +1,7 @@
 // Shared API client utilities
 // Base URL can be configured via Vite env: VITE_API_BASE_URL
 
-export const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7104/api";
+export const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
 // Import token management
 import { getAuthToken, getSelectedAccess } from './authService';

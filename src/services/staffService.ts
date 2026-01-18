@@ -2,6 +2,8 @@
 import { request } from './apiClient';
 import type { StaffModel, StaffDetailsModel } from '../Interfaces';
 
+const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api';
+
 export interface CreateStaffDto {
   clinicId: number;
   fullName: string;
@@ -95,7 +97,7 @@ export function createStaffDetail(payload: CreateStaffDetailDto): Promise<StaffD
   console.log("rolesAssigned:", cleanPayload.rolesAssigned, "(Type:", typeof cleanPayload.rolesAssigned, ")");
   
   // Use the new CreateRoleBasedProfile endpoint
-  return fetch("https://localhost:7104/api/StaffDetail/CreateRoleBasedProfile", {
+  return fetch(`${API_BASE_URL}/StaffDetail/CreateRoleBasedProfile`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -149,3 +151,4 @@ export function getStaffProfileByClinicId(clinicId: number): Promise<StaffDetail
   const endpoint = `/StaffDetail/GetStaffProfileByClinicId?ClinicId=${clinicId}`;
   return request<StaffDetailsModel[]>(endpoint);
 }
+

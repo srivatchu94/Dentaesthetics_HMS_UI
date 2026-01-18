@@ -3960,7 +3960,7 @@ export default function Doctors() {
 
           console.log('📤 Sending payload for:', medication.name, prescriptionPayload);
 
-          const response = await fetch('https://localhost:7104/api/Appointments/AddPrescription', {
+          const response = await fetch('`${API_BASE_URL}/Appointments/AddPrescription', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -9333,3 +9333,5 @@ export default function Doctors() {
     </div>
   );
 }
+
+

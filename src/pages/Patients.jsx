@@ -690,7 +690,7 @@ export default function Patients() {
   // Load enterprises when register patient modal opens
   useEffect(() => {
     if (activeView === "register") {
-      fetch("https://localhost:7104/api/Enterprise", {
+      fetch("`${API_BASE_URL}/Enterprise", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -706,7 +706,7 @@ export default function Patients() {
   // Load clinics when enterprise is selected
   useEffect(() => {
     if (patientData.enterpriseId) {
-      fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${patientData.enterpriseId}`, {
+      fetch(``${API_BASE_URL}/Clinic/GetClinicByID?id=${patientData.enterpriseId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -7782,3 +7782,5 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
   </div>
   );
 }
+
+

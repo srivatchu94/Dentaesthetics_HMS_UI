@@ -1,10 +1,10 @@
 // HMS API typed client
 // Base URL can be configured via Vite env: VITE_API_BASE_URL
-// Fallback assumes local ASP.NET backend listening at /api
+// Fallback uses cloud Azure deployment
 
 import type { ClinicModel, StaffModel, ServiceModel, EnterpriseDataModel, EnterpriseModel, AssetModel, CreateAssetDto, UpdateAssetDto } from "../Interfaces";
 
-const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://localhost:7104/api";
+const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
 // Generic helper for JSON requests
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {

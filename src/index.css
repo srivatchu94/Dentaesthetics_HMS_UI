@@ -13,8 +13,23 @@
   }
 }
 
-/* small app-level tweaks */
-body { @apply bg-slate-50 text-slate-900; }
+/* Cursor visibility */
+body {
+  @apply cursor-default bg-slate-50 text-slate-900;
+}
+
+* {
+  cursor: inherit;
+}
+
+a, button, [role="button"] {
+  @apply cursor-pointer;
+}
+
+input, textarea, select {
+  @apply cursor-text;
+}
+
 .app-container { @apply min-h-screen p-4 md:p-8; }
 .header { @apply flex items-center justify-between mb-6; }
 .logo { @apply w-12 h-12 bg-white rounded-md shadow flex items-center justify-center font-bold; }
@@ -34,16 +49,6 @@ body { @apply bg-slate-50 text-slate-900; }
 
 .animate-shake {
   animation: shake 0.5s ease-in-out;
-}
-
-/* Shine animation for hover effects */
-@keyframes shine {
-  0% { transform: translateX(-100%) skewX(-15deg); }
-  100% { transform: translateX(200%) skewX(-15deg); }
-}
-
-.animate-shine {
-  animation: shine 1s ease-in-out;
 }
 
 /* Print Styles for Prescription */

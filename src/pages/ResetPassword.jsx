@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
+const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api';
+
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -60,7 +62,7 @@ const ResetPassword = () => {
 
     try {
       // Verify token validity with backend
-      const response = await fetch('https://localhost:7104/api/Authentication/ValidateResetToken', {
+      const response = await fetch(`${API_BASE_URL}/Authentication/ValidateResetToken`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -82,7 +84,7 @@ const ResetPassword = () => {
       }
     } catch (error) {
       console.error('Error validating token:', error);
-      setError('Backend is not available for token validation. Please ensure the API is running on https://localhost:7104/api/Authentication/ValidateResetToken. For testing, use ?demo=true in the URL.');
+      setError('Backend is not available for token validation. Please ensure the API is running on ' + API_BASE_URL + '/Authentication/ValidateResetToken. For testing, use ?demo=true in the URL.');
       setTokenValid(false);
     }
   };
@@ -154,7 +156,7 @@ const ResetPassword = () => {
     setSuccessMessage('');
 
     try {
-      const response = await fetch('https://localhost:7104/api/Authentication/saveresetpassword', {
+      const response = await fetch(`${API_BASE_URL}/Authentication/saveresetpassword`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -523,3 +525,4 @@ const ResetPassword = () => {
 };
 
 export default ResetPassword;
+

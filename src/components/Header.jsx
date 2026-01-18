@@ -355,16 +355,16 @@ export default function Header(){
 
   return (
     <>
-      <header className="w-full fixed top-0 left-0 right-0 z-40">
-        <div className="bg-gradient-to-r from-coral-100 via-peach-100 to-teal-100 shadow-coral">
-          <div className="bg-gradient-to-br from-coral-50/90 via-peach-50/80 to-cream-50/90 backdrop-blur-sm">
+      <header className="w-full fixed top-0 left-0 right-0 z-40 shadow-xl">
+        <div className="bg-gradient-to-r from-amber-900 via-amber-800 to-amber-900">
+          <div className="bg-gradient-to-br from-amber-800 to-amber-900 shadow-2xl">
             <div className="w-full px-6 md:px-12 py-4">
-              <div className="grid grid-cols-3 items-center">
+              <div className="grid grid-cols-3 items-center gap-4">
             {/* Logo - Left */}
-                <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
                   <motion.div 
                     whileHover={{ scale: 1.1, rotate: 5 }}
-                    className="w-12 h-12 bg-gradient-to-br from-coral-400 via-peach-400 to-gold-400 rounded-xl shadow-coral flex items-center justify-center"
+                    className="w-12 h-12 bg-gradient-to-br from-yellow-300 to-amber-300 rounded-xl shadow-lg flex items-center justify-center cursor-pointer"
                   >
                     <span className="text-2xl">🦷</span>
                   </motion.div>
@@ -372,7 +372,7 @@ export default function Header(){
 
             {/* Title - Center */}
                 <div className="text-center">
-                  <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-coral-700 via-peach-700 to-teal-700 bg-clip-text text-transparent">
+                  <h1 className="text-xl md:text-2xl font-bold text-white drop-shadow-lg">
                     Dentaesthetics VitalsVille
                   </h1>
                 </div>
@@ -387,9 +387,9 @@ export default function Header(){
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={() => setShowNotifications(!showNotifications)}
-                          className="relative p-2 rounded-lg hover:bg-amber-100 transition-colors"
+                          className=\"relative p-2 rounded-lg hover:bg-amber-700 transition-colors cursor-pointer\"
                         >
-                          <svg className="w-6 h-6 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className=\"w-6 h-6 text-yellow-300\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                           </svg>
                           {unreadCount > 0 && (
@@ -469,7 +469,7 @@ export default function Header(){
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => navigate("/doctors")}
-                        className="px-4 py-2 bg-gradient-to-r from-teal-500 via-purple-500 to-coral-500 text-white rounded-lg hover:shadow-xl transition-all font-semibold shadow-lg text-sm flex items-center gap-2"
+                        className=\"px-4 py-2 bg-gradient-to-r from-yellow-400 to-yellow-500 text-amber-900 rounded-lg hover:shadow-xl transition-all font-semibold shadow-lg text-sm flex items-center gap-2 cursor-pointer\"
                       >
                         <span>👨‍⚕️</span>
                         <span>{doctorName || "Doctor's Space"}</span>

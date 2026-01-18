@@ -4,6 +4,7 @@ import { loginUser, saveAuthToken } from '../services/authService';
 import { request } from '../services/apiClient';
 import ForgotPasswordModal from './ForgotPasswordModal';
 
+const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api';
 const AUTH_BASE_URL = '/Authentication';
 const OTP_BASE_URL = '/OtpAuthentication';
 
@@ -91,7 +92,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
   const loadAllUsers = async () => {
     try {
-      const response = await fetch('https://localhost:7104/api/User/GetAllUsers', {
+      const response = await fetch(`${API_BASE_URL}/User/GetAllUsers`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -320,7 +321,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
         }
 
         // Validate answers with backend
-        const response = await fetch('https://localhost:7104/api/Authentication/VerifySecurityAnswers', {
+        const response = await fetch(`${API_BASE_URL}/Authentication/VerifySecurityAnswers`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -372,7 +373,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
       setForgotPasswordLoading(true);
       try {
-        const response = await fetch('https://localhost:7104/api/Authentication/ResetPassword', {
+        const response = await fetch(`${API_BASE_URL}/Authentication/ResetPassword`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1313,4 +1314,5 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 };
 
 export default LoginModal;
+
 

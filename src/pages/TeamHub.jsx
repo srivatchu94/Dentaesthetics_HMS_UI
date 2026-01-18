@@ -215,7 +215,7 @@ const TeamHub = () => {
     const fetchOnboardingClinics = async () => {
       try {
         const response = await fetch(
-          `https://localhost:7104/api/Clinic/GetClinicByID?id=${doctorFormData.enterpriseId}`,
+          ``${API_BASE_URL}/Clinic/GetClinicByID?id=${doctorFormData.enterpriseId}`,
           {
             method: "GET",
             headers: {
@@ -464,7 +464,7 @@ const TeamHub = () => {
         queryParams.append('lastName', searchFilters.lastName);
       }
 
-      const apiUrl = `https://localhost:7104/api/StaffDetail/GetStaffProfile?${queryParams.toString()}`;
+      const apiUrl = ``${API_BASE_URL}/StaffDetail/GetStaffProfile?${queryParams.toString()}`;
       console.log('🔍 Searching staff with URL:', apiUrl);
       console.log('📊 Query Params:', {
         enterpriseId,
@@ -532,7 +532,7 @@ const TeamHub = () => {
   // Load enterprises for credential management
   const loadEnterprises = async () => {
     try {
-      const response = await fetch("https://localhost:7104/api/Enterprise/GetAllEnterprises", {
+      const response = await fetch("`${API_BASE_URL}/Enterprise/GetAllEnterprises", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -572,7 +572,7 @@ const TeamHub = () => {
     }
 
     try {
-      const response = await fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${enterpriseId}`, {
+      const response = await fetch(``${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -666,7 +666,7 @@ const TeamHub = () => {
       console.log("🔍 RoleName in payload:", payload.roleName);
       console.log("🔍 Full payload JSON:", JSON.stringify(payload, null, 2));
 
-      const response = await fetch("https://localhost:7104/api/Authentication/registerUser", {
+      const response = await fetch("`${API_BASE_URL}/Authentication/registerUser", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -746,7 +746,7 @@ const TeamHub = () => {
     }
 
     try {
-      const response = await fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${enterpriseId}`, {
+      const response = await fetch(``${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -771,9 +771,9 @@ const TeamHub = () => {
       let url;
       // If clinic is selected, load doctors for that clinic; otherwise load doctors for entire enterprise
       if (clinicId) {
-        url = `https://localhost:7104/api/Doctor/GetDoctorsByClinic?clinicId=${clinicId}`;
+        url = ``${API_BASE_URL}/Doctor/GetDoctorsByClinic?clinicId=${clinicId}`;
       } else {
-        url = `https://localhost:7104/api/Doctor/GetDoctorsByEnterpriseID?enterpriseId=${enterpriseId}`;
+        url = ``${API_BASE_URL}/Doctor/GetDoctorsByEnterpriseID?enterpriseId=${enterpriseId}`;
       }
 
       const response = await fetch(url, {
@@ -840,7 +840,7 @@ const TeamHub = () => {
 
         console.log("📝 Submitting security questions:", payload);
 
-        const response = await fetch("https://localhost:7104/api/Authentication/SetSecurityQuestions", {
+        const response = await fetch("`${API_BASE_URL}/Authentication/SetSecurityQuestions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -3405,3 +3405,5 @@ const TeamHub = () => {
 };
 
 export default TeamHub;
+
+

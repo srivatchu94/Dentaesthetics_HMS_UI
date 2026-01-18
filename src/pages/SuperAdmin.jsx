@@ -15,31 +15,33 @@ import {
   DeleteInventoryModal
 } from "../components/AppointmentManagement";
 
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+
 const SUPERADMIN_ENDPOINTS = {
-  insert: "https://localhost:7104/api/SuperAdmin/Insert",
-  list: "https://localhost:7104/api/SuperAdmin/All",
-  update: (id) => `https://localhost:7104/api/SuperAdmin/EditSuperAdmin?id=${encodeURIComponent(id)}`,
-  delete: (id) => `https://localhost:7104/api/SuperAdmin/DeleteSuperAdmin?id=${encodeURIComponent(id)}`
+  insert: `${API_BASE_URL}/SuperAdmin/Insert`,
+  list: `${API_BASE_URL}/SuperAdmin/All`,
+  update: (id) => `${API_BASE_URL}/SuperAdmin/EditSuperAdmin?id=${encodeURIComponent(id)}`,
+  delete: (id) => `${API_BASE_URL}/SuperAdmin/DeleteSuperAdmin?id=${encodeURIComponent(id)}`
 };
 
 const ENTERPRISE_ENDPOINTS = {
-  list: "https://localhost:7104/api/Enterprise/GetAllEnterprises",
-  getAll: "https://localhost:7104/api/Enterprise/GetAllEnterprises",
-  create: "https://localhost:7104/api/Enterprise/CreateEnterprise",
-  update: "https://localhost:7104/api/Enterprise/EditEnterpriseInfo",
-  delete: (id) => `https://localhost:7104/api/Enterprise/DeleteEnterprise?id=${id}`
+  list: `${API_BASE_URL}/Enterprise/GetAllEnterprises`,
+  getAll: `${API_BASE_URL}/Enterprise/GetAllEnterprises`,
+  create: `${API_BASE_URL}/Enterprise/CreateEnterprise`,
+  update: `${API_BASE_URL}/Enterprise/EditEnterpriseInfo`,
+  delete: (id) => `${API_BASE_URL}/Enterprise/DeleteEnterprise?id=${id}`
 };
 
 const CLINIC_ENDPOINTS = {
-  list: "https://localhost:7104/api/Clinic/All",
-  create: "https://localhost:7104/api/Clinic/CreateClinicInfo",
-  getByEnterpriseId: (id) => `https://localhost:7104/api/Clinic/GetClinicByID?id=${id}`,
-  update: (id) => `https://localhost:7104/api/Clinic/${id}`,
-  delete: (id) => `https://localhost:7104/api/Clinic/${id}`
+  list: `${API_BASE_URL}/Clinic/All`,
+  create: `${API_BASE_URL}/Clinic/CreateClinicInfo`,
+  getByEnterpriseId: (id) => `${API_BASE_URL}/Clinic/GetClinicByID?id=${id}`,
+  update: (id) => `${API_BASE_URL}/Clinic/${id}`,
+  delete: (id) => `${API_BASE_URL}/Clinic/${id}`
 };
 
 const ROLE_ENDPOINTS = {
-  getAll: "https://localhost:7104/api/RoleMaster/GetAllRolesForStaff"
+  getAll: `${API_BASE_URL}/RoleMaster/GetAllRolesForStaff`
 };
 
 const initialForm = {
@@ -416,35 +418,35 @@ export default function SuperAdmin() {
   });
 
   const APPOINTMENT_ENDPOINTS = {
-    list: "https://localhost:7104/api/Appointments/GetAll",
-    create: "https://localhost:7104/api/Appointments/CreateAppointment",
-    update: "https://localhost:7104/api/Appointments/UpdateAppointment",
-    delete: (id) => `https://localhost:7104/api/Appointments/DeleteAppointment?id=${id}`,
-    getByClinic: (clinicId) => `https://localhost:7104/api/Appointments/GetByClinic/${clinicId}`,
-    getByDoctor: (doctorId) => `https://localhost:7104/api/Appointments/GetByDoctor/${doctorId}`,
-    getByPatient: (patientId) => `https://localhost:7104/api/Appointments/GetByPatient/${patientId}`
+    list: `${API_BASE_URL}/Appointments/GetAll`,
+    create: `${API_BASE_URL}/Appointments/CreateAppointment`,
+    update: `${API_BASE_URL}/Appointments/UpdateAppointment`,
+    delete: (id) => `${API_BASE_URL}/Appointments/DeleteAppointment?id=${id}`,
+    getByClinic: (clinicId) => `${API_BASE_URL}/Appointments/GetByClinic/${clinicId}`,
+    getByDoctor: (doctorId) => `${API_BASE_URL}/Appointments/GetByDoctor/${doctorId}`,
+    getByPatient: (patientId) => `${API_BASE_URL}/Appointments/GetByPatient/${patientId}`
   };
 
   const PATIENT_ENDPOINTS = {
-    getFullProfile: (patientId) => `https://localhost:7104/api/Patient/details/fullProfile?patientId=${patientId}`,
-    update: (patientId) => `https://localhost:7104/api/Patient/Update/${patientId}`,
-    delete: (patientId) => `https://localhost:7104/api/Patient/Delete/${patientId}`
+    getFullProfile: (patientId) => `${API_BASE_URL}/Patient/details/fullProfile?patientId=${patientId}`,
+    update: (patientId) => `${API_BASE_URL}/Patient/Update/${patientId}`,
+    delete: (patientId) => `${API_BASE_URL}/Patient/Delete/${patientId}`
   };
 
   const INVENTORY_ENDPOINTS = {
     master: {
-      list: "https://localhost:7104/api/Inventory/GetAllInventoryMasterItems",
-      create: "https://localhost:7104/api/Inventory/AddInventoryMasterItem",
-      createBulk: "https://localhost:7104/api/Inventory/AddInventoryMasterItemsBulk",
-      update: (id) => `https://localhost:7104/api/Inventory/UpdateInventoryMasterItem`,
-      delete: (id) => `https://localhost:7104/api/InventoryMaster/Delete/${id}`
+      list: `${API_BASE_URL}/Inventory/GetAllInventoryMasterItems`,
+      create: `${API_BASE_URL}/Inventory/AddInventoryMasterItem`,
+      createBulk: `${API_BASE_URL}/Inventory/AddInventoryMasterItemsBulk`,
+      update: (id) => `${API_BASE_URL}/Inventory/UpdateInventoryMasterItem`,
+      delete: (id) => `${API_BASE_URL}/InventoryMaster/Delete/${id}`
     },
     clinic: {
-      list: "https://localhost:7104/api/ClinicInventory/GetAll",
-      create: "https://localhost:7104/api/ClinicInventory/Create",
-      update: (id) => `https://localhost:7104/api/ClinicInventory/Update/${id}`,
-      delete: (id) => `https://localhost:7104/api/ClinicInventory/Delete/${id}`,
-      getByClinic: (clinicId) => `https://localhost:7104/api/ClinicInventory/GetByClinic/${clinicId}`
+      list: `${API_BASE_URL}/ClinicInventory/GetAll`,
+      create: `${API_BASE_URL}/ClinicInventory/Create`,
+      update: (id) => `${API_BASE_URL}/ClinicInventory/Update/${id}`,
+      delete: (id) => `${API_BASE_URL}/ClinicInventory/Delete/${id}`,
+      getByClinic: (clinicId) => `${API_BASE_URL}/ClinicInventory/GetByClinic/${clinicId}`
     }
   };
 
@@ -815,9 +817,9 @@ export default function SuperAdmin() {
     try {
       setEnterpriseLoading(true);
       setError("");
-      console.log("🏢 Fetching enterprises from: https://localhost:7104/api/Enterprise/GetAllEnterprises");
+      console.log("🏢 Fetching enterprises from: ${API_BASE_URL}/Enterprise/GetAllEnterprises");
       
-      const response = await fetch("https://localhost:7104/api/Enterprise/GetAllEnterprises", {
+      const response = await fetch("${API_BASE_URL}/Enterprise/GetAllEnterprises", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -1028,7 +1030,7 @@ export default function SuperAdmin() {
       setError("");
       console.log("🏥 Loading clinics for enterprise ID:", enterpriseId);
       
-      const response = await fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${enterpriseId}`, {
+      const response = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json"
@@ -1077,7 +1079,7 @@ export default function SuperAdmin() {
   const fetchDoctors = async () => {
     try {
       console.log("👨‍⚕️ Fetching doctors...");
-      const response = await fetch("https://localhost:7104/api/Doctors/GetAll", {
+      const response = await fetch("${API_BASE_URL}/Doctors/GetAll", {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -1118,7 +1120,7 @@ export default function SuperAdmin() {
 
     try {
       console.log("👨‍⚕️ Fetching doctors for clinic ID:", clinicId);
-      const response = await fetch(`https://localhost:7104/api/StaffDetail/GetDoctorsForClinicID?clinicId=${clinicId}`, {
+      const response = await fetch(`${API_BASE_URL}/StaffDetail/GetDoctorsForClinicID?clinicId=${clinicId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json"
@@ -1394,7 +1396,7 @@ export default function SuperAdmin() {
       const roleValue = viewStaffFilters.rolesAssigned || "all";
       params.append("rolesAssigned", roleValue);
       
-      const url = `https://localhost:7104/api/StaffDetail/GetStaffDetailsbyRole?${params.toString()}`;
+      const url = `${API_BASE_URL}/StaffDetail/GetStaffDetailsbyRole?${params.toString()}`;
       console.log("📡 Fetching staff profiles:", url);
       
       const response = await fetch(url, {
@@ -1591,7 +1593,7 @@ export default function SuperAdmin() {
       };
       
       const roleParam = encodeURIComponent(selectedStaff.rolesAssigned || "Reception");
-      const url = `https://localhost:7104/api/StaffDetail/EditRoleBasedProfile/${selectedStaff.staffId}?rolesAssigned=${roleParam}`;
+      const url = `${API_BASE_URL}/StaffDetail/EditRoleBasedProfile/${selectedStaff.staffId}?rolesAssigned=${roleParam}`;
       console.log("📡 Edit URL:", url);
       console.log("📦 Edit Payload:", payload);
       
@@ -1655,7 +1657,7 @@ export default function SuperAdmin() {
         lastName: selectedStaff.lastName
       });
       
-      const url = `https://localhost:7104/api/StaffDetail/DeleteRoleBasedProfile?${params.toString()}`;
+      const url = `${API_BASE_URL}/StaffDetail/DeleteRoleBasedProfile?${params.toString()}`;
       console.log("🗑️ Delete URL:", url);
       
       const response = await fetch(url, {
@@ -1704,7 +1706,7 @@ export default function SuperAdmin() {
     try {
       setListClinicsLoading(true);
       setListClinicsError("");
-      const response = await fetch(`https://localhost:7104/api/Clinic/GetClinicByID?id=${enterpriseId}`, {
+      const response = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json"
@@ -1761,7 +1763,7 @@ export default function SuperAdmin() {
       }
 
       const queryString = queryParams.toString();
-      const url = `https://localhost:7104/api/Appointments/GetAppointmentsSuperAdmin?${queryString}`;
+      const url = `${API_BASE_URL}/Appointments/GetAppointmentsSuperAdmin?${queryString}`;
 
       console.log("📋 Fetching appointments from:", url);
       console.log("   Clinic ID:", clinicId);
@@ -2211,7 +2213,7 @@ export default function SuperAdmin() {
         }
       };
 
-      const response = await fetch("https://localhost:7104/api/Patient/register", {
+      const response = await fetch("${API_BASE_URL}/Patient/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2696,7 +2698,7 @@ export default function SuperAdmin() {
         try {
           console.log("📋 Loading clinics for patient, enterprise ID:", createPatientForm.enterpriseId);
           const response = await fetch(
-            `https://localhost:7104/api/Clinic/GetClinicByID?id=${createPatientForm.enterpriseId}`,
+            `${API_BASE_URL}/Clinic/GetClinicByID?id=${createPatientForm.enterpriseId}`,
             {
               method: "GET",
               headers: {
@@ -6982,3 +6984,4 @@ export default function SuperAdmin() {
     </div>
   );
 }
+
