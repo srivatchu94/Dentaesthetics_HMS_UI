@@ -2,13 +2,22 @@
   "routes": [
     {
       "route": "/*",
+      "methods": ["GET", "HEAD", "OPTIONS"],
       "serve": "/index.html",
       "statusCode": 200
+    },
+    {
+      "route": "/api/*",
+      "methods": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+      "allowedRoles": ["authenticated"]
     }
   ],
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff"
+  },
   "mimeTypes": {
-    ".js": "application/javascript",
-    ".mjs": "application/javascript",
+    ".js": "application/javascript; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
     ".json": "application/json",
     ".css": "text/css",
     ".svg": "image/svg+xml",
@@ -26,9 +35,6 @@
   },
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/images/*", "/css/*", "/*.json", "/*.txt", "/*.xml"]
-  },
-  "platform": {
-    "apiVersion": "2021-02-01"
+    "exclude": ["/assets/*", "/*.json", "/*.txt", "/*.xml", "/*.md"]
   }
 }
