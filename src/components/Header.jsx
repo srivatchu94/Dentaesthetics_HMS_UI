@@ -387,9 +387,9 @@ export default function Header(){
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={() => setShowNotifications(!showNotifications)}
-                          className=\"relative p-2 rounded-lg hover:bg-amber-700 transition-colors cursor-pointer\"
+                          className="relative p-2 rounded-lg hover:bg-amber-700 transition-colors cursor-pointer"
                         >
-                          <svg className=\"w-6 h-6 text-yellow-300\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\">
+                          <svg className="w-6 h-6 text-yellow-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                           </svg>
                           {unreadCount > 0 && (
@@ -469,7 +469,7 @@ export default function Header(){
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => navigate("/doctors")}
-                        className=\"px-4 py-2 bg-gradient-to-r from-yellow-400 to-yellow-500 text-amber-900 rounded-lg hover:shadow-xl transition-all font-semibold shadow-lg text-sm flex items-center gap-2 cursor-pointer\"
+                        className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-yellow-500 text-amber-900 rounded-lg hover:shadow-xl transition-all font-semibold shadow-lg text-sm flex items-center gap-2 cursor-pointer"
                       >
                         <span>👨‍⚕️</span>
                         <span>{doctorName || "Doctor's Space"}</span>

@@ -116,7 +116,7 @@ export default function ViewStaffDetails() {
       try {
         setIsLoadingClinics(true);
         const response = await fetch(
-          ``${API_BASE_URL}/Clinic/GetClinicByID?id=${searchFilters.enterpriseId}`,
+          `${API_BASE_URL}/Clinic/GetClinicByID?id=${searchFilters.enterpriseId}`,
           {
             method: "GET",
             headers: {
@@ -218,7 +218,7 @@ export default function ViewStaffDetails() {
       if (hasFirstName) params.append("firstName", searchFilters.firstName.trim());
       if (hasLastName) params.append("lastName", searchFilters.lastName.trim());
 
-      const url = ``${API_BASE_URL}/StaffDetail/RoleBasedProfiles?${params.toString()}`;
+      const url = `${API_BASE_URL}/StaffDetail/RoleBasedProfiles?${params.toString()}`;
       console.log("🔍 Search Filters State:", searchFilters);
       console.log("✅ hasProfileID:", hasProfileID, "| hasFirstName:", hasFirstName, "| hasLastName:", hasLastName);
       console.log("🌐 Full API URL:", url);
@@ -358,7 +358,7 @@ export default function ViewStaffDetails() {
         payload.SpecialtyId = editFormData.specialtyId ?? null;
       }
 
-      const url = ``${API_BASE_URL}/StaffDetail/EditRoleBasedProfile/${encodeURIComponent(profileId)}?rolesAssigned=${encodeURIComponent(roleValue)}`;
+      const url = `${API_BASE_URL}/StaffDetail/EditRoleBasedProfile/${encodeURIComponent(profileId)}?rolesAssigned=${encodeURIComponent(roleValue)}`;
       console.log("✏️ Edit API URL:", url);
       console.log("� Sending to API:");
       console.log("   - Method: POST");
@@ -413,7 +413,7 @@ export default function ViewStaffDetails() {
           if ((searchFilters.firstName || "").trim() !== "") searchParams.append("firstName", searchFilters.firstName.trim());
           if ((searchFilters.lastName || "").trim() !== "") searchParams.append("lastName", searchFilters.lastName.trim());
           
-          const searchUrl = ``${API_BASE_URL}/StaffDetail/RoleBasedProfiles?${searchParams.toString()}`;
+          const searchUrl = `${API_BASE_URL}/StaffDetail/RoleBasedProfiles?${searchParams.toString()}`;
           const searchResponse = await fetch(searchUrl, {
             method: "GET",
             headers: {
@@ -478,7 +478,7 @@ export default function ViewStaffDetails() {
       params.append("lastName", lastNameForDelete);
       params.append("rolesAssigned", roleForDelete);
 
-      const url = ``${API_BASE_URL}/StaffDetail/DeleteRoleBasedProfile?${params.toString()}`;
+      const url = `${API_BASE_URL}/StaffDetail/DeleteRoleBasedProfile?${params.toString()}`;
       console.log("🗑️ Delete API URL:", url);
       console.log("🔍 Delete params - Profile ID:", profileIdForDelete, "| First Name:", firstNameForDelete, "| Last Name:", lastNameForDelete, "| Role:", roleForDelete);
 

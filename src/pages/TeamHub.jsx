@@ -215,7 +215,7 @@ const TeamHub = () => {
     const fetchOnboardingClinics = async () => {
       try {
         const response = await fetch(
-          ``${API_BASE_URL}/Clinic/GetClinicByID?id=${doctorFormData.enterpriseId}`,
+          `${API_BASE_URL}/Clinic/GetClinicByID?id=${doctorFormData.enterpriseId}`,
           {
             method: "GET",
             headers: {
@@ -464,7 +464,7 @@ const TeamHub = () => {
         queryParams.append('lastName', searchFilters.lastName);
       }
 
-      const apiUrl = ``${API_BASE_URL}/StaffDetail/GetStaffProfile?${queryParams.toString()}`;
+      const apiUrl = `${API_BASE_URL}/StaffDetail/GetStaffProfile?${queryParams.toString()}`;
       console.log('🔍 Searching staff with URL:', apiUrl);
       console.log('📊 Query Params:', {
         enterpriseId,
@@ -572,7 +572,7 @@ const TeamHub = () => {
     }
 
     try {
-      const response = await fetch(``${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`, {
+      const response = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -746,7 +746,7 @@ const TeamHub = () => {
     }
 
     try {
-      const response = await fetch(``${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`, {
+      const response = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -771,9 +771,9 @@ const TeamHub = () => {
       let url;
       // If clinic is selected, load doctors for that clinic; otherwise load doctors for entire enterprise
       if (clinicId) {
-        url = ``${API_BASE_URL}/Doctor/GetDoctorsByClinic?clinicId=${clinicId}`;
+        url = `${API_BASE_URL}/Doctor/GetDoctorsByClinic?clinicId=${clinicId}`;
       } else {
-        url = ``${API_BASE_URL}/Doctor/GetDoctorsByEnterpriseID?enterpriseId=${enterpriseId}`;
+        url = `${API_BASE_URL}/Doctor/GetDoctorsByEnterpriseID?enterpriseId=${enterpriseId}`;
       }
 
       const response = await fetch(url, {

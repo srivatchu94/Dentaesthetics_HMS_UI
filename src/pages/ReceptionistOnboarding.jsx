@@ -116,7 +116,7 @@ export default function ReceptionistOnboarding() {
       try {
         setLoadingClinics(true);
         const response = await fetch(
-          ``${API_BASE_URL}/Clinic/GetClinicByID?id=${form.enterpriseId}`,
+          `${API_BASE_URL}/Clinic/GetClinicByID?id=${form.enterpriseId}`,
           {
             method: "GET",
             headers: {

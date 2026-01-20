@@ -15,7 +15,7 @@ import {
   DeleteInventoryModal
 } from "../components/AppointmentManagement";
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
 const SUPERADMIN_ENDPOINTS = {
   insert: `${API_BASE_URL}/SuperAdmin/Insert`,

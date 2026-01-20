@@ -706,7 +706,7 @@ export default function Patients() {
   // Load clinics when enterprise is selected
   useEffect(() => {
     if (patientData.enterpriseId) {
-      fetch(``${API_BASE_URL}/Clinic/GetClinicByID?id=${patientData.enterpriseId}`, {
+      fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${patientData.enterpriseId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

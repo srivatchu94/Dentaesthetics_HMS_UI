@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import FancyDatePicker from "../components/FancyDatePicker";
 import { createDoctor } from "../services/doctorService";
 
-const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api';
+const API_BASE_URL = (import.meta)?.env?.VITE_API_BASE_URL || 'https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api';
 
 export default function Clinics(){
   const [log, setLog] = useState([]);
@@ -312,7 +312,7 @@ export default function Clinics(){
       setManageEnterpriseLoading(true);
       setManageEnterpriseError("");
       
-      const response = await fetch(``${API_BASE_URL}/Enterprise/${manageEnterpriseSearchId}`, {
+      const response = await fetch(`${API_BASE_URL}/Enterprise/${manageEnterpriseSearchId}`, {
         headers: {
           "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
         }
@@ -377,7 +377,7 @@ export default function Clinics(){
       
       console.log("📤 Sending Enterprise Model for Update:", enterpriseModel);
       
-      const response = await fetch(``${API_BASE_URL}/Enterprise/EditEnterpriseInfo`, {
+      const response = await fetch(`${API_BASE_URL}/Enterprise/EditEnterpriseInfo`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -461,7 +461,7 @@ export default function Clinics(){
       
       try {
         setLoadingDoctorClinics(true);
-        const response = await fetch(``${API_BASE_URL}/Clinic/GetClinicByID?id=${doctorFormData.enterpriseId}`, {
+        const response = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${doctorFormData.enterpriseId}`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -500,7 +500,7 @@ export default function Clinics(){
       
       try {
         setLoadingDoctorClinics(true);
-        const response = await fetch(``${API_BASE_URL}/Clinic/GetClinicByID?id=${listClinicsFilters.enterpriseId}`, {
+        const response = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${listClinicsFilters.enterpriseId}`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -538,7 +538,7 @@ export default function Clinics(){
       }
       
       try {
-        const response = await fetch(``${API_BASE_URL}/Clinic/GetClinicByID?id=${searchDoctorsParams.enterpriseId}`, {
+        const response = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${searchDoctorsParams.enterpriseId}`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -807,7 +807,7 @@ export default function Clinics(){
       }
 
       const response = await fetch(
-        ``${API_BASE_URL}/DoctorProfile/SearchDoctors?${queryParams}`,
+        `${API_BASE_URL}/DoctorProfile/SearchDoctors?${queryParams}`,
         {
           method: "GET",
           headers: {
@@ -841,7 +841,7 @@ export default function Clinics(){
     setDoctorDetailsLoading(true);
     try {
       const response = await fetch(
-        ``${API_BASE_URL}/DoctorProfile/GetDoctorById?id=${doctorId}`,
+        `${API_BASE_URL}/DoctorProfile/GetDoctorById?id=${doctorId}`,
         {
           method: "GET",
           headers: {
@@ -935,7 +935,7 @@ export default function Clinics(){
     }
 
     try {
-      const response = await fetch(``${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`, {
+      const response = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -1215,7 +1215,7 @@ export default function Clinics(){
     try {
       // Use the correct API endpoint: GetClinicInventoryByClinicId
       const response = await fetch(
-        ``${API_BASE_URL}/Inventory/GetClinicInventoryByClinicId?clinicId=${inventoryFormData.clinicId}`,
+        `${API_BASE_URL}/Inventory/GetClinicInventoryByClinicId?clinicId=${inventoryFormData.clinicId}`,
         {
           method: "GET",
           headers: {
@@ -1266,7 +1266,7 @@ export default function Clinics(){
 
       console.log("💾 Saving inventory changes:", payload);
 
-      const response = await fetch(``${API_BASE_URL}/inventory/SaveClinicInventoryBatch?enterpriseId=${inventoryFormData.enterpriseId}&clinicId=${inventoryFormData.clinicId}`, {
+      const response = await fetch(`${API_BASE_URL}/inventory/SaveClinicInventoryBatch?enterpriseId=${inventoryFormData.enterpriseId}&clinicId=${inventoryFormData.clinicId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -4353,7 +4353,7 @@ export default function Clinics(){
 
                       try {
                         setListClinicsLoading(true);
-                        const response = await fetch(``${API_BASE_URL}/Clinic/GetClinicByID?id=${listClinicsFilters.clinicId}`, {
+                        const response = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${listClinicsFilters.clinicId}`, {
                           method: "GET",
                           headers: {
                             "Content-Type": "application/json",
