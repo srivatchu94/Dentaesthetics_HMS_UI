@@ -356,8 +356,8 @@ export default function Header(){
   return (
     <>
       <header className="w-full fixed top-0 left-0 right-0 z-40 shadow-xl">
-        <div className="bg-gradient-to-r from-amber-900 via-amber-800 to-amber-900">
-          <div className="bg-gradient-to-br from-amber-800 to-amber-900 shadow-2xl">
+        <div className="bg-gradient-to-r from-coral-100 via-peach-100 to-teal-100 shadow-coral">
+          <div className="bg-gradient-to-br from-coral-50 to-peach-50 shadow-2xl">
             <div className="w-full px-6 md:px-12 py-4">
               <div className="grid grid-cols-3 items-center gap-4">
             {/* Logo - Left */}

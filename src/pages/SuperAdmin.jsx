@@ -817,9 +817,9 @@ export default function SuperAdmin() {
     try {
       setEnterpriseLoading(true);
       setError("");
-      console.log("🏢 Fetching enterprises from: ${API_BASE_URL}/Enterprise/GetAllEnterprises");
+      console.log(`🏢 Fetching enterprises from: ${API_BASE_URL}/Enterprise/GetAllEnterprises`);
       
-      const response = await fetch("${API_BASE_URL}/Enterprise/GetAllEnterprises", {
+      const response = await fetch(`${API_BASE_URL}/Enterprise/GetAllEnterprises`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
