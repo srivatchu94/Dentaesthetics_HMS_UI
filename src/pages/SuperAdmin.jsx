@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createStaffDetail } from "../services/staffService";
+import { createPatient } from "../services/patientService";
+import { getSelectedAccess, setSelectedAccess, getAuthUserAccess } from "../services/authService";
 import {
   AppointmentListModal,
   CreateAppointmentModal,
@@ -185,6 +187,21 @@ export default function SuperAdmin() {
   const [viewSaveError, setViewSaveError] = useState("");
   const [viewSaveSuccess, setViewSaveSuccess] = useState("");
 
+  // Route guard: Only Super Admin (roleId = 1) can access this page
+  useEffect(() => {
+    try {
+      const selectedAccess = getSelectedAccess();
+      const isSuperAdmin = Array.isArray(selectedAccess?.roleIds) && selectedAccess.roleIds.includes(1);
+      if (!isSuperAdmin) {
+        // Redirect non-superadmins to home
+        navigate('/', { replace: true });
+      }
+    } catch (err) {
+      // Fallback: if access not available, redirect
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
+
   // Onboard Staff (TeamHub parity)
   const [showOnboardStaffModal, setShowOnboardStaffModal] = useState(false);
   const [staffFormError, setStaffFormError] = useState("");
@@ -231,7 +248,7 @@ export default function SuperAdmin() {
     rolesAssigned: "Reception"
   });
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successData, setSuccessData] = useState({ name: "", isEdit: false });
+  const [successData, setSuccessData] = useState({ name: "", isEdit: false, type: "superAdmin", isDeleted: false });
 
   // View Staff States
   const [showViewStaffModal, setShowViewStaffModal] = useState(false);
@@ -270,6 +287,7 @@ export default function SuperAdmin() {
   const [appointmentFilterFirstName, setAppointmentFilterFirstName] = useState("");
   const [appointmentFilterLastName, setAppointmentFilterLastName] = useState("");
   const [appointmentFilterDoctor, setAppointmentFilterDoctor] = useState("");
+  const [appointmentFilterDate, setAppointmentFilterDate] = useState("");
   const [createAppointmentActiveTab, setCreateAppointmentActiveTab] = useState("basic");
   const [editAppointmentActiveTab, setEditAppointmentActiveTab] = useState("basic");
   const [createAppointmentForm, setCreateAppointmentForm] = useState({
@@ -400,6 +418,35 @@ export default function SuperAdmin() {
   const [inventoryFormError, setInventoryFormError] = useState("");
   const [inventoryFormLoading, setInventoryFormLoading] = useState(false);
 
+  // Ensure API headers reflect selected Enterprise/Clinic during patient creation
+  useEffect(() => {
+    if (!showCreatePatientModal) return;
+    const entId = Number(createPatientForm.enterpriseId);
+    const clinId = Number(createPatientForm.clinicId);
+    if (entId > 0 && clinId > 0) {
+      try {
+        const allowed = getAuthUserAccess() || [];
+        const isAllowed = allowed.some(a => Number(a.enterpriseId) === entId && Number(a.clinicId) === clinId);
+        if (isAllowed) {
+          setSelectedAccess(entId, clinId, getSelectedAccess()?.roleIds || []);
+          console.log("🔐 Selected access set for patient registration:", { entId, clinId });
+        } else {
+          console.warn("🚫 Selected enterprise/clinic not in user access:", { entId, clinId });
+          setPatientFormError("You do not have access to the selected enterprise/clinic");
+        }
+      } catch (e) {
+        console.error("❌ Failed to set selected access:", e);
+      }
+    }
+  }, [showCreatePatientModal, createPatientForm.enterpriseId, createPatientForm.clinicId]);
+
+  // Filter enterprises/clinics to those the user has access to
+  const userAccessList = getAuthUserAccess() || [];
+  const allowedEnterpriseIds = new Set(userAccessList.map(a => Number(a.enterpriseId)));
+  const allowedClinicIds = new Set(userAccessList.map(a => Number(a.clinicId)));
+  const enterprisesForModal = (Array.isArray(enterprises) ? enterprises : []).filter(e => allowedEnterpriseIds.has(Number(e.enterpriseId)));
+  const clinicsForModal = (Array.isArray(clinics) ? clinics : []).filter(c => allowedClinicIds.has(Number(c.clinicId)));
+
   // Clinic Inventory States
   const [showClinicInventoryListModal, setShowClinicInventoryListModal] = useState(false);
   const [showCreateClinicInventoryModal, setShowCreateClinicInventoryModal] = useState(false);
@@ -466,12 +513,39 @@ export default function SuperAdmin() {
     });
   }, [filterQuery, superAdmins]);
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneDigitsOnly = (form.phone || "").replace(/\D/g, "");
+  const isEmailInvalid = Boolean(form.email) && !emailRegex.test(form.email.trim());
+  const isPhoneInvalid = Boolean(form.phone) && phoneDigitsOnly.length !== 10;
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value
-    }));
+    if (name === "phone") {
+      const sanitized = value.replace(/\D/g, "").slice(0, 10);
+      setForm((prev) => ({
+        ...prev,
+        phone: sanitized
+      }));
+    } else if (name === "yearsExperience") {
+      const sanitized = value.replace(/\D/g, "").slice(0, 2);
+      setForm((prev) => ({
+        ...prev,
+        yearsExperience: sanitized
+      }));
+    } else if (name === "dateOfBirth" || name === "joiningDate") {
+      const numericOnly = value.replace(/[^0-9-]/g, "").slice(0, 10);
+      const [y = "", m = "", d = ""] = numericOnly.split("-");
+      const normalized = [y.slice(0, 4), m.slice(0, 2), d.slice(0, 2)].filter(Boolean).join("-");
+      setForm((prev) => ({
+        ...prev,
+        [name]: normalized
+      }));
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        [name]: type === "checkbox" ? checked : value
+      }));
+    }
     setError("");
     setSuccess("");
   };
@@ -593,6 +667,25 @@ export default function SuperAdmin() {
       return;
     }
 
+    const trimmedEmail = form.email.trim();
+    const sanitizedPhone = (form.phone || "").replace(/\D/g, "");
+    const sanitizedYears = (form.yearsExperience || "").toString().replace(/\D/g, "");
+
+    if (!emailRegex.test(trimmedEmail)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    if (form.phone && sanitizedPhone.length !== 10) {
+      setError("Phone number must be exactly 10 digits");
+      return;
+    }
+
+    if (sanitizedYears && (sanitizedYears.length > 2 || Number(sanitizedYears) > 99)) {
+      setError("Years of experience must be between 0 and 99");
+      return;
+    }
+
     const isEditing = Boolean(editingId);
     
     // Build payload - exclude AdminId from body when editing (sent as query param)
@@ -601,19 +694,20 @@ export default function SuperAdmin() {
       LastName: form.lastName,
       DateOfBirth: toIsoOrNull(form.dateOfBirth),
       Gender: form.gender,
-      Email: form.email,
-      Phone: form.phone,
+      Email: trimmedEmail,
+      Phone: sanitizedPhone,
       Address: form.address,
       Education: form.education,
       Languages: form.languages,
-      YearsExperience: form.yearsExperience ? Number(form.yearsExperience) : 0,
+      YearsExperience: sanitizedYears ? Number(sanitizedYears) : 0,
       JoiningDate: toIsoOrNull(form.joiningDate),
       EmploymentStatus: form.employmentStatus,
       Availability: form.availability,
       CreatedAt: new Date().toISOString(),
       UpdatedAt: new Date().toISOString(),
-      IsActive: !!form.isActive
+      isActive: form.employmentStatus === "Active"
     };
+    console.log("📤 Onboarding Super Admin - Payload:", payload);
 
     const endpoint = isEditing ? SUPERADMIN_ENDPOINTS.update(editingId) : SUPERADMIN_ENDPOINTS.insert;
     const method = isEditing ? "PUT" : "POST";
@@ -748,6 +842,9 @@ export default function SuperAdmin() {
       console.log("✅ Delete successful");
       setSuccess("Super admin deleted successfully");
       setShowDeleteModal(false);
+      // If viewing modal is open, close it so success banner is visible
+      setShowViewModal(false);
+      setViewingAdmin(null);
       setDeletingAdmin(null);
       fetchSuperAdmins();
     } catch (err) {
@@ -780,8 +877,9 @@ export default function SuperAdmin() {
         EmploymentStatus: viewEditData.employmentStatus,
         Availability: viewEditData.availability,
         UpdatedAt: new Date().toISOString(),
-        IsActive: !!viewEditData.isActive
+        isActive: viewEditData.employmentStatus === "Active"
       };
+      console.log("📤 Saving Super Admin - Payload:", payload);
       const endpoint = SUPERADMIN_ENDPOINTS.update(viewEditData.adminId);
       const response = await fetch(endpoint, {
         method: "PUT",
@@ -817,9 +915,10 @@ export default function SuperAdmin() {
     try {
       setEnterpriseLoading(true);
       setError("");
-      console.log(`🏢 Fetching enterprises from: ${API_BASE_URL}/Enterprise/GetAllEnterprises`);
+      const endpoint = ENTERPRISE_ENDPOINTS.getAll;
+      console.log("🏢 Fetching enterprises from:", endpoint);
       
-      const response = await fetch(`${API_BASE_URL}/Enterprise/GetAllEnterprises`, {
+      const response = await fetch(endpoint, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -835,7 +934,23 @@ export default function SuperAdmin() {
         console.error("❌ Error response:", errorText);
         throw new Error(`Unable to load enterprises (${response.status}): ${errorText}`);
       }
-      const data = await response.json();
+      const contentType = response.headers.get("content-type") || "";
+      const text = await response.text();
+
+      let data;
+      if (contentType.includes("application/json")) {
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          // Surface the first chunk of the body to help diagnose HTML/error pages that masquerade as JSON
+          const snippet = text.slice(0, 200);
+          throw new Error(`Invalid JSON from enterprises (status ${response.status}): ${snippet}`);
+        }
+      } else {
+        const snippet = text.slice(0, 200);
+        throw new Error(`Unexpected content-type ${contentType}; body starts: ${snippet}`);
+      }
+
       console.log("📊 Raw data from API:", data);
       
       const payload = Array.isArray(data) ? data : data.data || [];
@@ -894,6 +1009,26 @@ export default function SuperAdmin() {
     if (!enterpriseEditData || !enterpriseEditData.enterpriseId) return;
     setEnterpriseEditError("");
     setEnterpriseEditSuccess("");
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (enterpriseEditData.contactEmail && !emailRegex.test(enterpriseEditData.contactEmail.trim())) {
+      setEnterpriseEditError("Please enter a valid email address");
+      return;
+    }
+    
+    // Validate phone number if provided
+    if (enterpriseEditData.contactPhone && enterpriseEditData.contactPhone.replace(/\D/g, "").length !== 10) {
+      setEnterpriseEditError("Phone number must be exactly 10 digits");
+      return;
+    }
+    
+    // Validate postal code if provided
+    if (enterpriseEditData.postalCode && enterpriseEditData.postalCode.replace(/\D/g, "").length !== 6) {
+      setEnterpriseEditError("Postal code must be exactly 6 digits");
+      return;
+    }
+    
     try {
       setEnterpriseEditLoading(true);
       const now = new Date().toISOString();
@@ -1152,6 +1287,66 @@ export default function SuperAdmin() {
     }
   };
 
+  // Validate clinic form section for tab navigation
+  const validateClinicFormSection = (currentTab) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    // Validate basic info tab before leaving
+    if (currentTab === "basic") {
+      if (!createClinicForm.enterpriseId || createClinicForm.enterpriseId === 0) {
+        setClinicFormError("Enterprise selection is required");
+        return false;
+      }
+      if (!createClinicForm.clinicName) {
+        setClinicFormError("Clinic name is required");
+        return false;
+      }
+      if (!createClinicForm.clinicCode) {
+        setClinicFormError("Clinic code is required");
+        return false;
+      }
+    }
+    
+    // Validate contact tab before leaving
+    if (currentTab === "contact") {
+      if (!createClinicForm.contactEmail) {
+        setClinicFormError("Email is required");
+        return false;
+      }
+      if (!emailRegex.test(createClinicForm.contactEmail.trim())) {
+        setClinicFormError("Please enter a valid email address");
+        return false;
+      }
+      if (!createClinicForm.contactPhone) {
+        setClinicFormError("Phone number is required");
+        return false;
+      }
+      if (createClinicForm.contactPhone.replace(/\D/g, "").length !== 10) {
+        setClinicFormError("Phone number must be exactly 10 digits");
+        return false;
+      }
+      if (createClinicForm.postalCode && createClinicForm.postalCode.replace(/\D/g, "").length !== 6) {
+        setClinicFormError("Postal code must be exactly 6 digits");
+        return false;
+      }
+    }
+    
+    // Validate address tab before leaving
+    if (currentTab === "address") {
+      if (!createClinicForm.addressLine1) {
+        setClinicFormError("Address line 1 is required");
+        return false;
+      }
+      if (!createClinicForm.city) {
+        setClinicFormError("City is required");
+        return false;
+      }
+    }
+    
+    setClinicFormError("");
+    return true;
+  };
+
   // Edit clinic function
   const saveClinicEdits = async () => {
     if (!clinicEditData) return;
@@ -1160,6 +1355,35 @@ export default function SuperAdmin() {
       setClinicSaveLoading(true);
       setClinicSaveError("");
       setClinicSaveSuccess("");
+      
+      // Validate required fields and format
+      if (!clinicEditData.contactEmail || !clinicEditData.contactPhone) {
+        setClinicSaveError("Email and phone are required");
+        setClinicSaveLoading(false);
+        return;
+      }
+      
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(clinicEditData.contactEmail.trim())) {
+        setClinicSaveError("Please enter a valid email address");
+        setClinicSaveLoading(false);
+        return;
+      }
+      
+      // Validate phone number
+      if (clinicEditData.contactPhone.replace(/\D/g, "").length !== 10) {
+        setClinicSaveError("Phone number must be exactly 10 digits");
+        setClinicSaveLoading(false);
+        return;
+      }
+      
+      // Validate postal code if provided
+      if (clinicEditData.postalCode && clinicEditData.postalCode.replace(/\D/g, "").length !== 6) {
+        setClinicSaveError("Postal code must be exactly 6 digits");
+        setClinicSaveLoading(false);
+        return;
+      }
       
       const now = new Date().toISOString();
       const clinicModel = {
@@ -1202,6 +1426,14 @@ export default function SuperAdmin() {
       console.log("✅ Clinic updated successfully");
       setClinicSaveSuccess("✅ Clinic updated successfully!");
       setClinicEditMode(false);
+      
+      // Show success modal
+      setSuccessData({
+        name: clinicEditData.clinicName,
+        isEdit: true,
+        type: "clinic"
+      });
+      setShowSuccessModal(true);
       
       // Show success notification
       setSuccess("✅ Clinic updated successfully!");
@@ -1255,6 +1487,15 @@ export default function SuperAdmin() {
       setShowDeleteClinicModal(false);
       setShowViewClinicModal(false);
       
+      // Show success modal
+      setSuccessData({
+        name: clinicToDelete.clinicName,
+        isEdit: false,
+        type: "clinic",
+        isDeleted: true
+      });
+      setShowSuccessModal(true);
+      
       // Show success notification
       setSuccess("🎉 Clinic deleted successfully!");
       
@@ -1277,6 +1518,99 @@ export default function SuperAdmin() {
     }
   };
 
+  // Validation functions for staff form
+  const validateEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  };
+
+  const validatePhoneNumber = (phone) => {
+    const digitsOnly = (phone || "").replace(/\D/g, "");
+    return digitsOnly.length === 10;
+  };
+
+  const validateYearFormat = (dateString) => {
+    if (!dateString) return true; // Optional field
+    const dateObj = new Date(dateString);
+    if (isNaN(dateObj.getTime())) return false;
+    const year = dateObj.getFullYear().toString();
+    return year.length === 4;
+  };
+
+  const validateDateFormat = (dateString) => {
+    if (!dateString) return true; // Optional field
+    return !isNaN(new Date(dateString).getTime());
+  };
+
+  // Handler for phone number input (restrict to 10 digits)
+  const handlePhoneInput = (value) => {
+    const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+    return digitsOnly;
+  };
+
+  // Handler for emergency contact input (restrict to 10 digits)
+  const handleEmergencyContactInput = (value) => {
+    const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+    return digitsOnly;
+  };
+
+  // Check if staff form has any meaningful data
+  const hasStaffFormData = () => {
+    return (
+      staffForm.firstName.trim() !== "" ||
+      staffForm.lastName.trim() !== "" ||
+      staffForm.email.trim() !== "" ||
+      staffForm.phone.trim() !== "" ||
+      staffForm.dateOfBirth.trim() !== "" ||
+      staffForm.gender.trim() !== "" ||
+      staffForm.enterpriseId.trim() !== "" ||
+      staffForm.clinicId.trim() !== "" ||
+      staffForm.licenseNumber.trim() !== "" ||
+      staffForm.licenseExpiry.trim() !== "" ||
+      staffForm.joiningDate.trim() !== ""
+    );
+  };
+
+  // Handle closing onboard staff modal
+  const handleCloseOnboardStaffModal = () => {
+    setShowOnboardStaffModal(false);
+    // If form has data, keep the current step; otherwise reset to personal
+    if (!hasStaffFormData()) {
+      setOnboardStaffActiveStep("personal");
+    }
+  };
+
+  // Handler for date input - only allows YYYY-MM-DD format with 4-digit year
+  const handleDateChange = (value, fieldName) => {
+    // Remove any non-date characters except dashes
+    let cleaned = value.replace(/[^\d-]/g, "");
+    
+    // Split by dash
+    const parts = cleaned.split("-");
+    
+    // Limit year to 4 digits max
+    if (parts[0] && parts[0].length > 4) {
+      parts[0] = parts[0].slice(0, 4);
+    }
+    
+    // Limit month to 2 digits (01-12)
+    if (parts[1] && parts[1].length > 2) {
+      parts[1] = parts[1].slice(0, 2);
+    }
+    
+    // Limit day to 2 digits (01-31)
+    if (parts[2] && parts[2].length > 2) {
+      parts[2] = parts[2].slice(0, 2);
+    }
+    
+    const corrected = parts.join("-");
+    
+    // Only update if within valid length (YYYY-MM-DD is 10 chars)
+    if (corrected.length <= 10) {
+      setStaffForm({...staffForm, [fieldName]: corrected});
+    }
+  };
+
   // Create Staff (TeamHub parity)
   const handleCreateStaff = async () => {
     setStaffFormError("");
@@ -1286,8 +1620,56 @@ export default function SuperAdmin() {
       return;
     }
 
-    const nowIso = new Date().toISOString();
+    // Email validation
+    if (!validateEmail(staffForm.email)) {
+      setStaffFormError("Please enter a valid email address (e.g., example@domain.com)");
+      return;
+    }
+
+    // Phone number validation (10 digits)
+    if (!validatePhoneNumber(staffForm.phone)) {
+      setStaffFormError("Phone number must be exactly 10 digits");
+      return;
+    }
+
+    // Emergency contact validation (10 digits)
+    if (staffForm.emergencyContact && !validatePhoneNumber(staffForm.emergencyContact)) {
+      setStaffFormError("Emergency contact number must be exactly 10 digits");
+      return;
+    }
+
+    // Date of Birth validation
+    if (staffForm.dateOfBirth && !validateDateFormat(staffForm.dateOfBirth)) {
+      setStaffFormError("Date of Birth is invalid");
+      return;
+    }
+    if (staffForm.dateOfBirth && !validateYearFormat(staffForm.dateOfBirth)) {
+      setStaffFormError("Date of Birth year must be in proper format (4 digits)");
+      return;
+    }
+
+    // Joining Date validation
+    if (staffForm.joiningDate && !validateDateFormat(staffForm.joiningDate)) {
+      setStaffFormError("Joining Date is invalid");
+      return;
+    }
+    if (staffForm.joiningDate && !validateYearFormat(staffForm.joiningDate)) {
+      setStaffFormError("Joining Date year must be in proper format (4 digits)");
+      return;
+    }
+
+    // License Expiry Date validation (for clinical roles)
     const isClinicalRole = ["Doctor", "Nurse"].includes(staffForm.rolesAssigned);
+    if (isClinicalRole && staffForm.licenseExpiry && !validateDateFormat(staffForm.licenseExpiry)) {
+      setStaffFormError("License Expiry Date is invalid");
+      return;
+    }
+    if (isClinicalRole && staffForm.licenseExpiry && !validateYearFormat(staffForm.licenseExpiry)) {
+      setStaffFormError("License Expiry Date year must be in proper format (4 digits)");
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
     
     const payload = {
       staffId: staffForm.staffId || undefined,
@@ -1331,43 +1713,48 @@ export default function SuperAdmin() {
     try {
       setCreatingStaff(true);
       await createStaffDetail(payload);
-      setShowOnboardStaffModal(false);
       setSuccessData({ 
         name: `${staffForm.firstName} ${staffForm.lastName}`, 
         isEdit: false 
       });
       setShowSuccessModal(true);
-      // Reset form
-      setStaffForm({
-        staffId: "",
-        enterpriseId: "",
-        clinicId: "",
-        firstName: "",
-        lastName: "",
-        dateOfBirth: "",
-        gender: "",
-        email: "",
-        phone: "",
-        address: "",
-        licenseNumber: "",
-        licenseExpiry: "",
-        specialtyId: "",
-        yearsExperience: "",
-        education: "",
-        certifications: "",
-        languages: "",
-        joiningDate: "",
-        employmentStatus: "Active",
-        availability: "",
-        insuranceDetails: "",
-        emergencyContact: "",
-        bio: "",
-        profilePhotoUrl: "",
-        achievements: "",
-        publications: "",
-        socialLinks: "",
-        rolesAssigned: "Reception"
-      });
+      
+      // Reset form and re-open onboard modal in personal info section after success
+      setTimeout(() => {
+        setShowSuccessModal(false);
+        setStaffForm({
+          staffId: "",
+          enterpriseId: "",
+          clinicId: "",
+          firstName: "",
+          lastName: "",
+          dateOfBirth: "",
+          gender: "",
+          email: "",
+          phone: "",
+          address: "",
+          licenseNumber: "",
+          licenseExpiry: "",
+          specialtyId: "",
+          yearsExperience: "",
+          education: "",
+          certifications: "",
+          languages: "",
+          joiningDate: "",
+          employmentStatus: "Active",
+          availability: "",
+          insuranceDetails: "",
+          emergencyContact: "",
+          bio: "",
+          profilePhotoUrl: "",
+          achievements: "",
+          publications: "",
+          socialLinks: "",
+          rolesAssigned: "Reception"
+        });
+        setOnboardStaffActiveStep("personal");
+        setShowOnboardStaffModal(true);
+      }, 2000);
     } catch (err) {
       console.error("❌ Error onboarding staff:", err);
       setStaffFormError(err.message || "Failed to onboard staff");
@@ -1811,6 +2198,19 @@ export default function SuperAdmin() {
       return;
     }
 
+    const normalizedPhone = (createAppointmentForm.phoneNumber || "").replace(/\D/g, "");
+    if (normalizedPhone.length !== 10) {
+      setAppointmentFormError("Phone number must be 10 digits");
+      return;
+    }
+
+    const normalizedEmail = createAppointmentForm.email ? createAppointmentForm.email.trim() : "";
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (normalizedEmail && !emailPattern.test(normalizedEmail)) {
+      setAppointmentFormError("Enter a valid email address");
+      return;
+    }
+
     // Parse and format data properly
     const patientId = parseInt(createAppointmentForm.patientId);
     const clinicId = parseInt(createAppointmentForm.clinicId);
@@ -1859,8 +2259,8 @@ export default function SuperAdmin() {
       enterpriseId: enterpriseId,
       firstName: createAppointmentForm.firstName.trim(),
       lastName: createAppointmentForm.lastName.trim(),
-      phoneNumber: createAppointmentForm.phoneNumber.trim(),
-      email: createAppointmentForm.email ? createAppointmentForm.email.trim() : null,
+      phoneNumber: normalizedPhone,
+      email: normalizedEmail || null,
       appointmentDate: appointmentDateOnly,
       startTime: startTime,
       endTime: endTime,
@@ -2166,7 +2566,29 @@ export default function SuperAdmin() {
     });
   }, [appointmentFilterQuery, appointments]);
 
+  const handleCloseAppointmentList = () => {
+    setShowAppointmentListModal(false);
+    // Reset filter inputs while keeping fetched results intact
+    setAppointmentFilterQuery("");
+    setAppointmentFilterEnterprise("");
+    setAppointmentFilterClinic("");
+    setAppointmentFilterFirstName("");
+    setAppointmentFilterLastName("");
+    setAppointmentFilterDoctor("");
+    setAppointmentFilterDate("");
+    setLastAppointmentFilters({ clinicId: null, firstName: null, lastName: null, doctorId: null, appointmentDate: null });
+  };
+
   // ============ PATIENT MANAGEMENT HANDLERS ============
+
+  const handleCreatePatientEnterpriseChange = (enterpriseId) => {
+    // Load clinics for the selected enterprise
+    if (enterpriseId) {
+      loadClinicsForEnterprise(enterpriseId);
+    } else {
+      setClinics([]);
+    }
+  };
 
   const handleCreatePatient = async () => {
     if (!createPatientForm.firstName || !createPatientForm.lastName || !createPatientForm.clinicId) {
@@ -2174,38 +2596,72 @@ export default function SuperAdmin() {
       return;
     }
 
+    // Validate email if provided
+    if (createPatientForm.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(createPatientForm.email)) {
+        setPatientFormError("Please enter a valid email address");
+        return;
+      }
+    }
+
+    // Validate phone number - should not be more than 10 digits
+    if (createPatientForm.phoneNumber) {
+      const phoneDigits = createPatientForm.phoneNumber.replace(/\D/g, "");
+      if (phoneDigits.length > 10) {
+        setPatientFormError("Phone number should not exceed 10 digits");
+        return;
+      }
+      if (phoneDigits.length === 0) {
+        setPatientFormError("Phone number should contain at least some digits");
+        return;
+      }
+    }
+
+    // Validate alternate phone if provided
+    if (createPatientForm.alternatePhone) {
+      const altPhoneDigits = createPatientForm.alternatePhone.replace(/\D/g, "");
+      if (altPhoneDigits.length > 10) {
+        setPatientFormError("Alternate phone number should not exceed 10 digits");
+        return;
+      }
+    }
+
     try {
       setPatientFormLoading(true);
       setPatientFormError("");
 
-      const payload = {
+      const patientDataModel = {
         patient: {
           patientId: 0,
-          clinicID: createPatientForm.clinicId,
+          patientEntityID: "",
           patientFirstName: createPatientForm.firstName,
           patientLastName: createPatientForm.lastName,
-          patientDOB: createPatientForm.dateOfBirth ? new Date(createPatientForm.dateOfBirth).toISOString() : new Date().toISOString(),
+          patientDOB: createPatientForm.dateOfBirth || new Date().toISOString(),
           patientGender: createPatientForm.gender || "",
-          patientBloodType: createPatientForm.bloodGroup || ""
+          patientBloodType: createPatientForm.bloodGroup || "",
+          clinicID: createPatientForm.clinicId || ""
         },
         patientContact: {
           patientId: 0,
-          patientAddress: `${createPatientForm.addressLine1 || ""} ${createPatientForm.addressLine2 || ""}`.trim(),
+          patientAddress: `${createPatientForm.addressLine1 || ""}${createPatientForm.addressLine2 ? ", " + createPatientForm.addressLine2 : ""}`.trim(),
           patientCity: createPatientForm.city || "",
           patientPhone: createPatientForm.phoneNumber || "",
           patientEmail: createPatientForm.email || "",
-          patientEmergencyContact: createPatientForm.emergencyContactPhone || ""
+          patientEmergencyContact: createPatientForm.emergencyContactName 
+            ? `${createPatientForm.emergencyContactName} - ${createPatientForm.emergencyContactPhone} (${createPatientForm.emergencyContactRelation})`
+            : ""
         },
         patientMedicalInfo: {
           patientId: 0,
-          patientMedicalHistory: createPatientForm.pastSurgeries || "",
+          patientMedicalHistory: createPatientForm.familyMedicalHistory || "",
           patientAllergies: createPatientForm.allergies || "",
           patientCurrentMedications: createPatientForm.currentMedications || "",
           patientPrimaryPhysician: "",
           no_of_visits: 0,
-          lastVisitedDate: createPatientForm.lastDentalVisit ? new Date(createPatientForm.lastDentalVisit).toISOString() : new Date().toISOString(),
+          lastVisitedDate: createPatientForm.lastDentalVisit || new Date().toISOString(),
           chronicDiseases: createPatientForm.chronicConditions || "",
-          medicalHistory: createPatientForm.familyMedicalHistory || ""
+          medicalHistory: `Past Surgeries: ${createPatientForm.pastSurgeries || "None"}; Smoking: ${createPatientForm.smokingStatus || "Unknown"}; Alcohol: ${createPatientForm.alcoholConsumption || "Unknown"}; Exercise: ${createPatientForm.exerciseFrequency || "Unknown"}; Diet: ${createPatientForm.dietaryRestrictions || "None"}; Notes: ${createPatientForm.additionalMedicalNotes || "None"}`
         },
         patientInsurance: {
           patientId: 0,
@@ -2213,20 +2669,10 @@ export default function SuperAdmin() {
         }
       };
 
-      const response = await fetch("${API_BASE_URL}/Patient/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to register patient (${response.status})`);
-      }
-
-      const data = await response.json();
+      console.log("Submitting patient data from SuperAdmin:", patientDataModel);
+      console.log("📤 Full Payload JSON:", JSON.stringify(patientDataModel, null, 2));
+      const response = await createPatient(patientDataModel);
+      console.log("Patient created successfully:", response);
       
       setPatientSuccess("Patient registered successfully!");
       setShowCreatePatientModal(false);
@@ -2847,6 +3293,7 @@ export default function SuperAdmin() {
           icon: "🔔",
           color: "from-indigo-500 to-purple-500",
           action: () => {
+            setOnboardStaffActiveStep("personal");
             setShowOnboardStaffModal(true);
             setStaffFormError("");
             fetchEnterprises();
@@ -2898,7 +3345,10 @@ export default function SuperAdmin() {
           icon: "🆕",
           color: "from-teal-500 to-cyan-500",
           action: () => {
-            window.location.href = "/patients/register";
+            setShowCreatePatientModal(true);
+            setCreatePatientActiveTab("patient-info");
+            setPatientFormError("");
+            fetchEnterprises();
           }
         },
         {
@@ -3244,6 +3694,8 @@ export default function SuperAdmin() {
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
                       required
                     />
+                    <p className="text-xs text-slate-500 mt-1">Use a valid work email; access links are sent here.</p>
+                    {isEmailInvalid && <p className="text-xs text-rose-600 mt-1">Enter a valid email address.</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Phone</label>
@@ -3253,8 +3705,14 @@ export default function SuperAdmin() {
                       value={form.phone}
                       onChange={handleChange}
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
-                      placeholder="e.g., +1 555 123 4567"
+                      inputMode="numeric"
+                      pattern="[0-9]{10}"
+                      maxLength={10}
+                      title="Enter exactly 10 digits"
+                      placeholder="e.g., 9876543210"
                     />
+                    <p className="text-xs text-slate-500 mt-1">Enter a 10-digit mobile number without country code.</p>
+                    {isPhoneInvalid && <p className="text-xs text-rose-600 mt-1">Phone number must be exactly 10 digits.</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Gender</label>
@@ -3338,10 +3796,13 @@ export default function SuperAdmin() {
                     <input
                       type="number"
                       min="0"
+                      max="99"
                       name="yearsExperience"
                       value={form.yearsExperience}
                       onChange={handleChange}
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
+                      inputMode="numeric"
+                      pattern="\\d{1,2}"
                       placeholder="e.g., 10"
                     />
                   </div>
@@ -3461,13 +3922,7 @@ export default function SuperAdmin() {
                               onClick={() => handleView(admin)}
                               className="px-3 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-xs font-semibold shadow-sm hover:shadow-md"
                             >
-                              View
-                            </button>
-                            <button
-                              onClick={() => handleDelete(admin)}
-                              className="px-3 py-2 rounded-lg bg-gradient-to-r from-rose-500 to-red-500 text-white text-xs font-semibold shadow-sm hover:shadow-md"
-                            >
-                              Delete
+                              View/Edit
                             </button>
                           </td>
                         </tr>
@@ -4255,12 +4710,15 @@ export default function SuperAdmin() {
                         <div>
                           <label className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
                           {clinicEditMode ? (
-                            <input
-                              type="email"
-                              value={clinicEditData?.contactEmail || ""}
-                              onChange={(e) => setClinicEditData({...clinicEditData, contactEmail: e.target.value})}
-                              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
-                            />
+                            <>
+                              <input
+                                type="email"
+                                value={clinicEditData?.contactEmail || ""}
+                                onChange={(e) => setClinicEditData({...clinicEditData, contactEmail: e.target.value})}
+                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                              />
+                              <p className="text-xs text-slate-500 mt-1">Use a valid email address for clinic contact.</p>
+                            </>
                           ) : (
                             <p className="text-slate-900">{viewingClinic.contactEmail || "N/A"}</p>
                           )}
@@ -4268,12 +4726,22 @@ export default function SuperAdmin() {
                         <div>
                           <label className="block text-sm font-semibold text-slate-700 mb-1">Phone</label>
                           {clinicEditMode ? (
-                            <input
-                              type="tel"
-                              value={clinicEditData?.contactPhone || ""}
-                              onChange={(e) => setClinicEditData({...clinicEditData, contactPhone: e.target.value})}
-                              className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
-                            />
+                            <>
+                              <input
+                                type="tel"
+                                value={clinicEditData?.contactPhone || ""}
+                                onChange={(e) => {
+                                  const sanitized = e.target.value.replace(/\D/g, "").slice(0, 10);
+                                  setClinicEditData({...clinicEditData, contactPhone: sanitized});
+                                }}
+                                inputMode="numeric"
+                                pattern="[0-9]{10}"
+                                maxLength={10}
+                                title="Enter exactly 10 digits"
+                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                              />
+                              <p className="text-xs text-slate-500 mt-1">Enter a 10-digit number without country code.</p>
+                            </>
                           ) : (
                             <p className="text-slate-900">{viewingClinic.contactPhone || "N/A"}</p>
                           )}
@@ -4356,12 +4824,22 @@ export default function SuperAdmin() {
                           <div>
                             <label className="block text-sm font-semibold text-slate-700 mb-1">Postal Code</label>
                             {clinicEditMode ? (
-                              <input
-                                type="text"
-                                value={clinicEditData?.postalCode || ""}
-                                onChange={(e) => setClinicEditData({...clinicEditData, postalCode: e.target.value})}
-                                className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
-                              />
+                              <>
+                                <input
+                                  type="text"
+                                  value={clinicEditData?.postalCode || ""}
+                                  onChange={(e) => {
+                                    const sanitized = e.target.value.replace(/\D/g, "").slice(0, 6);
+                                    setClinicEditData({...clinicEditData, postalCode: sanitized});
+                                  }}
+                                  inputMode="numeric"
+                                  pattern="[0-9]{6}"
+                                  maxLength={6}
+                                  title="Enter exactly 6 digits"
+                                  className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400"
+                                />
+                                <p className="text-xs text-slate-500 mt-1">Enter a 6-digit postal code.</p>
+                              </>
                             ) : (
                               <p className="text-slate-900">{viewingClinic.postalCode || "N/A"}</p>
                             )}
@@ -4436,16 +4914,16 @@ export default function SuperAdmin() {
                     ) : (
                       <>
                         <button
-                          onClick={() => handleDeleteClinic(viewingClinic)}
-                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white font-semibold hover:shadow-lg transition-all"
-                        >
-                          🗑️ Delete
-                        </button>
-                        <button
                           onClick={() => setClinicEditMode(true)}
                           className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold hover:shadow-lg transition-all"
                         >
                           ✏️ Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClinic(viewingClinic)}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white font-semibold hover:shadow-lg transition-all"
+                        >
+                          🗑️ Delete
                         </button>
                       </>
                     )}
@@ -4588,7 +5066,10 @@ export default function SuperAdmin() {
                     <div className="space-y-1">
                       <p className="text-xs font-semibold text-slate-500 uppercase">Email</p>
                       {viewEditMode ? (
-                        <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.email} onChange={(e)=>setViewEditData({...viewEditData,email:e.target.value})} />
+                        <>
+                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.email} onChange={(e)=>setViewEditData({...viewEditData,email:e.target.value})} />
+                          <p className="text-xs text-slate-500 mt-1">Use a valid work email; access links are sent here.</p>
+                        </>
                       ) : (
                         <p className="text-slate-800">{viewingAdmin.email}</p>
                       )}
@@ -4597,7 +5078,10 @@ export default function SuperAdmin() {
                     <div className="space-y-1">
                       <p className="text-xs font-semibold text-slate-500 uppercase">Phone</p>
                       {viewEditMode ? (
-                        <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.phone} onChange={(e)=>setViewEditData({...viewEditData,phone:e.target.value})} />
+                        <>
+                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={viewEditData.phone} onChange={(e)=>setViewEditData({...viewEditData,phone:e.target.value})} inputMode="numeric" pattern="[0-9]{10}" maxLength={10} title="Enter exactly 10 digits" placeholder="e.g., 9876543210" />
+                          <p className="text-xs text-slate-500 mt-1">Enter a 10-digit mobile number without country code.</p>
+                        </>
                       ) : (
                         <p className="text-slate-800">{viewingAdmin.phone || 'N/A'}</p>
                       )}
@@ -4708,7 +5192,17 @@ export default function SuperAdmin() {
                       >
                         {viewSaveLoading ? 'Saving...' : 'Save Changes'}
                       </button>
-                    ) : null}
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setDeletingAdmin(viewingAdmin);
+                          setShowDeleteModal(true);
+                        }}
+                        className="px-5 py-3 rounded-xl bg-gradient-to-r from-rose-500 to-red-500 text-white font-semibold shadow-lg hover:shadow-xl"
+                      >
+                        Delete
+                      </button>
+                    )}
                     <button
                       onClick={() => setShowViewModal(false)}
                       className="px-5 py-3 rounded-xl border border-slate-200 text-slate-700 bg-white hover:border-slate-300 font-semibold"
@@ -4860,15 +5354,25 @@ export default function SuperAdmin() {
                     transition={{ delay: 0.3 }}
                   >
                     <h2 className="text-4xl font-bold text-white mb-3">
-                      {successData.isEdit ? "Updated Successfully!" : "Welcome Aboard!"}
+                      {successData.type === "clinic" && successData.isDeleted 
+                        ? "Deleted Successfully!" 
+                        : successData.isEdit ? "Updated Successfully!" : "Welcome Aboard!"}
                     </h2>
                     <p className="text-xl text-white/90 mb-2">
                       <span className="font-semibold">{successData.name}</span>
                     </p>
                     <p className="text-white/80 mb-6">
-                      {successData.isEdit 
-                        ? "Super admin details have been updated" 
-                        : "has been successfully onboarded as a Super Admin"}
+                      {successData.type === "clinic" ? (
+                        successData.isDeleted 
+                          ? "Clinic has been successfully deleted"
+                          : successData.isEdit 
+                            ? "Clinic details have been updated" 
+                            : "Clinic has been successfully created"
+                      ) : (
+                        successData.isEdit 
+                          ? "Super admin details have been updated" 
+                          : "has been successfully onboarded as a Super Admin"
+                      )}
                     </p>
 
                     {/* Decorative Stars */}
@@ -5115,7 +5619,9 @@ export default function SuperAdmin() {
                           onChange={(e) => setEnterpriseForm({...enterpriseForm, contactEmail: e.target.value})}
                           className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
                           placeholder="contact@enterprise.com"
+                          required
                         />
+                        <p className="text-xs text-slate-500 mt-1">Use a valid email address for enterprise contact.</p>
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1">
@@ -5124,10 +5630,18 @@ export default function SuperAdmin() {
                         <input
                           type="tel"
                           value={enterpriseForm.contactPhone}
-                          onChange={(e) => setEnterpriseForm({...enterpriseForm, contactPhone: e.target.value})}
+                          onChange={(e) => {
+                            const sanitized = e.target.value.replace(/\D/g, "").slice(0, 10);
+                            setEnterpriseForm({...enterpriseForm, contactPhone: sanitized});
+                          }}
+                          inputMode="numeric"
+                          pattern="[0-9]{10}"
+                          maxLength={10}
+                          title="Enter exactly 10 digits"
                           className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
-                          placeholder="+1 (555) 123-4567"
+                          placeholder="e.g., 9876543210"
                         />
+                        <p className="text-xs text-slate-500 mt-1">Enter a 10-digit number without country code.</p>
                       </div>
                     </div>
                   )}
@@ -5205,10 +5719,18 @@ export default function SuperAdmin() {
                           <input
                             type="text"
                             value={enterpriseForm.postalCode}
-                            onChange={(e) => setEnterpriseForm({...enterpriseForm, postalCode: e.target.value})}
+                            onChange={(e) => {
+                              const sanitized = e.target.value.replace(/\D/g, "").slice(0, 6);
+                              setEnterpriseForm({...enterpriseForm, postalCode: sanitized});
+                            }}
+                            inputMode="numeric"
+                            pattern="[0-9]{6}"
+                            maxLength={6}
+                            title="Enter exactly 6 digits"
                             className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
-                            placeholder="ZIP/Postal code"
+                            placeholder="e.g., 560001"
                           />
+                          <p className="text-xs text-slate-500 mt-1">Enter a 6-digit postal code.</p>
                         </div>
                       </div>
                     </div>
@@ -5225,6 +5747,19 @@ export default function SuperAdmin() {
 
                         if (!enterpriseForm.enterpriseName || !enterpriseForm.contactEmail) {
                           setError("Enterprise name and contact email are required");
+                          return;
+                        }
+
+                        // Validate email format
+                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                        if (!emailRegex.test(enterpriseForm.contactEmail.trim())) {
+                          setError("Please enter a valid email address");
+                          return;
+                        }
+
+                        // Validate phone number if provided
+                        if (enterpriseForm.contactPhone && enterpriseForm.contactPhone.replace(/\D/g, "").length !== 10) {
+                          setError("Phone number must be exactly 10 digits");
                           return;
                         }
 
@@ -5432,7 +5967,10 @@ export default function SuperAdmin() {
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-500 uppercase">Contact Email</p>
                         {enterpriseEditMode ? (
-                          <input type="email" className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.contactEmail} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,contactEmail:e.target.value})} />
+                          <>
+                            <input type="email" className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.contactEmail} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,contactEmail:e.target.value})} required />
+                            <p className="text-xs text-slate-500 mt-1">Use a valid email address for enterprise contact.</p>
+                          </>
                         ) : (
                           <p className="text-slate-800">{viewingEnterprise.contactEmail}</p>
                         )}
@@ -5440,7 +5978,13 @@ export default function SuperAdmin() {
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-500 uppercase">Contact Phone</p>
                         {enterpriseEditMode ? (
-                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.contactPhone} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,contactPhone:e.target.value})} />
+                          <>
+                            <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.contactPhone} onChange={(e)=>{
+                              const sanitized = e.target.value.replace(/\D/g, "").slice(0, 10);
+                              setEnterpriseEditData({...enterpriseEditData,contactPhone:sanitized});
+                            }} inputMode="numeric" pattern="[0-9]{10}" maxLength={10} title="Enter exactly 10 digits" placeholder="e.g., 9876543210" />
+                            <p className="text-xs text-slate-500 mt-1">Enter a 10-digit number without country code.</p>
+                          </>
                         ) : (
                           <p className="text-slate-800">{viewingEnterprise.contactPhone || 'N/A'}</p>
                         )}
@@ -5488,7 +6032,13 @@ export default function SuperAdmin() {
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-500 uppercase">Postal Code</p>
                         {enterpriseEditMode ? (
-                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.postalCode} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,postalCode:e.target.value})} />
+                          <>
+                            <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.postalCode} onChange={(e)=>{
+                              const sanitized = e.target.value.replace(/\D/g, "").slice(0, 6);
+                              setEnterpriseEditData({...enterpriseEditData,postalCode:sanitized});
+                            }} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} title="Enter exactly 6 digits" placeholder="e.g., 560001" />
+                            <p className="text-xs text-slate-500 mt-1">Enter a 6-digit postal code.</p>
+                          </>
                         ) : (
                           <p className="text-slate-800">{viewingEnterprise.postalCode || 'N/A'}</p>
                         )}
@@ -5782,7 +6332,7 @@ export default function SuperAdmin() {
                     </div>
                     <button
                       onClick={() => {
-                        setShowOnboardStaffModal(false);
+                        handleCloseOnboardStaffModal();
                         setStaffFormError("");
                       }}
                       className="text-slate-400 hover:text-slate-600 transition-colors"
@@ -5886,14 +6436,22 @@ export default function SuperAdmin() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1">Date of Birth *</label>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Date of Birth * (YYYY-MM-DD)</label>
                         <input
                           type="date"
                           value={staffForm.dateOfBirth}
-                          onChange={(e) => setStaffForm({...staffForm, dateOfBirth: e.target.value})}
-                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
-                          placeholder="dd-mm-yyyy"
+                          onChange={(e) => handleDateChange(e.target.value, "dateOfBirth")}
+                          maxLength="10"
+                          className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-400 focus:border-transparent ${
+                            staffForm.dateOfBirth && (!validateDateFormat(staffForm.dateOfBirth) || !validateYearFormat(staffForm.dateOfBirth))
+                              ? "border-red-400 bg-red-50"
+                              : "border-slate-200"
+                          }`}
+                          placeholder="YYYY-MM-DD"
                         />
+                        {staffForm.dateOfBirth && (!validateDateFormat(staffForm.dateOfBirth) || !validateYearFormat(staffForm.dateOfBirth)) && (
+                          <p className="text-red-500 text-xs mt-1">Year must be in proper 4-digit format (YYYY)</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1">Gender *</label>
@@ -5919,19 +6477,37 @@ export default function SuperAdmin() {
                           type="email"
                           value={staffForm.email}
                           onChange={(e) => setStaffForm({...staffForm, email: e.target.value})}
-                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          className={`w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-indigo-400 focus:border-transparent ${
+                            staffForm.email && !validateEmail(staffForm.email)
+                              ? "border-red-400 bg-red-50"
+                              : "border-slate-200"
+                          }`}
                           placeholder="doctor@example.com"
                         />
+                        {staffForm.email && !validateEmail(staffForm.email) && (
+                          <p className="text-red-500 text-xs mt-1">Please enter a valid email address</p>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">Phone *</label>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Phone * (10 digits)</label>
                         <input
                           type="tel"
                           value={staffForm.phone}
-                          onChange={(e) => setStaffForm({...staffForm, phone: e.target.value})}
-                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          onChange={(e) => {
+                            const sanitized = handlePhoneInput(e.target.value);
+                            setStaffForm({...staffForm, phone: sanitized});
+                          }}
+                          className={`w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-indigo-400 focus:border-transparent ${
+                            staffForm.phone && !validatePhoneNumber(staffForm.phone)
+                              ? "border-red-400 bg-red-50"
+                              : "border-slate-200"
+                          }`}
                           placeholder="+91 98765 43210"
+                          maxLength="10"
                         />
+                        {staffForm.phone && !validatePhoneNumber(staffForm.phone) && (
+                          <p className="text-red-500 text-xs mt-1">Phone number must be exactly 10 digits</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-2">Address</label>
@@ -5944,14 +6520,25 @@ export default function SuperAdmin() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">Emergency Contact *</label>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Emergency Contact * (10 digits)</label>
                         <input
                           type="text"
                           value={staffForm.emergencyContact}
-                          onChange={(e) => setStaffForm({...staffForm, emergencyContact: e.target.value})}
-                          className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          onChange={(e) => {
+                            const sanitized = handleEmergencyContactInput(e.target.value);
+                            setStaffForm({...staffForm, emergencyContact: sanitized});
+                          }}
+                          className={`w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-indigo-400 focus:border-transparent ${
+                            staffForm.emergencyContact && !validatePhoneNumber(staffForm.emergencyContact)
+                              ? "border-red-400 bg-red-50"
+                              : "border-slate-200"
+                          }`}
                           placeholder="Emergency contact number"
+                          maxLength="10"
                         />
+                        {staffForm.emergencyContact && !validatePhoneNumber(staffForm.emergencyContact) && (
+                          <p className="text-red-500 text-xs mt-1">Emergency contact must be exactly 10 digits</p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -5980,19 +6567,25 @@ export default function SuperAdmin() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">License Expiry</label>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">License Expiry (YYYY-MM-DD)</label>
                         <input
                           type="date"
                           value={staffForm.licenseExpiry}
-                          onChange={(e) => setStaffForm({...staffForm, licenseExpiry: e.target.value})}
+                          onChange={(e) => handleDateChange(e.target.value, "licenseExpiry")}
+                          maxLength="10"
                           disabled={!["Doctor", "Nurse"].includes(staffForm.rolesAssigned)}
                           className={`w-full px-4 py-3 rounded-lg border focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all ${
-                            ["Doctor", "Nurse"].includes(staffForm.rolesAssigned)
-                              ? "border-slate-200 bg-white"
-                              : "border-slate-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60"
+                            staffForm.licenseExpiry && (!validateDateFormat(staffForm.licenseExpiry) || !validateYearFormat(staffForm.licenseExpiry))
+                              ? "border-red-400 bg-red-50"
+                              : !["Doctor", "Nurse"].includes(staffForm.rolesAssigned)
+                              ? "border-slate-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60"
+                              : "border-slate-200 bg-white"
                           }`}
-                          placeholder="dd-mm-yyyy"
+                          placeholder="YYYY-MM-DD"
                         />
+                        {staffForm.licenseExpiry && (!validateDateFormat(staffForm.licenseExpiry) || !validateYearFormat(staffForm.licenseExpiry)) && (
+                          <p className="text-red-500 text-xs mt-1">Year must be in proper 4-digit format (YYYY)</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-2">Specialty ID</label>
@@ -6056,13 +6649,21 @@ export default function SuperAdmin() {
                   {onboardStaffActiveStep === "employment" && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1">Joining Date</label>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Joining Date (YYYY-MM-DD)</label>
                         <input
                           type="date"
                           value={staffForm.joiningDate}
-                          onChange={(e) => setStaffForm({...staffForm, joiningDate: e.target.value})}
-                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+                          onChange={(e) => handleDateChange(e.target.value, "joiningDate")}
+                          maxLength="10"
+                          className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-indigo-400 focus:border-transparent ${
+                            staffForm.joiningDate && (!validateDateFormat(staffForm.joiningDate) || !validateYearFormat(staffForm.joiningDate))
+                              ? "border-red-400 bg-red-50"
+                              : "border-slate-200"
+                          }`}
                         />
+                        {staffForm.joiningDate && (!validateDateFormat(staffForm.joiningDate) || !validateYearFormat(staffForm.joiningDate)) && (
+                          <p className="text-red-500 text-xs mt-1">Year must be in proper 4-digit format (YYYY)</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1">Employment Status</label>
@@ -6263,7 +6864,13 @@ export default function SuperAdmin() {
                     ].map((tab) => (
                       <button
                         key={tab.key}
-                        onClick={() => setCreateClinicActiveTab(tab.key)}
+                        onClick={() => {
+                          // Validate current section before moving to next
+                          if (createClinicActiveTab !== tab.key && !validateClinicFormSection(createClinicActiveTab)) {
+                            return; // Don't navigate if validation fails
+                          }
+                          setCreateClinicActiveTab(tab.key);
+                        }}
                         className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${
                           createClinicActiveTab === tab.key
                             ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md"
@@ -6304,7 +6911,7 @@ export default function SuperAdmin() {
                           }}
                           className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
                         >
-                          <option value="0">-- Select an Enterprise ({enterprises.length} available) --</option>
+                          <option value="0">-- Select an Enterprise --</option>
                           {enterprises.length > 0 ? (
                             enterprises.map((enterprise) => {
                               console.log("📝 Rendering enterprise option:", enterprise.enterpriseName, enterprise.enterpriseId);
@@ -6369,7 +6976,9 @@ export default function SuperAdmin() {
                           onChange={(e) => setCreateClinicForm({...createClinicForm, contactEmail: e.target.value})}
                           className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
                           placeholder="clinic@example.com"
+                          required
                         />
+                        <p className="text-xs text-slate-500 mt-1">Use a valid email address for clinic contact.</p>
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-1">
@@ -6378,10 +6987,18 @@ export default function SuperAdmin() {
                         <input
                           type="tel"
                           value={createClinicForm.contactPhone}
-                          onChange={(e) => setCreateClinicForm({...createClinicForm, contactPhone: e.target.value})}
+                          onChange={(e) => {
+                            const sanitized = e.target.value.replace(/\D/g, "").slice(0, 10);
+                            setCreateClinicForm({...createClinicForm, contactPhone: sanitized});
+                          }}
+                          inputMode="numeric"
+                          pattern="[0-9]{10}"
+                          maxLength={10}
+                          title="Enter exactly 10 digits"
                           className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
-                          placeholder="+1 (555) 000-0000"
+                          placeholder="e.g., 9876543210"
                         />
+                        <p className="text-xs text-slate-500 mt-1">Enter a 10-digit number without country code.</p>
                       </div>
                     </div>
                   )}
@@ -6462,10 +7079,18 @@ export default function SuperAdmin() {
                           <input
                             type="text"
                             value={createClinicForm.postalCode}
-                            onChange={(e) => setCreateClinicForm({...createClinicForm, postalCode: e.target.value})}
+                            onChange={(e) => {
+                              const sanitized = e.target.value.replace(/\D/g, "").slice(0, 6);
+                              setCreateClinicForm({...createClinicForm, postalCode: sanitized});
+                            }}
+                            inputMode="numeric"
+                            pattern="[0-9]{6}"
+                            maxLength={6}
+                            title="Enter exactly 6 digits"
                             className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent"
-                            placeholder="ZIP/Postal code"
+                            placeholder="e.g., 560001"
                           />
+                          <p className="text-xs text-slate-500 mt-1">Enter a 6-digit postal code.</p>
                         </div>
                       </div>
                     </div>
@@ -6577,6 +7202,25 @@ export default function SuperAdmin() {
                           return;
                         }
                         
+                        // Validate email format
+                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                        if (!emailRegex.test(createClinicForm.contactEmail.trim())) {
+                          setClinicFormError("Please enter a valid email address");
+                          return;
+                        }
+                        
+                        // Validate phone number
+                        if (createClinicForm.contactPhone.replace(/\D/g, "").length !== 10) {
+                          setClinicFormError("Phone number must be exactly 10 digits");
+                          return;
+                        }
+                        
+                        // Validate postal code if provided
+                        if (createClinicForm.postalCode && createClinicForm.postalCode.replace(/\D/g, "").length !== 6) {
+                          setClinicFormError("Postal code must be exactly 6 digits");
+                          return;
+                        }
+                        
                         if (!createClinicForm.addressLine1 || !createClinicForm.city) {
                           setClinicFormError("Address line 1 and city are required");
                           return;
@@ -6639,6 +7283,14 @@ export default function SuperAdmin() {
                           console.log("✅ Clinic created successfully");
                           setSuccess("Clinic created successfully! 🎉");
                           setClinicFormError("");
+                          
+                          // Show success modal
+                          setSuccessData({
+                            name: createClinicForm.clinicName,
+                            isEdit: false,
+                            type: "clinic"
+                          });
+                          setShowSuccessModal(true);
                           
                           // Refresh clinics list
                           try {
@@ -6749,7 +7401,7 @@ export default function SuperAdmin() {
         {/* Appointment Management Modals */}
         <AppointmentListModal
           show={showAppointmentListModal}
-          onClose={() => setShowAppointmentListModal(false)}
+          onClose={handleCloseAppointmentList}
           appointments={appointments}
           loading={appointmentLoading}
           error={appointmentError}
@@ -6772,14 +7424,28 @@ export default function SuperAdmin() {
           firstName={appointmentFilterFirstName}
           lastName={appointmentFilterLastName}
           doctorId={appointmentFilterDoctor}
+          appointmentDate={appointmentFilterDate}
           setEnterpriseIdFilter={setAppointmentFilterEnterprise}
           setClinicIdFilter={setAppointmentFilterClinic}
           setFirstNameFilter={setAppointmentFilterFirstName}
           setLastNameFilter={setAppointmentFilterLastName}
           setDoctorIdFilter={setAppointmentFilterDoctor}
+          setAppointmentDateFilter={setAppointmentFilterDate}
           enterprises={enterprises}
           clinics={clinics}
           doctors={doctors}
+          onClearFilters={() => {
+            setAppointmentFilterQuery("");
+            setAppointmentError("");
+            setAppointmentFilterEnterprise("");
+            setAppointmentFilterClinic("");
+            setAppointmentFilterFirstName("");
+            setAppointmentFilterLastName("");
+            setAppointmentFilterDoctor("");
+            setAppointmentFilterDate("");
+            setAppointments([]);
+            setLastAppointmentFilters({ clinicId: null, firstName: null, lastName: null, doctorId: null, appointmentDate: null });
+          }}
           onEnterpriseChange={useCallback((enterpriseId) => {
             setAppointmentFilterClinic("");
             if (enterpriseId) {
@@ -6890,8 +7556,9 @@ export default function SuperAdmin() {
           error={patientFormError}
           activeTab={createPatientActiveTab}
           setActiveTab={setCreatePatientActiveTab}
-          enterprises={enterprises}
-          clinics={clinics}
+          enterprises={enterprisesForModal}
+          clinics={clinicsForModal}
+          onEnterpriseChange={handleCreatePatientEnterpriseChange}
         />
 
         <ManagePatientModal

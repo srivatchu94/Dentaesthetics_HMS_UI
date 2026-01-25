@@ -583,6 +583,7 @@ export const registerUser = async (registerData: RegisterRequest): Promise<AuthR
  */
 export const loginUser = async (loginData: LoginRequest): Promise<LoginResponse> => {
   try {
+    console.log('📤 Login Payload:', loginData);
     const response = await request<LoginResponse>(`${AUTH_BASE_URL}/login`, {
       method: 'POST',
       body: JSON.stringify(loginData)

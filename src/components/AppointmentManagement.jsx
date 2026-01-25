@@ -23,6 +23,8 @@ export function AppointmentListModal({
   setLastNameFilter,
   setDoctorIdFilter,
   setAppointmentDateFilter,
+  onClearFilters,
+  appointmentDate,
   enterprises = [],
   clinics = [],
   doctors = [],
@@ -36,9 +38,20 @@ export function AppointmentListModal({
   const [filterFirstName, setFilterFirstName] = useState(firstName || "");
   const [filterLastName, setFilterLastName] = useState(lastName || "");
   const [filterDoctorId, setFilterDoctorId] = useState(doctorId || "");
-  const [filterAppointmentDate, setFilterAppointmentDate] = useState("");
+  const [filterAppointmentDate, setFilterAppointmentDate] = useState(appointmentDate || "");
   const [filteredClinics, setFilteredClinics] = useState(clinics);
   const [filteredDoctors, setFilteredDoctors] = useState(doctors);
+
+  // Keep local filter inputs in sync with parent when props or visibility change
+  useEffect(() => {
+    setFilterEnterpriseId(enterpriseId || "");
+    setFilterClinicId(clinicId || "");
+    setFilterFirstName(firstName || "");
+    setFilterLastName(lastName || "");
+    setFilterDoctorId(doctorId || "");
+    setFilterAppointmentDate(appointmentDate || "");
+    setFilterQuery(filterQuery || "");
+  }, [enterpriseId, clinicId, firstName, lastName, doctorId, appointmentDate, filterQuery, show]);
 
   // Keep clinics in sync when props update or enterprise selection changes
   useEffect(() => {
@@ -151,6 +164,16 @@ export function AppointmentListModal({
     setFilterDoctorId("");
     setFilterAppointmentDate("");
     setFilterQuery("");
+    setFilteredClinics(clinics);
+    setFilteredDoctors(doctors);
+    // Sync parent filter state and allow clearing results
+    if (setEnterpriseIdFilter) setEnterpriseIdFilter("");
+    if (setClinicIdFilter) setClinicIdFilter("");
+    if (setFirstNameFilter) setFirstNameFilter("");
+    if (setLastNameFilter) setLastNameFilter("");
+    if (setDoctorIdFilter) setDoctorIdFilter("");
+    if (setAppointmentDateFilter) setAppointmentDateFilter("");
+    if (onClearFilters) onClearFilters();
   };
 
   return (
@@ -303,15 +326,7 @@ export function AppointmentListModal({
                 🔍 Apply Filters
               </button>
               <button
-                onClick={() => {
-                  setFilterEnterpriseId("");
-                  setFilterClinicId("");
-                  setFilterFirstName("");
-                  setFilterLastName("");
-                  setFilterDoctorId("");
-                  setFilterAppointmentDate("");
-                  setFilterQuery("");
-                }}
+                onClick={handleClearFilters}
                 className="flex-1 px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-semibold transition-colors"
               >
                 ⟲ Clear Filters
@@ -1338,12 +1353,54 @@ export function CreatePatientModal({
   activeTab,
   setActiveTab,
   enterprises,
-  clinics
+  clinics,
+  onEnterpriseChange
 }) {
   if (!show) return null;
 
   console.log("🔍 CreatePatientModal - Enterprises received:", enterprises);
   console.log("🔍 CreatePatientModal - Enterprises count:", enterprises?.length);
+  console.log("🔍 CreatePatientModal - Clinics received:", clinics);
+
+  const [showPayloadPreview, setShowPayloadPreview] = useState(false);
+
+  const previewPayload = {
+    patient: {
+      patientId: 0,
+      patientEntityID: "",
+      patientFirstName: form.firstName,
+      patientLastName: form.lastName,
+      patientDOB: form.dateOfBirth || new Date().toISOString(),
+      patientGender: form.gender || "",
+      patientBloodType: form.bloodGroup || "",
+      clinicID: form.clinicId || ""
+    },
+    patientContact: {
+      patientId: 0,
+      patientAddress: `${form.addressLine1 || ""}${form.addressLine2 ? ", " + form.addressLine2 : ""}`,
+      patientCity: form.city || "",
+      patientPhone: form.phoneNumber || "",
+      patientEmail: form.email || "",
+      patientEmergencyContact: form.emergencyContactName
+        ? `${form.emergencyContactName} - ${form.emergencyContactPhone} (${form.emergencyContactRelation})`
+        : ""
+    },
+    patientMedicalInfo: {
+      patientId: 0,
+      patientMedicalHistory: form.familyMedicalHistory || "",
+      patientAllergies: form.allergies || "",
+      patientCurrentMedications: form.currentMedications || "",
+      patientPrimaryPhysician: "",
+      no_of_visits: 0,
+      lastVisitedDate: form.lastDentalVisit || new Date().toISOString(),
+      chronicDiseases: form.chronicConditions || "",
+      medicalHistory: `Past Surgeries: ${form.pastSurgeries || "None"}; Smoking: ${form.smokingStatus || "Unknown"}; Alcohol: ${form.alcoholConsumption || "Unknown"}; Exercise: ${form.exerciseFrequency || "Unknown"}; Diet: ${form.dietaryRestrictions || "None"}; Notes: ${form.additionalMedicalNotes || "None"}`
+    },
+    patientInsurance: {
+      patientId: 0,
+      patientInsuranceProvider: form.insuranceProvider || ""
+    }
+  };
 
   const tabs = [
     { key: "patient-info", label: "Patient Info", icon: "👤" },
@@ -1352,11 +1409,26 @@ export function CreatePatientModal({
     { key: "insurance", label: "Insurance", icon: "💳" }
   ];
 
+  const handleEnterpriseChange = (e) => {
+    setForm({ ...form, enterpriseId: e.target.value, clinicId: "" });
+    if (onEnterpriseChange) {
+      onEnterpriseChange(e.target.value);
+    }
+  };
+
   const handleNextTab = () => {
     const tabKeys = tabs.map(t => t.key);
     const currentIndex = tabKeys.indexOf(activeTab);
     if (currentIndex < tabKeys.length - 1) {
       setActiveTab(tabKeys[currentIndex + 1]);
+    }
+  };
+
+  const handlePreviousTab = () => {
+    const tabKeys = tabs.map(t => t.key);
+    const currentIndex = tabKeys.indexOf(activeTab);
+    if (currentIndex > 0) {
+      setActiveTab(tabKeys[currentIndex - 1]);
     }
   };
 
@@ -1425,7 +1497,7 @@ export function CreatePatientModal({
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Enterprise *</label>
                     <select
                       value={form.enterpriseId}
-                      onChange={(e) => setForm({ ...form, enterpriseId: e.target.value, clinicId: "" })}
+                      onChange={handleEnterpriseChange}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
                       required
                     >
@@ -1451,11 +1523,15 @@ export function CreatePatientModal({
                       disabled={!form.enterpriseId}
                     >
                       <option value="">{form.enterpriseId ? "Select Clinic" : "Please select Enterprise first"}</option>
-                      {form.patientClinics && form.patientClinics.map((c) => (
-                        <option key={c.clinicId} value={c.clinicId}>
-                          {c.clinicName || c.name}
-                        </option>
-                      ))}
+                      {clinics && clinics.length > 0 ? (
+                        clinics.map((c) => (
+                          <option key={c.clinicId} value={c.clinicId}>
+                            {c.clinicName || c.name || `Clinic ${c.clinicId}`}
+                          </option>
+                        ))
+                      ) : (
+                        <option disabled>{form.enterpriseId ? "No clinics available" : ""}</option>
+                      )}
                     </select>
                   </div>
                 </div>
@@ -2028,6 +2104,23 @@ export function CreatePatientModal({
               </div>
             )}
           </form>
+
+          {showPayloadPreview && (
+            <div className="mt-4 p-4 border border-slate-200 rounded-xl bg-slate-50">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold text-slate-700">Payload Preview</h4>
+                <button
+                  onClick={() => setShowPayloadPreview(false)}
+                  className="text-sm px-3 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
+                >
+                  Hide
+                </button>
+              </div>
+              <pre className="text-xs overflow-auto max-h-60 bg-white p-3 rounded border border-slate-200">
+                {JSON.stringify(previewPayload, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -2038,12 +2131,34 @@ export function CreatePatientModal({
           >
             Cancel
           </button>
+          <button
+            onClick={() => setShowPayloadPreview((v) => !v)}
+            className="px-4 py-3 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
+          >
+            {showPayloadPreview ? "Hide Payload" : "Preview Payload"}
+          </button>
+          {activeTab !== "patient-info" && activeTab !== "insurance" && (
+            <button
+              onClick={handlePreviousTab}
+              className="flex-1 px-6 py-3 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
+            >
+              ← Previous
+            </button>
+          )}
           {activeTab !== "insurance" && (
             <button
               onClick={handleNextTab}
               className="flex-1 px-6 py-3 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors"
             >
               Next →
+            </button>
+          )}
+          {activeTab === "insurance" && (
+            <button
+              onClick={handlePreviousTab}
+              className="flex-1 px-6 py-3 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
+            >
+              ← Previous
             </button>
           )}
           {activeTab === "insurance" && (

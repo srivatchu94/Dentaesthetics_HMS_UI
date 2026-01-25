@@ -5,6 +5,7 @@ import {
   getDoctorsByEnterpriseId,
   mapDoctorToClinics,
   getDoctorsForMapping,
+  getDoctorClinicMappings,
 } from "../services/doctorService";
 import { getClinicsByEnterpriseId } from "../services/clinicService";
 import { listEnterprises } from "../services/enterpriseService";
@@ -33,13 +34,14 @@ export default function DoctorClinicMappingSuperAdmin() {
   const [clinics, setClinics] = useState([]);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedClinics, setSelectedClinics] = useState([]);
+  const [primaryClinicId, setPrimaryClinicId] = useState(null);
   const [clinicConfigs, setClinicConfigs] = useState({});
   const [activeClinicId, setActiveClinicId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState({ doctors: false, clinics: false, save: false, initial: true });
   const [toast, setToast] = useState({ type: "", message: "" });
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successDetails, setSuccessDetails] = useState({ doctorName: "", clinics: [], count: 0 });
+  const [successDetails, setSuccessDetails] = useState({ doctorName: "", clinics: [], count: 0, primaryClinic: "" });
 
   // Debug logging to see if enterprises are in state
   console.log('🔍 Enterprises in state:', enterprises);
@@ -157,6 +159,7 @@ export default function DoctorClinicMappingSuperAdmin() {
       setSelectedClinics([]);
       setClinicConfigs({});
       setActiveClinicId(null);
+      setPrimaryClinicId(null);
       if (refined.length === 0) {
         showToast("info", "No doctors found for this enterprise.");
       } else {
@@ -196,10 +199,67 @@ export default function DoctorClinicMappingSuperAdmin() {
       const clinicList = Array.isArray(resp) ? resp : resp ? [resp] : [];
       console.log(`✅ Clinics received: ${clinicList.length} clinic(s)`, clinicList);
       setClinics(clinicList);
-      const preselect = clinicList.slice(0, 3).map((c) => c.clinicId).filter(Boolean);
-      setSelectedClinics(preselect);
-      hydrateConfigs(preselect);
-      setActiveClinicId(preselect[0] || null);
+      
+      // Fetch doctor's existing clinic mappings to set assigned and primary clinics
+      let primaryId = null;
+      let mappedClinicIds = [];
+      try {
+        const doctorId = doctor?.doctorId || doctor?.staffId || doctor?.profileId || doctor?.doctorProfileId || doctor?.id;
+        if (doctorId) {
+          const mappings = await getDoctorClinicMappings(doctorId);
+          console.log('📋 Doctor Clinic Mappings:', mappings);
+          if (Array.isArray(mappings)) {
+            mappedClinicIds = mappings
+              .map(m => parseInt(m.clinicId || m.ClinicId, 10))
+              .filter(Boolean);
+
+            const primaryMapping = mappings.find(m => m.isPrimaryClinic || m.IsPrimaryClinic);
+            if (primaryMapping) {
+              primaryId = parseInt(primaryMapping.clinicId || primaryMapping.ClinicId, 10) || null;
+              console.log('⭐ Found Primary Clinic from Mappings:', primaryId);
+            }
+          }
+        }
+      } catch (mappingErr) {
+        console.warn('⚠️ Could not fetch doctor mappings:', mappingErr);
+      }
+
+      // Fallback: use doctor.clinicId as primary if mappings did not provide one
+      if (!primaryId && doctor?.clinicId) {
+        primaryId = parseInt(doctor.clinicId, 10) || null;
+        if (primaryId) {
+          mappedClinicIds = mappedClinicIds.length ? mappedClinicIds : [primaryId];
+          console.log('⭐ Fallback primary from doctor.clinicId:', primaryId);
+        }
+      }
+
+      setPrimaryClinicId(primaryId);
+      console.log('⭐ Final Primary Clinic ID:', primaryId);
+
+      // Only keep mapped clinics that exist in the loaded clinic list
+      const clinicIdsAvailable = clinicList.map(c => parseInt(c.clinicId, 10)).filter(Boolean);
+      let dedupedSelected = Array.from(new Set(mappedClinicIds))
+        .filter(Boolean)
+        .filter(id => clinicIdsAvailable.includes(id));
+
+      // If still none selected but primaryId exists in available clinics, preselect it
+      if (dedupedSelected.length === 0 && primaryId && clinicIdsAvailable.includes(primaryId)) {
+        dedupedSelected = [primaryId];
+      }
+      setSelectedClinics(dedupedSelected);
+      hydrateConfigs(dedupedSelected);
+      // ensure clinicConfigs marks the primary one
+      setClinicConfigs((prev) => {
+        const next = { ...prev };
+        dedupedSelected.forEach((id) => {
+          if (!next[id]) next[id] = defaultClinicConfig();
+          if (primaryId && parseInt(id, 10) === primaryId) {
+            next[id] = { ...next[id], isPrimaryClinic: true };
+          }
+        });
+        return next;
+      });
+      setActiveClinicId(primaryId || dedupedSelected[0] || null);
       if (clinicList.length === 0) {
         showToast("warning", "No clinics found for this enterprise.");
       }
@@ -210,6 +270,7 @@ export default function DoctorClinicMappingSuperAdmin() {
       setSelectedClinics([]);
       setClinicConfigs({});
       setActiveClinicId(null);
+      setPrimaryClinicId(null);
     } finally {
       setLoading((s) => ({ ...s, clinics: false }));
     }
@@ -269,6 +330,13 @@ export default function DoctorClinicMappingSuperAdmin() {
       doctorProfileId: selectedDoctor.doctorProfileId,
     });
     
+    // Require at least one primary clinic before saving
+    const hasPrimary = selectedClinics.some((id) => clinicConfigs[id]?.isPrimaryClinic) || !!primaryClinicId;
+    if (!hasPrimary) {
+      showToast("error", "Select at least one primary clinic before saving.");
+      return;
+    }
+
     const mappings = selectedClinics.map((clinicId) => {
       const cfg = clinicConfigs[clinicId] || defaultClinicConfig();
       const doctorId = selectedDoctor.doctorId || selectedDoctor.staffId || selectedDoctor.profileId || selectedDoctor.id;
@@ -284,7 +352,7 @@ export default function DoctorClinicMappingSuperAdmin() {
         StartDate: cfg.startDate ? new Date(cfg.startDate).toISOString() : new Date().toISOString(),
         EndDate: cfg.endDate ? new Date(cfg.endDate).toISOString() : null,
         AvailableDays: cfg.availableDays || null,
-        IsPrimaryClinic: !!cfg.isPrimaryClinic,
+        IsPrimaryClinic: cfg.isPrimaryClinic || (primaryClinicId && primaryClinicId === clinicId) || false,
         ConsultationType: cfg.consultationType,
         CreatedBy: "System",
         CreatedAt: new Date().toISOString(),
@@ -310,14 +378,21 @@ export default function DoctorClinicMappingSuperAdmin() {
         const clinic = clinics.find(c => c.clinicId === id);
         return clinic?.clinicName || `Clinic ${id}`;
       }).join(', ');
+      const primaryFromConfig = selectedClinics.find((id) => clinicConfigs[id]?.isPrimaryClinic);
+      const resolvedPrimaryId = primaryFromConfig || primaryClinicId || null;
+      const primaryClinicName = resolvedPrimaryId
+        ? (clinics.find(c => parseInt(c.clinicId, 10) === parseInt(resolvedPrimaryId, 10))?.clinicName || `Clinic ${resolvedPrimaryId}`)
+        : null;
       
-      showToast("success", `✅ Successfully mapped ${doctorName} to ${selectedClinics.length} clinic(s)`);
+      const primarySuffix = primaryClinicName ? ` Primary clinic: ${primaryClinicName}.` : "";
+      showToast("success", `✅ Successfully mapped ${doctorName} to ${selectedClinics.length} clinic(s).${primarySuffix}`);
       
       // Show success modal with details
       setSuccessDetails({
         doctorName: doctorName,
         clinics: clinicNames.split(', '),
-        count: selectedClinics.length
+        count: selectedClinics.length,
+        primaryClinic: primaryClinicName || ""
       });
       setShowSuccessModal(true);
       
@@ -384,7 +459,7 @@ export default function DoctorClinicMappingSuperAdmin() {
                 className="w-full px-4 py-2.5 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-400 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <option value="">
-                  {loading.initial ? "Loading enterprises..." : `Select Enterprise (${enterprises.length} available)`}
+                  {loading.initial ? "Loading enterprises..." : "Select Enterprise"}
                 </option>
                 {enterprises && enterprises.length > 0 ? (
                   enterprises.map((ent) => (
@@ -529,7 +604,12 @@ export default function DoctorClinicMappingSuperAdmin() {
                     <div className="text-center text-slate-400 py-10">No clinics available.</div>
                   ) : (
                     clinics.map((clinic) => {
-                      const chosen = selectedClinics.includes(clinic.clinicId);
+                      const clinicIdNum = parseInt(clinic.clinicId, 10);
+                      const chosen = selectedClinics.some((id) => parseInt(id, 10) === clinicIdNum);
+                      const isPrimary = primaryClinicId && primaryClinicId === clinicIdNum;
+                      
+                      console.log(`Checking clinic: ${clinic.clinicName} - ID: ${clinicIdNum}, Primary: ${primaryClinicId}, Is Primary: ${isPrimary}`);
+                      
                       return (
                         <button
                           key={clinic.clinicId}
@@ -542,8 +622,20 @@ export default function DoctorClinicMappingSuperAdmin() {
                         >
                           <div className="flex items-start gap-3">
                             <span className="text-xl">{chosen ? "✓" : "🏥"}</span>
-                            <div>
-                              <p className="font-bold text-slate-900">{clinic.clinicName}</p>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-bold text-slate-900">{clinic.clinicName}</p>
+                                {isPrimary && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-xs font-semibold">
+                                    ⭐ Primary
+                                  </span>
+                                )}
+                                {chosen && !isPrimary && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold">
+                                    ✓ Assigned
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-xs text-slate-500">{clinic.clinicAddress || clinic.clinicCity || ""}</p>
                             </div>
                           </div>
@@ -561,6 +653,12 @@ export default function DoctorClinicMappingSuperAdmin() {
               <span className="text-xl">⚙️</span>
               <p className="font-bold text-slate-900">Configuration Panel</p>
             </div>
+
+            {!primaryClinicId && (
+              <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm px-3 py-2">
+                ⭐ Please set a primary clinic before configuring.
+              </div>
+            )}
 
             {selectedClinics.length > 0 ? (
               <>
@@ -710,6 +808,13 @@ export default function DoctorClinicMappingSuperAdmin() {
                 <span className="text-2xl">👨‍⚕️</span>
                 <p className="font-bold text-slate-900">{successDetails.doctorName}</p>
               </div>
+
+              {successDetails.primaryClinic && (
+                <div className="flex items-center gap-2 mb-3 text-sm text-amber-700 font-semibold">
+                  <span className="text-lg">⭐</span>
+                  <span>Primary clinic: {successDetails.primaryClinic}</span>
+                </div>
+              )}
               
               <div className="border-t border-slate-200 pt-3">
                 <p className="text-sm text-slate-600 mb-2 font-semibold">Mapped to {successDetails.count} clinic(s):</p>

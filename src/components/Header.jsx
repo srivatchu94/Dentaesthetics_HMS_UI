@@ -82,8 +82,14 @@ export default function Header(){
   const navigate = useNavigate();
   const searchRef = useRef(null);
   const notificationRef = useRef(null);
+  const hasFetchedDoctorNameRef = useRef(false);
 
   const unreadCount = notifications.filter(n => n.unread).length;
+
+  // Compute role-based visibility for Super Admin tab
+  const selectedAccess = getSelectedAccess();
+  const isSuperAdmin = Array.isArray(selectedAccess?.roleIds) && selectedAccess.roleIds.includes(1);
+  const visibleTabs = TABS.filter(t => t.key !== 'superadmin' || isSuperAdmin);
 
   // Click outside to close dropdowns
   useEffect(() => {
@@ -114,18 +120,21 @@ export default function Header(){
               name: userData.username || '',
               role: 'User'
             });
-            // Try to fetch full doctor name if available
-            listDoctorProfiles()
-              .then(doctors => {
-                const doctor = doctors.find(d => 
-                  d.email?.toLowerCase() === userData.username.toLowerCase() ||
-                  (d.firstName + d.lastName).toLowerCase().replace(/\s/g, '') === userData.username.toLowerCase().replace(/\s/g, '')
-                );
-                if (doctor) {
-                  setDoctorName(`Dr. ${doctor.firstName} ${doctor.lastName}`);
-                }
-              })
-              .catch(err => console.log("Could not fetch doctor profile:", err));
+            // Try to fetch full doctor name if available (only once per session)
+            if (!hasFetchedDoctorNameRef.current) {
+              hasFetchedDoctorNameRef.current = true;
+              listDoctorProfiles()
+                .then(doctors => {
+                  const doctor = doctors.find(d => 
+                    d.email?.toLowerCase() === userData.username.toLowerCase() ||
+                    (d.firstName + d.lastName).toLowerCase().replace(/\s/g, '') === userData.username.toLowerCase().replace(/\s/g, '')
+                  );
+                  if (doctor) {
+                    setDoctorName(`Dr. ${doctor.firstName} ${doctor.lastName}`);
+                  }
+                })
+                .catch(err => console.log("Could not fetch doctor profile:", err));
+            }
           }
         } else if (token && checkTokenExpired()) {
           // Token expired - logout
@@ -279,6 +288,7 @@ export default function Header(){
           if (doctor) {
             setDoctorName(`Dr. ${doctor.firstName} ${doctor.lastName}`);
           }
+          hasFetchedDoctorNameRef.current = true;
         } catch (err) {
           console.log("Could not fetch doctor profile:", err);
         }
@@ -462,17 +472,17 @@ export default function Header(){
                         </AnimatePresence>
                       </div>
 
-                      {/* Doctor's Space Button */}
+                      {/* Doctor's Space / Admin Corner Button */}
                       <motion.button
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => navigate("/doctors")}
-                        className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-yellow-500 text-amber-900 rounded-lg hover:shadow-xl transition-all font-semibold shadow-lg text-sm flex items-center gap-2 cursor-pointer"
+                        onClick={() => navigate(isSuperAdmin ? "/superadmin" : "/doctors")}
+                        className={`px-4 py-2 rounded-lg hover:shadow-xl transition-all font-semibold shadow-lg text-sm flex items-center gap-2 cursor-pointer ${isSuperAdmin ? 'bg-gradient-to-r from-amber-400 to-rose-500 text-white' : 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-amber-900'}`}
                       >
-                        <span>👨‍⚕️</span>
-                        <span>{doctorName || "Doctor's Space"}</span>
+                        <span>{isSuperAdmin ? '🛡️' : '👨‍⚕️'}</span>
+                        <span>{isSuperAdmin ? "Admin Corner" : (doctorName || "Doctor's Space")}</span>
                       </motion.button>
                     </>
                   )}
@@ -608,7 +618,7 @@ export default function Header(){
       <nav className="w-full bg-gradient-to-r from-coral-50/90 via-peach-50/80 to-cream-50/90 border-b border-coral-200/50 shadow-md sticky top-20 z-30 backdrop-blur-md">
         <div className="w-full px-4 md:px-8 py-3">
           <div className="flex gap-3 justify-center relative items-center overflow-hidden">
-            {TABS.map((t) => (
+            {visibleTabs.map((t) => (
               <div
                 key={t.key}
                 className="relative flex-shrink-0"

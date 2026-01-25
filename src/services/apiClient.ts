@@ -63,10 +63,12 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   }
   
   if (!res.ok) {
+    const contentType = res.headers.get('content-type') || '';
     const text = await res.text();
-    console.error(`❌ API ERROR: ${res.status} - ${text}`);
+    const snippet = text.slice(0, 300);
+    console.error(`❌ API ERROR: ${options.method || 'GET'} ${path} -> ${res.status} ${res.statusText} | ct=${contentType} | body: ${snippet}`);
     
-    const error: any = new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
+    const error: any = new Error(`HTTP ${res.status} ${res.statusText} - ct=${contentType} body=${snippet}`);
     error.status = res.status;
     error.response = { status: res.status, statusText: res.statusText, data: text };
     
