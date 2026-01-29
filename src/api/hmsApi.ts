@@ -5,28 +5,11 @@
 // .env.production   → Cloud API URL (for deployment)
 
 import type { ClinicModel, StaffModel, ServiceModel, EnterpriseDataModel, EnterpriseModel, AssetModel, CreateAssetDto, UpdateAssetDto } from "../Interfaces";
+import { request } from "../services/apiClient";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api';
 
 console.log(`✅ HMS API initialized: ${BASE_URL}`);
-
-// Generic helper for JSON requests
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    },
-    ...options
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`HTTP ${res.status} ${res.statusText} - ${text}`);
-  }
-  // some endpoints (like DELETE) might return empty
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
-}
 
 // Enterprise
 export function getEnterpriseData(): Promise<EnterpriseDataModel> {
@@ -490,6 +473,86 @@ export function deleteAsset(assetId: number): Promise<void> {
     console.log('✅ ASSET DELETED SUCCESSFULLY');
   }).catch(error => {
     console.error('❌ FAILED TO DELETE ASSET:', error);
+    throw error;
+  });
+}
+
+// ============================================
+// PATIENT MANAGEMENT ENDPOINTS
+// ============================================
+
+export function searchPatients(params: {
+  firstName?: string;
+  lastName?: string;
+  dob?: string;
+  patientId?: number;
+  clinicId?: number;
+}): Promise<any[]> {
+  console.log('📞 API CALL: searchPatients with params:', params);
+  const queryParams = new URLSearchParams();
+  if (params.patientId) queryParams.append('patientId', params.patientId.toString());
+  if (params.clinicId) queryParams.append('clinicId', params.clinicId.toString());
+  if (params.firstName) queryParams.append('firstName', params.firstName);
+  if (params.lastName) queryParams.append('lastName', params.lastName);
+  if (params.dob) queryParams.append('dob', params.dob);
+  
+  return request<any[]>(`/Patient/Patientsearch?${queryParams.toString()}`)
+    .then(data => {
+      console.log('✅ PATIENTS FETCHED SUCCESSFULLY:', data);
+      return data;
+    })
+    .catch(error => {
+      console.error('❌ FAILED TO FETCH PATIENTS:', error);
+      throw error;
+    });
+}
+
+export function getFullPatientProfile(patientId: number): Promise<any> {
+  console.log('📞 API CALL: getFullPatientProfile with patientId:', patientId);
+  return request<any>(`/Patient/details/fullProfile?patientId=${patientId}`)
+    .then(data => {
+      console.log('═════════════════════════════════════════════════════════');
+      console.log('✅ API RAW RESPONSE (fullProfile):', data);
+      console.log('📊 Response Type:', typeof data);
+      console.log('🔑 Is Array?:', Array.isArray(data));
+      console.log('═════════════════════════════════════════════════════════');
+      
+      // Handle array response - API returns [{ patient, patientContact, ... }]
+      let profile = data;
+      if (Array.isArray(data) && data.length > 0) {
+        profile = data[0];
+        console.log('✅ Extracted first element from array - this is the actual profile object');
+      }
+      
+      console.log('📋 Final profile object to return:', profile);
+      return profile;
+    })
+    .catch(error => {
+      console.error('❌ FAILED TO FETCH PATIENT PROFILE:', error);
+      throw error;
+    });
+}
+
+export function updateFullPatientProfile(patientData: any): Promise<any> {
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('📝 API CALL: PUT /Patient/details/UpdatefullProfile');
+  console.log('📊 PATIENT DATA BEING SENT:', patientData);
+  console.log('═══════════════════════════════════════════════════════');
+  
+  return request<any>('/Patient/details/UpdatefullProfile', {
+    method: 'PUT',
+    body: JSON.stringify(patientData)
+  }).then(data => {
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('✅ PATIENT PROFILE UPDATED SUCCESSFULLY!');
+    console.log('📥 API RESPONSE:', data);
+    console.log('═══════════════════════════════════════════════════════');
+    return data;
+  }).catch(error => {
+    console.error('═══════════════════════════════════════════════════════');
+    console.error('❌ FAILED TO UPDATE PATIENT PROFILE');
+    console.error('📋 Error Details:', error);
+    console.error('═══════════════════════════════════════════════════════');
     throw error;
   });
 }
