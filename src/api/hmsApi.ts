@@ -557,3 +557,15 @@ export function updateFullPatientProfile(patientData: any): Promise<any> {
   });
 }
 
+export function getDoctorsByClinicID(clinicID: number): Promise<any> {
+  console.log('📞 API CALL: getDoctorsByClinicID with clinicID:', clinicID);
+  return request<any>(`/DoctorProfile/GetDoctorsByClinicID?ClinicID=${clinicID}`)
+    .then(data => {
+      console.log('✅ DOCTORS FETCHED SUCCESSFULLY:', data);
+      return data || [];
+    })
+    .catch(error => {
+      console.error('❌ FAILED TO FETCH DOCTORS:', error);
+      return [];
+    });
+}

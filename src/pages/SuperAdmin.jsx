@@ -290,7 +290,9 @@ export default function SuperAdmin() {
   const [appointmentFilterDate, setAppointmentFilterDate] = useState("");
   const [createAppointmentActiveTab, setCreateAppointmentActiveTab] = useState("basic");
   const [editAppointmentActiveTab, setEditAppointmentActiveTab] = useState("basic");
-  const [createAppointmentForm, setCreateAppointmentForm] = useState({
+  
+  // Initial form state for appointment creation
+  const initialCreateAppointmentForm = {
     patientId: "",
     clinicId: "",
     doctorId: "",
@@ -312,8 +314,11 @@ export default function SuperAdmin() {
     isConfirmed: false,
     billableAmount: "",
     paymentStatus: "Pending",
-    appointmentClinics: []
-  });
+    appointmentClinics: [],
+    attendingPhysician: ""
+  };
+
+  const [createAppointmentForm, setCreateAppointmentForm] = useState(initialCreateAppointmentForm);
   const [editAppointmentForm, setEditAppointmentForm] = useState(null);
   const [lastAppointmentFilters, setLastAppointmentFilters] = useState({
     clinicId: null,
@@ -7477,6 +7482,7 @@ export default function SuperAdmin() {
             setShowCreateAppointmentModal(false);
             setCreateAppointmentActiveTab("basic");
             setAppointmentFormError("");
+            setCreateAppointmentForm(initialCreateAppointmentForm);
           }}
           form={createAppointmentForm}
           setForm={setCreateAppointmentForm}

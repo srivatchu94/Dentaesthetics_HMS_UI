@@ -7,7 +7,13 @@ import { listClinics } from "../api/hmsApi";
 import FancyDatePicker from "../components/FancyDatePicker";
 
 // Reusable InputField component (similar to RegisterPatient)
-const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => (
+const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => {
+  // Debug logging for select fields
+  if (options && name === "maritalStatus") {
+    console.log(`🔧 InputField [${name}] value="${value}" options=${JSON.stringify(options.map(o => o.value))} disabled=${disabled}`);
+  }
+  
+  return (
   <div className="mb-3">
     {type === "date" ? (
       <>
@@ -100,7 +106,8 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
       </>
     )}
   </div>
-);
+  );
+};
 
 export default function ViewPatients() {
   const navigate = useNavigate();
@@ -405,10 +412,12 @@ export default function ViewPatients() {
       setEditInsuranceData(newInsuranceData);
       setEditingPatientId(patientId);
       
-      // Log after state is being set
+      // Log after state is being set - verify what will be rendered
       setTimeout(() => {
         console.log('🎯 STATE AFTER SET (verify in next render):');
-        console.log('editPatientData will contain:', newPatientData);
+        console.log('editPatientData.maritalStatus:', newPatientData.maritalStatus);
+        console.log('maritalStatusOptions:', maritalStatusOptions.map(m => m.value));
+        console.log('Will dropdown show selected value?', maritalStatusOptions.find(m => m.value === newPatientData.maritalStatus) ? 'YES ✅' : 'NO ❌');
       }, 0);
       
       setShowEditModal(true);

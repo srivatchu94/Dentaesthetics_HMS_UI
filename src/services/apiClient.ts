@@ -24,8 +24,47 @@ export const tokenExpiryEmitter = {
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   // Get token from localStorage
-  const token = getAuthToken();
+  let token = getAuthToken();
   const selectedAccess = getSelectedAccess();
+  
+  // Check if token is expired before making request
+  if (token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      const decoded = JSON.parse(jsonPayload);
+      
+      if (decoded.exp) {
+        const now = Math.floor(Date.now() / 1000);
+        const expirationTime = new Date(decoded.exp * 1000).toISOString();
+        console.log(`🔐 Token Check: Expires at ${expirationTime}, Current time: ${new Date().toISOString()}`);
+        
+        if (decoded.exp < now) {
+          console.error('⚠️ Token is EXPIRED - User needs to login again');
+          // Clear expired token
+          sessionStorage.removeItem('authToken');
+          sessionStorage.removeItem('selectedAccess');
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('selectedAccess');
+          
+          // Trigger expiry event
+          const currentLocation = window.location.pathname;
+          sessionStorage.setItem('tokenExpiryLocation', currentLocation);
+          tokenExpiryEmitter.emit(currentLocation);
+          
+          throw new Error('Token has expired. Please login again.');
+        }
+      }
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('expired')) {
+        throw e;
+      }
+      console.warn('⚠️ Could not decode JWT token for expiration check');
+    }
+  }
   
   // Build headers with token and enterprise/clinic if available
   const headers: Record<string, string> = {
@@ -74,7 +113,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     
     // Log unauthorized errors
     if (res.status === 401 || res.status === 403) {
-      console.error('🚫 UNAUTHORIZED/FORBIDDEN - Check token or permissions');
+      console.error('🚫 UNAUTHORIZED/FORBIDDEN - Token may be expired or invalid');
       
       const token = getAuthToken();
       const selected = getSelectedAccess();
@@ -92,6 +131,12 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
             const isExpired = decoded.exp < now;
             if (isExpired) {
               console.error('⚠️ Token is EXPIRED - Triggering token expiry modal');
+              // Clear tokens
+              sessionStorage.removeItem('authToken');
+              sessionStorage.removeItem('selectedAccess');
+              localStorage.removeItem('authToken');
+              localStorage.removeItem('selectedAccess');
+              
               // Store current location and trigger modal
               const currentLocation = window.location.pathname;
               sessionStorage.setItem('tokenExpiryLocation', currentLocation);

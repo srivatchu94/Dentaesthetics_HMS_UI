@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getFullPatientProfile, getDoctorsByClinicID } from "../api/hmsApi";
 
 export function AppointmentListModal({
   show,
@@ -501,6 +502,92 @@ export function CreateAppointmentModal({
   onClinicChange,
   onEnterpriseChange
 }) {
+  const [patientAutoFillLoading, setPatientAutoFillLoading] = useState(false);
+  const [lastPatientIdFetched, setLastPatientIdFetched] = useState(null);
+  const [fetchedDoctors, setFetchedDoctors] = useState([]);
+  const [doctorLoadingClinicId, setDoctorLoadingClinicId] = useState(null);
+
+  // Fetch doctors when clinic changes
+  useEffect(() => {
+    if (!form.clinicId || form.clinicId === "" || form.clinicId === doctorLoadingClinicId) {
+      return;
+    }
+
+    const fetchDoctors = async () => {
+      setDoctorLoadingClinicId(form.clinicId);
+      try {
+        const clinicId = parseInt(form.clinicId);
+        console.log("🏥 Fetching doctors for clinic ID:", clinicId);
+        
+        const doctorsList = await getDoctorsByClinicID(clinicId);
+        console.log("✅ Doctors fetched:", doctorsList);
+        
+        setFetchedDoctors(Array.isArray(doctorsList) ? doctorsList : []);
+        console.log("✅ Doctors list updated:", Array.isArray(doctorsList) ? doctorsList.length : 0, "doctors found");
+      } catch (err) {
+        console.error("❌ Error fetching doctors:", err);
+        setFetchedDoctors([]);
+      }
+    };
+
+    fetchDoctors();
+  }, [form.clinicId]);
+
+  // Auto-fill patient details when patientId is entered
+  useEffect(() => {
+    if (!form.patientId || form.patientId === "" || form.patientId === lastPatientIdFetched) {
+      return;
+    }
+
+    const fetchPatientDetails = async () => {
+      setPatientAutoFillLoading(true);
+      try {
+        const patientId = parseInt(form.patientId);
+        console.log("🔍 Fetching patient details for ID:", patientId);
+        
+        const patientData = await getFullPatientProfile(patientId);
+        console.log("✅ Patient data fetched:", patientData);
+        
+        // Handle array response from API
+        let response = patientData;
+        if (Array.isArray(patientData) && patientData.length > 0) {
+          response = patientData[0];
+        }
+        
+        const patientInfo = response.patient || response;
+        const contactInfo = response.patientContact || {};
+        
+        console.log("📋 Extracted patient info:", patientInfo);
+        console.log("📞 Extracted contact info - Full object:", contactInfo);
+        console.log("📞 Phone field name possibilities - patientPhone:", contactInfo.patientPhone, "phone:", contactInfo.phone, "mobileNumber:", contactInfo.mobileNumber);
+        console.log("📧 Email field name possibilities - patientEmail:", contactInfo.patientEmail, "email:", contactInfo.email);
+        
+        // Try multiple field names for phone and email as API might return different field names
+        const phoneNumber = contactInfo.patientPhone || contactInfo.phone || contactInfo.mobileNumber || "";
+        const email = contactInfo.patientEmail || contactInfo.email || "";
+        
+        // Auto-fill the form with patient data
+        setForm(prevForm => ({
+          ...prevForm,
+          firstName: patientInfo.patientFirstName || prevForm.firstName,
+          lastName: patientInfo.patientLastName || prevForm.lastName,
+          phoneNumber: phoneNumber || prevForm.phoneNumber,
+          email: email || prevForm.email
+        }));
+        
+        setLastPatientIdFetched(patientId);
+        console.log("✅ Auto-fill complete - firstName:", patientInfo.patientFirstName, "lastName:", patientInfo.patientLastName, "phone:", phoneNumber, "email:", email);
+      } catch (err) {
+        console.error("❌ Error fetching patient details:", err);
+        // Don't show error in UI, just log it - patient can still enter details manually
+      } finally {
+        setPatientAutoFillLoading(false);
+      }
+    };
+
+    fetchPatientDetails();
+  }, [form.patientId]);
+
   if (!show) return null;
 
   const tabs = [
@@ -668,20 +755,23 @@ export function CreateAppointmentModal({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Patient ID *</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Patient ID * {patientAutoFillLoading && <span className="text-amber-500 ml-2">🔄 Loading patient details...</span>}
+                  </label>
                   <input
                     type="number"
                     value={form.patientId}
                     onChange={(e) => setForm({ ...form, patientId: e.target.value })}
                     className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
-                    placeholder="Patient ID"
+                    placeholder="Enter patient ID - details will auto-fill"
                     required
                   />
+                  {patientAutoFillLoading && <p className="text-xs text-amber-600 mt-1">⏳ Fetching patient information...</p>}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Doctor</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Doctor (from available appointments)</label>
                     <select
                       value={form.doctorId || ""}
                       onChange={(e) => {
@@ -706,14 +796,29 @@ export function CreateAppointmentModal({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Attending Physician</label>
-                    <input
-                      type="text"
-                      value={form.attendingPhysician}
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Attending Physician (from clinic doctors)</label>
+                    <select
+                      value={form.attendingPhysician || ""}
                       onChange={(e) => setForm({ ...form, attendingPhysician: e.target.value })}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
-                      placeholder="Physician name"
-                    />
+                      disabled={!form.clinicId || fetchedDoctors.length === 0}
+                    >
+                      <option value="">
+                        {!form.clinicId ? "Please select Clinic first" : fetchedDoctors.length === 0 ? "No doctors available" : "Select Attending Physician (optional)"}
+                      </option>
+                      {fetchedDoctors && fetchedDoctors.length > 0 ? (
+                        fetchedDoctors.map((doc) => {
+                          const doctorName = doc.name || doc.doctorName || `${doc.firstName || ""} ${doc.lastName || ""}`.trim() || `Doctor ${doc.doctorId}`;
+                          return (
+                            <option key={doc.doctorId || doc.name} value={doctorName}>
+                              {doctorName}
+                            </option>
+                          );
+                        })
+                      ) : (
+                        form.clinicId && <option disabled>Loading doctors...</option>
+                      )}
+                    </select>
                   </div>
                 </div>
 
