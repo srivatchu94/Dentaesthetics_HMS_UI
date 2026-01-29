@@ -496,7 +496,11 @@ export function searchPatients(params: {
   if (params.lastName) queryParams.append('lastName', params.lastName);
   if (params.dob) queryParams.append('dob', params.dob);
   
-  return request<any[]>(`/Patient/Patientsearch?${queryParams.toString()}`)
+  const endpoint = `/Patient/Patientsearch?${queryParams.toString()}`;
+  const fullUrl = `${BASE_URL}${endpoint}`;
+  console.log('🔗 FULL PATIENT SEARCH URL:', fullUrl);
+  
+  return request<any[]>(endpoint)
     .then(data => {
       console.log('✅ PATIENTS FETCHED SUCCESSFULLY:', data);
       return data;

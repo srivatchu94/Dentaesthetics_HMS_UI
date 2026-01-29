@@ -278,6 +278,8 @@ export default function ViewPatients() {
       // Remove undefined values
       Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
+      console.log('🔍 PATIENT SEARCH INITIATED with filters:', filterData);
+      console.log('📝 Cleaned params:', params);
       const results = await searchPatients(params);
       console.log('📋 API SEARCH RESULTS:', results);
       console.log('📋 First result structure:', results?.[0]);
