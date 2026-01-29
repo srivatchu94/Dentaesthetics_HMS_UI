@@ -55,6 +55,11 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
           sessionStorage.setItem('tokenExpiryLocation', currentLocation);
           tokenExpiryEmitter.emit(currentLocation);
           
+          // Force redirect to login page
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 500);
+          
           throw new Error('Token has expired. Please login again.');
         }
       }
@@ -141,6 +146,11 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
               const currentLocation = window.location.pathname;
               sessionStorage.setItem('tokenExpiryLocation', currentLocation);
               tokenExpiryEmitter.emit(currentLocation);
+              
+              // Force redirect to login page
+              setTimeout(() => {
+                window.location.href = '/login';
+              }, 500);
             }
           }
         } catch (e) {
