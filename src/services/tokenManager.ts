@@ -47,6 +47,79 @@ let memoryTokenExpiry: string | null = null;
 // ============================================
 
 /**
+ * Decode JWT token and show all claims
+ */
+export const decodeAndLogTokenClaims = (token: string): any => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      console.error('❌ Invalid JWT format - Expected 3 parts, got', parts.length);
+      return null;
+    }
+    
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    
+    const decoded = JSON.parse(jsonPayload);
+    
+    console.log('🔓 ==================== JWT TOKEN CLAIMS ====================');
+    console.log('📋 Full Claims Payload:');
+    console.log(JSON.stringify(decoded, null, 2));
+    
+    console.log('\n🔍 KEY CLAIMS:');
+    console.log(`   sub (Subject/User): ${decoded.sub || '[NOT FOUND]'}`);
+    console.log(`   iss (Issuer): ${decoded.iss || '[NOT FOUND]'}`);
+    console.log(`   aud (Audience): ${decoded.aud || '[NOT FOUND]'}`);
+    console.log(`   exp (Expiration): ${decoded.exp || '[NOT FOUND]'}`);
+    console.log(`   iat (Issued At): ${decoded.iat || '[NOT FOUND]'}`);
+    console.log(`   userId: ${decoded.userId || '[NOT FOUND]'}`);
+    console.log(`   username: ${decoded.username || '[NOT FOUND]'}`);
+    
+    // Look for role-related claims
+    console.log('\n👤 ROLE-RELATED CLAIMS:');
+    const roleKeys = Object.keys(decoded).filter(key => 
+      key.toLowerCase().includes('role') || 
+      key.toLowerCase().includes('permission') ||
+      key.toLowerCase().includes('access')
+    );
+    
+    if (roleKeys.length > 0) {
+      roleKeys.forEach(key => {
+        console.log(`   ${key}: ${JSON.stringify(decoded[key])}`);
+      });
+    } else {
+      console.warn('   ⚠️ NO ROLE/PERMISSION CLAIMS FOUND IN TOKEN');
+    }
+    
+    // Look for enterprise/clinic claims
+    console.log('\n🏢 ENTERPRISE/CLINIC CLAIMS:');
+    const accessKeys = Object.keys(decoded).filter(key => 
+      key.toLowerCase().includes('enterprise') || 
+      key.toLowerCase().includes('clinic') ||
+      key.toLowerCase().includes('company')
+    );
+    
+    if (accessKeys.length > 0) {
+      accessKeys.forEach(key => {
+        console.log(`   ${key}: ${JSON.stringify(decoded[key])}`);
+      });
+    } else {
+      console.warn('   ⚠️ NO ENTERPRISE/CLINIC CLAIMS FOUND IN TOKEN');
+    }
+    
+    console.log('🔓 ============================================================\n');
+    
+    return decoded;
+  } catch (error) {
+    console.error('❌ Failed to decode JWT token:', error);
+    return null;
+  }
+};
+
+/**
  * Save access token using hybrid strategy:
  * 1. Store in MEMORY first (fastest access)
  * 2. Backup in sessionStorage (survives page refresh)
@@ -67,6 +140,9 @@ export const saveAccessToken = (token: string, expiryTime: string): void => {
     console.log('   Storage locations:');
     console.log('      🧠 Memory: Active (fast access)');
     console.log('      📋 SessionStorage: Backup (persists on page refresh)');
+    
+    // Decode and show full claims
+    decodeAndLogTokenClaims(token);
     
     // Decode and show expiry info
     try {

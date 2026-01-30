@@ -12,6 +12,7 @@ import {
   isTokenExpired,
   saveSessionMetadata,
   getSessionMetadata,
+  decodeAndLogTokenClaims,
   STORAGE_KEYS
 } from './tokenManager';
 
