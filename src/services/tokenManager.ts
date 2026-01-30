@@ -192,7 +192,15 @@ export const getUserData = (): any | null => {
 export const saveUserAccess = (access: any[]): void => {
   try {
     localStorage.setItem(USER_ACCESS_LS_KEY, JSON.stringify(access));
-    console.log('✅ User access rights saved to localStorage');
+    console.log('✅ USER ACCESS RIGHTS SAVED TO LOCALSTORAGE:');
+    if (access && access.length > 0) {
+      console.log(`   Total access configurations: ${access.length}`);
+      access.forEach((item, idx) => {
+        console.log(`   Access #${idx + 1}: Enterprise=${item.enterpriseId}, Clinic=${item.clinicId}, Roles=${item.roleIds ? item.roleIds.join(',') : 'NONE'}`);
+      });
+    } else {
+      console.warn('   ⚠️ No access configurations found');
+    }
   } catch (error) {
     console.error('❌ Failed to save user access:', error);
   }
@@ -204,7 +212,16 @@ export const saveUserAccess = (access: any[]): void => {
 export const getUserAccess = (): any[] => {
   try {
     const data = localStorage.getItem(USER_ACCESS_LS_KEY);
-    return data ? JSON.parse(data) : [];
+    const access = data ? JSON.parse(data) : [];
+    if (access.length > 0) {
+      console.log('✅ USER ACCESS RETRIEVED FROM LOCALSTORAGE:');
+      access.forEach((item, idx) => {
+        console.log(`   Access #${idx + 1}: Enterprise=${item.enterpriseId}, Clinic=${item.clinicId}, Roles=${item.roleIds ? item.roleIds.join(',') : 'NONE'}`);
+      });
+    } else {
+      console.warn('⚠️ NO USER ACCESS FOUND IN LOCALSTORAGE');
+    }
+    return access;
   } catch (error) {
     console.error('❌ Failed to get user access:', error);
     return [];
@@ -218,7 +235,11 @@ export const saveSelectedAccess = (enterpriseId: number, clinicId: number, roleI
   try {
     const selectedAccess = { enterpriseId, clinicId, roleIds };
     localStorage.setItem(SELECTED_ACCESS_LS_KEY, JSON.stringify(selectedAccess));
-    console.log('🏢 Selected access saved to localStorage: Enterprise ' + enterpriseId + ', Clinic ' + clinicId);
+    console.log('🏢 SELECTED ACCESS SAVED TO LOCALSTORAGE:');
+    console.log(`   Enterprise: ${enterpriseId}`);
+    console.log(`   Clinic: ${clinicId}`);
+    console.log(`   Roles: ${roleIds && roleIds.length > 0 ? roleIds.join(', ') : 'NONE'}`);
+    console.log(`   Number of roles: ${roleIds?.length || 0}`);
   } catch (error) {
     console.error('❌ Failed to save selected access:', error);
   }
@@ -230,7 +251,17 @@ export const saveSelectedAccess = (enterpriseId: number, clinicId: number, roleI
 export const getSelectedAccess = (): { enterpriseId: number; clinicId: number; roleIds: number[] } | null => {
   try {
     const data = localStorage.getItem(SELECTED_ACCESS_LS_KEY);
-    return data ? JSON.parse(data) : null;
+    const selected = data ? JSON.parse(data) : null;
+    if (selected) {
+      console.log('🏢 SELECTED ACCESS RETRIEVED FROM LOCALSTORAGE:');
+      console.log(`   Enterprise: ${selected.enterpriseId}`);
+      console.log(`   Clinic: ${selected.clinicId}`);
+      console.log(`   Roles: ${selected.roleIds && selected.roleIds.length > 0 ? selected.roleIds.join(', ') : 'NONE'}`);
+      console.log(`   Number of roles: ${selected.roleIds?.length || 0}`);
+    } else {
+      console.warn('⚠️ NO SELECTED ACCESS FOUND IN LOCALSTORAGE - User must select access');
+    }
+    return selected;
   } catch (error) {
     console.error('❌ Failed to get selected access:', error);
     return null;

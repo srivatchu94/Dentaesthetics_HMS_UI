@@ -113,24 +113,30 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   if (selectedAccess) {
     headers['X-Enterprise-Id'] = selectedAccess.enterpriseId.toString();
     headers['X-Clinic-Id'] = selectedAccess.clinicId.toString();
-    console.log(`🏢 Added headers: Enterprise=${selectedAccess.enterpriseId}, Clinic=${selectedAccess.clinicId}`);
+    console.log(`🏢 ENTERPRISE & CLINIC HEADERS:`);
+    console.log(`   Enterprise ID: ${selectedAccess.enterpriseId}`);
+    console.log(`   Clinic ID: ${selectedAccess.clinicId}`);
     
     if (selectedAccess.roleIds && selectedAccess.roleIds.length > 0) {
       headers['X-Role-Ids'] = selectedAccess.roleIds.join(',');
-      console.log(`👤 Added header: Roles=${selectedAccess.roleIds.join(',')}`);
+      console.log(`👤 ROLE HEADERS:`);
+      console.log(`   Role IDs: ${selectedAccess.roleIds.join(', ')}`);
+      console.log(`   Number of roles: ${selectedAccess.roleIds.length}`);
+    } else {
+      console.warn(`⚠️ NO ROLES - User has no roles assigned for this access`);
     }
   } else {
-    console.warn('⚠️ NO SELECTED ACCESS - Enterprise/Clinic headers will NOT be sent');
+    console.error('❌ NO SELECTED ACCESS - Enterprise/Clinic/Role headers will NOT be sent - User cannot access API');
   }
   
   const fullUrl = `${BASE_URL}${path}`;
   console.log(`📞 API CALL: ${options.method || 'GET'} ${fullUrl}`);
-  console.log(`📋 Headers:`, {
+  console.log(`📋 REQUEST HEADERS:`, {
     'Content-Type': headers['Content-Type'],
     'Authorization': headers['Authorization'] ? 'Bearer [present]' : '[missing]',
     'X-Enterprise-Id': headers['X-Enterprise-Id'] || '[missing]',
     'X-Clinic-Id': headers['X-Clinic-Id'] || '[missing]',
-    'X-Role-Ids': headers['X-Role-Ids'] || '[missing]'
+    'X-Role-Ids': headers['X-Role-Ids'] || '[NO ROLES]'
   });
   
   let res;

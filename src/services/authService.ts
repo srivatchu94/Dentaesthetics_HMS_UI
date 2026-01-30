@@ -72,11 +72,38 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
     saveUserData({ username, userId });
     saveUserAccess(access);
     
+    // Log detailed access and role information
+    console.log('👥 ===== USER ACCESS & ROLES INFORMATION =====');
+    if (access && access.length > 0) {
+      console.log(`✅ User has ${access.length} access configuration(s):`);
+      access.forEach((accessItem, index) => {
+        console.log(`\n📍 Access #${index + 1}:`);
+        console.log(`   Enterprise ID: ${accessItem.enterpriseId}`);
+        console.log(`   Clinic ID: ${accessItem.clinicId}`);
+        console.log(`   Role IDs: ${accessItem.roleIds && accessItem.roleIds.length > 0 ? accessItem.roleIds.join(', ') : 'NONE'}`);
+        console.log(`   Number of roles: ${accessItem.roleIds?.length || 0}`);
+        if (accessItem.roleIds && accessItem.roleIds.length > 0) {
+          console.log(`   Role details:`);
+          accessItem.roleIds.forEach((roleId, roleIndex) => {
+            console.log(`      Role ${roleIndex + 1}: ID = ${roleId}`);
+          });
+        }
+      });
+    } else {
+      console.warn('⚠️ NO ACCESS CONFIGURATIONS - User has no roles/permissions!');
+    }
+    console.log('👥 ============================================\n');
+    
     // Auto-select first access if available (including roleIds)
     if (access && access.length > 0) {
       const firstAccess = access[0];
-      console.log('🎯 Auto-selecting first access: Enterprise', firstAccess.enterpriseId, 'Clinic', firstAccess.clinicId);
+      console.log('🎯 Auto-selecting first access:');
+      console.log(`   Enterprise: ${firstAccess.enterpriseId}`);
+      console.log(`   Clinic: ${firstAccess.clinicId}`);
+      console.log(`   Roles: ${firstAccess.roleIds && firstAccess.roleIds.length > 0 ? firstAccess.roleIds.join(', ') : 'NONE'}`);
       saveSelectedAccess(firstAccess.enterpriseId, firstAccess.clinicId, firstAccess.roleIds);
+    } else {
+      console.error('❌ CRITICAL: No access found - User cannot perform any actions');
     }
     
     // Save session timeout settings
