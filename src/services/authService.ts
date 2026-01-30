@@ -51,15 +51,22 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
   try {
     const { accessToken, refreshToken, username, userId, access, accessTokenExpiresAt, refreshTokenExpiresAt, inactivityTimeoutMinutes, maxSessionDurationHours } = loginResponse;
     
+    console.log('🔐 ==================== SAVING AUTHENTICATION TOKENS ====================');
+    console.log('📝 Login Response Keys:', Object.keys(loginResponse));
+    console.log('👤 User:', username, '(ID:', userId, ')');
+    console.log('🏢 Access Count:', access?.length || 0);
+    
     // 🧠 Save ACCESS TOKEN using HYBRID strategy
     // Primary: Memory (fastest, XSS protected)
     // Fallback: SessionStorage (survives page refresh, cleared on tab close)
+    console.log('💾 Saving access token...');
     saveAccessToken(accessToken, accessTokenExpiresAt);
     
     // 🍪 REFRESH TOKEN - Already handled by Backend
     // Backend sends: Set-Cookie: refreshToken=...; HttpOnly; Secure; SameSite=Strict
     // This is the MOST SECURE way - frontend doesn't touch it
     console.log('✅ Refresh Token set as HttpOnly Cookie (Backend managed, XSS protected)');
+    console.log('   Refresh Token expires at:', refreshTokenExpiresAt);
     
     // 💾 Save NON-SENSITIVE user data to localStorage (persists across sessions)
     saveUserData({ username, userId });
@@ -68,6 +75,7 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
     // Auto-select first access if available (including roleIds)
     if (access && access.length > 0) {
       const firstAccess = access[0];
+      console.log('🎯 Auto-selecting first access: Enterprise', firstAccess.enterpriseId, 'Clinic', firstAccess.clinicId);
       saveSelectedAccess(firstAccess.enterpriseId, firstAccess.clinicId, firstAccess.roleIds);
     }
     
@@ -77,7 +85,7 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
     // Track activity
     updateLastActivity();
     
-    console.log('✅ Session started successfully (HYBRID STORAGE)');
+    console.log('✅ SESSION STARTED SUCCESSFULLY (HYBRID STORAGE)');
     console.log('🧠 Access Token: Memory + SessionStorage (XSS protected)');
     console.log('🍪 Refresh Token: HttpOnly Cookie (Backend managed)');
     console.log('💾 User Data: localStorage (non-sensitive)');
@@ -85,6 +93,7 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
     console.log('🔄 Refresh Token expires at:', refreshTokenExpiresAt);
     console.log('⏱️ Inactivity timeout:', inactivityTimeoutMinutes, 'minutes');
     console.log('⏰ Max session duration:', maxSessionDurationHours, 'hours');
+    console.log('🔐 ======================================================================');
     
     // Start auto-refresh and inactivity monitoring
     startTokenRefreshTimer();
@@ -102,7 +111,11 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
  * Priority: Memory → SessionStorage → null
  */
 export const getAuthToken = (): string | null => {
-  return getAccessToken();
+  const token = getAccessToken();
+  if (!token) {
+    console.warn('⚠️ getAuthToken(): NO TOKEN FOUND - User is not authenticated');
+  }
+  return token;
 };
 
 /**

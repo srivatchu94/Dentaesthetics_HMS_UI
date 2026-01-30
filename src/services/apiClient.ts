@@ -30,6 +30,9 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   // Check if token is expired before making request
   if (token) {
     try {
+      console.log('🔍 Token Validation Starting...');
+      console.log('   Token (first 50 chars):', token.substring(0, 50) + '...');
+      
       const base64Url = token.split('.')[1];
       const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
       const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
@@ -37,16 +40,33 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
       }).join(''));
       const decoded = JSON.parse(jsonPayload);
       
+      console.log('✅ Token Decoded Successfully');
+      console.log('   Token Payload:', JSON.stringify(decoded, null, 2));
+      
       if (decoded.exp) {
         const now = Math.floor(Date.now() / 1000);
         const expirationTime = new Date(decoded.exp * 1000).toISOString();
-        console.log(`🔐 Token Check: Expires at ${expirationTime}, Current time: ${new Date().toISOString()}`);
+        const currentTime = new Date().toISOString();
+        const timeRemaining = decoded.exp - now;
+        
+        console.log(`⏰ TOKEN EXPIRY DETAILS:`);
+        console.log(`   Token expires at: ${expirationTime}`);
+        console.log(`   Current server time: ${currentTime}`);
+        console.log(`   Token exp (unix): ${decoded.exp}`);
+        console.log(`   Current now (unix): ${now}`);
+        console.log(`   Time remaining: ${timeRemaining} seconds (${Math.floor(timeRemaining / 60)} minutes)`);
+        console.log(`   Time difference: ${decoded.exp - now} seconds`);
         
         if (decoded.exp < now) {
+          console.error('❌ TOKEN IS EXPIRED!');
+          console.error(`   Expired ${Math.abs(timeRemaining)} seconds ago`);
           console.error('⚠️ Token is EXPIRED - User needs to login again');
+          
           // Clear expired token
           sessionStorage.removeItem('authToken');
           sessionStorage.removeItem('selectedAccess');
+          sessionStorage.removeItem('accessToken_session');
+          sessionStorage.removeItem('accessTokenExpiry');
           localStorage.removeItem('authToken');
           localStorage.removeItem('selectedAccess');
           
@@ -61,14 +81,18 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
           }, 500);
           
           throw new Error('Token has expired. Please login again.');
+        } else {
+          console.log(`✅ TOKEN IS VALID - ${timeRemaining} seconds remaining`);
         }
       }
     } catch (e) {
       if (e instanceof Error && e.message.includes('expired')) {
         throw e;
       }
-      console.warn('⚠️ Could not decode JWT token for expiration check');
+      console.warn('⚠️ Could not decode JWT token for expiration check:', e);
     }
+  } else {
+    console.warn('⚠️ No token found in getAuthToken()');
   }
   
   // Build headers with token and enterprise/clinic if available
@@ -80,29 +104,44 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   // Add Authorization header if token exists
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+    console.log('📌 Authorization header added: Bearer [token present]');
+  } else {
+    console.warn('⚠️ NO TOKEN - Authorization header will NOT be sent');
   }
   
   // Add Enterprise, Clinic, and Role headers if selected
   if (selectedAccess) {
     headers['X-Enterprise-Id'] = selectedAccess.enterpriseId.toString();
     headers['X-Clinic-Id'] = selectedAccess.clinicId.toString();
+    console.log(`🏢 Added headers: Enterprise=${selectedAccess.enterpriseId}, Clinic=${selectedAccess.clinicId}`);
     
     if (selectedAccess.roleIds && selectedAccess.roleIds.length > 0) {
       headers['X-Role-Ids'] = selectedAccess.roleIds.join(',');
+      console.log(`👤 Added header: Roles=${selectedAccess.roleIds.join(',')}`);
     }
+  } else {
+    console.warn('⚠️ NO SELECTED ACCESS - Enterprise/Clinic headers will NOT be sent');
   }
   
-  console.log(`📞 API CALL: ${options.method || 'GET'} ${path}`);
+  const fullUrl = `${BASE_URL}${path}`;
+  console.log(`📞 API CALL: ${options.method || 'GET'} ${fullUrl}`);
+  console.log(`📋 Headers:`, {
+    'Content-Type': headers['Content-Type'],
+    'Authorization': headers['Authorization'] ? 'Bearer [present]' : '[missing]',
+    'X-Enterprise-Id': headers['X-Enterprise-Id'] || '[missing]',
+    'X-Clinic-Id': headers['X-Clinic-Id'] || '[missing]',
+    'X-Role-Ids': headers['X-Role-Ids'] || '[missing]'
+  });
   
   let res;
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
+    res = await fetch(fullUrl, {
       headers,
       ...options
     });
-    console.log(`✅ API RESPONSE: ${res.status} ${res.statusText}`);
+    console.log(`✅ API RESPONSE: ${res.status} ${res.statusText} for ${path}`);
   } catch (fetchError) {
-    console.error(`❌ API FAILED: Network error - ${fetchError}`);
+    console.error(`❌ API FAILED: Network error for ${path} - ${fetchError}`);
     throw fetchError;
   }
   

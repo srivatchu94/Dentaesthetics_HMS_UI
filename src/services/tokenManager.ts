@@ -62,10 +62,34 @@ export const saveAccessToken = (token: string, expiryTime: string): void => {
     sessionStorage.setItem(ACCESS_TOKEN_SS_KEY, token);
     sessionStorage.setItem(TOKEN_EXPIRY_SS_KEY, expiryTime);
     
-    console.log('✅ Access Token saved:');
-    console.log('   🧠 Memory: Active (fast access)');
-    console.log('   📋 SessionStorage: Backup (persists on page refresh)');
-    console.log('   ⏰ Expires: ' + expiryTime);
+    console.log('✅ ACCESS TOKEN SAVED SUCCESSFULLY:');
+    console.log('   Token (first 50 chars):', token.substring(0, 50) + '...');
+    console.log('   Storage locations:');
+    console.log('      🧠 Memory: Active (fast access)');
+    console.log('      📋 SessionStorage: Backup (persists on page refresh)');
+    
+    // Decode and show expiry info
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      const decoded = JSON.parse(jsonPayload);
+      
+      if (decoded.exp) {
+        const expiryDate = new Date(decoded.exp * 1000).toISOString();
+        const now = Math.floor(Date.now() / 1000);
+        const timeRemaining = decoded.exp - now;
+        console.log(`   ⏰ Expiration Details:`);
+        console.log(`      Expires at: ${expiryDate}`);
+        console.log(`      Unix timestamp: ${decoded.exp}`);
+        console.log(`      Time remaining: ${timeRemaining} seconds (${Math.floor(timeRemaining / 60)} minutes)`);
+      }
+    } catch (e) {
+      console.log('   ⏰ Expiry time: ' + expiryTime);
+    }
+    
     console.log('   🔒 Security: Protected from XSS via memory storage');
   } catch (error) {
     console.error('❌ Failed to save access token:', error);
@@ -82,6 +106,8 @@ export const getAccessToken = (): string | null => {
   try {
     // Primary: Check memory
     if (memoryAccessToken) {
+      console.log('✅ Token retrieved from MEMORY');
+      console.log('   Token (first 50 chars):', memoryAccessToken.substring(0, 50) + '...');
       return memoryAccessToken;
     }
     
@@ -90,12 +116,19 @@ export const getAccessToken = (): string | null => {
     if (sessionToken) {
       // Restore to memory for faster subsequent access
       memoryAccessToken = sessionToken;
-      console.log('🔄 Access Token restored from sessionStorage to memory');
+      console.log('🔄 Token retrieved from SESSIONSSTORAGE and restored to memory');
+      console.log('   Token (first 50 chars):', sessionToken.substring(0, 50) + '...');
+      
+      // Also check expiry
+      const expiry = sessionStorage.getItem(TOKEN_EXPIRY_SS_KEY);
+      console.log('   Expiry time:', expiry);
+      
       return sessionToken;
     }
     
     // No token found - user needs to login
-    console.warn('⚠️ No access token found in memory or sessionStorage');
+    console.warn('❌ NO TOKEN FOUND - neither in memory nor in sessionStorage');
+    console.warn('   User needs to login again');
     return null;
   } catch (error) {
     console.error('❌ Failed to get access token:', error);
@@ -266,14 +299,24 @@ export const getTokenExpiry = (): string | null => {
 export const isTokenExpired = (): boolean => {
   try {
     const expiry = getTokenExpiry();
-    if (!expiry) return true; // No token = expired
+    if (!expiry) {
+      console.warn('⏰ No token expiry time found - assuming token is expired');
+      return true; // No token = expired
+    }
     
     const expiryTime = new Date(expiry).getTime();
     const now = Date.now();
+    const timeRemaining = expiryTime - now;
     const isExpired = now >= expiryTime;
     
+    console.log('🕐 TOKEN EXPIRY CHECK:');
+    console.log(`   Expiry time: ${new Date(expiryTime).toISOString()}`);
+    console.log(`   Current time: ${new Date(now).toISOString()}`);
+    console.log(`   Time remaining: ${Math.floor(timeRemaining / 1000)} seconds`);
+    console.log(`   Status: ${isExpired ? '❌ EXPIRED' : '✅ VALID'}`);
+    
     if (isExpired) {
-      console.warn('⏰ Access token is expired');
+      console.warn('⏰ Access token is expired - user should be logged out');
     }
     return isExpired;
   } catch (error) {
