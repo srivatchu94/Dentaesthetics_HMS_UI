@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getFullPatientProfile, getDoctorsByClinicID } from "../api/hmsApi";
+import { getFullPatientProfile, getDoctorsByClinicID, updateFullPatientProfile } from "../api/hmsApi";
+import { getAuthToken } from "../services/authService";
 
 export function AppointmentListModal({
   show,
@@ -500,8 +501,164 @@ export function CreateAppointmentModal({
   clinics,
   doctors = [],
   onClinicChange,
-  onEnterpriseChange
+  onEnterpriseChange,
+  showPayloadPreview,
+  setShowPayloadPreview,
+  previewPayload
 }) {
+  const [searchPhone, setSearchPhone] = useState("");
+  const [searchFirstName, setSearchFirstName] = useState("");
+  const [searchLastName, setSearchLastName] = useState("");
+  const [searchingPatient, setSearchingPatient] = useState(false);
+  const [patientSearchResult, setPatientSearchResult] = useState(null);
+  const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+
+  // Search patient by first name or last name
+  const handleSearchPatient = async () => {
+    if ((!searchFirstName && !searchLastName) || !form.enterpriseId || !form.clinicId) {
+      return;
+    }
+
+    try {
+      setSearchingPatient(true);
+      console.log("🔍 Searching patient with:", { firstName: searchFirstName, lastName: searchLastName, clinicId: form.clinicId });
+      
+      // Get fresh token using the app's auth service
+      const token = getAuthToken();
+      if (!token) {
+        console.error("❌ No access token found");
+        alert("Authentication required. Please log in again.");
+        return;
+      }
+      
+      // Build query parameters - ensure clinicId is a number
+      const params = new URLSearchParams();
+      
+      // Convert clinicId to number
+      const clinicIdNum = parseInt(form.clinicId);
+      if (!isNaN(clinicIdNum)) {
+        params.append('clinicId', clinicIdNum.toString());
+      }
+      
+      // Only append firstName/lastName if they have content
+      if (searchFirstName && searchFirstName.trim()) {
+        params.append('firstName', searchFirstName.trim());
+      }
+      if (searchLastName && searchLastName.trim()) {
+        params.append('lastName', searchLastName.trim());
+      }
+      
+      const url = `${API_BASE_URL}/Patient/Patientsearch?${params.toString()}`;
+      console.log("📞 API Call URL:", url);
+      console.log("📋 Query Params:", {
+        clinicId: clinicIdNum,
+        firstName: searchFirstName.trim(),
+        lastName: searchLastName.trim()
+      });
+      console.log("📋 Request Headers:", {
+        "X-Enterprise-Id": form.enterpriseId,
+        "X-Clinic-Id": form.clinicId
+      });
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+          "X-Enterprise-Id": form.enterpriseId,
+          "X-Clinic-Id": form.clinicId
+        }
+      });
+
+      console.log("📡 Response status:", response.status);
+
+      if (response.status === 401) {
+        console.error("❌ Unauthorized - Token may be expired");
+        alert("Your session has expired. Please log in again.");
+        window.location.href = '/login';
+        return;
+      }
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Patient search result:", data);
+        console.log("📊 Is array:", Array.isArray(data));
+        console.log("📊 Data length:", data?.length);
+        console.log("📊 First item:", Array.isArray(data) ? data[0] : data);
+        
+        // Handle response - could be array or single object
+        let patient = null;
+        
+        if (Array.isArray(data) && data.length > 0) {
+          patient = data[0];
+        } else if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+          patient = data;
+        }
+        
+        console.log("🎯 Patient to use:", patient);
+        
+        if (patient && (patient.patientId || patient.patientID || patient.id)) {
+          setPatientSearchResult(patient);
+          
+          // Auto-fill form with all available patient details
+          setForm(prevForm => ({
+            ...prevForm,
+            patientId: patient.patientId || patient.patientID || patient.id || "",
+            firstName: patient.patientFirstName || patient.firstName || "",
+            lastName: patient.patientLastName || patient.lastName || "",
+            phoneNumber: patient.patientPhone || patient.phone || patient.phoneNumber || patient.mobileNumber || prevForm.phoneNumber,
+            email: patient.patientEmail || patient.email || patient.emailAddress || prevForm.email
+          }));
+          
+          console.log("✅ Form auto-filled with patient data");
+        } else {
+          console.warn("⚠️ No valid patient data found in response");
+          setPatientSearchResult(null);
+          // Keep search terms but clear other fields
+          setForm(prevForm => ({
+            ...prevForm,
+            patientId: "",
+            firstName: searchFirstName || "",
+            lastName: searchLastName || "",
+            phoneNumber: "",
+            email: ""
+          }));
+        }
+      } else {
+        const errorText = await response.text();
+        console.warn("⚠️ Patient not found, status:", response.status);
+        console.warn("⚠️ Error response:", errorText);
+        
+        if (response.status === 400) {
+          try {
+            const errorData = JSON.parse(errorText);
+            console.error("❌ Bad Request Error:", errorData);
+            alert(`Search failed: ${errorData.message || errorData.title || 'Invalid search parameters'}`);
+          } catch {
+            console.error("❌ Bad Request - Raw error:", errorText);
+            alert(`Search failed: ${errorText || 'Invalid search parameters. Please check your input.'}`);
+          }
+        }
+        
+        setPatientSearchResult(null);
+        // Clear patient-related fields
+        setForm(prevForm => ({
+          ...prevForm,
+          patientId: "",
+          firstName: searchFirstName || "",
+          lastName: searchLastName || "",
+          phoneNumber: "",
+          email: ""
+        }));
+      }
+    } catch (error) {
+      console.error("❌ Error searching patient:", error);
+      setPatientSearchResult(null);
+    } finally {
+      setSearchingPatient(false);
+    }
+  };
+
   const [patientAutoFillLoading, setPatientAutoFillLoading] = useState(false);
   const [lastPatientIdFetched, setLastPatientIdFetched] = useState(null);
   const [fetchedDoctors, setFetchedDoctors] = useState([]);
@@ -609,7 +766,7 @@ export function CreateAppointmentModal({
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
-        className="relative max-w-2xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+        className="relative max-w-5xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[95vh] flex flex-col"
       >
         {/* Header */}
         <div className="bg-gradient-to-r from-rose-500 to-pink-500 p-6 text-white flex items-center justify-between">
@@ -624,8 +781,82 @@ export function CreateAppointmentModal({
           </button>
         </div>
 
+        {/* Patient Search Section */}
+        <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
+          <h3 className="text-sm font-bold text-blue-900 mb-3">🔍 Search Existing Patient (Optional)</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs font-semibold text-blue-800 mb-1">First Name</label>
+              <input
+                type="text"
+                value={searchFirstName}
+                onChange={(e) => setSearchFirstName(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearchPatient()}
+                placeholder="Enter first name"
+                disabled={!form.enterpriseId || !form.clinicId}
+                className="w-full px-3 py-2 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed text-sm"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-xs font-semibold text-blue-800 mb-1">Last Name</label>
+              <input
+                type="text"
+                value={searchLastName}
+                onChange={(e) => setSearchLastName(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearchPatient()}
+                placeholder="Enter last name"
+                disabled={!form.enterpriseId || !form.clinicId}
+                className="w-full px-3 py-2 rounded-lg border border-blue-200 focus:ring-2 focus:ring-blue-400 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed text-sm"
+              />
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            {(!form.enterpriseId || !form.clinicId) && (
+              <p className="text-xs text-blue-700">Select Enterprise and Clinic first</p>
+            )}
+            <button
+              onClick={handleSearchPatient}
+              disabled={(!searchFirstName && !searchLastName) || searchingPatient || !form.enterpriseId || !form.clinicId}
+              className="px-6 py-2 rounded-lg bg-blue-500 text-white font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {searchingPatient ? "Searching..." : "Search Patient"}
+            </button>
+            {(searchFirstName || searchLastName) && (
+              <button
+                onClick={() => {
+                  setSearchPhone("");
+                  setSearchFirstName("");
+                  setSearchLastName("");
+                  setPatientSearchResult(null);
+                }}
+                className="px-4 py-2 rounded-lg bg-slate-200 text-slate-700 font-medium hover:bg-slate-300 transition-colors text-sm"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          
+          {patientSearchResult && (
+            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-800">
+                ✅ Patient found: {patientSearchResult.patientFirstName || patientSearchResult.firstName} {patientSearchResult.patientLastName || patientSearchResult.lastName}
+              </p>
+            </div>
+          )}
+          {(searchFirstName || searchLastName) && !searchingPatient && !patientSearchResult && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm text-amber-800">
+                ℹ️ No existing patient found. Fill in the details below to create a walk-in appointment.
+              </p>
+            </div>
+          )}
+        </div>
+
         {/* Tabs */}
-        <div className="flex gap-2 p-4 border-b border-slate-200 overflow-x-auto">
+        <div className="flex gap-2 p-4 border-b border-slate-200">
           {tabs.map((tab) => (
             <button
               key={tab.key}
@@ -1019,6 +1250,25 @@ export function CreateAppointmentModal({
                 </div>
               </div>
             )}
+
+            {/* Payload Preview */}
+            {showPayloadPreview && previewPayload && (
+              <div className="mt-6 p-4 bg-slate-100 rounded-lg border border-slate-300">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-lg font-semibold text-slate-700">📋 Payload Preview</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowPayloadPreview(false)}
+                    className="text-slate-500 hover:text-slate-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <pre className="text-xs bg-white p-3 rounded border border-slate-200 overflow-auto max-h-96 text-slate-800">
+                  {JSON.stringify(previewPayload(), null, 2)}
+                </pre>
+              </div>
+            )}
           </form>
         </div>
 
@@ -1030,6 +1280,15 @@ export function CreateAppointmentModal({
           >
             Cancel
           </button>
+          {previewPayload && (
+            <button
+              type="button"
+              onClick={() => setShowPayloadPreview(!showPayloadPreview)}
+              className="flex-1 px-6 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold hover:shadow-lg transition-all"
+            >
+              {showPayloadPreview ? "Hide Preview" : "Preview Payload"}
+            </button>
+          )}
           <button
             onClick={onSubmit}
             disabled={loading}
@@ -1467,44 +1726,166 @@ export function CreatePatientModal({
   console.log("🔍 CreatePatientModal - Enterprises count:", enterprises?.length);
   console.log("🔍 CreatePatientModal - Clinics received:", clinics);
 
-  const [showPayloadPreview, setShowPayloadPreview] = useState(false);
+  const [phoneErrors, setPhoneErrors] = useState({
+    phoneNumber: "",
+    alternatePhone: "",
+    emergencyContactPhone: "",
+    insurancePhone: ""
+  });
 
-  const previewPayload = {
-    patient: {
-      patientId: 0,
-      patientEntityID: "",
-      patientFirstName: form.firstName,
-      patientLastName: form.lastName,
-      patientDOB: form.dateOfBirth || new Date().toISOString(),
-      patientGender: form.gender || "",
-      patientBloodType: form.bloodGroup || "",
-      clinicID: form.clinicId || ""
-    },
-    patientContact: {
-      patientId: 0,
-      patientAddress: `${form.addressLine1 || ""}${form.addressLine2 ? ", " + form.addressLine2 : ""}`,
-      patientCity: form.city || "",
-      patientPhone: form.phoneNumber || "",
-      patientEmail: form.email || "",
-      patientEmergencyContact: form.emergencyContactName
-        ? `${form.emergencyContactName} - ${form.emergencyContactPhone} (${form.emergencyContactRelation})`
-        : ""
-    },
-    patientMedicalInfo: {
-      patientId: 0,
-      patientMedicalHistory: form.familyMedicalHistory || "",
-      patientAllergies: form.allergies || "",
-      patientCurrentMedications: form.currentMedications || "",
-      patientPrimaryPhysician: "",
-      no_of_visits: 0,
-      lastVisitedDate: form.lastDentalVisit || new Date().toISOString(),
-      chronicDiseases: form.chronicConditions || "",
-      medicalHistory: `Past Surgeries: ${form.pastSurgeries || "None"}; Smoking: ${form.smokingStatus || "Unknown"}; Alcohol: ${form.alcoholConsumption || "Unknown"}; Exercise: ${form.exerciseFrequency || "Unknown"}; Diet: ${form.dietaryRestrictions || "None"}; Notes: ${form.additionalMedicalNotes || "None"}`
-    },
-    patientInsurance: {
-      patientId: 0,
-      patientInsuranceProvider: form.insuranceProvider || ""
+  const [postalCodeError, setPostalCodeError] = useState("");
+  const [maritalStatusOptions, setMaritalStatusOptions] = useState([
+    { id: 1, value: "Single" },
+    { id: 2, value: "Married" },
+    { id: 3, value: "Divorced" }
+  ]);
+
+  // Fetch marital status options from API
+  useEffect(() => {
+    const fetchMaritalStatusOptions = async () => {
+      try {
+        const baseUrl = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+        const response = await fetch(`${baseUrl}/Master/GetMaritalStatuses`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setMaritalStatusOptions(data);
+            console.log("✅ Marital Status Options loaded:", data);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching marital status options:", error);
+        // Keep default options on error
+      }
+    };
+
+    if (show) {
+      fetchMaritalStatusOptions();
     }
+  }, [show]);
+
+  // Validate phone number format (10 digits)
+  const validatePhone = (phone, fieldName) => {
+    if (!phone) return ""; // Empty is OK
+    const digits = phone.replace(/\D/g, "");
+    
+    if (digits.length === 0) {
+      return ""; // Empty is OK
+    }
+    
+    if (digits.length < 10) {
+      return `${fieldName} must be at least 10 digits`;
+    }
+    
+    if (digits.length > 10) {
+      return `${fieldName} should not exceed 10 digits`;
+    }
+    
+    // Check for repeated digits like 0000000000
+    if (/^(.)\1+$/.test(digits)) {
+      return `Please enter a valid ${fieldName}`;
+    }
+    
+    return "";
+  };
+
+  // Validate postal code format (exactly 6 digits)
+  const validatePostalCode = (code) => {
+    if (!code) return ""; // Empty is OK
+    const digits = code.replace(/\D/g, "");
+    
+    if (digits.length === 0) {
+      return ""; // Empty is OK
+    }
+    
+    if (digits.length < 6) {
+      return "Postal Code must be exactly 6 digits";
+    }
+    
+    if (digits.length > 6) {
+      return "Postal Code should not exceed 6 digits";
+    }
+    
+    // Check for repeated digits like 000000
+    if (/^(.)\1+$/.test(digits)) {
+      return "Please enter a valid Postal Code";
+    }
+    
+    return "";
+  };
+
+  const handlePhoneChange = (field, value) => {
+    setForm({ ...form, [field]: value });
+    
+    let fieldLabel = field;
+    if (field === "phoneNumber") fieldLabel = "Phone Number";
+    if (field === "alternatePhone") fieldLabel = "Alternate Phone";
+    if (field === "emergencyContactPhone") fieldLabel = "Emergency Contact Phone";
+    if (field === "insurancePhone") fieldLabel = "Insurance Phone";
+    
+    const error = validatePhone(value, fieldLabel);
+    setPhoneErrors({ ...phoneErrors, [field]: error });
+  };
+
+  const handlePostalCodeChange = (value) => {
+    setForm({ ...form, postalCode: value });
+    const error = validatePostalCode(value);
+    setPostalCodeError(error);
+  };
+
+  // Handle date input - restrict year to 4 digits
+  const handleDateChange = (field, value) => {
+    if (!value) {
+      setForm({ ...form, [field]: value });
+      return;
+    }
+
+    // Parse the date string (format: YYYY-MM-DD)
+    const parts = value.split("-");
+    if (parts[0] && parts[0].length > 4) {
+      // Year has more than 4 digits, truncate it
+      const truncatedYear = parts[0].slice(0, 4);
+      const correctedValue = `${truncatedYear}-${parts[1] || "01"}-${parts[2] || "01"}`;
+      setForm({ ...form, [field]: correctedValue });
+    } else {
+      setForm({ ...form, [field]: value });
+    }
+  };
+
+  // Check if current tab has any validation errors
+  const canProceedToNextTab = () => {
+    // Only validate phone fields when on contact or insurance tabs
+    if (activeTab === "contact") {
+      const hasPhoneErrors = phoneErrors.phoneNumber || (form.alternatePhone && phoneErrors.alternatePhone) || (form.emergencyContactPhone && phoneErrors.emergencyContactPhone);
+      if (hasPhoneErrors) {
+        return false;
+      }
+      // Additional check for main phone number
+      if (!form.phoneNumber) {
+        setPhoneErrors({ ...phoneErrors, phoneNumber: "Phone Number is required" });
+        return false;
+      }
+      const phoneDigits = form.phoneNumber.replace(/\D/g, "");
+      if (phoneDigits.length !== 10) {
+        setPhoneErrors({ ...phoneErrors, phoneNumber: "Phone Number must be exactly 10 digits" });
+        return false;
+      }
+    }
+    
+    if (activeTab === "insurance") {
+      if (form.insurancePhone && phoneErrors.insurancePhone) {
+        return false;
+      }
+      if (form.postalCode && postalCodeError) {
+        return false;
+      }
+    }
+    
+    return true;
   };
 
   const tabs = [
@@ -1522,6 +1903,10 @@ export function CreatePatientModal({
   };
 
   const handleNextTab = () => {
+    if (!canProceedToNextTab()) {
+      return;
+    }
+    
     const tabKeys = tabs.map(t => t.key);
     const currentIndex = tabKeys.indexOf(activeTab);
     if (currentIndex < tabKeys.length - 1) {
@@ -1573,7 +1958,7 @@ export function CreatePatientModal({
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
+              className={`flex-1 min-w-0 px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
                 activeTab === tab.key
                   ? "bg-teal-500 text-white"
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -1673,7 +2058,7 @@ export function CreatePatientModal({
                     <input
                       type="date"
                       value={form.dateOfBirth}
-                      onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+                      onChange={(e) => handleDateChange("dateOfBirth", e.target.value)}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
                       required
                     />
@@ -1721,10 +2106,11 @@ export function CreatePatientModal({
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
                     >
                       <option value="">Select Marital Status</option>
-                      <option value="Single">Single</option>
-                      <option value="Married">Married</option>
-                      <option value="Divorced">Divorced</option>
-                      <option value="Widowed">Widowed</option>
+                      {maritalStatusOptions.map((option) => (
+                        <option key={option.id || option.value} value={option.value || option}>
+                          {option.value || option}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1754,25 +2140,31 @@ export function CreatePatientModal({
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">Phone Number *</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Phone Number * (10 digits)</label>
                       <input
                         type="tel"
                         value={form.phoneNumber}
-                        onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
-                        className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
-                        placeholder="+1 (555) 123-4567"
+                        onChange={(e) => handlePhoneChange("phoneNumber", e.target.value)}
+                        className={`w-full px-4 py-2 rounded-lg border ${phoneErrors.phoneNumber ? "border-red-400 focus:ring-red-400" : "border-slate-200 focus:ring-teal-400"} focus:ring-2 focus:border-transparent`}
+                        placeholder="10 digit phone number"
                         required
                       />
+                      {phoneErrors.phoneNumber && (
+                        <p className="text-red-600 text-sm mt-1">❌ {phoneErrors.phoneNumber}</p>
+                      )}
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">Alternate Phone</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Alternate Phone (10 digits)</label>
                       <input
                         type="tel"
                         value={form.alternatePhone}
-                        onChange={(e) => setForm({ ...form, alternatePhone: e.target.value })}
-                        className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
-                        placeholder="Optional"
+                        onChange={(e) => handlePhoneChange("alternatePhone", e.target.value)}
+                        className={`w-full px-4 py-2 rounded-lg border ${phoneErrors.alternatePhone ? "border-red-400 focus:ring-red-400" : "border-slate-200 focus:ring-teal-400"} focus:ring-2 focus:border-transparent`}
+                        placeholder="Optional - 10 digit phone number"
                       />
+                      {phoneErrors.alternatePhone && (
+                        <p className="text-red-600 text-sm mt-1">❌ {phoneErrors.alternatePhone}</p>
+                      )}
                     </div>
                   </div>
 
@@ -1841,11 +2233,12 @@ export function CreatePatientModal({
                         <input
                           type="text"
                           value={form.postalCode}
-                          onChange={(e) => setForm({ ...form, postalCode: e.target.value })}
-                          className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
-                          placeholder="12345"
+                          onChange={(e) => handlePostalCodeChange(e.target.value)}
+                          className={`w-full px-4 py-2 rounded-lg border ${postalCodeError ? "border-red-400" : "border-slate-200"} focus:ring-2 focus:ring-teal-400 focus:border-transparent`}
+                          placeholder="6 digit postal code"
                           required
                         />
+                        {postalCodeError && <p className="text-red-600 text-sm mt-1">❌ {postalCodeError}</p>}
                       </div>
                     </div>
 
@@ -1879,14 +2272,17 @@ export function CreatePatientModal({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">Phone</label>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Phone (10 digits)</label>
                       <input
                         type="tel"
                         value={form.emergencyContactPhone}
-                        onChange={(e) => setForm({ ...form, emergencyContactPhone: e.target.value })}
-                        className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
-                        placeholder="Emergency phone"
+                        onChange={(e) => handlePhoneChange("emergencyContactPhone", e.target.value)}
+                        className={`w-full px-4 py-2 rounded-lg border ${phoneErrors.emergencyContactPhone ? "border-red-400 focus:ring-red-400" : "border-slate-200 focus:ring-teal-400"} focus:ring-2 focus:border-transparent`}
+                        placeholder="10 digit phone number"
                       />
+                      {phoneErrors.emergencyContactPhone && (
+                        <p className="text-red-600 text-sm mt-1">❌ {phoneErrors.emergencyContactPhone}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-2">Relation</label>
@@ -2018,7 +2414,7 @@ export function CreatePatientModal({
                     <input
                       type="date"
                       value={form.lastDentalVisit}
-                      onChange={(e) => setForm({ ...form, lastDentalVisit: e.target.value })}
+                      onChange={(e) => handleDateChange("lastDentalVisit", e.target.value)}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
                     />
                   </div>
@@ -2068,14 +2464,17 @@ export function CreatePatientModal({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Insurance Phone</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Insurance Phone (10 digits)</label>
                     <input
                       type="tel"
                       value={form.insurancePhone}
-                      onChange={(e) => setForm({ ...form, insurancePhone: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
-                      placeholder="Insurance company phone"
+                      onChange={(e) => handlePhoneChange("insurancePhone", e.target.value)}
+                      className={`w-full px-4 py-2 rounded-lg border ${phoneErrors.insurancePhone ? "border-red-400 focus:ring-red-400" : "border-slate-200 focus:ring-teal-400"} focus:ring-2 focus:border-transparent`}
+                      placeholder="10 digit phone number"
                     />
+                    {phoneErrors.insurancePhone && (
+                      <p className="text-red-600 text-sm mt-1">❌ {phoneErrors.insurancePhone}</p>
+                    )}
                   </div>
                 </div>
 
@@ -2148,7 +2547,7 @@ export function CreatePatientModal({
                     <input
                       type="date"
                       value={form.coverageStartDate}
-                      onChange={(e) => setForm({ ...form, coverageStartDate: e.target.value })}
+                      onChange={(e) => handleDateChange("coverageStartDate", e.target.value)}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
                     />
                   </div>
@@ -2157,7 +2556,7 @@ export function CreatePatientModal({
                     <input
                       type="date"
                       value={form.coverageEndDate}
-                      onChange={(e) => setForm({ ...form, coverageEndDate: e.target.value })}
+                      onChange={(e) => handleDateChange("coverageEndDate", e.target.value)}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
                     />
                   </div>
@@ -2209,23 +2608,6 @@ export function CreatePatientModal({
               </div>
             )}
           </form>
-
-          {showPayloadPreview && (
-            <div className="mt-4 p-4 border border-slate-200 rounded-xl bg-slate-50">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-slate-700">Payload Preview</h4>
-                <button
-                  onClick={() => setShowPayloadPreview(false)}
-                  className="text-sm px-3 py-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-100"
-                >
-                  Hide
-                </button>
-              </div>
-              <pre className="text-xs overflow-auto max-h-60 bg-white p-3 rounded border border-slate-200">
-                {JSON.stringify(previewPayload, null, 2)}
-              </pre>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
@@ -2235,12 +2617,6 @@ export function CreatePatientModal({
             className="flex-1 px-6 py-3 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
           >
             Cancel
-          </button>
-          <button
-            onClick={() => setShowPayloadPreview((v) => !v)}
-            className="px-4 py-3 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
-          >
-            {showPayloadPreview ? "Hide Payload" : "Preview Payload"}
           </button>
           {activeTab !== "patient-info" && activeTab !== "insurance" && (
             <button
@@ -2316,7 +2692,7 @@ export function InventoryListModal({
 
   return (
     <motion.div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -2951,23 +3327,861 @@ export function DeleteInventoryModal({
 
 // ========== PATIENT MANAGEMENT MODALS ==========
 
+export function ViewEditPatientModal({
+  show,
+  onClose,
+  patientData,
+  onSave,
+  loading
+}) {
+  if (!show) return null;
+
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editedData, setEditedData] = React.useState(patientData || {});
+  const [activeTab, setActiveTab] = React.useState('patient');
+
+  // Dropdown options
+  const smokingStatusOptions = ['Never', 'Former', 'Current', 'Occasional'];
+  const alcoholConsumptionOptions = ['Never', 'Rarely', 'Occasionally', 'Regularly', 'Daily'];
+  const exerciseFrequencyOptions = ['Sedentary', 'Light', 'Moderate', 'Active'];
+
+  React.useEffect(() => {
+    if (patientData) {
+      setEditedData(patientData);
+    }
+  }, [patientData]);
+
+  const handleSave = async () => {
+    try {
+      console.log('📤 SAVING PATIENT PROFILE');
+      console.log('📊 EDITED DATA (flat):', editedData);
+      
+      // Validate required fields
+      if (!editedData.patientFirstName || !editedData.patientLastName) {
+        alert('❌ First Name and Last Name are required!');
+        return;
+      }
+      
+      // Transform flat data into nested structure for API
+      const patientDataModel = {
+        patient: {
+          patientId: editedData.patientId || editedData.PatientId,
+          clinicID: editedData.clinicID || editedData.ClinicID,
+          patientFirstName: editedData.patientFirstName || editedData.PatientFirstName || editedData.firstName || '',
+          patientLastName: editedData.patientLastName || editedData.PatientLastName || editedData.lastName || '',
+          patientDOB: editedData.patientDOB || editedData.PatientDOB || editedData.dateOfBirth || '',
+          patientGender: editedData.patientGender || editedData.PatientGender || editedData.gender || '',
+          patientBloodType: editedData.patientBloodType || editedData.PatientBloodType || editedData.bloodGroup || ''
+        },
+        patientContact: {
+          patientPhone: editedData.patientPhone || editedData.PatientPhone || editedData.phoneNumber || '',
+          alternatePhone: editedData.alternatePhone || editedData.AlternatePhone || '',
+          patientEmail: editedData.patientEmail || editedData.PatientEmail || editedData.email || '',
+          patientAddress: editedData.patientAddress || editedData.PatientAddress || editedData.addressLine1 || '',
+          addressLine2: editedData.addressLine2 || editedData.AddressLine2 || '',
+          patientCity: editedData.patientCity || editedData.PatientCity || editedData.city || '',
+          state: editedData.state || editedData.State || '',
+          postalCode: editedData.postalCode || editedData.PostalCode || '',
+          country: editedData.country || editedData.Country || '',
+          patientEmergencyContact: editedData.patientEmergencyContact || editedData.PatientEmergencyContact || '',
+          emergencyContactPhone: editedData.emergencyContactPhone || editedData.EmergencyContactPhone || '',
+          emergencyContactRelation: editedData.emergencyContactRelation || editedData.EmergencyContactRelation || ''
+        },
+        patientMedicalInfo: {
+          medicalHistory: editedData.medicalHistory || editedData.MedicalHistory || '',
+          patientPrimaryPhysician: editedData.patientPrimaryPhysician || editedData.PatientPrimaryPhysician || null,
+          patientMedicalHistory: editedData.patientMedicalHistory || editedData.PatientMedicalHistory || '',
+          patientAllergies: editedData.patientAllergies || editedData.PatientAllergies || editedData.allergies || '',
+          chronicDiseases: editedData.chronicDiseases || editedData.ChronicDiseases || '',
+          patientCurrentMedications: editedData.patientCurrentMedications || editedData.PatientCurrentMedications || editedData.currentMedications || '',
+          pastSurgeries: editedData.pastSurgeries || editedData.PastSurgeries || '',
+          familyMedicalHistory: editedData.familyMedicalHistory || editedData.FamilyMedicalHistory || '',
+          smokingStatus: editedData.smokingStatus || editedData.SmokingStatus || '',
+          alcoholConsumption: editedData.alcoholConsumption || editedData.AlcoholConsumption || '',
+          exerciseFrequency: editedData.exerciseFrequency || editedData.ExerciseFrequency || '',
+          dietaryRestrictions: editedData.dietaryRestrictions || editedData.DietaryRestrictions || '',
+          lastDentalVisit: editedData.lastDentalVisit || editedData.LastDentalVisit || editedData.lastVisitedDate || '',
+          notes: editedData.notes || editedData.Notes || ''
+        },
+        patientInsurance: {
+          patientInsuranceProvider: editedData.patientInsuranceProvider || editedData.PatientInsuranceProvider || editedData.insuranceProvider || '',
+          policyNumber: editedData.policyNumber || editedData.PolicyNumber || '',
+          groupNumber: editedData.groupNumber || editedData.GroupNumber || '',
+          policyHolderName: editedData.policyHolderName || editedData.PolicyHolderName || '',
+          policyHolderRelation: editedData.policyHolderRelation || editedData.PolicyHolderRelation || '',
+          coverageStartDate: editedData.coverageStartDate || editedData.CoverageStartDate || '',
+          coverageEndDate: editedData.coverageEndDate || editedData.CoverageEndDate || '',
+          copayAmount: editedData.copayAmount || editedData.CopayAmount || ''
+        }
+      };
+      
+      console.log('📦 STRUCTURED DATA FOR API:', patientDataModel);
+      
+      // Call the API to update the patient profile
+      const response = await updateFullPatientProfile(patientDataModel);
+      console.log('✅ Patient updated successfully:', response);
+      
+      // Call the parent's onSave callback
+      onSave(editedData);
+      setIsEditing(false);
+      alert('✅ Patient profile updated successfully!');
+    } catch (error) {
+      console.error('❌ SAVE ERROR DETAILS:', {
+        status: error?.status,
+        statusText: error?.statusText,
+        message: error?.message,
+        response: error?.response,
+        fullError: error
+      });
+      
+      let errorMsg = 'Unknown error occurred';
+      
+      if (error?.status === 401) {
+        errorMsg = '🔐 Unauthorized: Session expired. Please login again.';
+      } else if (error?.status === 403) {
+        errorMsg = '🚫 Forbidden: You do not have permission to update patients.';
+      } else if (error?.status === 400) {
+        errorMsg = '⚠️ Validation Error: Please check all required fields are filled correctly.';
+      } else if (error?.status === 404) {
+        errorMsg = '❌ Patient not found. Please refresh and try again.';
+      } else if (error?.status === 500) {
+        errorMsg = '⚠️ Server Error: Backend encountered an issue. Check console.';
+      } else if (error?.message) {
+        errorMsg = error.message;
+      }
+      
+      alert(`Failed to save patient profile:\n\n${errorMsg}\n\nOpen browser console (F12) for details.`);
+    }
+  };
+
+  const toDateInputValue = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+        return trimmed.slice(0, 10);
+      }
+      const ddmmyyyy = trimmed.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+      if (ddmmyyyy) {
+        const [, dd, mm, yyyy] = ddmmyyyy;
+        return `${yyyy}-${mm}-${dd}`;
+      }
+    }
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toISOString().slice(0, 10);
+    }
+    return '';
+  };
+
+  const handleCancel = () => {
+    setEditedData(patientData);
+    setIsEditing(false);
+  };
+
+  return (
+    <motion.div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60]"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div
+        className="bg-white rounded-xl shadow-2xl w-[95vw] max-w-6xl h-[95vh] max-h-[95vh] overflow-hidden flex flex-col"
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+      >
+        {/* Header */}
+        <div className="bg-gradient-to-r from-teal-500 to-cyan-600 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-bold text-white">
+              {isEditing ? "Edit Patient" : "View Patient"}
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="border-b border-slate-200 px-6">
+          <div className="flex gap-6">
+            {[
+              { id: 'patient', label: 'Patient Info' },
+              { id: 'contact', label: 'Contact Info' },
+              { id: 'medical', label: 'Medical Info' },
+              { id: 'insurance', label: 'Insurance' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`py-3 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab.id ? 'border-teal-500 text-teal-600' : 'border-transparent text-slate-600 hover:text-slate-900'}`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="space-y-6">
+            {activeTab === 'patient' && (
+              <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-lg p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Patient ID (Read-only)</label>
+                    <input
+                      type="text"
+                      value={editedData.patientId || editedData.PatientId || ''}
+                      disabled
+                      className="w-full mt-1 px-3 py-2 bg-gray-100 rounded border border-slate-200 text-slate-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Clinic (Read-only)</label>
+                    <input
+                      type="text"
+                      value={editedData.clinicID || editedData.ClinicID || ''}
+                      disabled
+                      className="w-full mt-1 px-3 py-2 bg-gray-100 rounded border border-slate-200 text-slate-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">First Name *</label>
+                    <input
+                      type="text"
+                      value={editedData.patientFirstName || editedData.PatientFirstName || editedData.firstName || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientFirstName: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Last Name *</label>
+                    <input
+                      type="text"
+                      value={editedData.patientLastName || editedData.PatientLastName || editedData.lastName || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientLastName: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Date of Birth *</label>
+                    <input
+                      type="date"
+                      value={toDateInputValue(editedData.patientDOB || editedData.PatientDOB || editedData.dateOfBirth)}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientDOB: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Gender</label>
+                    <select
+                      value={editedData.patientGender || editedData.PatientGender || editedData.gender || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientGender: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Blood Type</label>
+                    <select
+                      value={editedData.patientBloodType || editedData.PatientBloodType || editedData.bloodGroup || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientBloodType: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    >
+                      <option value="">Select Blood Type</option>
+                      <option value="A+">A+</option>
+                      <option value="A-">A-</option>
+                      <option value="B+">B+</option>
+                      <option value="B-">B-</option>
+                      <option value="AB+">AB+</option>
+                      <option value="AB-">AB-</option>
+                      <option value="O+">O+</option>
+                      <option value="O-">O-</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Marital Status</label>
+                    <select
+                      value={editedData.maritalStatus || editedData.MaritalStatus || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, maritalStatus: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    >
+                      <option value="">Select Marital Status</option>
+                      <option value="Single">Single</option>
+                      <option value="Married">Married</option>
+                      <option value="Divorced">Divorced</option>
+                      <option value="Widowed">Widowed</option>
+                      <option value="Separated">Separated</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'contact' && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Phone Number</label>
+                    <input
+                      type="text"
+                      value={editedData.patientPhone || editedData.PatientPhone || editedData.phoneNumber || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientPhone: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter phone number"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Alternate Phone</label>
+                    <input
+                      type="text"
+                      value={editedData.alternatePhone || editedData.AlternatePhone || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, alternatePhone: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter alternate phone"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Email</label>
+                    <input
+                      type="email"
+                      value={editedData.patientEmail || editedData.PatientEmail || editedData.email || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientEmail: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter email"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-semibold text-slate-700">Address Line 1</label>
+                    <input
+                      type="text"
+                      value={editedData.patientAddress || editedData.PatientAddress || editedData.addressLine1 || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientAddress: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter address line 1"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-semibold text-slate-700">Address Line 2</label>
+                    <input
+                      type="text"
+                      value={editedData.addressLine2 || editedData.AddressLine2 || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, addressLine2: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter address line 2"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">City</label>
+                    <input
+                      type="text"
+                      value={editedData.patientCity || editedData.PatientCity || editedData.city || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientCity: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter city"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">State</label>
+                    <input
+                      type="text"
+                      value={editedData.state || editedData.State || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, state: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter state"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Postal Code</label>
+                    <input
+                      type="text"
+                      value={editedData.postalCode || editedData.PostalCode || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, postalCode: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter postal code"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Country</label>
+                    <input
+                      type="text"
+                      value={editedData.country || editedData.Country || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, country: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter country"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Emergency Contact Name</label>
+                    <input
+                      type="text"
+                      value={editedData.patientEmergencyContact || editedData.PatientEmergencyContact || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientEmergencyContact: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter emergency contact name"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Emergency Contact Phone</label>
+                    <input
+                      type="text"
+                      value={editedData.emergencyContactPhone || editedData.EmergencyContactPhone || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, emergencyContactPhone: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter emergency contact phone"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Emergency Contact Relation</label>
+                    <input
+                      type="text"
+                      value={editedData.emergencyContactRelation || editedData.EmergencyContactRelation || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, emergencyContactRelation: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter relation"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'medical' && (
+              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-semibold text-slate-700">Medical History (Required) *</label>
+                    <textarea
+                      value={editedData.medicalHistory || editedData.MedicalHistory || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, medicalHistory: e.target.value })}
+                      disabled={!isEditing}
+                      rows={2}
+                      placeholder="Enter medical history"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-semibold text-slate-700">Primary Physician (Required) *</label>
+                    <input
+                      type="text"
+                      value={editedData.patientPrimaryPhysician || editedData.PatientPrimaryPhysician || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientPrimaryPhysician: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter primary physician name"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Patient Medical History</label>
+                    <textarea
+                      value={editedData.patientMedicalHistory || editedData.PatientMedicalHistory || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientMedicalHistory: e.target.value })}
+                      disabled={!isEditing}
+                      rows={2}
+                      placeholder="Enter patient medical history"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Allergies</label>
+                    <textarea
+                      value={editedData.patientAllergies || editedData.PatientAllergies || editedData.allergies || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientAllergies: e.target.value })}
+                      disabled={!isEditing}
+                      rows={2}
+                      placeholder="Enter allergies"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Chronic Conditions</label>
+                    <textarea
+                      value={editedData.chronicDiseases || editedData.ChronicDiseases || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, chronicDiseases: e.target.value })}
+                      disabled={!isEditing}
+                      rows={2}
+                      placeholder="Enter chronic conditions"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Current Medications</label>
+                    <textarea
+                      value={editedData.patientCurrentMedications || editedData.PatientCurrentMedications || editedData.currentMedications || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientCurrentMedications: e.target.value })}
+                      disabled={!isEditing}
+                      rows={2}
+                      placeholder="Enter current medications"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Past Surgeries</label>
+                    <textarea
+                      value={editedData.pastSurgeries || editedData.PastSurgeries || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, pastSurgeries: e.target.value })}
+                      disabled={!isEditing}
+                      rows={2}
+                      placeholder="Enter past surgeries"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Family Medical History</label>
+                    <textarea
+                      value={editedData.familyMedicalHistory || editedData.FamilyMedicalHistory || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, familyMedicalHistory: e.target.value })}
+                      disabled={!isEditing}
+                      rows={2}
+                      placeholder="Enter family medical history"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Smoking Status</label>
+                    <select
+                      value={editedData.smokingStatus || editedData.SmokingStatus || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, smokingStatus: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    >
+                      <option value="">Select Smoking Status</option>
+                      {smokingStatusOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Alcohol Consumption</label>
+                    <select
+                      value={editedData.alcoholConsumption || editedData.AlcoholConsumption || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, alcoholConsumption: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    >
+                      <option value="">Select Alcohol Consumption</option>
+                      {alcoholConsumptionOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Exercise Frequency</label>
+                    <select
+                      value={editedData.exerciseFrequency || editedData.ExerciseFrequency || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, exerciseFrequency: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    >
+                      <option value="">Select Exercise Frequency</option>
+                      {exerciseFrequencyOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Dietary Restrictions</label>
+                    <input
+                      type="text"
+                      value={editedData.dietaryRestrictions || editedData.DietaryRestrictions || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, dietaryRestrictions: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter dietary restrictions"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Last Dental Visit</label>
+                    <input
+                      type="date"
+                      value={toDateInputValue(editedData.lastDentalVisit || editedData.LastDentalVisit || editedData.lastVisitedDate || editedData.LastVisitedDate)}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, lastDentalVisit: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-semibold text-slate-700">Notes</label>
+                    <textarea
+                      value={editedData.notes || editedData.Notes || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, notes: e.target.value })}
+                      disabled={!isEditing}
+                      rows={2}
+                      placeholder="Enter notes"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'insurance' && (
+              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Insurance Provider</label>
+                    <input
+                      type="text"
+                      value={editedData.patientInsuranceProvider || editedData.PatientInsuranceProvider || editedData.insuranceProvider || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, patientInsuranceProvider: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter insurance provider"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Policy Number</label>
+                    <input
+                      type="text"
+                      value={editedData.policyNumber || editedData.PolicyNumber || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, policyNumber: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter policy number"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Group Number</label>
+                    <input
+                      type="text"
+                      value={editedData.groupNumber || editedData.GroupNumber || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, groupNumber: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter group number"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Policy Holder Name</label>
+                    <input
+                      type="text"
+                      value={editedData.policyHolderName || editedData.PolicyHolderName || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, policyHolderName: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter policy holder name"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Policy Holder Relation</label>
+                    <input
+                      type="text"
+                      value={editedData.policyHolderRelation || editedData.PolicyHolderRelation || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, policyHolderRelation: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter relation"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Coverage Start Date</label>
+                    <input
+                      type="date"
+                      value={toDateInputValue(editedData.coverageStartDate || editedData.CoverageStartDate)}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, coverageStartDate: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Coverage End Date</label>
+                    <input
+                      type="date"
+                      value={toDateInputValue(editedData.coverageEndDate || editedData.CoverageEndDate)}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, coverageEndDate: e.target.value })}
+                      disabled={!isEditing}
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700">Copay Amount</label>
+                    <input
+                      type="text"
+                      value={editedData.copayAmount || editedData.CopayAmount || ''}
+                      onChange={(e) => isEditing && setEditedData({ ...editedData, copayAmount: e.target.value })}
+                      disabled={!isEditing}
+                      placeholder="Enter copay amount"
+                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-slate-200 p-6 flex justify-between items-center">
+          <div className="flex gap-3">
+            {!isEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="px-6 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 text-white font-semibold hover:shadow-lg transition-all"
+              >
+                ✏️ Edit
+              </button>
+            )}
+          </div>
+          {isEditing ? (
+            <div className="flex gap-3">
+              <button
+                onClick={handleSave}
+                disabled={loading}
+                className="px-6 py-2 rounded-lg bg-gradient-to-r from-teal-500 to-cyan-600 text-white font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+              >
+                {loading ? 'Saving...' : '💾 Save Changes'}
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={loading}
+                className="px-6 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onClose}
+              className="px-6 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
+            >
+              Close
+            </button>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export function ManagePatientModal({
   show,
   onClose,
-  searchId,
-  setSearchId,
+  searchCriteria,
+  setSearchCriteria,
   onSearch,
   patientProfile,
+  patientList,
+  selectedPatientIndex,
+  onPatientListChange,
   loading,
-  error
+  error,
+  enterprises,
+  clinics
 }) {
   if (!show) return null;
+
+  const [showViewEditModal, setShowViewEditModal] = React.useState(false);
+  const [selectedPatientData, setSelectedPatientData] = React.useState(null);
+  const [loadingDetails, setLoadingDetails] = React.useState(false);
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       onSearch();
     }
   };
+
+  const handleViewFullDetails = async (patient) => {
+    try {
+      setLoadingDetails(true);
+      const { getFullPatientProfile } = await import("../api/hmsApi");
+      console.log("📋 Calling API to fetch full patient profile for ID:", patient.patientId);
+      const fullProfile = await getFullPatientProfile(patient.patientId);
+      console.log("✅ Full patient profile retrieved:", fullProfile);
+      console.log("🔍 Checking profile structure - Keys:", Object.keys(fullProfile));
+      
+      // Log all nested object keys
+      Object.keys(fullProfile).forEach(key => {
+        if (typeof fullProfile[key] === 'object' && fullProfile[key] !== null && !Array.isArray(fullProfile[key])) {
+          console.log(`📦 Nested object '${key}' has keys:`, Object.keys(fullProfile[key]));
+        }
+      });
+      
+      // Flatten nested structure if needed
+      let flattenedProfile = { ...fullProfile };
+      
+      // Check if response has nested objects (patient, patientContact, etc.)
+      if (fullProfile.patient) {
+        console.log("📦 Merging nested 'patient' object:", fullProfile.patient);
+        flattenedProfile = { ...flattenedProfile, ...fullProfile.patient };
+      }
+      if (fullProfile.patientContact) {
+        console.log("📦 Merging nested 'patientContact' object:", fullProfile.patientContact);
+        flattenedProfile = { ...flattenedProfile, ...fullProfile.patientContact };
+      }
+      if (fullProfile.patientMedicalInfo) {
+        console.log("📦 Merging nested 'patientMedicalInfo' object:", fullProfile.patientMedicalInfo);
+        flattenedProfile = { ...flattenedProfile, ...fullProfile.patientMedicalInfo };
+      }
+      if (fullProfile.patientInsurance) {
+        console.log("📦 Merging nested 'patientInsurance' object:", fullProfile.patientInsurance);
+        flattenedProfile = { ...flattenedProfile, ...fullProfile.patientInsurance };
+      }
+      
+      console.log("✅ Final flattened profile:", flattenedProfile);
+      console.log("🔑 Final profile keys:", Object.keys(flattenedProfile));
+      
+      setSelectedPatientData(flattenedProfile);
+      setShowViewEditModal(true);
+    } catch (err) {
+      console.error("❌ Failed to fetch full patient profile:", err);
+      alert("Failed to load full patient profile. Please try again.");
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const handleSavePatient = async (updatedData) => {
+    try {
+      setLoadingDetails(true);
+      // Call update API here
+      console.log("💾 Saving patient data:", updatedData);
+      alert("Patient data saved successfully!");
+      setShowViewEditModal(false);
+      // Optionally refresh the patient list
+    } catch (err) {
+      console.error("❌ Failed to save patient data:", err);
+      alert("Failed to save patient data. Please try again.");
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  // Filter clinics based on selected enterprise
+  const filteredClinics = searchCriteria.enterpriseId
+    ? clinics.filter(c => Number(c.enterpriseId) === Number(searchCriteria.enterpriseId))
+    : [];
 
   return (
     <motion.div
@@ -2977,7 +4191,7 @@ export function ManagePatientModal({
       exit={{ opacity: 0 }}
     >
       <motion.div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-xl shadow-2xl w-[95vw] max-w-7xl h-[95vh] max-h-[95vh] overflow-hidden flex flex-col"
         initial={{ scale: 0.9, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 20 }}
@@ -2998,22 +4212,124 @@ export function ManagePatientModal({
 
         {/* Search Section */}
         <div className="border-b border-slate-200 p-6 bg-slate-50">
-          <div className="flex gap-3">
-            <input
-              type="number"
-              placeholder="Enter Patient ID..."
-              value={searchId}
-              onChange={(e) => setSearchId(e.target.value)}
-              onKeyPress={handleKeyPress}
-              className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-            />
-            <button
-              onClick={onSearch}
-              disabled={loading || !searchId}
-              className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
-            >
-              {loading ? "Searching..." : "🔍 Search"}
-            </button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* Enterprise Dropdown */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Enterprise *</label>
+              <select
+                value={searchCriteria.enterpriseId}
+                onChange={(e) => {
+                  setSearchCriteria({ 
+                    ...searchCriteria, 
+                    enterpriseId: e.target.value,
+                    clinicId: "" // Reset clinic when enterprise changes
+                  });
+                }}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+              >
+                <option value="">Select Enterprise</option>
+                {enterprises && enterprises.map((e) => (
+                  <option key={e.enterpriseId} value={e.enterpriseId}>
+                    {e.enterpriseName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Clinic Dropdown */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Clinic *</label>
+              <select
+                value={searchCriteria.clinicId}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, clinicId: e.target.value })}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+                disabled={!searchCriteria.enterpriseId}
+              >
+                <option value="">{searchCriteria.enterpriseId ? "Select Clinic" : "Select Enterprise first"}</option>
+                {filteredClinics.map((c) => (
+                  <option key={c.clinicId} value={c.clinicId}>
+                    {c.clinicName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Patient ID */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Patient ID</label>
+              <input
+                type="number"
+                placeholder="Enter patient ID..."
+                value={searchCriteria.patientId}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, patientId: e.target.value })}
+                onKeyPress={handleKeyPress}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* First Name */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">First Name</label>
+              <input
+                type="text"
+                placeholder="Enter first name..."
+                value={searchCriteria.firstName}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, firstName: e.target.value })}
+                onKeyPress={handleKeyPress}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Last Name */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Last Name</label>
+              <input
+                type="text"
+                placeholder="Enter last name..."
+                value={searchCriteria.lastName}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, lastName: e.target.value })}
+                onKeyPress={handleKeyPress}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Date of Birth */}
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Date of Birth</label>
+              <input
+                type="date"
+                value={searchCriteria.dateOfBirth}
+                onChange={(e) => setSearchCriteria({ ...searchCriteria, dateOfBirth: e.target.value })}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Search Button */}
+            <div className="flex items-end gap-3">
+              <button
+                onClick={onSearch}
+                disabled={loading || (!searchCriteria.clinicId && !searchCriteria.patientId)}
+                className="flex-1 px-8 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50"
+              >
+                {loading ? "Searching..." : "🔍 Search Patient"}
+              </button>
+              <button
+                onClick={() => {
+                  setSearchCriteria({
+                    enterpriseId: '',
+                    clinicId: '',
+                    patientId: '',
+                    firstName: '',
+                    lastName: '',
+                    dateOfBirth: ''
+                  });
+                  onPatientListChange([]);
+                }}
+                className="px-6 py-2 bg-gray-500 text-white font-semibold rounded-lg hover:bg-gray-600 transition-all"
+              >
+                🔄 Clear
+              </button>
+            </div>
           </div>
         </div>
 
@@ -3027,176 +4343,103 @@ export function ManagePatientModal({
 
           {loading && (
             <div className="flex items-center justify-center h-40">
-              <div className="text-lg text-slate-600">Loading patient profile...</div>
+              <div className="text-lg text-slate-600">Loading patient list...</div>
             </div>
           )}
 
-          {patientProfile && !loading && (
-            <div className="space-y-6">
-              {/* Patient Information Card */}
-              <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-lg p-6">
-                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <span>👤</span> Patient Information
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <span className="text-sm font-semibold text-slate-700">Patient ID:</span>
-                    <p className="text-slate-900 font-medium">{patientProfile.patientId}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-semibold text-slate-700">Full Name:</span>
-                    <p className="text-slate-900 font-medium">{patientProfile.firstName} {patientProfile.lastName}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-semibold text-slate-700">Date of Birth:</span>
-                    <p className="text-slate-900">{patientProfile.dateOfBirth ? new Date(patientProfile.dateOfBirth).toLocaleDateString() : '-'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-semibold text-slate-700">Gender:</span>
-                    <p className="text-slate-900">{patientProfile.gender || '-'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-semibold text-slate-700">Blood Group:</span>
-                    <p className="text-slate-900">{patientProfile.bloodGroup || '-'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-semibold text-slate-700">Marital Status:</span>
-                    <p className="text-slate-900">{patientProfile.maritalStatus || '-'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Contact Information Card */}
-              <div className="bg-white border border-slate-200 rounded-lg p-6">
-                <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <span>📞</span> Contact Information
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-sm font-semibold text-slate-700">Phone Number:</span>
-                    <p className="text-slate-900">{patientProfile.phoneNumber || '-'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-semibold text-slate-700">Email:</span>
-                    <p className="text-slate-900">{patientProfile.email || '-'}</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <span className="text-sm font-semibold text-slate-700">Address:</span>
-                    <p className="text-slate-900">
-                      {[
-                        patientProfile.addressLine1,
-                        patientProfile.addressLine2,
-                        patientProfile.city,
-                        patientProfile.state,
-                        patientProfile.postalCode,
-                        patientProfile.country
-                      ].filter(Boolean).join(', ') || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-sm font-semibold text-slate-700">Emergency Contact:</span>
-                    <p className="text-slate-900">{patientProfile.emergencyContactName || '-'}</p>
-                    <p className="text-sm text-slate-600">{patientProfile.emergencyContactPhone || ''}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Medical Information Card */}
-              {(patientProfile.allergies || patientProfile.chronicConditions || patientProfile.currentMedications) && (
-                <div className="bg-white border border-slate-200 rounded-lg p-6">
-                  <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <span>🏥</span> Medical Information
-                  </h3>
-                  <div className="space-y-3">
-                    {patientProfile.allergies && (
-                      <div>
-                        <span className="text-sm font-semibold text-slate-700">Allergies:</span>
-                        <p className="text-slate-900">{patientProfile.allergies}</p>
-                      </div>
-                    )}
-                    {patientProfile.chronicConditions && (
-                      <div>
-                        <span className="text-sm font-semibold text-slate-700">Chronic Conditions:</span>
-                        <p className="text-slate-900">{patientProfile.chronicConditions}</p>
-                      </div>
-                    )}
-                    {patientProfile.currentMedications && (
-                      <div>
-                        <span className="text-sm font-semibold text-slate-700">Current Medications:</span>
-                        <p className="text-slate-900">{patientProfile.currentMedications}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Insurance Information Card */}
-              {patientProfile.insuranceProvider && (
-                <div className="bg-white border border-slate-200 rounded-lg p-6">
-                  <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <span>🛡️</span> Insurance Information
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <span className="text-sm font-semibold text-slate-700">Provider:</span>
-                      <p className="text-slate-900">{patientProfile.insuranceProvider}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-semibold text-slate-700">Policy Number:</span>
-                      <p className="text-slate-900">{patientProfile.policyNumber || '-'}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-semibold text-slate-700">Policy Holder:</span>
-                      <p className="text-slate-900">{patientProfile.policyHolderName || '-'}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
+          {loadingDetails && (
+            <div className="flex items-center justify-center h-40">
+              <div className="text-lg text-slate-600">Loading patient details...</div>
             </div>
           )}
 
-          {!patientProfile && !loading && !error && (
+          {/* Patient List View */}
+          {patientList && patientList.length > 0 && !loading && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-900">📋 Patient List ({patientList.length})</h3>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white">
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Patient ID</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Name</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Email</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Phone</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">DOB</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold">Gender</th>
+                      <th className="px-4 py-3 text-center text-sm font-semibold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {patientList.map((patient, index) => (
+                      <tr
+                        key={index}
+                        className="border-b border-slate-200 hover:bg-cyan-50 transition-colors cursor-pointer"
+                        onClick={() => handleViewFullDetails(patient)}
+                      >
+                        <td className="px-4 py-3 text-sm font-medium text-slate-900">{patient.patientId || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-slate-900">
+                          {(patient.patientFirstName || patient.firstName || '-')}
+                          {' '}
+                          {(patient.patientLastName || patient.lastName || '')}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{patient.patientEmail || patient.email || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{patient.patientPhone || patient.phoneNumber || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-slate-600">
+                          {(patient.patientDOB || patient.dateOfBirth)
+                            ? new Date(patient.patientDOB || patient.dateOfBirth).toLocaleDateString()
+                            : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{patient.patientGender || patient.gender || '-'}</td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewFullDetails(patient);
+                            }}
+                            className="px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white text-xs rounded-lg transition-colors"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {!patientList || patientList.length === 0 && !loading && !error && (
             <div className="text-center text-slate-500 py-12">
               <div className="text-6xl mb-4">🔍</div>
-              <p className="text-lg">Enter a Patient ID to search</p>
+              <p className="text-lg">Search patients to view their details</p>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="border-t border-slate-200 p-6 flex justify-between items-center">
-          {patientProfile && (
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  if (window.editPatientHandler) {
-                    window.editPatientHandler(patientProfile);
-                  }
-                }}
-                className="px-6 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold hover:shadow-lg transition-all"
-              >
-                ✏️ Edit Patient
-              </button>
-              <button
-                onClick={() => {
-                  if (window.deletePatientHandler) {
-                    window.deletePatientHandler(patientProfile);
-                  }
-                }}
-                className="px-6 py-2 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors"
-              >
-                🗑️ Delete Patient
-              </button>
-            </div>
-          )}
+        <div className="border-t border-slate-200 p-6 flex justify-end items-center">
           <button
             onClick={onClose}
-            className="px-6 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors ml-auto"
+            className="px-6 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50 transition-colors"
           >
             Close
           </button>
         </div>
       </motion.div>
+
+      {/* View/Edit Patient Modal */}
+      <ViewEditPatientModal
+        show={showViewEditModal}
+        onClose={() => setShowViewEditModal(false)}
+        patientData={selectedPatientData}
+        onSave={handleSavePatient}
+        loading={loadingDetails}
+      />
     </motion.div>
   );
 }

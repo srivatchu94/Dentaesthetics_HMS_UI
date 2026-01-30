@@ -481,6 +481,19 @@ export function deleteAsset(assetId: number): Promise<void> {
 // PATIENT MANAGEMENT ENDPOINTS
 // ============================================
 
+export function getPatientById(patientId: number): Promise<any> {
+  console.log('📞 API CALL: getPatientById with patientId:', patientId);
+  return request<any>(`/Patient/${patientId}`)
+    .then(data => {
+      console.log('✅ PATIENT FETCHED BY ID:', data);
+      return data;
+    })
+    .catch(error => {
+      console.error('❌ FAILED TO FETCH PATIENT BY ID:', error);
+      throw error;
+    });
+}
+
 export function searchPatients(params: {
   firstName?: string;
   lastName?: string;
@@ -561,15 +574,14 @@ export function updateFullPatientProfile(patientData: any): Promise<any> {
   });
 }
 
-export function getDoctorsByClinicID(clinicID: number): Promise<any> {
+export async function getDoctorsByClinicID(clinicID: number): Promise<any> {
   console.log('📞 API CALL: getDoctorsByClinicID with clinicID:', clinicID);
-  return request<any>(`/DoctorProfile/GetDoctorsByClinicID?ClinicID=${clinicID}`)
-    .then(data => {
-      console.log('✅ DOCTORS FETCHED SUCCESSFULLY:', data);
-      return data || [];
-    })
-    .catch(error => {
-      console.error('❌ FAILED TO FETCH DOCTORS:', error);
-      return [];
-    });
+  try {
+    const data = await request<any>(`/StaffDetail/GetDoctorsForClinicID?clinicId=${clinicID}`);
+    console.log('✅ DOCTORS FETCHED SUCCESSFULLY:', data);
+    return data || [];
+  } catch (error) {
+    console.error('❌ Failed to fetch doctors for clinic:', error);
+    return [];
+  }
 }

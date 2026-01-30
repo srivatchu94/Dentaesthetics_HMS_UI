@@ -2,10 +2,56 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { createDoctor, searchDoctors } from '../services/doctorService';
-import { bulkAssignRoles } from '../services/accessControlService';
+import { bulkAssignRoles, listAccessControl } from '../services/accessControlService';
 import { listRoles } from '../services/roleService';
 import { createStaffDetail } from '../services/staffService';
 import { getSelectedAccess } from '../services/authService';
+
+const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+
+// Roles mapped to backend database (RoleId matches backend)
+const availableRoles = [
+  { 
+    id: 2, 
+    name: "Doctor", 
+    icon: "🩺", 
+    color: "from-cyan-400 to-blue-400", 
+    description: "Medical professional access",
+    permissions: ["Patient Records", "Treatment Plans", "Prescriptions", "Scheduling"]
+  },
+  { 
+    id: 3, 
+    name: "Staff", 
+    icon: "👨‍⚕️", 
+    color: "from-rose-400 to-pink-400", 
+    description: "Staff member access",
+    permissions: ["Patient Records", "Appointments", "Clinic Operations"]
+  },
+  { 
+    id: 6, 
+    name: "Nurse", 
+    icon: "👩‍⚕️", 
+    color: "from-green-400 to-emerald-400", 
+    description: "Nursing staff access",
+    permissions: ["Patient Care", "Treatment Assistance", "Medical Records"]
+  },
+  { 
+    id: 7, 
+    name: "ClinicAdmin", 
+    icon: "🏥", 
+    color: "from-yellow-400 to-orange-400", 
+    description: "Clinic administration access",
+    permissions: ["Clinic Management", "Staff Management", "Billing", "Reports"]
+  },
+  { 
+    id: 8, 
+    name: "EntityAdmin", 
+    icon: "👑", 
+    color: "from-purple-500 to-indigo-600", 
+    description: "Enterprise administration access",
+    permissions: ["Enterprise Management", "Multi-clinic Operations", "User Management", "Settings"]
+  }
+];
 
 const TeamHub = () => {
   const navigate = useNavigate();
@@ -84,41 +130,6 @@ const TeamHub = () => {
   const [securityQuestionsLoading, setSecurityQuestionsLoading] = useState(false);
   const [securityQuestionsError, setSecurityQuestionsError] = useState("");
   
-  // Roles mapped to backend database (RoleId matches backend)
-  const availableRoles = [
-    { 
-      id: 1, 
-      name: "Admin", 
-      icon: "👑", 
-      color: "from-purple-500 to-indigo-600", 
-      description: "Full system access",
-      permissions: ["User Management", "Roles Management", "Settings", "Clinic Operations"]
-    },
-    { 
-      id: 2, 
-      name: "Doctor", 
-      icon: "🩺", 
-      color: "from-cyan-400 to-blue-400", 
-      description: "Medical professional access",
-      permissions: ["Patient Records", "Treatment Plans", "Prescriptions", "Scheduling"]
-    },
-    { 
-      id: 3, 
-      name: "Receptionist", 
-      icon: "📞", 
-      color: "from-rose-400 to-pink-400", 
-      description: "Front desk operations",
-      permissions: ["Appointments", "Patient Check-ins", "Billing", "Front-desk Operations"]
-    },
-    { 
-      id: 4, 
-      name: "Patient", 
-      icon: "🙋", 
-      color: "from-green-400 to-teal-400", 
-      description: "Limited patient access",
-      permissions: ["Personal Records", "Appointments", "Bills", "Notifications"]
-    }
-  ];
   
   // Standard Security Questions
   const standardSecurityQuestions = [
@@ -204,6 +215,104 @@ const TeamHub = () => {
     };
     fetchRoles();
   }, []);
+
+  // Fetch and pre-select existing roles when staff is selected in access control
+  useEffect(() => {
+    if (!selectedStaff || !showRoleManager) return;
+
+    const fetchExistingRoles = async () => {
+      try {
+        console.log('🔍 Fetching existing roles for staff:', selectedStaff);
+        console.log('📊 Available roles in state:', availableRoles);
+        
+        const staffId = selectedStaff.profileId || selectedStaff.userId || selectedStaff.staffId || selectedStaff.id;
+        const clinicId = selectedStaff.clinicId || selectedStaff.clinicID;
+
+        console.log('🆔 Staff ID:', staffId, '| Clinic ID:', clinicId);
+
+        const roleIdsFromStaff = Array.isArray(selectedStaff.roleIds)
+          ? selectedStaff.roleIds
+          : Array.isArray(selectedStaff.roles)
+            ? selectedStaff.roles.map(r => r.roleId || r.id).filter(Boolean)
+            : selectedStaff.roleId
+              ? [selectedStaff.roleId]
+              : [];
+
+        const roleNamesFromStaff = typeof selectedStaff.rolesAssigned === "string"
+          ? selectedStaff.rolesAssigned.split(',').map(r => r.trim()).filter(Boolean)
+          : typeof selectedStaff.currentRole === "string"
+            ? [selectedStaff.currentRole]
+            : [];
+
+        if (roleIdsFromStaff.length > 0 || roleNamesFromStaff.length > 0) {
+          const normalizedNames = roleNamesFromStaff.map(name => name.toLowerCase());
+          const preSelectedRoles = availableRoles.filter(role =>
+            roleIdsFromStaff.includes(role.id) || normalizedNames.includes(role.name.toLowerCase())
+          );
+
+          console.log('✨ Pre-selected roles from staff payload:', preSelectedRoles);
+          setSelectedRoles(preSelectedRoles);
+          return;
+        }
+
+        if (!staffId || !clinicId) {
+          console.warn('⚠️ Missing staffId or clinicId for fetching roles');
+          setSelectedRoles([]);
+          return;
+        }
+
+        // Fetch existing access control entries for this staff
+        const numericClinicId = Number(clinicId);
+        const userIdParam = Number.isFinite(Number(staffId)) ? Number(staffId) : staffId;
+
+        const existingAccess = await listAccessControl({
+          userId: userIdParam,
+          clinicId: Number.isFinite(numericClinicId) ? numericClinicId : clinicId,
+          isActive: true
+        });
+
+        console.log('✅ Existing access control entries from API:', existingAccess);
+        console.log('📋 Full API response structure:', JSON.stringify(existingAccess, null, 2));
+
+        if (existingAccess && Array.isArray(existingAccess) && existingAccess.length > 0) {
+          // Extract role IDs from existing access - handle different property names
+          const existingRoleIds = existingAccess.map(access => {
+            const roleId = access.roleId || access.RoleId || access.role_id;
+            console.log('🔗 Access entry:', access, '-> Role ID:', roleId);
+            return roleId;
+          }).filter(id => id); // Remove any undefined
+          
+          console.log('👤 Extracted existing role IDs:', existingRoleIds);
+          console.log('📌 Available role IDs in UI:', availableRoles.map(r => r.id));
+
+          if (existingRoleIds.length > 0) {
+            // Filter availableRoles to match existing roleIds
+            const preSelectedRoles = availableRoles.filter(role => {
+              const isSelected = existingRoleIds.includes(role.id);
+              console.log(`  Role ${role.name} (ID: ${role.id}) - Selected: ${isSelected}`);
+              return isSelected;
+            });
+
+            console.log('✨ Pre-selected roles:', preSelectedRoles);
+            setSelectedRoles(preSelectedRoles);
+          } else {
+            console.log('⚠️ No valid role IDs extracted from access entries');
+            setSelectedRoles([]);
+          }
+        } else {
+          console.log('ℹ️ No existing roles found for this staff (empty response)');
+          setSelectedRoles([]);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching existing roles:', error);
+        console.error('   Error details:', error.message, error.stack);
+        // Don't block UI if fetch fails, just start with empty selection
+        setSelectedRoles([]);
+      }
+    };
+
+    fetchExistingRoles();
+  }, [selectedStaff, showRoleManager]);
 
   // Fetch clinics when enterprise is selected in onboarding modal
   useEffect(() => {
@@ -505,6 +614,10 @@ const TeamHub = () => {
           enterpriseID: staff.enterpriseID,  // Include enterpriseID from API
           clinicId: staff.clinicID,  // API uses clinicID (capital D)
           currentRole: staff.roleType || staff.role || staff.roleName,
+          roleId: staff.roleId || staff.RoleId,
+          roleIds: staff.roleIds || staff.RoleIds,
+          roles: staff.roles || staff.Roles,
+          rolesAssigned: staff.rolesAssigned || staff.roleType || staff.role || staff.roleName,
           email: staff.email || staff.emailId
         };
         
@@ -532,7 +645,7 @@ const TeamHub = () => {
   // Load enterprises for credential management
   const loadEnterprises = async () => {
     try {
-      const response = await fetch("`${API_BASE_URL}/Enterprise/GetAllEnterprises", {
+      const response = await fetch(`${API_BASE_URL}/Enterprise/GetAllEnterprises`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -666,7 +779,7 @@ const TeamHub = () => {
       console.log("🔍 RoleName in payload:", payload.roleName);
       console.log("🔍 Full payload JSON:", JSON.stringify(payload, null, 2));
 
-      const response = await fetch("`${API_BASE_URL}/Authentication/registerUser", {
+      const response = await fetch(`${API_BASE_URL}/Authentication/registerUser`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -840,7 +953,7 @@ const TeamHub = () => {
 
         console.log("📝 Submitting security questions:", payload);
 
-        const response = await fetch("`${API_BASE_URL}/Authentication/SetSecurityQuestions", {
+        const response = await fetch(`${API_BASE_URL}/Authentication/SetSecurityQuestions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -882,6 +995,15 @@ const TeamHub = () => {
   const handleSelectStaff = (staff) => {
     setSelectedStaff(staff);
     setShowRoleManager(true);
+    // Pre-select the staff's current role(s)
+    if (staff?.currentRole) {
+      const matchedRoles = availableRoles.filter(role => 
+        role.name === staff.currentRole
+      );
+      setSelectedRoles(matchedRoles);
+    } else {
+      setSelectedRoles([]);
+    }
   };
   
   const handleToggleRole = (role) => {
@@ -2392,44 +2514,7 @@ const TeamHub = () => {
                       </div>
                     </div>
 
-                    {/* Mode Selection Tabs */}
-                    <div className="mb-6">
-                      <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <span className="text-2xl">🎨</span>
-                        Choose Your Selection Style
-                      </h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {[
-                          { id: "multi-select", icon: "☑️", name: "Multi-Select Cards", desc: "Click to toggle" },
-                          { id: "drag-drop", icon: "🎯", name: "Drag & Drop", desc: "Drag roles to assign" },
-                          { id: "toggle-switch", icon: "🎚️", name: "Toggle Switches", desc: "Quick on/off" },
-                          { id: "permission-builder", icon: "🔧", name: "Permission Builder", desc: "Custom access" }
-                        ].map(mode => (
-                          <motion.button
-                            key={mode.id}
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.97 }}
-                            onClick={() => {
-                              setRoleSelectionMode(mode.id);
-                              setSelectedRoles([]);
-                            }}
-                            className={`p-4 rounded-xl border-2 transition-all ${
-                              roleSelectionMode === mode.id
-                                ? 'bg-gradient-to-br from-violet-500 to-purple-500 border-purple-400 text-white shadow-lg'
-                                : 'bg-white border-purple-200 hover:border-purple-400 text-slate-700'
-                            }`}
-                          >
-                            <div className="text-3xl mb-1">{mode.icon}</div>
-                            <div className={`font-bold text-sm ${roleSelectionMode === mode.id ? 'text-white' : 'text-slate-800'}`}>
-                              {mode.name}
-                            </div>
-                            <div className={`text-xs ${roleSelectionMode === mode.id ? 'text-purple-100' : 'text-slate-500'}`}>
-                              {mode.desc}
-                            </div>
-                          </motion.button>
-                        ))}
-                      </div>
-                    </div>
+                    {/* Mode Selection Hidden - Only Multi-Select Available */}
 
                     {/* Selected Roles Counter */}
                     <div className="mb-6 p-4 bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl border-2 border-purple-200">
@@ -2465,7 +2550,7 @@ const TeamHub = () => {
                           <span className="text-2xl">☑️</span>
                           Multi-Select Cards
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-5 gap-4">
                           {availableRoles.map((role, index) => {
                             const isSelected = selectedRoles.find(r => r.id === role.id);
                             return (

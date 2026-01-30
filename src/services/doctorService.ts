@@ -4,7 +4,7 @@ import type { DoctorProfileModel, ClinicalSpecialtyModel } from '../Interfaces';
 
 // Doctor Profiles
 export function listDoctorProfiles(): Promise<DoctorProfileModel[]> {
-  return request<DoctorProfileModel[]>("/DoctorProfile/GetAllDoctors");
+  return request<DoctorProfileModel[]>("/doctorprofiles");
 }
 
 export function getDoctorProfile(doctorId: number): Promise<DoctorProfileModel> {

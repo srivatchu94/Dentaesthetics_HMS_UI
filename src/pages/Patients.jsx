@@ -4,11 +4,14 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { getAccessToken } from "../services/tokenManager";
 import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient, getAllPatientsByClinicID, getPatientVisit } from "../services/patientService";
 import { visitService } from "../services/visitService";
+import { getDoctorsByClinicID } from "../api/hmsApi";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
 import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment } from "../services/appointmentService";
 import { sendPrescriptionEmail } from "../services/emailService";
 import ViewPatients from "./ViewPatients";
 import FancyDatePicker from "../components/FancyDatePicker";
+
+const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => (
@@ -202,6 +205,8 @@ export default function Patients() {
   const [loadingClinicPatients, setLoadingClinicPatients] = useState(false);
   const [showAppointmentSuccessModal, setShowAppointmentSuccessModal] = useState(false);
   const [createdAppointment, setCreatedAppointment] = useState(null);
+  const [appointmentDoctors, setAppointmentDoctors] = useState([]);
+  const [appointmentDoctorsLoading, setAppointmentDoctorsLoading] = useState(false);
   const [appointmentsList, setAppointmentsList] = useState([]);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
@@ -210,6 +215,105 @@ export default function Patients() {
   const [showAppointmentUpdateSuccess, setShowAppointmentUpdateSuccess] = useState(false);
   const [showNotLoggedInModal, setShowNotLoggedInModal] = useState(false);
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(!!localStorage.getItem('accessToken'));
+
+  useEffect(() => {
+    if (!showNewAppointmentModal) return;
+
+    const selectedAccessStr = localStorage.getItem('selectedAccess');
+    const selectedAccess = selectedAccessStr ? JSON.parse(selectedAccessStr) : null;
+    const clinicId = selectedAccess?.clinicId;
+
+    console.log("🔍 Fetching doctors for clinicId:", clinicId);
+
+    if (!clinicId) {
+      console.warn("⚠️ No clinicId found in selectedAccess");
+      setAppointmentDoctors([]);
+      setAppointmentDoctorsLoading(false);
+      return;
+    }
+
+    const fetchDoctors = async () => {
+      try {
+        setAppointmentDoctorsLoading(true);
+        console.log("🔄 Starting doctor fetch...");
+        const doctorsList = await getDoctorsByClinicID(Number(clinicId));
+        console.log("🏥 Walk-in doctors response:", doctorsList);
+        
+        let rawDoctors = Array.isArray(doctorsList)
+          ? doctorsList
+          : Array.isArray(doctorsList?.data)
+            ? doctorsList.data
+            : Array.isArray(doctorsList?.doctors)
+              ? doctorsList.doctors
+              : [];
+
+        console.log("📋 Raw doctors array:", rawDoctors);
+
+        // Normalize the doctor data to have consistent field names
+        let normalizedDoctors = rawDoctors.map((item) => ({
+          doctorId: item.doctorId || item.doctorID || item.id || item.staffId || "",
+          firstName: item.firstName || item.FirstName || "",
+          lastName: item.lastName || item.LastName || "",
+          name: `${item.firstName || item.FirstName || ""} ${item.lastName || item.LastName || ""}`.trim(),
+          email: item.email || item.Email || "",
+          phone: item.phone || item.Phone || "",
+          specialization: item.specialization || item.Specialization || ""
+        }));
+
+        console.log("📋 Normalized doctors:", normalizedDoctors);
+
+        // Fallback: try staff profile search for clinic and filter Doctor/Nurse roles
+        if (normalizedDoctors.length === 0) {
+          console.log("⚠️ No doctors found, trying fallback staff profile fetch...");
+          try {
+            const response = await fetch(`${API_BASE_URL}/StaffDetail/GetStaffProfile?clinicId=${clinicId}`, {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+              }
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const staffList = Array.isArray(data) ? data : data?.data || [];
+              const filtered = staffList.filter(item => {
+                const role = (item.roleType || item.role || item.roleName || "").toLowerCase();
+                return role.includes("doctor") || role.includes("nurse") || role.includes("dentist") || role.includes("physician");
+              });
+              const fallbackList = filtered.length > 0 ? filtered : staffList;
+              
+              // Normalize fallback data too
+              normalizedDoctors = fallbackList.map((item) => ({
+                doctorId: item.doctorId || item.doctorID || item.id || item.staffId || "",
+                firstName: item.firstName || item.FirstName || "",
+                lastName: item.lastName || item.LastName || "",
+                name: `${item.firstName || item.FirstName || ""} ${item.lastName || item.LastName || ""}`.trim(),
+                email: item.email || item.Email || "",
+                phone: item.phone || item.Phone || "",
+                specialization: item.specialization || item.Specialization || ""
+              }));
+              
+              console.log("✅ Fallback staff found and normalized:", normalizedDoctors);
+            }
+          } catch (fallbackError) {
+            console.error('❌ Fallback staff profile fetch failed:', fallbackError);
+          }
+        }
+
+        console.log("✅ Setting appointment doctors:", normalizedDoctors);
+        setAppointmentDoctors(normalizedDoctors);
+      } catch (error) {
+        console.error('❌ Failed to fetch doctors for appointment:', error);
+        setAppointmentDoctors([]);
+      } finally {
+        console.log("🏁 Doctor fetch complete, setting loading to false");
+        setAppointmentDoctorsLoading(false);
+      }
+    };
+
+    fetchDoctors();
+  }, [showNewAppointmentModal]);
   
   // Diagnosis modal states
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
@@ -5713,14 +5817,31 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
                         <span>🩺</span> Attending Physician {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
                       </label>
-                      <input
-                        type="text"
+                      <select
                         disabled={!searchedPatient && !bookingWithoutRegistration}
                         value={appointmentForm.attendingPhysician}
                         onChange={(e) => setAppointmentForm({ ...appointmentForm, attendingPhysician: e.target.value })}
                         className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
-                        placeholder="Dr. Smith"
-                      />
+                      >
+                        <option value="">
+                          {!searchedPatient && !bookingWithoutRegistration
+                            ? "Select patient first"
+                            : appointmentDoctorsLoading
+                              ? "Loading doctors..."
+                              : appointmentDoctors.length === 0
+                                ? "No doctors available"
+                                : "Select physician"}
+                        </option>
+                        {appointmentDoctors.map((doc) => {
+                          const name = doc.name || doc.doctorName || `${doc.firstName || ""} ${doc.lastName || ""}`.trim() || `Doctor ${doc.doctorId || doc.id}`;
+                          const doctorId = doc.doctorId || doc.id || "";
+                          return (
+                            <option key={doctorId || name} value={doctorId}>
+                              {name}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </div>
                     <div>
                       <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
