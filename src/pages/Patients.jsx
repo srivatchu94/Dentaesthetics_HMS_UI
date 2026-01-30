@@ -5521,7 +5521,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       // References - from token payload (selectedAccess)
                       enterpriseId: enterpriseId,
                       clinicId: clinicId,
-                      patientId: searchedPatient ? searchedPatient.patientId : 0, // 0 for walk-in/non-registered
+                      patientId: searchedPatient ? searchedPatient.patientId : null, // null for walk-in/non-registered
                       doctorId: appointmentForm.doctorId ? parseInt(appointmentForm.doctorId) : null,
                       attendingPhysician: appointmentForm.attendingPhysician || null,
                       // Patient details (stored in appointments row)
