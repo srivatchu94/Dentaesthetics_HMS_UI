@@ -7062,7 +7062,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                             appointmentId: selectedAppointmentDetails.appointmentId,
                             patientId: parseInt(selectedAppointmentDetails.patientId) || parseInt(editAppointmentForm.patientId) || 0,
                             clinicId: parseInt(clinicId) || 0,
-                            doctorId: parseInt(editAppointmentForm.doctorId) || parseInt(selectedAppointmentDetails.doctorId) || 0,
+                            doctorId: editAppointmentForm.doctorId ? String(editAppointmentForm.doctorId) : (selectedAppointmentDetails.doctorId ? String(selectedAppointmentDetails.doctorId) : null),
                             attendingPhysician: editAppointmentForm.attendingPhysician || '',
                             enterpriseId: parseInt(enterpriseId) || 0,
                             firstName: editAppointmentForm.firstName || '',

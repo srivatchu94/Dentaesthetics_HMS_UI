@@ -24,9 +24,17 @@ export function updateAppointment(appointment: AppointmentsModel): Promise<Appoi
   console.log("🆔 Appointment ID:", appointment.appointmentId);
   console.log("📤 Sending PUT request to /Appointments/UpdateAppointment");
   
+  // Convert doctorId to string if it's a number (backend expects string)
+  const payload = {
+    ...appointment,
+    doctorId: appointment.doctorId ? String(appointment.doctorId) : null
+  };
+  
+  console.log("📤 Converted payload with doctorId as string:", payload);
+  
   return request<AppointmentsModel>(`/Appointments/UpdateAppointment`, {
     method: "PUT",
-    body: JSON.stringify(appointment)
+    body: JSON.stringify(payload)
   });
 }
 

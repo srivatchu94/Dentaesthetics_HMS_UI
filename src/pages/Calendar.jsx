@@ -174,7 +174,7 @@ export default function Calendar() {
         appointmentId: selectedAppointment.id,
         patientId: selectedAppointment.patientId,
         clinicId: selectedAppointment.clinicId,
-        doctorId: selectedAppointment.doctorId || 0,
+        doctorId: selectedAppointment.doctorId ? String(selectedAppointment.doctorId) : null,
         enterpriseId: selectedAppointment.enterpriseId,
         firstName: editFormData.patient.split(' ')[0] || "",
         lastName: editFormData.patient.split(' ').slice(1).join(' ') || "",
