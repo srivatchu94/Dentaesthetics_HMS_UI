@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import { createStaffDetail } from "../services/staffService";
 import { createPatient } from "../services/patientService";
-import { getSelectedAccess, setSelectedAccess, getAuthUserAccess } from "../services/authService";
+import { getSelectedAccess, setSelectedAccess, getAuthUserAccess, getAuthToken } from "../services/authService";
 import {
   AppointmentListModal,
   CreateAppointmentModal,
@@ -330,6 +330,7 @@ export default function SuperAdmin() {
   const [appointmentFormError, setAppointmentFormError] = useState("");
   const [appointmentFormLoading, setAppointmentFormLoading] = useState(false);
   const [deletingAppointment, setDeletingAppointment] = useState(false);
+  const [showPayloadPreview, setShowPayloadPreview] = useState(false);
 
   // Patient Management States
   const [showCreatePatientModal, setShowCreatePatientModal] = useState(false);
@@ -386,9 +387,19 @@ export default function SuperAdmin() {
   const [patientSuccess, setPatientSuccess] = useState("");
   const [showManagePatientModal, setShowManagePatientModal] = useState(false);
   const [patientSearchId, setPatientSearchId] = useState("");
+  const [patientSearchCriteria, setPatientSearchCriteria] = useState({
+    enterpriseId: "",
+    clinicId: "",
+    patientId: "",
+    firstName: "",
+    lastName: "",
+    dateOfBirth: ""
+  });
   const [patientProfile, setPatientProfile] = useState(null);
   const [patientProfileLoading, setPatientProfileLoading] = useState(false);
   const [patientProfileError, setPatientProfileError] = useState("");
+  const [patientList, setPatientList] = useState([]);
+  const [selectedPatientIndex, setSelectedPatientIndex] = useState(0);
   const [showEditPatientModal, setShowEditPatientModal] = useState(false);
   const [editPatientForm, setEditPatientForm] = useState(null);
   const [editPatientActiveTab, setEditPatientActiveTab] = useState("patient-info");
@@ -424,33 +435,56 @@ export default function SuperAdmin() {
   const [inventoryFormLoading, setInventoryFormLoading] = useState(false);
 
   // Ensure API headers reflect selected Enterprise/Clinic during patient creation
+  // For SuperAdmins: Skip access validation - they have universal access
   useEffect(() => {
     if (!showCreatePatientModal) return;
     const entId = Number(createPatientForm.enterpriseId);
     const clinId = Number(createPatientForm.clinicId);
     if (entId > 0 && clinId > 0) {
       try {
-        const allowed = getAuthUserAccess() || [];
-        const isAllowed = allowed.some(a => Number(a.enterpriseId) === entId && Number(a.clinicId) === clinId);
-        if (isAllowed) {
-          setSelectedAccess(entId, clinId, getSelectedAccess()?.roleIds || []);
-          console.log("🔐 Selected access set for patient registration:", { entId, clinId });
+        const selectedAccess = getSelectedAccess();
+        const isSuperAdmin = Array.isArray(selectedAccess?.roleIds) && selectedAccess.roleIds.includes(1);
+        
+        if (isSuperAdmin) {
+          // SuperAdmins: Just clear errors, no access changes needed
+          console.log("🔐 SuperAdmin selecting enterprise/clinic:", { entId, clinId });
+          setPatientFormError("");
         } else {
-          console.warn("🚫 Selected enterprise/clinic not in user access:", { entId, clinId });
-          setPatientFormError("You do not have access to the selected enterprise/clinic");
+          // For non-SuperAdmins: validate access and set selected access
+          const allowed = getAuthUserAccess() || [];
+          const isAllowed = allowed.some(a => Number(a.enterpriseId) === entId && Number(a.clinicId) === clinId);
+          
+          if (isAllowed) {
+            setSelectedAccess(entId, clinId, selectedAccess?.roleIds || []);
+            console.log("🔐 Selected access set for patient registration:", { entId, clinId });
+            setPatientFormError("");
+          } else {
+            console.warn("🚫 Selected enterprise/clinic not in user access:", { entId, clinId });
+            setPatientFormError("You do not have access to the selected enterprise/clinic");
+          }
         }
       } catch (e) {
-        console.error("❌ Failed to set selected access:", e);
+        console.error("❌ Failed to validate access:", e);
       }
     }
   }, [showCreatePatientModal, createPatientForm.enterpriseId, createPatientForm.clinicId]);
 
   // Filter enterprises/clinics to those the user has access to
+  // SuperAdmins (roleId = 1) have access to ALL enterprises and clinics
   const userAccessList = getAuthUserAccess() || [];
+  const selectedAccess = getSelectedAccess();
+  const isSuperAdmin = Array.isArray(selectedAccess?.roleIds) && selectedAccess.roleIds.includes(1);
+  
   const allowedEnterpriseIds = new Set(userAccessList.map(a => Number(a.enterpriseId)));
   const allowedClinicIds = new Set(userAccessList.map(a => Number(a.clinicId)));
-  const enterprisesForModal = (Array.isArray(enterprises) ? enterprises : []).filter(e => allowedEnterpriseIds.has(Number(e.enterpriseId)));
-  const clinicsForModal = (Array.isArray(clinics) ? clinics : []).filter(c => allowedClinicIds.has(Number(c.clinicId)));
+  
+  // SuperAdmins see all enterprises and clinics, others see only their allowed ones
+  const enterprisesForModal = isSuperAdmin 
+    ? (Array.isArray(enterprises) ? enterprises : [])
+    : (Array.isArray(enterprises) ? enterprises : []).filter(e => allowedEnterpriseIds.has(Number(e.enterpriseId)));
+  const clinicsForModal = isSuperAdmin
+    ? (Array.isArray(clinics) ? clinics : [])
+    : (Array.isArray(clinics) ? clinics : []).filter(c => allowedClinicIds.has(Number(c.clinicId)));
 
   // Clinic Inventory States
   const [showClinicInventoryListModal, setShowClinicInventoryListModal] = useState(false);
@@ -1788,7 +1822,9 @@ export default function SuperAdmin() {
       const roleValue = viewStaffFilters.rolesAssigned || "all";
       params.append("rolesAssigned", roleValue);
       
-      const url = `${API_BASE_URL}/StaffDetail/GetStaffDetailsbyRole?${params.toString()}`;
+      // Use the module-level API_BASE_URL constant
+      const baseUrl = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+      const url = `${baseUrl}/StaffDetail/GetStaffDetailsbyRole?${params.toString()}`;
       console.log("📡 Fetching staff profiles:", url);
       
       const response = await fetch(url, {
@@ -1865,8 +1901,8 @@ export default function SuperAdmin() {
       console.log("📊 Roles present:", normalizedStaff.filter(s => s.rolesAssigned).length, "with role");
       setStaffList(normalizedStaff);
     } catch (err) {
-      console.error("❌ Error fetching staff profiles:", err);
-      setStaffListError(err.message || "Failed to fetch staff profiles");
+      console.error("❌ Failed to search staff:", err);
+      setStaffListError(err.message || "Failed to search staff");
       setStaffList([]);
     } finally {
       setStaffListLoading(false);
@@ -2189,12 +2225,87 @@ export default function SuperAdmin() {
     }
   };
 
+  const previewAppointmentPayload = () => {
+    const normalizedPhone = (createAppointmentForm.phoneNumber || "").replace(/\D/g, "");
+    const normalizedEmail = createAppointmentForm.email ? createAppointmentForm.email.trim() : "";
+    
+    const patientId = createAppointmentForm.patientId && String(createAppointmentForm.patientId).trim() !== "" 
+      ? parseInt(createAppointmentForm.patientId) 
+      : null;
+    const clinicId = parseInt(createAppointmentForm.clinicId);
+    const enterpriseId = parseInt(createAppointmentForm.enterpriseId) || 0;
+    const doctorId = createAppointmentForm.doctorId && String(createAppointmentForm.doctorId).trim() !== "" ? String(createAppointmentForm.doctorId).trim() : null;
+    const durationMinutes = createAppointmentForm.durationMinutes ? parseInt(createAppointmentForm.durationMinutes) : null;
+    const billableAmount = createAppointmentForm.billableAmount ? parseFloat(createAppointmentForm.billableAmount) : null;
+
+    // Format appointment date
+    const appointmentDateOnly = createAppointmentForm.appointmentDate 
+      ? (() => {
+          const dateStr = createAppointmentForm.appointmentDate;
+          if (dateStr.includes('T')) {
+            return dateStr.split('T')[0];
+          } else if (dateStr.includes('-') && dateStr.split('-')[0].length === 2) {
+            const [day, month, year] = dateStr.split('-');
+            return `${year}-${month}-${day}`;
+          } else if (dateStr.includes('/') && dateStr.split('/')[0].length === 2) {
+            const [day, month, year] = dateStr.split('/');
+            return `${year}-${month}-${day}`;
+          }
+          return dateStr;
+        })()
+      : null;
+
+    // Format times
+    const formatTimeToTimeSpan = (timeString) => {
+      if (!timeString) return null;
+      if (timeString.match(/^\d{1,2}:\d{2}$/)) {
+        return timeString + ":00";
+      }
+      if (timeString.match(/^\d{1,2}:\d{2}:\d{2}$/)) {
+        return timeString;
+      }
+      return null;
+    };
+
+    const startTime = formatTimeToTimeSpan(createAppointmentForm.startTime);
+    const endTime = formatTimeToTimeSpan(createAppointmentForm.endTime);
+
+    return {
+      PatientId: patientId,
+      ClinicId: clinicId,
+      DoctorId: doctorId,
+      AttendingPhysician: createAppointmentForm.attendingPhysician ? createAppointmentForm.attendingPhysician.trim() : null,
+      EnterpriseId: enterpriseId,
+      FirstName: createAppointmentForm.firstName.trim(),
+      LastName: createAppointmentForm.lastName.trim(),
+      PhoneNumber: normalizedPhone,
+      Email: normalizedEmail || null,
+      AppointmentDate: appointmentDateOnly,
+      StartTime: startTime,
+      EndTime: endTime,
+      DurationMinutes: durationMinutes,
+      AppointmentType: createAppointmentForm.appointmentType || "Consultation",
+      ReasonForVisit: createAppointmentForm.reasonForVisit ? createAppointmentForm.reasonForVisit.trim() : null,
+      Notes: createAppointmentForm.notes ? createAppointmentForm.notes.trim() : null,
+      RoomNumber: createAppointmentForm.roomNumber ? createAppointmentForm.roomNumber.trim() : null,
+      TelehealthLink: createAppointmentForm.telehealthLink ? createAppointmentForm.telehealthLink.trim() : null,
+      Status: createAppointmentForm.status || "Scheduled",
+      IsConfirmed: createAppointmentForm.isConfirmed === true,
+      BillableAmount: billableAmount,
+      PaidAmount: createAppointmentForm.paidAmount ? parseFloat(createAppointmentForm.paidAmount) : null,
+      PendingAmount: createAppointmentForm.pendingAmount ? parseFloat(createAppointmentForm.pendingAmount) : null,
+      PaymentStatus: createAppointmentForm.paymentStatus || "Pending",
+      CreatedBy: null,
+      UpdatedBy: null
+    };
+  };
+
   const handleCreateAppointment = async () => {
     setAppointmentFormError("");
 
-    // Validation
-    if (!createAppointmentForm.patientId || !createAppointmentForm.clinicId || !createAppointmentForm.appointmentDate) {
-      setAppointmentFormError("Patient ID, Clinic, and Appointment Date are required");
+    // Validation - Patient ID is optional for walk-in appointments
+    if (!createAppointmentForm.clinicId || !createAppointmentForm.appointmentDate) {
+      setAppointmentFormError("Clinic and Appointment Date are required");
       return;
     }
 
@@ -2217,7 +2328,10 @@ export default function SuperAdmin() {
     }
 
     // Parse and format data properly
-    const patientId = parseInt(createAppointmentForm.patientId);
+    // For walk-in patients, patientId is null
+    const patientId = createAppointmentForm.patientId && String(createAppointmentForm.patientId).trim() !== "" 
+      ? parseInt(createAppointmentForm.patientId) 
+      : null;
     const clinicId = parseInt(createAppointmentForm.clinicId);
     const enterpriseId = parseInt(createAppointmentForm.enterpriseId) || 0;
     
@@ -2227,10 +2341,25 @@ export default function SuperAdmin() {
     const billableAmount = createAppointmentForm.billableAmount ? parseFloat(createAppointmentForm.billableAmount) : null;
 
     // Format appointment date as date only (e.g., "2026-01-12")
-    // Format appointment date as date only (e.g., "2026-01-12")
-    // Use split to avoid timezone issues
+    // Convert from DD-MM-YYYY format to YYYY-MM-DD format
     const appointmentDateOnly = createAppointmentForm.appointmentDate 
-      ? createAppointmentForm.appointmentDate.split('T')[0]
+      ? (() => {
+          const dateStr = createAppointmentForm.appointmentDate;
+          // Handle both DD-MM-YYYY and YYYY-MM-DD formats
+          if (dateStr.includes('T')) {
+            // ISO format: YYYY-MM-DDTHH:mm:ss
+            return dateStr.split('T')[0];
+          } else if (dateStr.includes('-') && dateStr.split('-')[0].length === 2) {
+            // DD-MM-YYYY format
+            const [day, month, year] = dateStr.split('-');
+            return `${year}-${month}-${day}`;
+          } else if (dateStr.includes('/') && dateStr.split('/')[0].length === 2) {
+            // DD/MM/YYYY format
+            const [day, month, year] = dateStr.split('/');
+            return `${year}-${month}-${day}`;
+          }
+          return dateStr;
+        })()
       : null;
 
     // Format times as TimeSpan "HH:mm:ss" format
@@ -2250,50 +2379,64 @@ export default function SuperAdmin() {
     const startTime = formatTimeToTimeSpan(createAppointmentForm.startTime);
     const endTime = formatTimeToTimeSpan(createAppointmentForm.endTime);
 
-    // Validate critical numeric fields
-    if (isNaN(patientId) || isNaN(clinicId)) {
-      setAppointmentFormError("Patient ID and Clinic ID must be valid numbers");
+    // Validate critical numeric fields - clinicId must be valid
+    if (isNaN(clinicId)) {
+      setAppointmentFormError("Clinic ID must be a valid number");
+      return;
+    }
+
+    // Only validate patientId if it's provided
+    if (patientId !== null && isNaN(patientId)) {
+      setAppointmentFormError("Patient ID must be a valid number");
       return;
     }
 
     const payload = {
-      patientId: patientId,
-      clinicId: clinicId,
-      doctorId: doctorId,
-      attendingPhysician: createAppointmentForm.attendingPhysician ? createAppointmentForm.attendingPhysician.trim() : null,
-      enterpriseId: enterpriseId,
-      firstName: createAppointmentForm.firstName.trim(),
-      lastName: createAppointmentForm.lastName.trim(),
-      phoneNumber: normalizedPhone,
-      email: normalizedEmail || null,
-      appointmentDate: appointmentDateOnly,
-      startTime: startTime,
-      endTime: endTime,
-      durationMinutes: durationMinutes,
-      appointmentType: createAppointmentForm.appointmentType || "Consultation",
-      reasonForVisit: createAppointmentForm.reasonForVisit ? createAppointmentForm.reasonForVisit.trim() : null,
-      notes: createAppointmentForm.notes ? createAppointmentForm.notes.trim() : null,
-      roomNumber: createAppointmentForm.roomNumber ? createAppointmentForm.roomNumber.trim() : null,
-      telehealthLink: createAppointmentForm.telehealthLink ? createAppointmentForm.telehealthLink.trim() : null,
-      status: createAppointmentForm.status || "Scheduled",
-      isConfirmed: createAppointmentForm.isConfirmed === true,
-      billableAmount: billableAmount,
-      paidAmount: createAppointmentForm.paidAmount ? parseFloat(createAppointmentForm.paidAmount) : null,
-      pendingAmount: createAppointmentForm.pendingAmount ? parseFloat(createAppointmentForm.pendingAmount) : null,
-      paymentStatus: createAppointmentForm.paymentStatus || "Pending",
-      createdBy: null,
-      updatedBy: null
+      PatientId: patientId,
+      ClinicId: clinicId,
+      DoctorId: doctorId,
+      AttendingPhysician: createAppointmentForm.attendingPhysician ? createAppointmentForm.attendingPhysician.trim() : null,
+      EnterpriseId: enterpriseId,
+      FirstName: createAppointmentForm.firstName.trim(),
+      LastName: createAppointmentForm.lastName.trim(),
+      PhoneNumber: normalizedPhone,
+      Email: normalizedEmail || null,
+      AppointmentDate: appointmentDateOnly,
+      StartTime: startTime,
+      EndTime: endTime,
+      DurationMinutes: durationMinutes,
+      AppointmentType: createAppointmentForm.appointmentType || "Consultation",
+      ReasonForVisit: createAppointmentForm.reasonForVisit ? createAppointmentForm.reasonForVisit.trim() : null,
+      Notes: createAppointmentForm.notes ? createAppointmentForm.notes.trim() : null,
+      RoomNumber: createAppointmentForm.roomNumber ? createAppointmentForm.roomNumber.trim() : null,
+      TelehealthLink: createAppointmentForm.telehealthLink ? createAppointmentForm.telehealthLink.trim() : null,
+      Status: createAppointmentForm.status || "Scheduled",
+      IsConfirmed: createAppointmentForm.isConfirmed === true,
+      BillableAmount: billableAmount,
+      PaidAmount: createAppointmentForm.paidAmount ? parseFloat(createAppointmentForm.paidAmount) : null,
+      PendingAmount: createAppointmentForm.pendingAmount ? parseFloat(createAppointmentForm.pendingAmount) : null,
+      PaymentStatus: createAppointmentForm.paymentStatus || "Pending",
+      CreatedBy: null,
+      UpdatedBy: null
     };
 
-    console.log("📋 Creating appointment with payload:", payload);
+    console.log("📋 Form appointmentDate value:", createAppointmentForm.appointmentDate);
+    console.log("📋 Formatted appointmentDate:", appointmentDateOnly);
+    console.log("📋 appointmentDate is null?", appointmentDateOnly === null);
+    console.log("📋 Start Time:", startTime);
+    console.log("📋 End Time:", endTime);
+    console.log("📋 Duration Minutes:", durationMinutes);
+    console.log("📋 Creating appointment with payload:", JSON.stringify(payload, null, 2));
+    console.log("📋 Sending to API:", APPOINTMENT_ENDPOINTS.create);
 
     try {
       setAppointmentFormLoading(true);
+      const token = getAuthToken();
       const response = await fetch(APPOINTMENT_ENDPOINTS.create, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify(payload)
       });
@@ -2610,15 +2753,24 @@ export default function SuperAdmin() {
       }
     }
 
-    // Validate phone number - should not be more than 10 digits
+    // Validate phone number - should be exactly 10 digits
     if (createPatientForm.phoneNumber) {
       const phoneDigits = createPatientForm.phoneNumber.replace(/\D/g, "");
+      if (phoneDigits.length === 0) {
+        setPatientFormError("Phone number should contain digits");
+        return;
+      }
+      if (phoneDigits.length < 10) {
+        setPatientFormError("Phone number should be at least 10 digits");
+        return;
+      }
       if (phoneDigits.length > 10) {
         setPatientFormError("Phone number should not exceed 10 digits");
         return;
       }
-      if (phoneDigits.length === 0) {
-        setPatientFormError("Phone number should contain at least some digits");
+      // Check if phone number is valid (no repeated digits like 0000000000)
+      if (/^(.)\1+$/.test(phoneDigits)) {
+        setPatientFormError("Please enter a valid phone number");
         return;
       }
     }
@@ -2626,9 +2778,76 @@ export default function SuperAdmin() {
     // Validate alternate phone if provided
     if (createPatientForm.alternatePhone) {
       const altPhoneDigits = createPatientForm.alternatePhone.replace(/\D/g, "");
-      if (altPhoneDigits.length > 10) {
-        setPatientFormError("Alternate phone number should not exceed 10 digits");
-        return;
+      if (altPhoneDigits.length > 0) {
+        if (altPhoneDigits.length < 10) {
+          setPatientFormError("Alternate phone number should be at least 10 digits");
+          return;
+        }
+        if (altPhoneDigits.length > 10) {
+          setPatientFormError("Alternate phone number should not exceed 10 digits");
+          return;
+        }
+        // Check if phone number is valid (no repeated digits)
+        if (/^(.)\1+$/.test(altPhoneDigits)) {
+          setPatientFormError("Please enter a valid alternate phone number");
+          return;
+        }
+      }
+    }
+
+    // Validate emergency contact phone if provided
+    if (createPatientForm.emergencyContactPhone) {
+      const emergencyPhoneDigits = createPatientForm.emergencyContactPhone.replace(/\D/g, "");
+      if (emergencyPhoneDigits.length > 0) {
+        if (emergencyPhoneDigits.length < 10) {
+          setPatientFormError("Emergency contact phone should be at least 10 digits");
+          return;
+        }
+        if (emergencyPhoneDigits.length > 10) {
+          setPatientFormError("Emergency contact phone should not exceed 10 digits");
+          return;
+        }
+        // Check if phone number is valid (no repeated digits)
+        if (/^(.)\1+$/.test(emergencyPhoneDigits)) {
+          setPatientFormError("Please enter a valid emergency contact phone number");
+          return;
+        }
+      }
+    }
+
+    // Validate postal code (pincode) if provided
+    if (createPatientForm.postalCode) {
+      const postalCodeDigits = createPatientForm.postalCode.replace(/\D/g, "");
+      if (postalCodeDigits.length > 0) {
+        if (postalCodeDigits.length !== 6) {
+          setPatientFormError("Postal code should be exactly 6 digits");
+          return;
+        }
+        // Check if postal code is valid (no repeated digits like 000000)
+        if (/^(.)\1+$/.test(postalCodeDigits)) {
+          setPatientFormError("Please enter a valid postal code");
+          return;
+        }
+      }
+    }
+
+    // Validate insurance phone if provided
+    if (createPatientForm.insurancePhone) {
+      const insurancePhoneDigits = createPatientForm.insurancePhone.replace(/\D/g, "");
+      if (insurancePhoneDigits.length > 0) {
+        if (insurancePhoneDigits.length < 10) {
+          setPatientFormError("Insurance phone should be at least 10 digits");
+          return;
+        }
+        if (insurancePhoneDigits.length > 10) {
+          setPatientFormError("Insurance phone should not exceed 10 digits");
+          return;
+        }
+        // Check if phone number is valid (no repeated digits)
+        if (/^(.)\1+$/.test(insurancePhoneDigits)) {
+          setPatientFormError("Please enter a valid insurance phone number");
+          return;
+        }
       }
     }
 
@@ -2636,22 +2855,67 @@ export default function SuperAdmin() {
       setPatientFormLoading(true);
       setPatientFormError("");
 
+      const selectedAccess = getSelectedAccess();
+      const isSuperAdmin = Array.isArray(selectedAccess?.roleIds) && selectedAccess.roleIds.includes(1);
+
+      // Format date properly for API (YYYY-MM-DD or null)
+      let formattedDOB = null;
+      if (createPatientForm.dateOfBirth) {
+        const dobDate = new Date(createPatientForm.dateOfBirth);
+        if (!isNaN(dobDate.getTime()) && dobDate.getTime() > 0) {
+          // Format as YYYY-MM-DD
+          formattedDOB = dobDate.toISOString().split('T')[0];
+        }
+      }
+
+      // Format last dental visit date
+      let formattedLastVisit = null;
+      if (createPatientForm.lastDentalVisit) {
+        const lastVisitDate = new Date(createPatientForm.lastDentalVisit);
+        if (!isNaN(lastVisitDate.getTime()) && lastVisitDate.getTime() > 0) {
+          formattedLastVisit = lastVisitDate.toISOString().split('T')[0];
+        }
+      }
+
+      // Format insurance dates
+      let formattedCoverageStart = null;
+      if (createPatientForm.coverageStartDate) {
+        const startDate = new Date(createPatientForm.coverageStartDate);
+        if (!isNaN(startDate.getTime()) && startDate.getTime() > 0) {
+          formattedCoverageStart = startDate.toISOString().split('T')[0];
+        }
+      }
+
+      let formattedCoverageEnd = null;
+      if (createPatientForm.coverageEndDate) {
+        const endDate = new Date(createPatientForm.coverageEndDate);
+        if (!isNaN(endDate.getTime()) && endDate.getTime() > 0) {
+          formattedCoverageEnd = endDate.toISOString().split('T')[0];
+        }
+      }
+
       const patientDataModel = {
         patient: {
           patientId: 0,
-          patientEntityID: "",
-          patientFirstName: createPatientForm.firstName,
-          patientLastName: createPatientForm.lastName,
-          patientDOB: createPatientForm.dateOfBirth || new Date().toISOString(),
+          patientEntityID: (createPatientForm.enterpriseId || "").toString(),
+          patientFirstName: createPatientForm.firstName || "",
+          patientLastName: createPatientForm.lastName || "",
+          patientDOB: formattedDOB || null,
           patientGender: createPatientForm.gender || "",
           patientBloodType: createPatientForm.bloodGroup || "",
-          clinicID: createPatientForm.clinicId || ""
+          clinicID: (createPatientForm.clinicId || "0").toString(),
+          enterpriseId: (createPatientForm.enterpriseId || "0").toString(),
+          maritalStatus: createPatientForm.maritalStatus || ""
         },
         patientContact: {
           patientId: 0,
           patientAddress: `${createPatientForm.addressLine1 || ""}${createPatientForm.addressLine2 ? ", " + createPatientForm.addressLine2 : ""}`.trim(),
           patientCity: createPatientForm.city || "",
+          patientState: createPatientForm.state || "",
+          patientPostalCode: createPatientForm.postalCode || "",
+          patientCountry: createPatientForm.country || "",
           patientPhone: createPatientForm.phoneNumber || "",
+          patientAlternatePhone: createPatientForm.alternatePhone || "",
           patientEmail: createPatientForm.email || "",
           patientEmergencyContact: createPatientForm.emergencyContactName 
             ? `${createPatientForm.emergencyContactName} - ${createPatientForm.emergencyContactPhone} (${createPatientForm.emergencyContactRelation})`
@@ -2664,20 +2928,71 @@ export default function SuperAdmin() {
           patientCurrentMedications: createPatientForm.currentMedications || "",
           patientPrimaryPhysician: "",
           no_of_visits: 0,
-          lastVisitedDate: createPatientForm.lastDentalVisit || new Date().toISOString(),
+          lastVisitedDate: formattedLastVisit || null,
           chronicDiseases: createPatientForm.chronicConditions || "",
           medicalHistory: `Past Surgeries: ${createPatientForm.pastSurgeries || "None"}; Smoking: ${createPatientForm.smokingStatus || "Unknown"}; Alcohol: ${createPatientForm.alcoholConsumption || "Unknown"}; Exercise: ${createPatientForm.exerciseFrequency || "Unknown"}; Diet: ${createPatientForm.dietaryRestrictions || "None"}; Notes: ${createPatientForm.additionalMedicalNotes || "None"}`
         },
         patientInsurance: {
           patientId: 0,
-          patientInsuranceProvider: createPatientForm.insuranceProvider || ""
+          patientInsuranceProvider: createPatientForm.insuranceProvider || "",
+          policyNumber: createPatientForm.policyNumber || "",
+          groupNumber: createPatientForm.groupNumber || "",
+          insurancePhone: createPatientForm.insurancePhone || "",
+          policyHolderName: createPatientForm.policyHolderName || "",
+          relationshipToHolder: createPatientForm.relationshipToHolder || "",
+          coverageStartDate: formattedCoverageStart || null,
+          coverageEndDate: formattedCoverageEnd || null,
+          copayAmount: createPatientForm.copayAmount ? Number(createPatientForm.copayAmount) : 0,
+          deductibleAmount: createPatientForm.deductibleAmount ? Number(createPatientForm.deductibleAmount) : 0,
+          coveragePercentage: createPatientForm.coveragePercentage ? Number(createPatientForm.coveragePercentage) : 0,
+          isPrimaryInsurance: createPatientForm.isPrimaryInsurance || false
         }
       };
 
       console.log("Submitting patient data from SuperAdmin:", patientDataModel);
       console.log("📤 Full Payload JSON:", JSON.stringify(patientDataModel, null, 2));
-      const response = await createPatient(patientDataModel);
-      console.log("Patient created successfully:", response);
+      
+      // SuperAdmins: Make API call with target enterprise/clinic headers
+      if (isSuperAdmin) {
+        const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken_session");
+        const targetEnterpriseId = Number(createPatientForm.enterpriseId);
+        const targetClinicId = Number(createPatientForm.clinicId);
+        
+        const requestHeaders = {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+          "X-Enterprise-Id": targetEnterpriseId.toString(),
+          "X-Clinic-Id": targetClinicId.toString(),
+          "X-Role-Ids": selectedAccess.roleIds.join(',')
+        };
+        
+        console.log("=".repeat(80));
+        console.log("🚀 SUPERADMIN API REQUEST");
+        console.log("=".repeat(80));
+        console.log("📍 Endpoint:", `${API_BASE_URL}/Patient/register`);
+        console.log("📋 Method: POST");
+        console.log("🔐 Headers:", JSON.stringify(requestHeaders, null, 2));
+        console.log("📦 Body:", JSON.stringify(patientDataModel, null, 2));
+        console.log("=".repeat(80));
+        
+        const response = await fetch(`${API_BASE_URL}/Patient/register`, {
+          method: "POST",
+          headers: requestHeaders,
+          body: JSON.stringify(patientDataModel)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || `Failed to create patient (${response.status})`);
+        }
+        
+        const result = await response.json();
+        console.log("Patient created successfully:", result);
+      } else {
+        // Regular users use the standard service with access validation
+        const response = await createPatient(patientDataModel);
+        console.log("Patient created successfully:", response);
+      }
       
       setPatientSuccess("Patient registered successfully!");
       setShowCreatePatientModal(false);
@@ -2905,9 +3220,81 @@ export default function SuperAdmin() {
 
   // ============ PATIENT MANAGEMENT HANDLERS ============
 
+  const normalizePatientProfile = (item) => {
+    if (!item) return null;
+
+    const rawPatient = item.patient || item;
+    const contact = item.patientContact || {};
+    const medical = item.patientMedicalInfo || {};
+    const insurance = item.patientInsurance || {};
+
+    const patientId = rawPatient.patientId ?? item.patientId ?? "";
+    const firstName = rawPatient.patientFirstName ?? item.firstName ?? "";
+    const lastName = rawPatient.patientLastName ?? item.lastName ?? "";
+    const dateOfBirth = rawPatient.patientDOB ?? item.dateOfBirth ?? "";
+    const gender = rawPatient.patientGender ?? item.gender ?? "";
+    const bloodGroup = rawPatient.patientBloodType ?? item.bloodGroup ?? "";
+
+    const address = contact.patientAddress ?? item.patientAddress ?? item.addressLine1 ?? "";
+    const emergencyContact = contact.patientEmergencyContact ?? "";
+    let emergencyContactName = "";
+    let emergencyContactPhone = "";
+
+    if (emergencyContact) {
+      const match = emergencyContact.match(/^(.*) - (.*) \((.*)\)$/);
+      if (match) {
+        emergencyContactName = match[1];
+        emergencyContactPhone = match[2];
+      } else {
+        emergencyContactName = emergencyContact;
+      }
+    }
+
+    return {
+      patientId,
+      firstName,
+      lastName,
+      dateOfBirth,
+      gender,
+      bloodGroup,
+      maritalStatus: item.maritalStatus ?? "",
+      phoneNumber: contact.patientPhone ?? item.patientPhone ?? item.phoneNumber ?? "",
+      email: contact.patientEmail ?? item.patientEmail ?? item.email ?? "",
+      addressLine1: address,
+      addressLine2: item.addressLine2 ?? "",
+      city: contact.patientCity ?? item.patientCity ?? item.city ?? "",
+      state: item.state ?? "",
+      postalCode: item.postalCode ?? "",
+      country: item.country ?? "",
+      emergencyContactName,
+      emergencyContactPhone,
+      allergies: medical.patientAllergies ?? item.allergies ?? "",
+      chronicConditions: medical.chronicDiseases ?? item.chronicConditions ?? "",
+      currentMedications: medical.patientCurrentMedications ?? item.currentMedications ?? "",
+      pastSurgeries: item.pastSurgeries ?? "",
+      familyMedicalHistory: medical.patientMedicalHistory ?? item.familyMedicalHistory ?? "",
+      smokingStatus: item.smokingStatus ?? "",
+      alcoholConsumption: item.alcoholConsumption ?? "",
+      exerciseFrequency: item.exerciseFrequency ?? "",
+      lastDentalVisit: medical.lastVisitedDate ?? item.lastDentalVisit ?? "",
+      dietaryRestrictions: item.dietaryRestrictions ?? "",
+      additionalMedicalNotes: medical.medicalHistory ?? item.additionalMedicalNotes ?? "",
+      insuranceProvider: insurance.patientInsuranceProvider ?? item.insuranceProvider ?? ""
+    };
+  };
+
   const handleSearchPatient = async () => {
-    if (!patientSearchId) {
-      setPatientProfileError("Please enter a Patient ID");
+    const { enterpriseId, clinicId, patientId, firstName, lastName, dateOfBirth } = patientSearchCriteria;
+
+    const hasAnySearchField = Boolean(patientId || firstName || lastName || dateOfBirth);
+
+    if (!clinicId && !patientId) {
+      setPatientProfileError("Please select a Clinic or enter a Patient ID");
+      return;
+    }
+
+    if (clinicId && !enterpriseId) {
+      setPatientProfileError("Please select an Enterprise");
       return;
     }
 
@@ -2916,27 +3303,83 @@ export default function SuperAdmin() {
       setPatientProfileError("");
       setPatientProfile(null);
 
-      const response = await fetch(PATIENT_ENDPOINTS.getFullProfile(patientSearchId), {
+      // If ONLY patient ID is provided (no clinic, no other fields), use GetPatientById endpoint
+      if (patientId && !clinicId && !firstName && !lastName && !dateOfBirth) {
+        console.log('🔍 Using GetPatientById endpoint for patient ID:', patientId);
+        const { getPatientById } = await import('../api/hmsApi');
+        const patient = await getPatientById(Number(patientId));
+        console.log('✅ Patient fetched by ID:', patient);
+        
+        const normalizedPatient = normalizePatientProfile(patient);
+        setPatientList([normalizedPatient]);
+        setSelectedPatientIndex(0);
+        setPatientProfile(normalizedPatient);
+        console.log('📊 Patient loaded via GetPatientById');
+        return;
+      }
+
+      let endpoint = "";
+      let headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+      };
+
+      if (clinicId) {
+        headers = { ...headers, "X-Clinic-Id": clinicId };
+      }
+
+      if (enterpriseId) {
+        headers = { ...headers, "X-Enterprise-Id": enterpriseId };
+      }
+
+      if (!hasAnySearchField && clinicId) {
+        // Only clinic selected -> Get all patients by clinic ID
+        endpoint = `${API_BASE_URL}/Patient/clinic/${clinicId}`;
+      } else {
+        // Patient search by criteria
+        const params = new URLSearchParams();
+        if (patientId) params.append('patientId', patientId);
+        if (clinicId) params.append('clinicId', clinicId);
+        if (firstName) params.append('firstName', firstName);
+        if (lastName) params.append('lastName', lastName);
+        if (dateOfBirth) params.append('dob', dateOfBirth);
+
+        endpoint = `${API_BASE_URL}/Patient/Patientsearch?${params.toString()}`;
+      }
+
+      const response = await fetch(endpoint, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
-        }
+        headers
       });
 
       if (!response.ok) {
         if (response.status === 404) {
-          throw new Error("Patient not found");
+          throw new Error("No patients found matching the criteria");
         }
-        throw new Error(`Failed to fetch patient (${response.status})`);
+        throw new Error(`Failed to search patients (${response.status})`);
       }
 
       const data = await response.json();
-      console.log("✅ Patient profile loaded:", data);
-      setPatientProfile(data);
+      console.log("✅ Patient search results:", data);
+
+      if (Array.isArray(data)) {
+        if (data.length === 0) {
+          throw new Error("No patients found matching the criteria");
+        }
+        const normalizedPatients = data.map(p => normalizePatientProfile(p));
+        setPatientList(normalizedPatients);
+        setSelectedPatientIndex(0);
+        setPatientProfile(normalizedPatients[0]);
+        console.log(`📊 Loaded ${normalizedPatients.length} patient(s)`);
+      } else {
+        const normalized = normalizePatientProfile(data);
+        setPatientList([normalized]);
+        setSelectedPatientIndex(0);
+        setPatientProfile(normalized);
+      }
     } catch (err) {
-      console.error("❌ Error fetching patient:", err);
-      setPatientProfileError(err.message || "Failed to load patient profile");
+      console.error("❌ Error searching patients:", err);
+      setPatientProfileError(err.message || "Failed to search patients");
     } finally {
       setPatientProfileLoading(false);
     }
@@ -3054,10 +3497,18 @@ export default function SuperAdmin() {
   // Load enterprises when Create Patient modal opens
   useEffect(() => {
     if (showCreatePatientModal) {
+      const selectedAccess = getSelectedAccess();
+      const isSuperAdmin = Array.isArray(selectedAccess?.roleIds) && selectedAccess.roleIds.includes(1);
+      const userAccessList = getAuthUserAccess() || [];
+      
       console.log("📋 Create Patient modal opened, loading enterprises...");
       console.log("Current enterprises:", enterprises);
+      console.log("Is SuperAdmin:", isSuperAdmin);
+      console.log("User access list:", userAccessList);
+      
       fetchEnterprises().then(() => {
         console.log("✅ Enterprises fetched for patient modal");
+        console.log("Enterprises count:", enterprises.length);
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -7483,6 +7934,7 @@ export default function SuperAdmin() {
             setCreateAppointmentActiveTab("basic");
             setAppointmentFormError("");
             setCreateAppointmentForm(initialCreateAppointmentForm);
+            setShowPayloadPreview(false);
           }}
           form={createAppointmentForm}
           setForm={setCreateAppointmentForm}
@@ -7494,6 +7946,9 @@ export default function SuperAdmin() {
           enterprises={enterprises}
           clinics={clinics}
           doctors={doctors}
+          showPayloadPreview={showPayloadPreview}
+          setShowPayloadPreview={setShowPayloadPreview}
+          previewPayload={previewAppointmentPayload}
           onEnterpriseChange={useCallback((enterpriseId) => {
             setCreateAppointmentForm((prev) => ({
               ...prev,
@@ -7571,16 +8026,33 @@ export default function SuperAdmin() {
           show={showManagePatientModal}
           onClose={() => {
             setShowManagePatientModal(false);
-            setPatientSearchId("");
+            setPatientSearchCriteria({
+              enterpriseId: "",
+              clinicId: "",
+              patientId: "",
+              firstName: "",
+              lastName: "",
+              dateOfBirth: ""
+            });
             setPatientProfile(null);
+            setPatientList([]);
+            setSelectedPatientIndex(0);
             setPatientProfileError("");
           }}
-          searchId={patientSearchId}
-          setSearchId={setPatientSearchId}
+          searchCriteria={patientSearchCriteria}
+          setSearchCriteria={setPatientSearchCriteria}
           onSearch={handleSearchPatient}
           patientProfile={patientProfile}
+          patientList={patientList}
+          selectedPatientIndex={selectedPatientIndex}
+          onPatientListChange={(index) => {
+            setSelectedPatientIndex(index);
+            setPatientProfile(patientList[index]);
+          }}
           loading={patientProfileLoading}
           error={patientProfileError}
+          enterprises={enterprisesForModal}
+          clinics={clinicsForModal}
         />
 
         {/* Inventory Management Modals */}
@@ -7653,6 +8125,119 @@ export default function SuperAdmin() {
           onConfirm={handleDeleteInventory}
           loading={deletingInventory}
         />
+
+        {/* Patient Creation Success Flyer */}
+        <AnimatePresence>
+          {patientSuccess && (
+            <motion.div
+              className="fixed inset-0 flex items-center justify-center z-[9999]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {/* Backdrop */}
+              <motion.div
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              />
+
+              {/* Success Card */}
+              <motion.div
+                className="relative mx-4 bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+                initial={{ scale: 0.8, y: 50 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.8, y: 50 }}
+                transition={{ type: "spring", damping: 20, stiffness: 300 }}
+              >
+                {/* Gradient Header */}
+                <div className="bg-gradient-to-r from-green-400 via-emerald-500 to-teal-600 p-8 text-center relative overflow-hidden">
+                  {/* Animated background shapes */}
+                  <motion.div
+                    className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full"
+                    animate={{ scale: [1, 1.2, 1], rotate: [0, 90, 180] }}
+                    transition={{ duration: 3, repeat: Infinity }}
+                  />
+                  <motion.div
+                    className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full"
+                    animate={{ scale: [1, 1.3, 1], rotate: [0, -90, -180] }}
+                    transition={{ duration: 4, repeat: Infinity }}
+                  />
+
+                  {/* Success Icon */}
+                  <motion.div
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ delay: 0.2, type: "spring", damping: 15, stiffness: 200 }}
+                    className="relative z-10"
+                  >
+                    <div className="flex justify-center mb-3">
+                      <motion.div
+                        className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-4xl"
+                        animate={{ scale: [1, 1.1, 1] }}
+                        transition={{ duration: 0.6, repeat: 2 }}
+                      >
+                        ✓
+                      </motion.div>
+                    </div>
+                    <h2 className="text-2xl font-bold text-white">Success!</h2>
+                  </motion.div>
+                </div>
+
+                {/* Content */}
+                <motion.div
+                  className="p-8 text-center"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <p className="text-lg font-semibold text-slate-800 mb-2">
+                    Patient Registered Successfully
+                  </p>
+                  <p className="text-slate-600 mb-6">
+                    The patient has been added to the system and is ready for appointments.
+                  </p>
+
+                  {/* Animated dots */}
+                  <div className="flex justify-center gap-2 mb-6">
+                    {[0, 1, 2].map((i) => (
+                      <motion.div
+                        key={i}
+                        className="w-2 h-2 bg-emerald-500 rounded-full"
+                        animate={{ scale: [0.8, 1.2, 0.8] }}
+                        transition={{
+                          delay: i * 0.1,
+                          duration: 1.5,
+                          repeat: Infinity,
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Action Button */}
+                  <motion.button
+                    onClick={() => setPatientSuccess("")}
+                    className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    Close
+                  </motion.button>
+                </motion.div>
+
+                {/* Bottom accent line */}
+                <motion.div
+                  className="h-1 bg-gradient-to-r from-green-400 via-emerald-500 to-teal-600"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ delay: 0.5, duration: 0.6 }}
+                  style={{ originX: 0 }}
+                />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

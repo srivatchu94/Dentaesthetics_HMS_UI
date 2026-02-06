@@ -474,3 +474,30 @@ export function addPatientVisit(payload: PatientVisitPayload): Promise<any> {
     throw error;
   });
 }
+
+// Get distinct appointment types from backend
+export async function getAppointmentTypes(): Promise<string[]> {
+  try {
+    console.log('📡 Fetching appointment types from backend...');
+    const types = await request<string[]>("/Appointments/GetAppointmentType");
+    console.log('✅ Appointment types fetched:', types);
+    return Array.isArray(types) ? types.sort() : [];
+  } catch (error) {
+    console.error('❌ Failed to fetch appointment types:', error);
+    return [];
+  }
+}
+
+// Get distinct appointment statuses from backend
+export async function getAppointmentStatuses(): Promise<string[]> {
+  try {
+    console.log('📡 Fetching appointment statuses from backend...');
+    const statuses = await request<string[]>("/Appointments/GetStatus");
+    console.log('✅ Appointment statuses fetched:', statuses);
+    return Array.isArray(statuses) ? statuses.sort() : [];
+  } catch (error) {
+    console.error('❌ Failed to fetch appointment statuses:', error);
+    return [];
+  }
+}
+

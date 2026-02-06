@@ -10,20 +10,45 @@ import type {
 } from '../Interfaces/AccessControlModel';
 
 // List all access control entries (optionally filtered)
-export function listAccessControl(params?: {
-  userId?: number;
-  clinicId?: number;
+export async function listAccessControl(params?: {
+  userId?: string | number;
+  clinicId?: string | number;
   roleId?: number;
   isActive?: boolean;
 }): Promise<AccessControlModel[]> {
   const queryParams = new URLSearchParams();
-  if (params?.userId) queryParams.append('userId', params.userId.toString());
-  if (params?.clinicId) queryParams.append('clinicId', params.clinicId.toString());
-  if (params?.roleId) queryParams.append('roleId', params.roleId.toString());
+  if (params?.userId !== undefined && params?.userId !== null && params?.userId !== "") {
+    queryParams.append('userId', params.userId.toString());
+  }
+  if (params?.clinicId !== undefined && params?.clinicId !== null && params?.clinicId !== "") {
+    queryParams.append('clinicId', params.clinicId.toString());
+  }
+  if (params?.roleId !== undefined && params?.roleId !== null) queryParams.append('roleId', params.roleId.toString());
   if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
   
   const suffix = queryParams.toString() ? `?${queryParams.toString()}` : "";
-  return request<AccessControlModel[]>(`/Authentication${suffix}`);
+  const endpoints = [
+    `/Authentication${suffix}`,
+    `/Authentication/details${suffix}`,
+    `/AccessControl${suffix}`,
+    `/AccessControl/details${suffix}`
+  ];
+
+  let lastError: unknown = null;
+  for (const endpoint of endpoints) {
+    try {
+      return await request<AccessControlModel[]>(endpoint);
+    } catch (error) {
+      const message = (error?.message || "").toString();
+      const isNotFound = message.includes("404") || message.includes("Not Found");
+      if (!isNotFound) {
+        throw error;
+      }
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("Access control listing failed");
 }
 
 // Get single access control entry

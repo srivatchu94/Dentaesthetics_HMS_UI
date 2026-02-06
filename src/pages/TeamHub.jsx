@@ -7,6 +7,52 @@ import { listRoles } from '../services/roleService';
 import { createStaffDetail } from '../services/staffService';
 import { getSelectedAccess } from '../services/authService';
 
+const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+
+// Roles mapped to backend database (RoleId matches backend)
+const availableRoles = [
+  { 
+    id: 2, 
+    name: "Doctor", 
+    icon: "🩺", 
+    color: "from-cyan-400 to-blue-400", 
+    description: "Medical professional access",
+    permissions: ["Patient Records", "Treatment Plans", "Prescriptions", "Scheduling"]
+  },
+  { 
+    id: 3, 
+    name: "Staff", 
+    icon: "👨‍⚕️", 
+    color: "from-rose-400 to-pink-400", 
+    description: "Staff member access",
+    permissions: ["Patient Records", "Appointments", "Clinic Operations"]
+  },
+  { 
+    id: 6, 
+    name: "Nurse", 
+    icon: "👩‍⚕️", 
+    color: "from-green-400 to-emerald-400", 
+    description: "Nursing staff access",
+    permissions: ["Patient Care", "Treatment Assistance", "Medical Records"]
+  },
+  { 
+    id: 7, 
+    name: "ClinicAdmin", 
+    icon: "🏥", 
+    color: "from-yellow-400 to-orange-400", 
+    description: "Clinic administration access",
+    permissions: ["Clinic Management", "Staff Management", "Billing", "Reports"]
+  },
+  { 
+    id: 8, 
+    name: "EntityAdmin", 
+    icon: "👑", 
+    color: "from-purple-500 to-indigo-600", 
+    description: "Enterprise administration access",
+    permissions: ["Enterprise Management", "Multi-clinic Operations", "User Management", "Settings"]
+  }
+];
+
 const TeamHub = () => {
   const navigate = useNavigate();
   
@@ -32,10 +78,14 @@ const TeamHub = () => {
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [showRoleManager, setShowRoleManager] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState([]);
+  const [accessControlEntries, setAccessControlEntries] = useState([]);
+  const [rolesToRemove, setRolesToRemove] = useState([]);
+  const [accessControlTab, setAccessControlTab] = useState("assign"); // "assign" or "remove"
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [roleSelectionMode, setRoleSelectionMode] = useState("multi-select"); // multi-select, drag-drop, toggle-switch, permission-builder
   const [isSearching, setIsSearching] = useState(false);
   const [isAssigningRoles, setIsAssigningRoles] = useState(false);
+  const [isRevokingAccess, setIsRevokingAccess] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [successMessage, setSuccessMessage] = useState({ name: "", roles: "", count: 0 });
   const [showCredentialManagementModal, setShowCredentialManagementModal] = useState(false);
@@ -84,41 +134,6 @@ const TeamHub = () => {
   const [securityQuestionsLoading, setSecurityQuestionsLoading] = useState(false);
   const [securityQuestionsError, setSecurityQuestionsError] = useState("");
   
-  // Roles mapped to backend database (RoleId matches backend)
-  const availableRoles = [
-    { 
-      id: 1, 
-      name: "Admin", 
-      icon: "👑", 
-      color: "from-purple-500 to-indigo-600", 
-      description: "Full system access",
-      permissions: ["User Management", "Roles Management", "Settings", "Clinic Operations"]
-    },
-    { 
-      id: 2, 
-      name: "Doctor", 
-      icon: "🩺", 
-      color: "from-cyan-400 to-blue-400", 
-      description: "Medical professional access",
-      permissions: ["Patient Records", "Treatment Plans", "Prescriptions", "Scheduling"]
-    },
-    { 
-      id: 3, 
-      name: "Receptionist", 
-      icon: "📞", 
-      color: "from-rose-400 to-pink-400", 
-      description: "Front desk operations",
-      permissions: ["Appointments", "Patient Check-ins", "Billing", "Front-desk Operations"]
-    },
-    { 
-      id: 4, 
-      name: "Patient", 
-      icon: "🙋", 
-      color: "from-green-400 to-teal-400", 
-      description: "Limited patient access",
-      permissions: ["Personal Records", "Appointments", "Bills", "Notifications"]
-    }
-  ];
   
   // Standard Security Questions
   const standardSecurityQuestions = [
@@ -204,6 +219,134 @@ const TeamHub = () => {
     };
     fetchRoles();
   }, []);
+
+  // Fetch and pre-select existing roles when staff is selected in access control
+  useEffect(() => {
+    if (!selectedStaff || !showRoleManager) return;
+
+    const fetchExistingRoles = async () => {
+      try {
+        console.log('🔍 Fetching existing roles for staff:', selectedStaff);
+        console.log('📊 Available roles in state:', availableRoles);
+        
+        const staffId = selectedStaff.profileId || selectedStaff.userId || selectedStaff.staffId || selectedStaff.id;
+        console.log('🆔 Extracted staffId:', staffId);
+        console.log('📌 Staff object keys:', Object.keys(selectedStaff));
+        console.log('📋 Full selectedStaff object:', JSON.stringify(selectedStaff, null, 2));
+        
+        if (staffId) {
+          console.log('🔄 Calling fetchRolesByStaffId with:', staffId);
+          const apiRoles = await fetchRolesByStaffId(staffId);
+          console.log('📝 Returned apiRoles:', apiRoles);
+          if (apiRoles.length > 0) {
+            console.log('✨ Setting roles from API:', apiRoles);
+            setSelectedRoles(apiRoles);
+            
+            // Populate accessControlEntries for the Remove Access functionality
+            // Convert role objects to access control entry format
+            const entries = apiRoles.map((role, index) => ({
+              accessControlId: `${staffId}_${role.id}`, // Generate unique ID
+              roleId: role.id,
+              userId: staffId,
+              isActive: true
+            }));
+            console.log('📋 Setting accessControlEntries:', entries);
+            setAccessControlEntries(entries);
+            setRolesToRemove([]);
+            
+            return;
+          } else {
+            console.log('ℹ️ API returned empty roles, falling back to staff payload');
+          }
+        } else {
+          console.warn('⚠️ Could not extract staffId from selectedStaff');
+        }
+        
+        const clinicId = selectedStaff.clinicId || selectedStaff.clinicID;
+
+        console.log('🆔 Staff ID:', staffId, '| Clinic ID:', clinicId);
+
+        const roleIdsFromStaff = Array.isArray(selectedStaff.roleIds)
+          ? selectedStaff.roleIds
+          : Array.isArray(selectedStaff.roles)
+            ? selectedStaff.roles.map(r => r.roleId || r.id).filter(Boolean)
+            : selectedStaff.roleId
+              ? [selectedStaff.roleId]
+              : [];
+
+        const roleNamesFromStaff = typeof selectedStaff.rolesAssigned === "string"
+          ? selectedStaff.rolesAssigned.split(',').map(r => r.trim()).filter(Boolean)
+          : typeof selectedStaff.currentRole === "string"
+            ? [selectedStaff.currentRole]
+            : [];
+
+        if (roleIdsFromStaff.length > 0 || roleNamesFromStaff.length > 0) {
+          const normalizedNames = roleNamesFromStaff.map(name => name.toLowerCase());
+          const preSelectedRoles = availableRoles.filter(role =>
+            roleIdsFromStaff.includes(role.id) || normalizedNames.includes(role.name.toLowerCase())
+          );
+
+          console.log('✨ Pre-selected roles from staff payload:', preSelectedRoles);
+          setSelectedRoles(preSelectedRoles);
+        }
+
+        if (!staffId || !clinicId) {
+          console.warn('⚠️ Missing staffId or clinicId for fetching roles');
+          setSelectedRoles([]);
+          return;
+        }
+
+        // Fetch existing roles for this staff using the dedicated API endpoint
+        console.log('🔄 Fetching existing roles via fetchRolesByStaffId...');
+        
+        const existingRoles = await fetchRolesByStaffId(staffId);
+        console.log('✅ Existing roles from API:', existingRoles);
+
+        setRolesToRemove([]);
+
+        if (existingRoles && Array.isArray(existingRoles) && existingRoles.length > 0) {
+          // Extract role IDs from existing roles
+          const existingRoleIds = existingRoles.map(role => {
+            const roleId = access.roleId || access.RoleId || access.role_id;
+            console.log('🔗 Access entry:', access, '-> Role ID:', roleId);
+            return roleId;
+          }).filter(id => id); // Remove any undefined
+          
+          console.log('👤 Extracted existing role IDs:', existingRoleIds);
+          console.log('📌 Available role IDs in UI:', availableRoles.map(r => r.id));
+
+          if (existingRoleIds.length > 0) {
+            // Filter availableRoles to match existing roleIds
+            const preSelectedRoles = availableRoles.filter(role => {
+              const isSelected = existingRoleIds.includes(role.id);
+              console.log(`  Role ${role.name} (ID: ${role.id}) - Selected: ${isSelected}`);
+              return isSelected;
+            });
+
+            console.log('✨ Pre-selected roles:', preSelectedRoles);
+            setSelectedRoles(preSelectedRoles);
+          } else {
+            console.log('⚠️ No valid role IDs extracted from access entries');
+            setSelectedRoles([]);
+          }
+        } else {
+          console.log('ℹ️ No existing roles found for this staff (empty response)');
+          setSelectedRoles([]);
+          setAccessControlEntries([]);
+          setRolesToRemove([]);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching existing roles:', error);
+        console.error('   Error details:', error.message, error.stack);
+        // Don't block UI if fetch fails, just start with empty selection
+        setSelectedRoles([]);
+        setAccessControlEntries([]);
+        setRolesToRemove([]);
+      }
+    };
+
+    fetchExistingRoles();
+  }, [selectedStaff, showRoleManager]);
 
   // Fetch clinics when enterprise is selected in onboarding modal
   useEffect(() => {
@@ -315,7 +458,8 @@ const TeamHub = () => {
           path: "/access-control",
           icon: "🛡️",
           color: "from-violet-500 to-purple-500"
-        }
+        },
+        
       ]
     },
     {
@@ -505,6 +649,10 @@ const TeamHub = () => {
           enterpriseID: staff.enterpriseID,  // Include enterpriseID from API
           clinicId: staff.clinicID,  // API uses clinicID (capital D)
           currentRole: staff.roleType || staff.role || staff.roleName,
+          roleId: staff.roleId || staff.RoleId,
+          roleIds: staff.roleIds || staff.RoleIds,
+          roles: staff.roles || staff.Roles,
+          rolesAssigned: staff.rolesAssigned || staff.roleType || staff.role || staff.roleName,
           email: staff.email || staff.emailId
         };
         
@@ -532,7 +680,7 @@ const TeamHub = () => {
   // Load enterprises for credential management
   const loadEnterprises = async () => {
     try {
-      const response = await fetch("`${API_BASE_URL}/Enterprise/GetAllEnterprises", {
+      const response = await fetch(`${API_BASE_URL}/Enterprise/GetAllEnterprises`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -666,7 +814,7 @@ const TeamHub = () => {
       console.log("🔍 RoleName in payload:", payload.roleName);
       console.log("🔍 Full payload JSON:", JSON.stringify(payload, null, 2));
 
-      const response = await fetch("`${API_BASE_URL}/Authentication/registerUser", {
+      const response = await fetch(`${API_BASE_URL}/Authentication/registerUser`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -840,7 +988,7 @@ const TeamHub = () => {
 
         console.log("📝 Submitting security questions:", payload);
 
-        const response = await fetch("`${API_BASE_URL}/Authentication/SetSecurityQuestions", {
+        const response = await fetch(`${API_BASE_URL}/Authentication/SetSecurityQuestions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -882,6 +1030,15 @@ const TeamHub = () => {
   const handleSelectStaff = (staff) => {
     setSelectedStaff(staff);
     setShowRoleManager(true);
+    // Pre-select the staff's current role(s)
+    if (staff?.currentRole) {
+      const matchedRoles = availableRoles.filter(role => 
+        role.name === staff.currentRole
+      );
+      setSelectedRoles(matchedRoles);
+    } else {
+      setSelectedRoles([]);
+    }
   };
   
   const handleToggleRole = (role) => {
@@ -985,13 +1142,181 @@ const TeamHub = () => {
       }
     }
   };
-  
+
+  const fetchRolesByStaffId = async (staffId) => {
+    try {
+      console.log('🔄 Fetching roles for staffId:', staffId);
+      console.log('📌 staffId type:', typeof staffId, '| Empty?:', !staffId, '| Value:', JSON.stringify(staffId));
+      
+      if (!staffId || staffId === '' || staffId === 'undefined') {
+        console.error('❌ Invalid staffId provided:', staffId);
+        return [];
+      }
+      
+      const url = `${API_BASE_URL}/Authentication/GetRolesByStaffId?staffId=${encodeURIComponent(staffId)}`;
+      console.log('📡 API URL:', url);
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+
+      console.log('📊 Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn('⚠️ API returned non-OK status:', response.status, errorText);
+        return [];
+      }
+      
+      const data = await response.json();
+      console.log('📋 Raw response data:', data);
+      
+      const rolesArray = Array.isArray(data) ? data : (data?.roles || data?.data || []);
+      console.log('📋 Extracted roles array:', rolesArray);
+      
+      const mappedRoles = rolesArray
+        .map(role => {
+          const roleId = role.roleId || role.RoleId || role.id;
+          console.log('  Processing role:', role, '-> Role ID:', roleId);
+          const uiRole = availableRoles.find(r => r.id === roleId);
+          if (uiRole) {
+            console.log('    Found in availableRoles:', uiRole);
+            return uiRole;
+          }
+          const mapped = {
+            id: roleId,
+            name: role.roleName || role.name || `Role ${roleId}`,
+            icon: "🔒",
+            color: "from-slate-400 to-slate-600",
+            permissions: []
+          };
+          console.log('    Created custom role:', mapped);
+          return mapped;
+        })
+        .filter(Boolean);
+      
+      console.log('✅ Final mapped roles:', mappedRoles);
+      return mappedRoles;
+    } catch (error) {
+      console.error('❌ Error fetching roles by staff ID:', error);
+      console.error('   Error details:', error.message, error.stack);
+    }
+    return [];
+  };
+
+  const getRemovableRoles = () => {
+    const roleIds = accessControlEntries
+      .map(entry => entry.roleId || entry.RoleId || entry.role_id)
+      .filter(Boolean);
+    const uniqueRoleIds = [...new Set(roleIds)];
+    const mapped = uniqueRoleIds
+      .map(id => {
+        const uiRole = availableRoles.find(r => r.id === id);
+        if (uiRole) return uiRole;
+        const apiRole = availableRolesFromApi.find(r => r.roleId === id || r.id === id);
+        if (apiRole) {
+          return {
+            id,
+            name: apiRole.roleName || apiRole.name || `Role ${id}`,
+            icon: "🔒",
+            color: "from-slate-400 to-slate-600",
+            permissions: []
+          };
+        }
+        return { id, name: `Role ${id}`, icon: "🔒", color: "from-slate-400 to-slate-600", permissions: [] };
+      })
+      .filter(Boolean);
+
+    return mapped.length > 0 ? mapped : selectedRoles;
+  };
+
+  const handleRemoveSelectedAccess = async () => {
+    if (!selectedStaff) return;
+    if (rolesToRemove.length === 0) {
+      alert("⚠️ Please select at least one role to remove.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Remove ${rolesToRemove.length} selected role(s) for ${selectedStaff.firstName || "this staff member"} ${selectedStaff.lastName || ""}?`
+    );
+    if (!confirmed) return;
+
+    setIsRevokingAccess(true);
+    try {
+      const staffId = selectedStaff.profileId || selectedStaff.userId || selectedStaff.staffId || selectedStaff.id;
+      const clinicId = selectedStaff.clinicId || selectedStaff.clinicID;
+
+      if (!staffId) {
+        throw new Error("Staff ID not found for removal.");
+      }
+
+      const roleNamesToRemove = rolesToRemove
+        .map(roleId => {
+          const fromSelected = selectedRoles.find(r => r.id === roleId);
+          if (fromSelected?.name) return fromSelected.name;
+          const fromAvailable = availableRoles.find(r => r.id === roleId);
+          if (fromAvailable?.name) return fromAvailable.name;
+          const fromApi = availableRolesFromApi.find(r => r.roleId === roleId || r.id === roleId);
+          return fromApi?.roleName || fromApi?.name || null;
+        })
+        .filter(Boolean);
+
+      const removePayload = {
+        staffId,
+        roleNames: roleNamesToRemove
+      };
+
+      const removeUrl = `${API_BASE_URL}/Authentication/RemoveAccessControl`;
+      const response = await fetch(removeUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: JSON.stringify(removePayload)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`RemoveAccessControl failed: ${response.status} ${errorText}`);
+      }
+
+      const remainingRoles = selectedRoles.filter(role => !rolesToRemove.includes(role.id));
+      setSelectedRoles(remainingRoles);
+      setRolesToRemove([]);
+      setAccessControlEntries(prev => prev.filter(entry => !rolesToRemove.includes(entry.roleId || entry.RoleId || entry.role_id)));
+
+      setSearchResults(prev => prev.map(s => {
+        if (s.id !== selectedStaff.id) return s;
+        return {
+          ...s,
+          currentRole: remainingRoles.length > 0 ? remainingRoles[0].name : "No Access",
+          rolesAssigned: remainingRoles.map(r => r.name).join(", ")
+        };
+      }));
+
+      alert("✅ Selected access removed successfully.");
+    } catch (error) {
+      console.error("❌ Error removing selected access:", error);
+      alert(`❌ Failed to remove access: ${error.message || "Unknown error"}`);
+    } finally {
+      setIsRevokingAccess(false);
+    }
+  };
+
   const resetAccessControl = () => {
     setSearchFilters({ staffId: "", firstName: "", lastName: "", clinicId: "", enterpriseId: "" });
     setSearchResults([]);
     setSelectedStaff(null);
     setShowRoleManager(false);
     setSelectedRoles([]);
+    setAccessControlEntries([]);
+    setRolesToRemove([]);
     setShowConfirmation(false);
     setFreezeAccessControlEnterprise(false);
   };
@@ -2247,11 +2572,51 @@ const TeamHub = () => {
               <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
                 {!showRoleManager ? (
                   <>
+                    {/* Tab Navigation */}
+                    <div className="mb-6 flex gap-2 border-b-2 border-slate-200">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setAccessControlTab("assign");
+                          setSelectedStaff(null);
+                          setSearchResults([]);
+                          setSearchFilters(prev => ({ ...prev, staffId: "", firstName: "", lastName: "", clinicId: "" }));
+                        }}
+                        className={`px-6 py-3 font-bold text-lg transition-all flex items-center gap-2 ${
+                          accessControlTab === "assign"
+                            ? "text-violet-600 border-b-4 border-violet-600"
+                            : "text-slate-600 hover:text-slate-800"
+                        }`}
+                      >
+                        <span className="text-2xl">➕</span>
+                        Assign Roles
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          setAccessControlTab("remove");
+                          setSelectedStaff(null);
+                          setSearchResults([]);
+                          setSearchFilters(prev => ({ ...prev, staffId: "", firstName: "", lastName: "", clinicId: "" }));
+                        }}
+                        className={`px-6 py-3 font-bold text-lg transition-all flex items-center gap-2 ${
+                          accessControlTab === "remove"
+                            ? "text-red-600 border-b-4 border-red-600"
+                            : "text-slate-600 hover:text-slate-800"
+                        }`}
+                      >
+                        <span className="text-2xl">🛑</span>
+                        Remove Access
+                      </motion.button>
+                    </div>
+
                     {/* Search Filters */}
                     <div className="mb-6">
                       <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                         <span className="text-2xl">🔍</span>
-                        Search Staff Members
+                        {accessControlTab === "assign" ? "Search Staff - Assign Roles" : "Search Staff - Remove Access"}
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                         <div>
@@ -2295,17 +2660,30 @@ const TeamHub = () => {
                           />
                         </div>
                       </div>
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={handleSearchStaff}
-                        disabled={isSearching}
-                        className={`w-full py-3 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all ${
-                          isSearching ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      >
-                        {isSearching ? '⏳ Searching...' : '🔍 Search Staff'}
-                      </motion.button>
+                      <div className="flex flex-col md:flex-row gap-3">
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={handleSearchStaff}
+                          disabled={isSearching}
+                          className={`flex-1 py-3 bg-gradient-to-r from-violet-500 to-purple-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all ${
+                            isSearching ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          {isSearching ? '⏳ Searching...' : '🔍 Search Staff'}
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            setSearchFilters(prev => ({ ...prev, staffId: "", firstName: "", lastName: "", clinicId: "" }));
+                            setSearchResults([]);
+                          }}
+                          className="flex-1 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold transition-all"
+                        >
+                          🧹 Clear Filters
+                        </motion.button>
+                      </div>
                     </div>
 
                     {/* Search Results */}
@@ -2392,46 +2770,10 @@ const TeamHub = () => {
                       </div>
                     </div>
 
-                    {/* Mode Selection Tabs */}
-                    <div className="mb-6">
-                      <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <span className="text-2xl">🎨</span>
-                        Choose Your Selection Style
-                      </h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {[
-                          { id: "multi-select", icon: "☑️", name: "Multi-Select Cards", desc: "Click to toggle" },
-                          { id: "drag-drop", icon: "🎯", name: "Drag & Drop", desc: "Drag roles to assign" },
-                          { id: "toggle-switch", icon: "🎚️", name: "Toggle Switches", desc: "Quick on/off" },
-                          { id: "permission-builder", icon: "🔧", name: "Permission Builder", desc: "Custom access" }
-                        ].map(mode => (
-                          <motion.button
-                            key={mode.id}
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.97 }}
-                            onClick={() => {
-                              setRoleSelectionMode(mode.id);
-                              setSelectedRoles([]);
-                            }}
-                            className={`p-4 rounded-xl border-2 transition-all ${
-                              roleSelectionMode === mode.id
-                                ? 'bg-gradient-to-br from-violet-500 to-purple-500 border-purple-400 text-white shadow-lg'
-                                : 'bg-white border-purple-200 hover:border-purple-400 text-slate-700'
-                            }`}
-                          >
-                            <div className="text-3xl mb-1">{mode.icon}</div>
-                            <div className={`font-bold text-sm ${roleSelectionMode === mode.id ? 'text-white' : 'text-slate-800'}`}>
-                              {mode.name}
-                            </div>
-                            <div className={`text-xs ${roleSelectionMode === mode.id ? 'text-purple-100' : 'text-slate-500'}`}>
-                              {mode.desc}
-                            </div>
-                          </motion.button>
-                        ))}
-                      </div>
-                    </div>
+                    {/* Mode Selection Hidden - Only Multi-Select Available */}
 
-                    {/* Selected Roles Counter */}
+                    {/* Selected/Current Roles Counter */}
+                    {accessControlTab === "assign" && (
                     <div className="mb-6 p-4 bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl border-2 border-purple-200">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -2441,7 +2783,7 @@ const TeamHub = () => {
                           <div>
                             <h4 className="font-bold text-slate-800">Selected Roles</h4>
                             <p className="text-sm text-slate-600">
-                              {selectedRoles.length === 0 ? "Select roles using the chosen method" : selectedRoles.map(r => r.name).join(", ")}
+                              {selectedRoles.length === 0 ? "No roles selected" : selectedRoles.map(r => r.name).join(", ")}
                             </p>
                           </div>
                         </div>
@@ -2457,15 +2799,98 @@ const TeamHub = () => {
                         )}
                       </div>
                     </div>
+                    )}
+
+                    {accessControlTab === "remove" && (
+                    <div className="mb-6 p-4 bg-gradient-to-r from-red-50 to-rose-50 rounded-xl border-2 border-red-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 bg-gradient-to-br from-red-400 to-rose-500 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                            {selectedRoles.length}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-slate-800">Currently Assigned Roles</h4>
+                            <p className="text-sm text-slate-600">
+                              {selectedRoles.length === 0 ? "No roles currently assigned" : selectedRoles.map(r => r.name).join(", ")}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    )}
+
+                    {/* Remove Access Card */}
+                    {getRemovableRoles().length > 0 && accessControlTab === "remove" && (
+                      <div className="mb-6 bg-white rounded-xl border-2 border-red-200 shadow-sm overflow-hidden">
+                        <div className="bg-gradient-to-r from-red-500 to-rose-500 px-6 py-4 text-white">
+                          <h4 className="text-lg font-bold flex items-center gap-2">
+                            <span className="text-2xl">🛑</span>
+                            Remove Access
+                          </h4>
+                          <p className="text-red-100 text-sm">Select which roles to remove for this staff member.</p>
+                        </div>
+                        <div className="p-6">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                            {getRemovableRoles().map(role => (
+                              <label key={role.id} className="flex items-center gap-3 p-3 border border-red-200 rounded-lg hover:bg-red-50 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={rolesToRemove.includes(role.id)}
+                                  onChange={() => {
+                                    setRolesToRemove(prev =>
+                                      prev.includes(role.id)
+                                        ? prev.filter(id => id !== role.id)
+                                        : [...prev, role.id]
+                                    );
+                                  }}
+                                  className="w-4 h-4 text-red-600 rounded"
+                                />
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xl">{role.icon || "🔒"}</span>
+                                  <span className="font-semibold text-slate-700">{role.name}</span>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+
+                          <div className="flex items-center justify-between gap-4 flex-wrap">
+                            <div className="text-sm text-slate-600">
+                              Selected: <span className="font-semibold">{rolesToRemove.length}</span>
+                            </div>
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={handleRemoveSelectedAccess}
+                              disabled={isRevokingAccess || rolesToRemove.length === 0}
+                              className={`px-4 py-2 rounded-lg font-bold transition-all ${
+                                isRevokingAccess || rolesToRemove.length === 0
+                                  ? "bg-red-200 text-red-500 cursor-not-allowed"
+                                  : "bg-red-500 hover:bg-red-600 text-white"
+                              }`}
+                            >
+                              {isRevokingAccess ? "⏳ Removing..." : "Remove Selected"}
+                            </motion.button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {getRemovableRoles().length === 0 && accessControlTab === "remove" && (
+                      <div className="text-center py-12 bg-red-50 rounded-xl border-2 border-red-200">
+                        <div className="text-6xl mb-4">✅</div>
+                        <p className="text-slate-600 text-lg font-semibold">No roles to remove</p>
+                        <p className="text-slate-500">This staff member currently has no assigned roles.</p>
+                      </div>
+                    )}
 
                     {/* Role Selection - Different Modes */}
-                    {roleSelectionMode === "multi-select" && (
+                    {roleSelectionMode === "multi-select" && accessControlTab === "assign" && (
                       <>
                         <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                           <span className="text-2xl">☑️</span>
                           Multi-Select Cards
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-5 gap-4">
                           {availableRoles.map((role, index) => {
                             const isSelected = selectedRoles.find(r => r.id === role.id);
                             return (
@@ -2747,7 +3172,8 @@ const TeamHub = () => {
                       </>
                     )}
 
-                    {/* Action Buttons */}
+                    {/* Action Buttons - Only Show for Assign Tab */}
+                    {accessControlTab === "assign" && (
                     <div className="mt-6 flex gap-4">
                       <motion.button
                         whileHover={{ scale: 1.02 }}
@@ -2771,6 +3197,21 @@ const TeamHub = () => {
                         Apply {selectedRoles.length > 0 && `(${selectedRoles.length})`} Role{selectedRoles.length !== 1 && 's'} →
                       </motion.button>
                     </div>
+                    )}
+
+                    {/* Back Button - Only Show for Remove Tab */}
+                    {accessControlTab === "remove" && (
+                    <div className="mt-6">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setShowRoleManager(false)}
+                        className="w-full py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold transition-all"
+                      >
+                        ← Back to Search
+                      </motion.button>
+                    </div>
+                    )}
 
                     <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
                       <p className="text-blue-900 flex items-center gap-2">

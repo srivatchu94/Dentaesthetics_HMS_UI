@@ -4,11 +4,14 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { getAccessToken } from "../services/tokenManager";
 import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient, getAllPatientsByClinicID, getPatientVisit } from "../services/patientService";
 import { visitService } from "../services/visitService";
+import { getDoctorsByClinicID } from "../api/hmsApi";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
-import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment } from "../services/appointmentService";
+import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment, getAppointmentTypes, getAppointmentStatuses } from "../services/appointmentService";
 import { sendPrescriptionEmail } from "../services/emailService";
 import ViewPatients from "./ViewPatients";
 import FancyDatePicker from "../components/FancyDatePicker";
+
+const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => (
@@ -202,6 +205,8 @@ export default function Patients() {
   const [loadingClinicPatients, setLoadingClinicPatients] = useState(false);
   const [showAppointmentSuccessModal, setShowAppointmentSuccessModal] = useState(false);
   const [createdAppointment, setCreatedAppointment] = useState(null);
+  const [appointmentDoctors, setAppointmentDoctors] = useState([]);
+  const [appointmentDoctorsLoading, setAppointmentDoctorsLoading] = useState(false);
   const [appointmentsList, setAppointmentsList] = useState([]);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
@@ -210,6 +215,105 @@ export default function Patients() {
   const [showAppointmentUpdateSuccess, setShowAppointmentUpdateSuccess] = useState(false);
   const [showNotLoggedInModal, setShowNotLoggedInModal] = useState(false);
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(!!localStorage.getItem('accessToken'));
+
+  useEffect(() => {
+    if (!showNewAppointmentModal) return;
+
+    const selectedAccessStr = localStorage.getItem('selectedAccess');
+    const selectedAccess = selectedAccessStr ? JSON.parse(selectedAccessStr) : null;
+    const clinicId = selectedAccess?.clinicId;
+
+    console.log("🔍 Fetching doctors for clinicId:", clinicId);
+
+    if (!clinicId) {
+      console.warn("⚠️ No clinicId found in selectedAccess");
+      setAppointmentDoctors([]);
+      setAppointmentDoctorsLoading(false);
+      return;
+    }
+
+    const fetchDoctors = async () => {
+      try {
+        setAppointmentDoctorsLoading(true);
+        console.log("🔄 Starting doctor fetch...");
+        const doctorsList = await getDoctorsByClinicID(Number(clinicId));
+        console.log("🏥 Walk-in doctors response:", doctorsList);
+        
+        let rawDoctors = Array.isArray(doctorsList)
+          ? doctorsList
+          : Array.isArray(doctorsList?.data)
+            ? doctorsList.data
+            : Array.isArray(doctorsList?.doctors)
+              ? doctorsList.doctors
+              : [];
+
+        console.log("📋 Raw doctors array:", rawDoctors);
+
+        // Normalize the doctor data to have consistent field names
+        let normalizedDoctors = rawDoctors.map((item) => ({
+          doctorId: item.doctorId || item.doctorID || item.id || item.staffId || "",
+          firstName: item.firstName || item.FirstName || "",
+          lastName: item.lastName || item.LastName || "",
+          name: `${item.firstName || item.FirstName || ""} ${item.lastName || item.LastName || ""}`.trim(),
+          email: item.email || item.Email || "",
+          phone: item.phone || item.Phone || "",
+          specialization: item.specialization || item.Specialization || ""
+        }));
+
+        console.log("📋 Normalized doctors:", normalizedDoctors);
+
+        // Fallback: try staff profile search for clinic and filter Doctor/Nurse roles
+        if (normalizedDoctors.length === 0) {
+          console.log("⚠️ No doctors found, trying fallback staff profile fetch...");
+          try {
+            const response = await fetch(`${API_BASE_URL}/StaffDetail/GetStaffProfile?clinicId=${clinicId}`, {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+              }
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const staffList = Array.isArray(data) ? data : data?.data || [];
+              const filtered = staffList.filter(item => {
+                const role = (item.roleType || item.role || item.roleName || "").toLowerCase();
+                return role.includes("doctor") || role.includes("nurse") || role.includes("dentist") || role.includes("physician");
+              });
+              const fallbackList = filtered.length > 0 ? filtered : staffList;
+              
+              // Normalize fallback data too
+              normalizedDoctors = fallbackList.map((item) => ({
+                doctorId: item.doctorId || item.doctorID || item.id || item.staffId || "",
+                firstName: item.firstName || item.FirstName || "",
+                lastName: item.lastName || item.LastName || "",
+                name: `${item.firstName || item.FirstName || ""} ${item.lastName || item.LastName || ""}`.trim(),
+                email: item.email || item.Email || "",
+                phone: item.phone || item.Phone || "",
+                specialization: item.specialization || item.Specialization || ""
+              }));
+              
+              console.log("✅ Fallback staff found and normalized:", normalizedDoctors);
+            }
+          } catch (fallbackError) {
+            console.error('❌ Fallback staff profile fetch failed:', fallbackError);
+          }
+        }
+
+        console.log("✅ Setting appointment doctors:", normalizedDoctors);
+        setAppointmentDoctors(normalizedDoctors);
+      } catch (error) {
+        console.error('❌ Failed to fetch doctors for appointment:', error);
+        setAppointmentDoctors([]);
+      } finally {
+        console.log("🏁 Doctor fetch complete, setting loading to false");
+        setAppointmentDoctorsLoading(false);
+      }
+    };
+
+    fetchDoctors();
+  }, [showNewAppointmentModal]);
   
   // Diagnosis modal states
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
@@ -222,9 +326,13 @@ export default function Patients() {
     firstName: "",
     lastName: "",
     doctorId: "",
-    appointmentDate: ""
+    appointmentDate: "",
+    status: "All",
+    appointmentType: "All"
   });
   const [filteredAppointmentsList, setFilteredAppointmentsList] = useState([]);
+  const [distinctStatuses, setDistinctStatuses] = useState([]);
+  const [distinctAppointmentTypes, setDistinctAppointmentTypes] = useState([]);
   
   // Load clinics on mount
   useEffect(() => {
@@ -291,14 +399,18 @@ export default function Patients() {
       const appointments = await listAppointments();
       setAppointmentsList(appointments);
       setFilteredAppointmentsList(appointments);
-    } catch (error) {
-      console.error('Failed to load appointments:', error);
-    } finally {
-      setLoadingAppointments(false);
-    }
-  };
-  
-  // Function to filter appointments via API
+      
+      // Fetch distinct statuses from backend API
+      console.log('📡 Fetching appointment statuses from backend...');
+      const statuses = await getAppointmentStatuses();
+      setDistinctStatuses(statuses);
+      console.log('✅ Distinct Statuses from API:', statuses);
+      
+      // Fetch distinct appointment types from backend API
+      console.log('📡 Fetching appointment types from backend...');
+      const types = await getAppointmentTypes();
+      setDistinctAppointmentTypes(types);
+      console.log('✅ Distinct Appointment Types from API:', types);
   const filterAppointments = async () => {
     if (!appointmentFilter.clinicId) {
       alert('⚠️ Clinic ID is required to search appointments');
@@ -315,7 +427,18 @@ export default function Patients() {
         appointmentDate: appointmentFilter.appointmentDate || undefined
       };
       
-      const results = await getAppointmentsByFilters(filterParams);
+      let results = await getAppointmentsByFilters(filterParams);
+      
+      // Apply status filter
+      if (appointmentFilter.status && appointmentFilter.status !== 'All') {
+        results = results.filter(apt => apt.status === appointmentFilter.status);
+      }
+      
+      // Apply appointment type filter
+      if (appointmentFilter.appointmentType && appointmentFilter.appointmentType !== 'All') {
+        results = results.filter(apt => apt.appointmentType === appointmentFilter.appointmentType);
+      }
+      
       setFilteredAppointmentsList(results);
       
       if (results.length === 0) {
@@ -337,7 +460,9 @@ export default function Patients() {
       firstName: "",
       lastName: "",
       doctorId: "",
-      appointmentDate: ""
+      appointmentDate: "",
+      status: "All",
+      appointmentType: "All"
     });
     setFilteredAppointmentsList(appointmentsList);
   };
@@ -430,7 +555,9 @@ export default function Patients() {
         firstName: "",
         lastName: "",
         doctorId: "",
-        appointmentDate: ""
+        appointmentDate: "",
+        status: "All",
+        appointmentType: "All"
       });
     }
   }, [showViewAppointmentsModal]);
@@ -444,6 +571,25 @@ export default function Patients() {
       setActiveView("list");
     }
   }, [searchParams]);
+  
+  // Apply local filtering based on status and appointment type when filters change
+  useEffect(() => {
+    if (appointmentsList.length === 0) return;
+    
+    let filtered = appointmentsList;
+    
+    // Apply status filter
+    if (appointmentFilter.status && appointmentFilter.status !== 'All') {
+      filtered = filtered.filter(apt => apt.status === appointmentFilter.status);
+    }
+    
+    // Apply appointment type filter
+    if (appointmentFilter.appointmentType && appointmentFilter.appointmentType !== 'All') {
+      filtered = filtered.filter(apt => apt.appointmentType === appointmentFilter.appointmentType);
+    }
+    
+    setFilteredAppointmentsList(filtered);
+  }, [appointmentFilter.status, appointmentFilter.appointmentType, appointmentsList]);
   
   // Filter patients based on search and filters
   const filteredPatients = SAMPLE_PATIENTS_LIST.filter(patient => {
@@ -5417,7 +5563,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       // References - from token payload (selectedAccess)
                       enterpriseId: enterpriseId,
                       clinicId: clinicId,
-                      patientId: searchedPatient ? searchedPatient.patientId : 0, // 0 for walk-in/non-registered
+                      patientId: searchedPatient ? searchedPatient.patientId : null, // null for walk-in/non-registered
                       doctorId: appointmentForm.doctorId ? parseInt(appointmentForm.doctorId) : null,
                       attendingPhysician: appointmentForm.attendingPhysician || null,
                       // Patient details (stored in appointments row)
@@ -5713,14 +5859,31 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
                         <span>🩺</span> Attending Physician {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
                       </label>
-                      <input
-                        type="text"
+                      <select
                         disabled={!searchedPatient && !bookingWithoutRegistration}
                         value={appointmentForm.attendingPhysician}
                         onChange={(e) => setAppointmentForm({ ...appointmentForm, attendingPhysician: e.target.value })}
                         className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
-                        placeholder="Dr. Smith"
-                      />
+                      >
+                        <option value="">
+                          {!searchedPatient && !bookingWithoutRegistration
+                            ? "Select patient first"
+                            : appointmentDoctorsLoading
+                              ? "Loading doctors..."
+                              : appointmentDoctors.length === 0
+                                ? "No doctors available"
+                                : "Select physician"}
+                        </option>
+                        {appointmentDoctors.map((doc) => {
+                          const name = doc.name || doc.doctorName || `${doc.firstName || ""} ${doc.lastName || ""}`.trim() || `Doctor ${doc.doctorId || doc.id}`;
+                          const doctorId = doc.doctorId || doc.id || "";
+                          return (
+                            <option key={doctorId || name} value={doctorId}>
+                              {name}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </div>
                     <div>
                       <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
@@ -6176,6 +6339,89 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       <span>🏥</span>
                       <span className="font-medium">Clinic ID: {appointmentFilter.clinicId}</span>
                     </div>
+                  </motion.div>
+                )}
+
+                {/* Quick Filters Bar - Only visible when appointments exist */}
+                {!loadingAppointments && filteredAppointmentsList.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="mb-6 bg-gradient-to-r from-slate-50 via-purple-50 to-blue-50 rounded-2xl p-5 border-2 border-purple-100 shadow-lg"
+                  >
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="text-2xl">🎯</span>
+                      <h4 className="text-lg font-bold text-slate-800">Quick Filter</h4>
+                      <div className="flex-1 h-0.5 bg-gradient-to-r from-purple-300 via-pink-300 to-transparent ml-2"></div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Status Filter */}
+                      <div>
+                        <label className="block text-sm font-semibold mb-2 text-slate-700 flex items-center gap-2">
+                          <span>📊</span>
+                          <span>Status</span>
+                          {appointmentFilter.status !== 'All' && (
+                            <span className="ml-auto px-2 py-0.5 bg-purple-500 text-white text-xs rounded-full font-bold">
+                              {appointmentFilter.status}
+                            </span>
+                          )}
+                        </label>
+                        <select
+                          value={appointmentFilter.status}
+                          onChange={(e) => setAppointmentFilter({ ...appointmentFilter, status: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all bg-white font-medium text-slate-800 hover:border-purple-400"
+                        >
+                          <option value="All">📋 All Statuses</option>
+                          {distinctStatuses.map((status) => (
+                            <option key={status} value={status}>
+                              {status === 'Scheduled' && '📅'} 
+                              {status === 'Completed' && '✅'} 
+                              {status === 'Cancelled' && '❌'} 
+                              {' '}{status}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Appointment Type Filter */}
+                      <div>
+                        <label className="block text-sm font-semibold mb-2 text-slate-700 flex items-center gap-2">
+                          <span>🦷</span>
+                          <span>Appointment Type</span>
+                          {appointmentFilter.appointmentType !== 'All' && (
+                            <span className="ml-auto px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full font-bold">
+                              {appointmentFilter.appointmentType}
+                            </span>
+                          )}
+                        </label>
+                        <select
+                          value={appointmentFilter.appointmentType}
+                          onChange={(e) => setAppointmentFilter({ ...appointmentFilter, appointmentType: e.target.value })}
+                          className="w-full px-4 py-3 rounded-xl border-2 border-blue-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all bg-white font-medium text-slate-800 hover:border-blue-400"
+                        >
+                          <option value="All">🎯 All Types</option>
+                          {distinctAppointmentTypes.map((type) => (
+                            <option key={type} value={type}>
+                              🦷 {type}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Active Filters Info */}
+                    {(appointmentFilter.status !== 'All' || appointmentFilter.appointmentType !== 'All') && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="mt-3 text-xs text-slate-600 flex items-center gap-2"
+                      >
+                        <span>✨</span>
+                        <span>Showing {filteredAppointmentsList.length} result{filteredAppointmentsList.length !== 1 ? 's' : ''}</span>
+                      </motion.div>
+                    )}
                   </motion.div>
                 )}
 
@@ -7054,17 +7300,19 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         }
                         try {
                           const userId = localStorage.getItem('userId');
-                          const enterpriseId = localStorage.getItem('enterpriseId');
-                          const clinicId = localStorage.getItem('clinicId');
+                          
+                          // Use actual appointment data, fallback to localStorage
+                          const clinicId = parseInt(selectedAppointmentDetails.clinicId) || parseInt(localStorage.getItem('clinicId')) || 0;
+                          const enterpriseId = parseInt(selectedAppointmentDetails.enterpriseId) || parseInt(localStorage.getItem('enterpriseId')) || 0;
                           
                           // Prepare complete appointment payload matching backend model
                           const updatedAppointment = {
                             appointmentId: selectedAppointmentDetails.appointmentId,
                             patientId: parseInt(selectedAppointmentDetails.patientId) || parseInt(editAppointmentForm.patientId) || 0,
-                            clinicId: parseInt(clinicId) || 0,
+                            clinicId: clinicId,
                             doctorId: editAppointmentForm.doctorId ? String(editAppointmentForm.doctorId) : (selectedAppointmentDetails.doctorId ? String(selectedAppointmentDetails.doctorId) : null),
                             attendingPhysician: editAppointmentForm.attendingPhysician || '',
-                            enterpriseId: parseInt(enterpriseId) || 0,
+                            enterpriseId: enterpriseId,
                             firstName: editAppointmentForm.firstName || '',
                             lastName: editAppointmentForm.lastName || '',
                             phoneNumber: editAppointmentForm.phoneNumber || '',
