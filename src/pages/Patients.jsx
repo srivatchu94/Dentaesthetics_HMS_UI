@@ -389,8 +389,6 @@ export default function Patients() {
       console.log('📦 Available localStorage keys:', Object.keys(localStorage));
     }
   }, []);
-
-
   
   // Function to load appointments
   const loadAppointments = async () => {
@@ -411,6 +409,14 @@ export default function Patients() {
       const types = await getAppointmentTypes();
       setDistinctAppointmentTypes(types);
       console.log('✅ Distinct Appointment Types from API:', types);
+    } catch (error) {
+      console.error('Failed to load appointments:', error);
+    } finally {
+      setLoadingAppointments(false);
+    }
+  };
+  
+  // Function to filter appointments via API and apply local status/type filters
   const filterAppointments = async () => {
     if (!appointmentFilter.clinicId) {
       alert('⚠️ Clinic ID is required to search appointments');
