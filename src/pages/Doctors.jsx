@@ -1890,7 +1890,7 @@ export default function Doctors() {
               </div>
               
               {/* Tab Navigation */}
-              <div className="flex gap-2 mt-6 overflow-x-auto">
+              <div className="flex gap-2 mt-6 flex-wrap justify-center">
                 {[
                   { id: 'patient', label: ' Patient Info', icon: '👤' },
                   { id: 'appointment', label: ' Appointment', icon: '📅' },
@@ -1902,7 +1902,7 @@ export default function Doctors() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => setActiveEditSection(tab.id)}
-                    className={`px-6 py-2.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
+                    className={`px-4 py-2 rounded-xl font-semibold transition-all whitespace-nowrap text-sm ${
                       activeEditSection === tab.id
                         ? 'bg-white text-indigo-700 shadow-lg'
                         : 'bg-white/20 text-white hover:bg-white/30'
@@ -7472,6 +7472,260 @@ export default function Doctors() {
                   </motion.div>
                 )}
               </AnimatePresence>
+            </motion.div>
+          )}
+
+          {/* Today's Summary Tab */}
+          {activeSection === "dashboard" && activeTab === "today-summary" && (
+            <motion.div
+              key="today-summary"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-yellow-100/60 overflow-hidden">
+                <div className="p-6 bg-gradient-to-r from-yellow-50 to-amber-50 border-b border-yellow-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
+                      ⭐
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold bg-gradient-to-r from-yellow-700 to-amber-700 bg-clip-text text-transparent">
+                        Today's Summary
+                      </h2>
+                      <p className="text-sm text-stone-600 mt-0.5">Quick overview of today's activities and metrics</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-200">
+                      <div className="text-3xl mb-2">📅</div>
+                      <p className="text-xs text-stone-600 mb-1">Today's Appointments</p>
+                      <p className="text-2xl font-bold text-blue-700">12</p>
+                    </motion.div>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-200">
+                      <div className="text-3xl mb-2">✓</div>
+                      <p className="text-xs text-stone-600 mb-1">Completed</p>
+                      <p className="text-2xl font-bold text-emerald-700">8</p>
+                    </motion.div>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.10 }} className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-4 border border-orange-200">
+                      <div className="text-3xl mb-2">⏳</div>
+                      <p className="text-xs text-stone-600 mb-1">Pending</p>
+                      <p className="text-2xl font-bold text-orange-700">4</p>
+                    </motion.div>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 border border-purple-200">
+                      <div className="text-3xl mb-2">💰</div>
+                      <p className="text-xs text-stone-600 mb-1">Revenue</p>
+                      <p className="text-2xl font-bold text-purple-700">$2,450</p>
+                    </motion.div>
+                  </div>
+                  
+                  <div className="bg-yellow-50 rounded-xl p-6 border border-yellow-200">
+                    <h3 className="text-lg font-bold text-stone-800 mb-4">Recent Activity</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3 pb-3 border-b border-yellow-100">
+                        <span className="text-2xl">👨‍⚕️</span>
+                        <div className="flex-1">
+                          <p className="font-semibold text-stone-800">Dr. Sarah Johnson</p>
+                          <p className="text-xs text-stone-600">Completed Root Canal Treatment - Patient: John Doe</p>
+                          <p className="text-xs text-stone-500 mt-1">2 hours ago</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3 pb-3 border-b border-yellow-100">
+                        <span className="text-2xl">📋</span>
+                        <div className="flex-1">
+                          <p className="font-semibold text-stone-800">New Appointment Booked</p>
+                          <p className="text-xs text-stone-600">Patient: Emily Davis - Cleaning Session</p>
+                          <p className="text-xs text-stone-500 mt-1">1 hour ago</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">💳</span>
+                        <div className="flex-1">
+                          <p className="font-semibold text-stone-800">Payment Received</p>
+                          <p className="text-xs text-stone-600">Patient: Michael Brown - $350 for Whitening</p>
+                          <p className="text-xs text-stone-500 mt-1">30 minutes ago</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Follow-ups Tab */}
+          {activeSection === "dashboard" && activeTab === "follow-ups" && (
+            <motion.div
+              key="follow-ups"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-cyan-100/60 overflow-hidden">
+                <div className="p-6 bg-gradient-to-r from-cyan-50 to-blue-50 border-b border-cyan-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
+                      🔔
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold bg-gradient-to-r from-cyan-700 to-blue-700 bg-clip-text text-transparent">
+                        Follow-ups
+                      </h2>
+                      <p className="text-sm text-stone-600 mt-0.5">Patient follow-ups and recall schedules</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-6">
+                  <div className="space-y-3">
+                    {[
+                      { patient: "John Doe", type: "Post-Treatment", date: "2024-01-15", status: "Pending" },
+                      { patient: "Sarah Williams", type: "Routine Check-up", date: "2024-01-18", status: "Scheduled" },
+                      { patient: "Michael Brown", type: "Dental Cleaning", date: "2024-01-22", status: "Overdue" }
+                    ].map((followup, idx) => (
+                      <motion.div key={idx} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.05 }} className="bg-cyan-50 rounded-xl p-4 border border-cyan-200 flex items-start gap-4 hover:shadow-md transition">
+                        <div className="text-3xl">📞</div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-bold text-stone-800">{followup.patient}</h3>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              followup.status === "Overdue" ? "bg-red-100 text-red-700" :
+                              followup.status === "Scheduled" ? "bg-green-100 text-green-700" :
+                              "bg-yellow-100 text-yellow-700"
+                            }`}>
+                              {followup.status}
+                            </span>
+                          </div>
+                          <p className="text-sm text-stone-600 mb-2">{followup.type}</p>
+                          <p className="text-xs text-stone-500">Due: {new Date(followup.date).toLocaleDateString()}</p>
+                        </div>
+                        <button className="px-3 py-2 bg-cyan-600 text-white rounded-lg text-sm font-semibold hover:bg-cyan-700 transition">Schedule</button>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Treatment Plans Tab */}
+          {activeSection === "dashboard" && activeTab === "treatment-plans" && (
+            <motion.div
+              key="treatment-plans"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-orange-100/60 overflow-hidden">
+                <div className="p-6 bg-gradient-to-r from-orange-50 to-red-50 border-b border-orange-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
+                      💼
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold bg-gradient-to-r from-orange-700 to-red-700 bg-clip-text text-transparent">
+                        Treatment Plans
+                      </h2>
+                      <p className="text-sm text-stone-600 mt-0.5">Active and pending treatment plans</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-6">
+                  <div className="space-y-4">
+                    {[
+                      { patient: "John Doe", plan: "Complete Smile Makeover", progress: 65, estimated: "3 weeks" },
+                      { patient: "Emily Davis", plan: "Orthodontic Braces", progress: 40, estimated: "12 weeks" },
+                      { patient: "James Wilson", plan: "Implant Restoration", progress: 80, estimated: "2 weeks" }
+                    ].map((plan, idx) => (
+                      <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.05 }} className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-5 border border-orange-200 hover:shadow-md transition">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h3 className="font-bold text-stone-800">{plan.patient}</h3>
+                            <p className="text-sm text-stone-600">{plan.plan}</p>
+                          </div>
+                          <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-lg text-xs font-semibold">Est: {plan.estimated}</span>
+                        </div>
+                        <div className="w-full bg-stone-200 rounded-full h-2">
+                          <div className="bg-gradient-to-r from-orange-500 to-red-600 h-2 rounded-full transition-all" style={{ width: `${plan.progress}%` }}></div>
+                        </div>
+                        <p className="text-xs text-stone-600 mt-2">{plan.progress}% Complete</p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Quick Notes Tab */}
+          {activeSection === "dashboard" && activeTab === "quick-notes" && (
+            <motion.div
+              key="quick-notes"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-lime-100/60 overflow-hidden">
+                <div className="p-6 bg-gradient-to-r from-lime-50 to-green-50 border-b border-lime-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-lime-500 to-green-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
+                      ✏️
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold bg-gradient-to-r from-lime-700 to-green-700 bg-clip-text text-transparent">
+                        Quick Notes
+                      </h2>
+                      <p className="text-sm text-stone-600 mt-0.5">Important reminders and clinical notes</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="p-6">
+                  <div className="mb-4">
+                    <textarea
+                      placeholder="Add a new note..."
+                      className="w-full px-4 py-3 border border-lime-200 rounded-xl focus:ring-2 focus:ring-lime-500 focus:border-transparent transition resize-none"
+                      rows="3"
+                    ></textarea>
+                    <button className="mt-2 px-4 py-2 bg-gradient-to-r from-lime-600 to-green-600 text-white rounded-lg font-semibold hover:shadow-lg transition">Save Note</button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {[
+                      { date: "Today", text: "Schedule follow-up for patient John Doe", priority: "High" },
+                      { date: "Yesterday", text: "Review treatment plan for Emily Davis", priority: "Medium" },
+                      { date: "2 days ago", text: "Order missing supplies for clinic inventory", priority: "Low" }
+                    ].map((note, idx) => (
+                      <motion.div key={idx} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.05 }} className="bg-lime-50 rounded-xl p-4 border border-lime-200 hover:shadow-md transition">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <p className="font-medium text-stone-800">{note.text}</p>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="text-xs text-stone-500">{note.date}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                note.priority === "High" ? "bg-red-100 text-red-700" :
+                                note.priority === "Medium" ? "bg-yellow-100 text-yellow-700" :
+                                "bg-blue-100 text-blue-700"
+                              }`}>
+                                {note.priority}
+                              </span>
+                            </div>
+                          </div>
+                          <button className="text-stone-400 hover:text-red-500 transition">✕</button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </motion.div>
           )}
 
