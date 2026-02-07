@@ -6,14 +6,14 @@ import { listDoctorProfiles } from "../services/doctorService";
 import LoginModal from "./LoginModal";
 
 const TABS = [
-  { key: "home", path: "/", label: "Home", bgColor: "from-coral-100 to-peach-100", textColor: "text-coral-800", borderColor: "border-coral-400", hoverBg: "hover:bg-coral-200", icon: "🏠" },
-  { key: "clinics", path: "/clinics", label: "Clinics", bgColor: "from-teal-100 to-sage-100", textColor: "text-teal-800", borderColor: "border-teal-400", hoverBg: "hover:bg-teal-200", icon: "🏥" },
-  { key: "patients", path: "/patients", label: "Patients", bgColor: "from-peach-100 to-gold-100", textColor: "text-peach-800", borderColor: "border-peach-400", hoverBg: "hover:bg-peach-200", icon: "👥" },
-  { key: "services", path: "/services", label: "Services", bgColor: "from-gold-100 to-peach-100", textColor: "text-gold-800", borderColor: "border-gold-400", hoverBg: "hover:bg-gold-200", icon: "🦷" },
-  { key: "inventory", path: "/inventory", label: "Inventory", bgColor: "from-emerald-100 to-teal-100", textColor: "text-emerald-800", borderColor: "border-emerald-400", hoverBg: "hover:bg-emerald-200", icon: "📦" },
-  { key: "analytics", path: "/analytics", label: "Analytics", bgColor: "from-purple-100 to-pink-100", textColor: "text-purple-800", borderColor: "border-purple-400", hoverBg: "hover:bg-purple-200", icon: "📊" },
-  { key: "team-hub", path: "/team-hub", label: "Team Hub", bgColor: "from-indigo-100 to-purple-100", textColor: "text-indigo-800", borderColor: "border-indigo-400", hoverBg: "hover:bg-indigo-200", icon: "🌟" },
-  { key: "superadmin", path: "/superadmin", label: "Super Admin", bgColor: "from-amber-100 to-rose-100", textColor: "text-amber-800", borderColor: "border-amber-400", hoverBg: "hover:bg-amber-200", icon: "🛡️" },
+  { key: "home", path: "/", label: "Home", icon: "🏠" },
+  { key: "clinics", path: "/clinics", label: "Clinics", icon: "🏥" },
+  { key: "patients", path: "/patients", label: "Patients", icon: "👥" },
+  { key: "services", path: "/services", label: "Services", icon: "🦷" },
+  { key: "inventory", path: "/inventory", label: "Inventory", icon: "📦" },
+  { key: "analytics", path: "/analytics", label: "Analytics", icon: "📊" },
+  { key: "team-hub", path: "/team-hub", label: "Team Hub", icon: "🌟" },
+  { key: "superadmin", path: "/superadmin", label: "Super Admin", icon: "🛡️" },
 ];
 
 const CRUD_OPERATIONS = {
@@ -366,15 +366,15 @@ export default function Header(){
   return (
     <>
       <header className="w-full fixed top-0 left-0 right-0 z-40 shadow-xl">
-        <div className="bg-gradient-to-r from-coral-100 via-peach-100 to-teal-100 shadow-coral">
-          <div className="bg-gradient-to-br from-coral-50 to-peach-50 shadow-2xl">
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 shadow-2xl">
+          <div className="bg-gradient-to-br from-slate-800 to-indigo-800 shadow-2xl">
             <div className="w-full px-6 md:px-12 py-4">
               <div className="grid grid-cols-3 items-center gap-4">
             {/* Logo - Left */}
                 <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
                   <motion.div 
                     whileHover={{ scale: 1.1, rotate: 5 }}
-                    className="w-12 h-12 bg-gradient-to-br from-yellow-300 to-amber-300 rounded-xl shadow-lg flex items-center justify-center cursor-pointer"
+                    className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl shadow-lg flex items-center justify-center cursor-pointer"
                   >
                     <span className="text-2xl">🦷</span>
                   </motion.div>
@@ -382,7 +382,7 @@ export default function Header(){
 
             {/* Title - Center */}
                 <div className="text-center">
-                  <h1 className="text-xl md:text-2xl font-bold text-white drop-shadow-lg">
+                  <h1 className="text-xl md:text-2xl font-bold text-cyan-300 drop-shadow-lg">
                     Dentaesthetics VitalsVille
                   </h1>
                 </div>
@@ -397,9 +397,9 @@ export default function Header(){
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={() => setShowNotifications(!showNotifications)}
-                          className="relative p-2 rounded-lg hover:bg-amber-700 transition-colors cursor-pointer"
+                          className="relative p-2 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer"
                         >
-                          <svg className="w-6 h-6 text-yellow-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                           </svg>
                           {unreadCount > 0 && (
@@ -420,15 +420,15 @@ export default function Header(){
                               initial={{ opacity: 0, y: -10, scale: 0.95 }}
                               animate={{ opacity: 1, y: 0, scale: 1 }}
                               exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                              className="fixed right-4 top-20 w-96 bg-white rounded-xl shadow-2xl border-2 border-gray-100 overflow-hidden z-[9999]"
+                              className="fixed right-4 top-20 w-96 bg-slate-800 rounded-xl shadow-2xl border-2 border-indigo-700 overflow-hidden z-[9999]"
                             >
                               {/* Header */}
-                              <div className="bg-gradient-to-r from-coral-50 to-peach-50 px-4 py-3 border-b border-warmGray-200 flex items-center justify-between">
-                                <h3 className="font-bold text-gray-800">Notifications</h3>
+                              <div className="bg-gradient-to-r from-slate-700 to-indigo-700 px-4 py-3 border-b border-indigo-600 flex items-center justify-between">
+                                <h3 className="font-bold text-cyan-300">Notifications</h3>
                                 {unreadCount > 0 && (
                                   <button
                                     onClick={markAllAsRead}
-                                    className="text-xs text-purple-600 hover:text-purple-700 font-semibold"
+                                    className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold"
                                   >
                                     Mark all read
                                   </button>
@@ -440,21 +440,21 @@ export default function Header(){
                                 {notifications.map((notif) => (
                                   <motion.div
                                     key={notif.id}
-                                    whileHover={{ backgroundColor: "#f9fafb" }}
+                                    whileHover={{ backgroundColor: "#1e293b" }}
                                     onClick={() => markAsRead(notif.id)}
-                                    className={`px-4 py-3 border-b border-gray-100 cursor-pointer ${notif.unread ? 'bg-blue-50/50' : ''}`}
+                                    className={`px-4 py-3 border-b border-slate-700 cursor-pointer ${notif.unread ? 'bg-indigo-900/30' : ''}`}
                                   >
                                     <div className="flex items-start gap-3">
                                       <span className="text-2xl">{notif.icon}</span>
                                       <div className="flex-1">
                                         <div className="flex items-center justify-between">
-                                          <p className="font-semibold text-sm text-gray-800">{notif.title}</p>
+                                          <p className="font-semibold text-sm text-cyan-300">{notif.title}</p>
                                           {notif.unread && (
-                                            <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                            <span className="w-2 h-2 bg-cyan-400 rounded-full"></span>
                                           )}
                                         </div>
-                                        <p className="text-sm text-gray-600 mt-0.5">{notif.message}</p>
-                                        <p className="text-xs text-gray-400 mt-1">{notif.time}</p>
+                                        <p className="text-sm text-slate-400 mt-0.5">{notif.message}</p>
+                                        <p className="text-xs text-slate-500 mt-1">{notif.time}</p>
                                       </div>
                                     </div>
                                   </motion.div>
@@ -462,8 +462,8 @@ export default function Header(){
                               </div>
 
                               {/* Footer */}
-                              <div className="bg-gray-50 px-4 py-2 text-center border-t border-gray-200">
-                                <button className="text-sm text-purple-600 hover:text-purple-700 font-semibold">
+                              <div className="bg-slate-700 px-4 py-2 text-center border-t border-indigo-600">
+                                <button className="text-sm text-cyan-400 hover:text-cyan-300 font-semibold">
                                   View All Notifications
                                 </button>
                               </div>
@@ -479,7 +479,7 @@ export default function Header(){
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => navigate(isSuperAdmin ? "/superadmin" : "/doctors")}
-                        className={`px-4 py-2 rounded-lg hover:shadow-xl transition-all font-semibold shadow-lg text-sm flex items-center gap-2 cursor-pointer ${isSuperAdmin ? 'bg-gradient-to-r from-amber-400 to-rose-500 text-white' : 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-amber-900'}`}
+                        className={`px-4 py-2 rounded-lg hover:shadow-xl transition-all font-semibold shadow-lg text-sm flex items-center gap-2 cursor-pointer ${isSuperAdmin ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white' : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-900'}`}
                       >
                         <span>{isSuperAdmin ? '🛡️' : '👨‍⚕️'}</span>
                         <span>{isSuperAdmin ? "Admin Corner" : (doctorName || "Doctor's Space")}</span>
@@ -491,7 +491,7 @@ export default function Header(){
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={handleLoginClick}
-                      className="px-6 py-2 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-lg hover:from-coral-600 hover:to-peach-600 transition-all font-semibold shadow-coral hover:shadow-xl text-sm"
+                      className="px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-900 rounded-lg hover:from-cyan-400 hover:to-blue-400 transition-all font-semibold shadow-lg hover:shadow-xl text-sm"
                     >
                       Login
                     </motion.button>
@@ -502,7 +502,7 @@ export default function Header(){
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={handleLogout}
-                      className="px-6 py-2 bg-gradient-to-r from-warmGray-500 to-warmGray-600 text-white rounded-lg hover:from-warmGray-600 hover:to-warmGray-700 transition-all font-semibold shadow-lg hover:shadow-xl text-sm"
+                      className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-slate-700 text-white rounded-lg hover:from-indigo-500 hover:to-slate-600 transition-all font-semibold shadow-lg hover:shadow-xl text-sm"
                     >
                       Logout
                     </motion.button>
@@ -533,7 +533,7 @@ export default function Header(){
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: -50 }}
             transition={{ type: "spring", damping: 15, stiffness: 200 }}
-            className="fixed top-32 right-6 z-[100] bg-gradient-to-br from-purple-500 via-pink-500 to-coral-500 text-white px-6 py-5 rounded-2xl shadow-2xl backdrop-blur-lg border-2 border-white/30 max-w-md"
+            className="fixed top-32 right-6 z-[100] bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 text-white px-6 py-5 rounded-2xl shadow-2xl backdrop-blur-lg border-2 border-cyan-300/30 max-w-md"
           >
             <div className="flex items-start gap-4">
               <motion.span
@@ -602,7 +602,7 @@ export default function Header(){
       <motion.div 
         className="fixed top-20 left-0 right-0 h-1 z-40"
         style={{
-          background: 'linear-gradient(90deg, #f59e0b, #ec4899, #f97316, #f59e0b)',
+          background: 'linear-gradient(90deg, #06b6d4, #0ea5e9, #06b6d4, #0ea5e9)',
           backgroundSize: '200% 100%'
         }}
         animate={{
@@ -615,7 +615,7 @@ export default function Header(){
         }}
       />
 
-      <nav className="w-full bg-gradient-to-r from-coral-50/90 via-peach-50/80 to-cream-50/90 border-b border-coral-200/50 shadow-md sticky top-20 z-30 backdrop-blur-md">
+      <nav className="w-full bg-gradient-to-r from-slate-800/90 via-indigo-800/80 to-slate-800/90 border-b border-indigo-700/50 shadow-md sticky top-20 z-30 backdrop-blur-md">
         <div className="w-full px-4 md:px-8 py-3">
           <div className="flex gap-3 justify-center relative items-center overflow-hidden">
             {visibleTabs.map((t) => (
@@ -628,7 +628,7 @@ export default function Header(){
                 <NavLink
                   to={t.path}
                   className={({isActive}) =>
-                    `px-4 py-2.5 font-bold transition-all inline-flex items-center gap-2 rounded-lg border-2 ${t.bgColor} ${t.textColor} ${t.borderColor} ${isActive ? `${t.hoverBg} ring-2 ring-offset-2 scale-105` : `${t.hoverBg}`} whitespace-nowrap`
+                    `px-4 py-2.5 font-bold transition-all inline-flex items-center gap-2 rounded-lg border-2 border-indigo-600 text-cyan-300 hover:bg-indigo-700 ${isActive ? `bg-indigo-700 ring-2 ring-cyan-400 ring-offset-2 scale-105` : `bg-slate-700/50`} whitespace-nowrap`
                   }
                 >
                   <span className="text-xl w-6 h-6 flex items-center justify-center">{t.icon}</span>
@@ -641,19 +641,19 @@ export default function Header(){
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-2xl overflow-hidden z-50 min-w-max border-2 border-slate-200 pointer-events-auto"
+                  className="absolute top-full left-0 mt-2 bg-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 min-w-max border-2 border-indigo-600 pointer-events-auto"
                   onMouseEnter={() => setHoveredTab(t.key)}
                   onMouseLeave={() => setHoveredTab(null)}
                 >
                   {CRUD_OPERATIONS[t.key].map((op, idx) => {
                     const colors = {
-                      create: { bg: "bg-green-50 hover:bg-green-100", text: "text-green-700", icon: "➕" },
-                      view: { bg: "bg-blue-50 hover:bg-blue-100", text: "text-blue-700", icon: "📋" },
-                      update: { bg: "bg-yellow-50 hover:bg-yellow-100", text: "text-yellow-700", icon: "✏️" },
-                      delete: { bg: "bg-red-50 hover:bg-red-100", text: "text-red-700", icon: "🗑️" },
-                      clinic: { bg: "bg-purple-50 hover:bg-purple-100", text: "text-purple-700", icon: "🏥" },
+                      create: { bg: "bg-emerald-900/40 hover:bg-emerald-800/60", text: "text-emerald-300", icon: "➕" },
+                      view: { bg: "bg-blue-900/40 hover:bg-blue-800/60", text: "text-blue-300", icon: "📋" },
+                      update: { bg: "bg-cyan-900/40 hover:bg-cyan-800/60", text: "text-cyan-300", icon: "✏️" },
+                      delete: { bg: "bg-red-900/40 hover:bg-red-800/60", text: "text-red-300", icon: "🗑️" },
+                      clinic: { bg: "bg-indigo-900/40 hover:bg-indigo-800/60", text: "text-indigo-300", icon: "🏥" },
                     };
-                    const opColor = colors[op] || { bg: "bg-gray-50 hover:bg-gray-100", text: "text-gray-700", icon: "⚙️" };
+                    const opColor = colors[op] || { bg: "bg-slate-600/40 hover:bg-slate-600/60", text: "text-slate-300", icon: "⚙️" };
 
                     return (
                       <motion.button
@@ -663,7 +663,7 @@ export default function Header(){
                           handleCrudClick(t.key, op);
                           setHoveredTab(null);
                         }}
-                        className={`w-full px-6 py-4 text-left font-semibold transition-all ${opColor.bg} ${opColor.text} ${idx !== CRUD_OPERATIONS[t.key].length - 1 ? 'border-b border-slate-200' : ''} flex items-center gap-3 cursor-pointer`}
+                        className={`w-full px-6 py-4 text-left font-semibold transition-all ${opColor.bg} ${opColor.text} ${idx !== CRUD_OPERATIONS[t.key].length - 1 ? 'border-b border-slate-600' : ''} flex items-center gap-3 cursor-pointer`}
                       >
                         <span className="text-xl w-6 h-6 flex items-center justify-center flex-shrink-0">{opColor.icon}</span>
                         <span className="capitalize">{op}</span>
@@ -683,7 +683,7 @@ export default function Header(){
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full bg-gradient-to-r from-teal-50/95 via-sage-50/90 to-cream-50/95 border-b border-teal-200/50 shadow-md sticky top-[148px] z-20 backdrop-blur-md"
+          className="w-full bg-gradient-to-r from-slate-800/95 via-indigo-800/90 to-slate-800/95 border-b border-indigo-700/50 shadow-md sticky top-[148px] z-20 backdrop-blur-md"
         >
           <div className="w-full px-6 md:px-12 py-3">
             <div ref={searchRef} className="relative max-w-4xl mx-auto">
@@ -694,9 +694,9 @@ export default function Header(){
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => setShowSearch(true)}
-                  className="w-full px-6 py-3 pl-12 pr-6 rounded-2xl border-2 border-purple-200 bg-white/80 backdrop-blur-sm focus:border-purple-400 focus:ring-4 focus:ring-purple-100 focus:bg-white outline-none transition-all text-base shadow-lg placeholder:text-gray-400"
+                  className="w-full px-6 py-3 pl-12 pr-6 rounded-2xl border-2 border-cyan-500 bg-slate-700/80 backdrop-blur-sm focus:border-cyan-400 focus:ring-4 focus:ring-cyan-400/20 focus:bg-slate-700 outline-none transition-all text-base shadow-lg placeholder:text-slate-400 text-cyan-300"
                 />
-                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 {searchQuery && (
@@ -709,9 +709,9 @@ export default function Header(){
                       setSearchQuery("");
                       setShowSearch(false);
                     }}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-200 transition-colors"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-slate-600 transition-colors"
                   >
-                    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </motion.button>
@@ -726,12 +726,12 @@ export default function Header(){
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -10, scale: 0.95 }}
                     transition={{ type: "spring", damping: 20, stiffness: 300 }}
-                    className="absolute top-full mt-3 w-full bg-white rounded-2xl shadow-2xl border-2 border-purple-100 max-h-[500px] overflow-y-auto z-[100]"
+                    className="absolute top-full mt-3 w-full bg-slate-800 rounded-2xl shadow-2xl border-2 border-indigo-600 max-h-[500px] overflow-y-auto z-[100]"
                   >
                     {filteredSearch.length > 0 ? (
                       <>
-                        <div className="sticky top-0 bg-gradient-to-r from-teal-50 to-sage-50 px-4 py-2 border-b border-teal-100">
-                          <p className="text-sm font-semibold text-purple-700">
+                        <div className="sticky top-0 bg-gradient-to-r from-slate-700 to-indigo-700 px-4 py-2 border-b border-indigo-600">
+                          <p className="text-sm font-semibold text-cyan-300">
                             {filteredSearch.length} result{filteredSearch.length > 1 ? 's' : ''} found
                           </p>
                         </div>
@@ -741,22 +741,22 @@ export default function Header(){
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: idx * 0.05 }}
-                            whileHover={{ backgroundColor: "#faf5ff", x: 4 }}
+                            whileHover={{ backgroundColor: "#1e293b", x: 4 }}
                             onClick={() => handleSearchSelect(item.path)}
-                            className="w-full px-5 py-4 flex items-center gap-4 border-b border-purple-50 last:border-0 text-left transition-all group"
+                            className="w-full px-5 py-4 flex items-center gap-4 border-b border-slate-700 last:border-0 text-left transition-all group"
                           >
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-coral-100 to-peach-100 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
                               {item.icon}
                             </div>
                             <div className="flex-1">
-                              <p className="font-semibold text-gray-800 group-hover:text-purple-700 transition-colors">{item.name}</p>
-                              <p className="text-sm text-gray-500">{item.meta}</p>
+                              <p className="font-semibold text-cyan-300 group-hover:text-cyan-200 transition-colors">{item.name}</p>
+                              <p className="text-sm text-slate-400">{item.meta}</p>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs px-3 py-1 rounded-full bg-purple-100 text-purple-700 font-medium capitalize">
+                              <span className="text-xs px-3 py-1 rounded-full bg-indigo-600/50 text-cyan-300 font-medium capitalize">
                                 {item.type}
                               </span>
-                              <svg className="w-4 h-4 text-gray-400 group-hover:text-purple-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <svg className="w-4 h-4 text-slate-400 group-hover:text-cyan-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                               </svg>
                             </div>
@@ -766,8 +766,8 @@ export default function Header(){
                     ) : (
                       <div className="px-6 py-12 text-center">
                         <div className="text-6xl mb-4">🔍</div>
-                        <p className="text-gray-600 font-semibold mb-1">No results found</p>
-                        <p className="text-sm text-gray-400">Try searching with different keywords</p>
+                        <p className="text-cyan-300 font-semibold mb-1">No results found</p>
+                        <p className="text-sm text-slate-400">Try searching with different keywords</p>
                       </div>
                     )}
                   </motion.div>
