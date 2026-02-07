@@ -151,62 +151,123 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-cream-50 via-warmGray-50 to-teal-50/30">
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         
-        {/* Hero Section - Compact & Calming */}
+        {/* Hero Section - PROFESSIONAL VITALS PANEL */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="bg-gradient-to-br from-white/80 via-coral-50/50 to-peach-50/50 backdrop-blur-sm rounded-2xl shadow-coral border border-coral-100/50 p-8"
+          className="bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 backdrop-blur-xl rounded-3xl shadow-2xl border border-indigo-400/30 p-8 relative overflow-hidden"
         >
-          <div className="text-center">
+          {/* Animated background elements */}
+          <motion.div
+            animate={{ 
+              scale: [1, 1.2, 1],
+              opacity: [0.1, 0.3, 0.1]
+            }}
+            transition={{ duration: 8, repeat: Infinity }}
+            className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full blur-3xl -z-0"
+          />
+          <motion.div
+            animate={{ 
+              scale: [1.2, 1, 1.2],
+              opacity: [0.1, 0.2, 0.1]
+            }}
+            transition={{ duration: 8, repeat: Infinity, delay: 2 }}
+            className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-cyan-400 to-blue-400 rounded-full blur-3xl -z-0"
+          />
+
+          <div className="text-center relative z-10">
+            {/* Professional Badge */}
             <motion.div
-              initial={{ scale: 0.9 }}
+              initial={{ scale: 0.5 }}
               animate={{ scale: 1 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-coral-500 to-teal-500 rounded-2xl shadow-coral mb-4"
+              transition={{ duration: 0.6, type: "spring" }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full mb-4 shadow-lg"
             >
-              <span className="text-3xl">🦷</span>
+              <span className="text-sm font-bold text-white">✨ Premium Dental Management System</span>
             </motion.div>
-            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-coral-700 via-peach-700 to-teal-700 bg-clip-text text-transparent mb-3">
+
+            {/* Main Title */}
+            <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-blue-200 via-cyan-200 to-teal-200 bg-clip-text text-transparent mb-2 drop-shadow-lg">
               Dentaesthetics VitalsVille
             </h1>
-            <p className="text-base text-slate-600 max-w-2xl mx-auto leading-relaxed mb-6">
-              Transforming dental practice management with intuitive technology designed for excellence in patient care
+            
+            {/* Subtitle */}
+            <p className="text-lg md:text-xl text-slate-200 max-w-3xl mx-auto leading-relaxed mb-8 font-medium">
+              Advanced dental practice management for clinics of all sizes. Smart scheduling, patient care, and revenue optimization in one platform.
             </p>
-            <div className="flex gap-4 justify-center items-center flex-wrap">
+
+            {/* Vital Stats Grid */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8"
+            >
+              {[
+                { icon: "⚡", label: "Real-time", desc: "Updates" },
+                { icon: "🔐", label: "HIPAA", desc: "Compliant" },
+                { icon: "📊", label: "Advanced", desc: "Analytics" },
+                { icon: "🌐", label: "Cloud", desc: "Based" },
+                { icon: "🚀", label: "Lightning", desc: "Fast" }
+              ].map((stat, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 + idx * 0.1 }}
+                  className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-3 hover:bg-white/20 transition-all"
+                >
+                  <div className="text-2xl mb-1">{stat.icon}</div>
+                  <div className="text-xs font-bold text-cyan-200">{stat.label}</div>
+                  <div className="text-[10px] text-slate-300">{stat.desc}</div>
+                </motion.div>
+              ))}
+            </motion.div>
+
+            {/* CTA Buttons */}
+            <div className="flex gap-4 justify-center items-center flex-wrap mb-6">
               <Link to="/doctors">
                 <motion.button
-                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileHover={{ scale: 1.08, y: -2 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-3 bg-gradient-to-r from-teal-500 via-purple-500 to-coral-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                  className="px-8 py-4 bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500 text-white rounded-xl font-bold shadow-2xl hover:shadow-cyan-500/50 transition-all flex items-center gap-2 text-lg border border-cyan-300/50"
                 >
-                  <span className="text-xl">👨‍⚕️</span>
-                  <span>Access Doctor's Space</span>
+                  <span className="text-2xl">👨‍⚕️</span>
+                  <span>Doctor's Portal</span>
                 </motion.button>
               </Link>
               <Link to="/login">
                 <motion.button
-                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileHover={{ scale: 1.08, y: -2 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-3 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                  className="px-8 py-4 bg-white/20 backdrop-blur-md border-2 border-white/40 text-white rounded-xl font-bold shadow-lg hover:bg-white/30 transition-all flex items-center gap-2 text-lg"
                 >
-                  <span className="text-xl">🔐</span>
-                  <span>Login as Doctor/Admin</span>
+                  <span className="text-2xl">🔐</span>
+                  <span>Admin Login</span>
                 </motion.button>
               </Link>
-              <motion.div
-                animate={{ 
-                  scale: [1, 1.1, 1],
-                  opacity: [0.5, 1, 0.5]
-                }}
-                transition={{ 
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-                className="w-2 h-2 bg-gradient-to-r from-coral-500 to-teal-500 rounded-full"
-              />
             </div>
+
+            {/* Live Status Indicator */}
+            <motion.div
+              animate={{ 
+                scale: [1, 1.05, 1],
+              }}
+              transition={{ 
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="flex items-center justify-center gap-2 text-sm text-cyan-300 font-semibold"
+            >
+              <motion.div
+                animate={{ opacity: [1, 0.5, 1] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="w-2 h-2 bg-cyan-400 rounded-full"
+              />
+              <span>System Status: All Systems Operational</span>
+            </motion.div>
           </div>
         </motion.div>
 

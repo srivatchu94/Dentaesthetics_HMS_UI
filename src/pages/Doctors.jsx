@@ -1290,7 +1290,12 @@ export default function Doctors() {
     { key: "clinic", label: "Clinic Details", icon: "🏥", gradient: "from-teal-500 to-cyan-600" },
     { key: "patients", label: "My Patients", icon: "👥", gradient: "from-blue-500 to-indigo-600" },
     { key: "payments", label: "Payments", icon: "💳", gradient: "from-emerald-500 to-teal-600" },
-    { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-violet-500 to-purple-600" }
+    { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-violet-500 to-purple-600" },
+    { key: "today-summary", label: "Today's Summary", icon: "⭐", gradient: "from-yellow-500 to-amber-600" },
+    { key: "patient-history", label: "Patient History", icon: "📋", gradient: "from-pink-500 to-rose-600" },
+    { key: "follow-ups", label: "Follow-ups", icon: "🔔", gradient: "from-cyan-500 to-blue-600" },
+    { key: "treatment-plans", label: "Treatment Plans", icon: "💼", gradient: "from-orange-500 to-red-600" },
+    { key: "quick-notes", label: "Quick Notes", icon: "✏️", gradient: "from-lime-500 to-green-600" }
   ];
 
   const manageClinicTabs = [
