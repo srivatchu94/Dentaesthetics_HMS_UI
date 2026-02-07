@@ -944,7 +944,7 @@ export default function Doctors() {
   
   const renderMedicationFormOLD_UNUSED = () => {
     return (
-    <div className="bg-white rounded-xl p-5 mb-5 border-2 border-purple-200">
+    <div className="bg-white rounded-xl p-5 mb-5 border-2 border-indigo-200">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
         {/* Medicine Name Searchable Dropdown */}
         <div className="md:col-span-2" ref={medicineInputRef}>
@@ -966,7 +966,7 @@ export default function Doctors() {
                 setMedicineDropdownOpen(true);
               }}
               placeholder="Search or type medication name..."
-              className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+              className="w-full px-4 py-2 border-2 border-indigo-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
               autoComplete="off"
             />
             {currentMedication.name && !medicineDropdownOpen && (
@@ -977,16 +977,16 @@ export default function Doctors() {
             
             {/* Dropdown Panel */}
             {medicineDropdownOpen && (
-              <div className="absolute z-30 mt-1 w-full bg-white border-2 border-purple-200 rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto">
+              <div className="absolute z-30 mt-1 w-full bg-white border-2 border-indigo-200 rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto">
                 {loadingMeds ? (
                   <div className="px-3 py-8 text-center">
-                    <div className="inline-block w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                    <div className="inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2"></div>
                     <p className="text-sm text-stone-600 font-medium">Loading medicines...</p>
                   </div>
                 ) : inventoryMeds.length === 0 ? (
                   <div className="px-4 py-6 text-center">
-                    <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                       </svg>
                     </div>
@@ -997,7 +997,7 @@ export default function Doctors() {
                         handleOpenAddMedicineModal(currentMedication.name);
                         setMedicineDropdownOpen(false);
                       }}
-                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center gap-2"
+                      className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1020,7 +1020,7 @@ export default function Doctors() {
                           setCurrentMedication(prev => ({ ...prev, name: m.itemName }));
                           setMedicineDropdownOpen(false);
                         }}
-                        className="w-full text-left px-4 py-3 hover:bg-purple-50 transition border-b border-purple-50 last:border-b-0 focus:outline-none focus:bg-purple-100"
+                        className="w-full text-left px-4 py-3 hover:bg-indigo-50 transition border-b border-indigo-50 last:border-b-0 focus:outline-none focus:bg-indigo-100"
                       >
                         <div className="font-semibold text-stone-800">{m.itemName}{m.itemCode ? ` (${m.itemCode})` : ""}</div>
                         <div className="text-xs text-stone-500 flex gap-3 flex-wrap">
@@ -1030,14 +1030,14 @@ export default function Doctors() {
                       </button>
                     ))}
                     {/* Add New Medicine Button at Bottom */}
-                    <div className="sticky bottom-0 bg-gradient-to-r from-purple-50 to-indigo-50 p-3 border-t border-purple-200">
+                    <div className="sticky bottom-0 bg-gradient-to-r from-slate-100 to-indigo-100 p-3 border-t border-indigo-200">
                       <button
                         type="button"
                         onClick={() => {
                           handleOpenAddMedicineModal(currentMedication.name);
                           setMedicineDropdownOpen(false);
                         }}
-                        className="w-full px-4 py-2 bg-white border-2 border-purple-300 text-purple-700 rounded-lg font-semibold hover:bg-purple-50 transition-all flex items-center justify-center gap-2"
+                        className="w-full px-4 py-2 bg-white border-2 border-indigo-300 text-indigo-700 rounded-lg font-semibold hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1062,7 +1062,7 @@ export default function Doctors() {
             value={currentMedication.dosage || ""}
             onChange={(e) => setCurrentMedication(prev => ({ ...prev, dosage: e.target.value }))}
             placeholder="e.g., 500mg, 1 tablet"
-            className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+            className="w-full px-4 py-2 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             autoComplete="off"
           />
         </div>
@@ -1075,7 +1075,7 @@ export default function Doctors() {
           <select
             value={currentMedication.frequency || ""}
             onChange={(e) => setCurrentMedication(prev => ({ ...prev, frequency: e.target.value }))}
-            className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+            className="w-full px-4 py-2 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
           >
             <option value="">Select frequency...</option>
             <option value="Once daily">Once daily</option>
@@ -1103,7 +1103,7 @@ export default function Doctors() {
             value={currentMedication.duration || ""}
             onChange={(e) => setCurrentMedication(prev => ({ ...prev, duration: e.target.value }))}
             placeholder="e.g., 7 days, 2 weeks"
-            className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+            className="w-full px-4 py-2 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             autoComplete="off"
           />
         </div>
@@ -1118,7 +1118,7 @@ export default function Doctors() {
             value={currentMedication.instructions || ""}
             onChange={(e) => setCurrentMedication(prev => ({ ...prev, instructions: e.target.value }))}
             placeholder="e.g., Take with food, Avoid alcohol"
-            className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+            className="w-full px-4 py-2 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
             autoComplete="off"
           />
         </div>
@@ -1130,7 +1130,7 @@ export default function Doctors() {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={handleAddMedication}
-          className="px-6 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2"
+          className="px-6 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2"
         >
           <span>{editingMedicationIndex !== null ? '✏️' : '➕'}</span>
           <span>{editingMedicationIndex !== null ? 'Update Medication' : 'Add Medication'}</span>
@@ -1286,13 +1286,13 @@ export default function Doctors() {
   };
 
   const dashboardTabs = [
-    { key: "overview", label: "Overview", icon: "📊", gradient: "from-indigo-500 to-purple-600" },
+    { key: "overview", label: "Overview", icon: "📊", gradient: "from-slate-900 to-indigo-900" },
     { key: "clinic", label: "Clinic Details", icon: "🏥", gradient: "from-teal-500 to-cyan-600" },
     { key: "patients", label: "My Patients", icon: "👥", gradient: "from-blue-500 to-indigo-600" },
     { key: "payments", label: "Payments", icon: "💳", gradient: "from-emerald-500 to-teal-600" },
-    { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-violet-500 to-purple-600" },
+    { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-slate-900 to-indigo-900" },
     { key: "today-summary", label: "Today's Summary", icon: "⭐", gradient: "from-yellow-500 to-amber-600" },
-    { key: "patient-history", label: "Patient History", icon: "📋", gradient: "from-pink-500 to-rose-600" },
+    { key: "patient-history", label: "Patient History", icon: "📋", gradient: "from-cyan-400 to-blue-500" },
     { key: "follow-ups", label: "Follow-ups", icon: "🔔", gradient: "from-cyan-500 to-blue-600" },
     { key: "treatment-plans", label: "Treatment Plans", icon: "💼", gradient: "from-orange-500 to-red-600" },
     { key: "quick-notes", label: "Quick Notes", icon: "✏️", gradient: "from-lime-500 to-green-600" }
@@ -1768,7 +1768,7 @@ export default function Doctors() {
             className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden"
           >
             {/* Header - STICKY */}
-            <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-8 py-6 rounded-t-3xl flex-shrink-0">
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 px-8 py-6 rounded-t-3xl flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl shadow-lg">
@@ -1776,7 +1776,7 @@ export default function Doctors() {
                   </div>
                   <div>
                     <h2 className="text-3xl font-bold text-white">Edit Appointment</h2>
-                    <p className="text-purple-100 text-sm mt-1">
+                    <p className="text-cyan-100 text-sm mt-1">
                       {editFormData.firstName} {editFormData.lastName} • ID: #{editFormData.appointmentId}
                     </p>
                   </div>
@@ -1808,7 +1808,7 @@ export default function Doctors() {
                     onClick={() => setActiveEditSection(tab.id)}
                     className={`px-6 py-2.5 rounded-xl font-semibold transition-all whitespace-nowrap ${
                       activeEditSection === tab.id
-                        ? 'bg-white text-violet-700 shadow-lg'
+                        ? 'bg-white text-indigo-700 shadow-lg'
                         : 'bg-white/20 text-white hover:bg-white/30'
                     }`}
                   >
@@ -1998,8 +1998,8 @@ export default function Doctors() {
                         </div>
                       </div>
                     </div>
-                    <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-md">
-                      <h3 className="text-xl font-bold text-purple-900 mb-4 flex items-center gap-2">
+                    <div className="bg-gradient-to-br from-slate-100 to-blue-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md">
+                      <h3 className="text-xl font-bold text-indigo-900 mb-4 flex items-center gap-2">
                         <span>📝</span> Visit Details
                       </h3>
                       <div className="space-y-4">
@@ -2008,7 +2008,7 @@ export default function Doctors() {
                           <textarea
                             value={localFormData.reasonForVisit || ""}
                             onChange={(e) => handleLocalInputChange("reasonForVisit", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition resize-none"
+                            className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none"
                             rows="3"
                             placeholder="Enter reason for visit"
                           />
@@ -2018,7 +2018,7 @@ export default function Doctors() {
                           <textarea
                             value={localFormData.notes || ""}
                             onChange={(e) => handleLocalInputChange("notes", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition resize-none"
+                            className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none"
                             rows="3"
                             placeholder="Additional notes"
                           />
@@ -2180,7 +2180,7 @@ export default function Doctors() {
                 whileTap={{ scale: 0.95 }}
                 onClick={handleLocalSave}
                 disabled={isUpdatingAppointment}
-                className="px-8 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg font-bold shadow-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-8 py-2.5 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isUpdatingAppointment ? (
                   <>
@@ -2222,7 +2222,7 @@ export default function Doctors() {
             className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden"
           >
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-violet-500 to-purple-500 px-6 py-4">
+            <div className="bg-gradient-to-r from-slate-900 to-indigo-900 px-6 py-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   ✏️ Edit Appointment
@@ -2241,7 +2241,7 @@ export default function Doctors() {
             {/* Modal Body */}
             <div className="p-6 space-y-4">
               {/* Appointment Details */}
-              <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-lg p-4 border border-violet-200">
+              <div className="bg-gradient-to-r from-slate-100 to-indigo-100 rounded-lg p-4 border border-indigo-200">
                 <h3 className="text-sm font-semibold text-stone-700 mb-2">Appointment Details</h3>
                 <div className="space-y-1 text-sm">
                   <p><span className="font-medium text-stone-600">Patient:</span> <span className="text-stone-800">{selectedAppointment.patient}</span></p>
@@ -2836,12 +2836,12 @@ export default function Doctors() {
                   </div>
 
                   {/* Appointment Summary */}
-                  <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl p-6 border-2 border-violet-200 shadow-md h-fit">
-                    <h3 className="text-lg font-bold text-violet-900 mb-4 flex items-center gap-2">
+                  <div className="bg-gradient-to-br from-slate-100 to-indigo-100 rounded-2xl p-6 border-2 border-indigo-200 shadow-md h-fit">
+                    <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
                       <span>📅</span> Appointment
                     </h3>
                     <div className="space-y-2 text-xs">
-                      <div className="flex justify-between pb-2 border-b border-violet-100">
+                      <div className="flex justify-between pb-2 border-b border-indigo-100">
                         <span className="text-stone-600">Date:</span>
                         <span className="font-bold text-stone-800">{new Date(selectedAppointmentForVisit.appointmentDate).toLocaleDateString()}</span>
                       </div>
@@ -2849,7 +2849,7 @@ export default function Doctors() {
                         <span className="text-stone-600">Time:</span>
                         <span className="font-bold text-stone-800">{selectedAppointmentForVisit.startTime || 'N/A'}</span>
                       </div>
-                      <div className="flex justify-between pt-2 border-t border-violet-100">
+                      <div className="flex justify-between pt-2 border-t border-indigo-100">
                         <span className="text-stone-600">Type:</span>
                         <span className="font-bold text-stone-800">{selectedAppointmentForVisit.appointmentType || 'N/A'}</span>
                       </div>
@@ -2929,7 +2929,7 @@ export default function Doctors() {
                                 alert('❌ Failed to load prescription. Please try again.');
                               }
                             }}
-                            className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2 text-sm"
+                            className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2 text-sm"
                           >
                             <span>👁️</span>
                             <span>View Prescription</span>
@@ -2947,13 +2947,13 @@ export default function Doctors() {
                   </div>
 
                   {/* Inline Prescription Section */}
-                  <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border-2 border-purple-300 shadow-lg">
-                    <h3 className="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
+                  <div className="bg-gradient-to-br from-slate-100 to-indigo-100 rounded-2xl p-6 border-2 border-indigo-300 shadow-lg">
+                    <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
                       <span>💊</span> Write Prescription
                     </h3>
 
                     {/* Medication Input Form - INLINE for better state management */}
-                    <div className="bg-white rounded-xl p-5 mb-5 border-2 border-purple-200">
+                    <div className="bg-white rounded-xl p-5 mb-5 border-2 border-indigo-200">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                         {/* Medicine Name Searchable Dropdown */}
                         <div className="md:col-span-2" ref={medicineInputRef}>
@@ -2990,7 +2990,7 @@ export default function Doctors() {
                                 setLocalMedicineDropdownOpen(true);
                               }}
                               placeholder="Search or type medication name..."
-                              className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                              className="w-full px-4 py-2 border-2 border-indigo-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                               autoComplete="off"
                             />
                             {currentMedication.name && !medicineDropdownOpen && (
@@ -3001,16 +3001,16 @@ export default function Doctors() {
                             
                             {/* Dropdown Panel */}
                             {medicineDropdownOpen && (
-                              <div className="absolute z-30 mt-1 w-full bg-white border-2 border-purple-200 rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto">
+                              <div className="absolute z-30 mt-1 w-full bg-white border-2 border-indigo-200 rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto">
                                 {loadingMeds ? (
                                   <div className="px-3 py-8 text-center">
-                                    <div className="inline-block w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                    <div className="inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2"></div>
                                     <p className="text-sm text-stone-600 font-medium">Loading medicines...</p>
                                   </div>
                                 ) : inventoryMeds.length === 0 ? (
                                   <div className="px-4 py-6 text-center">
-                                    <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                                      <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                      <svg className="w-8 h-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                                       </svg>
                                     </div>
@@ -3022,7 +3022,7 @@ export default function Doctors() {
                                         handleOpenAddMedicineModal(currentMedication.name);
                                         setMedicineDropdownOpen(false);
                                       }}
-                                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center gap-2"
+                                      className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center gap-2"
                                     >
                                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3051,7 +3051,7 @@ export default function Doctors() {
                                           });
                                           setMedicineDropdownOpen(false);
                                         }}
-                                        className="w-full text-left px-4 py-3 hover:bg-purple-50 transition border-b border-purple-50 last:border-b-0 focus:outline-none focus:bg-purple-100"
+                                        className="w-full text-left px-4 py-3 hover:bg-indigo-50 transition border-b border-indigo-50 last:border-b-0 focus:outline-none focus:bg-indigo-100"
                                       >
                                         <div className="font-semibold text-stone-800">{m.itemName}{m.itemCode ? ` (${m.itemCode})` : ""}</div>
                                         <div className="text-xs text-stone-500 flex gap-3 flex-wrap">
@@ -3060,7 +3060,7 @@ export default function Doctors() {
                                         </div>
                                       </button>
                                     ))}
-                                    <div className="sticky bottom-0 bg-gradient-to-r from-purple-50 to-indigo-50 p-3 border-t border-purple-200">
+                                    <div className="sticky bottom-0 bg-gradient-to-r from-slate-100 to-indigo-100 p-3 border-t border-indigo-200">
                                       <button
                                         type="button"
                                         onClick={() => {
@@ -3068,7 +3068,7 @@ export default function Doctors() {
                                           handleOpenAddMedicineModal(currentMedication.name);
                                           setMedicineDropdownOpen(false);
                                         }}
-                                        className="w-full px-4 py-2 bg-white border-2 border-purple-300 text-purple-700 rounded-lg font-semibold hover:bg-purple-50 transition-all flex items-center justify-center gap-2"
+                                        className="w-full px-4 py-2 bg-white border-2 border-indigo-300 text-indigo-700 rounded-lg font-semibold hover:bg-indigo-50 transition-all flex items-center justify-center gap-2"
                                       >
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3104,7 +3104,7 @@ export default function Doctors() {
                               });
                             }}
                             placeholder="e.g., 500mg, 1 tablet"
-                            className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                            className="w-full px-4 py-2 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                             autoComplete="off"
                           />
                         </div>
@@ -3125,7 +3125,7 @@ export default function Doctors() {
                                 return updated;
                               });
                             }}
-                            className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                            className="w-full px-4 py-2 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                           >
                             <option value="">Select frequency...</option>
                             <option value="Once daily">Once daily</option>
@@ -3162,7 +3162,7 @@ export default function Doctors() {
                               });
                             }}
                             placeholder="e.g., 7 days, 2 weeks"
-                            className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                            className="w-full px-4 py-2 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                             autoComplete="off"
                           />
                         </div>
@@ -3186,7 +3186,7 @@ export default function Doctors() {
                               });
                             }}
                             placeholder="e.g., Take with food, Avoid alcohol"
-                            className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                            className="w-full px-4 py-2 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                             autoComplete="off"
                           />
                         </div>
@@ -3202,7 +3202,7 @@ export default function Doctors() {
                             console.log('➕ Current medication:', currentMedication);
                             handleAddMedication();
                           }}
-                          className="px-6 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2"
+                          className="px-6 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2"
                         >
                           <span>{editingMedicationIndex !== null ? '✏️' : '➕'}</span>
                           <span>{editingMedicationIndex !== null ? 'Update Medication' : 'Add Medication'}</span>
@@ -3226,7 +3226,7 @@ export default function Doctors() {
                     {/* Medications List Grid */}
                     {inlineMedications.length > 0 && (
                       <div className="space-y-3 mb-5">
-                        <h4 className="font-bold text-purple-900 flex items-center gap-2">
+                        <h4 className="font-bold text-indigo-900 flex items-center gap-2">
                           <span>📋</span> Added Medications ({inlineMedications.length})
                         </h4>
                         <div className="grid grid-cols-1 gap-3">
@@ -3235,7 +3235,7 @@ export default function Doctors() {
                               key={index}
                               initial={{ opacity: 0, y: 20 }}
                               animate={{ opacity: 1, y: 0 }}
-                              className="bg-white rounded-xl p-4 border-2 border-purple-200 shadow-md hover:shadow-lg transition"
+                              className="bg-white rounded-xl p-4 border-2 border-indigo-200 shadow-md hover:shadow-lg transition"
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex-1">
@@ -3472,14 +3472,14 @@ export default function Doctors() {
             className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[95vh] flex flex-col"
           >
             {/* Header - STICKY */}
-            <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-8 py-6 rounded-t-3xl flex items-center justify-between flex-shrink-0">
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 px-8 py-6 rounded-t-3xl flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl shadow-lg">
                   📋
                 </div>
                 <div>
                   <h2 className="text-3xl font-bold text-white">Appointment Details</h2>
-                  <p className="text-purple-100 text-sm mt-1">
+                  <p className="text-indigo-100 text-sm mt-1">
                     {selectedAppointmentDetails.firstName} {selectedAppointmentDetails.lastName}
                   </p>
                 </div>
@@ -3549,13 +3549,13 @@ export default function Doctors() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
-                  className="bg-gradient-to-br from-violet-50 via-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-violet-200 shadow-md h-fit"
+                  className="bg-gradient-to-br from-slate-100 via-indigo-100 to-blue-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md h-fit"
                 >
-                  <h3 className="text-lg font-bold text-violet-900 mb-4 flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
                     <span className="text-2xl">📅</span> Appointment
                   </h3>
                   <div className="space-y-3 text-sm">
-                    <div className="flex justify-between pb-2 border-b border-violet-100">
+                    <div className="flex justify-between pb-2 border-b border-indigo-100">
                       <span className="text-stone-600 font-medium">Date:</span>
                       <span className="font-bold text-stone-800">
                         {selectedAppointmentDetails.appointmentDate 
@@ -3676,7 +3676,7 @@ export default function Doctors() {
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => handleEditAppointmentClick(selectedAppointmentDetails)}
-                  className="px-6 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                  className="px-6 py-2.5 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                 >
                   <span>✏️</span>
                   <span>Edit</span>
@@ -3686,7 +3686,7 @@ export default function Doctors() {
                     whileHover={{ scale: 1.05, y: -2 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handlePrintPrescription}
-                    className="px-6 py-2.5 bg-gradient-to-r from-orange-600 to-pink-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                    className="px-6 py-2.5 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                   >
                     <span>🖨️</span>
                     <span>Print</span>
@@ -4023,7 +4023,7 @@ export default function Doctors() {
             className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[95vh] flex flex-col"
           >
             {/* Header - STICKY */}
-            <div className="bg-gradient-to-r from-rose-600 via-pink-600 to-purple-600 px-8 py-6 rounded-t-3xl flex-shrink-0">
+            <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 px-8 py-6 rounded-t-3xl flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl shadow-lg">
@@ -4137,16 +4137,16 @@ export default function Doctors() {
               </div>
 
               {/* Medications Section */}
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-md">
+              <div className="bg-gradient-to-br from-slate-100 to-blue-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-2xl font-bold text-purple-900 flex items-center gap-2">
+                  <h3 className="text-2xl font-bold text-indigo-900 flex items-center gap-2">
                     <span>💊</span> Add Medications
                   </h3>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={addMedication}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                    className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
                   >
                     <span>➕</span>
                     <span>Add Medication</span>
@@ -4272,7 +4272,7 @@ export default function Doctors() {
                             value={med.dosage}
                             onChange={(e) => updateMedication(index, 'dosage', e.target.value)}
                             placeholder="e.g., 500mg"
-                            className="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                            className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                           />
                         </div>
 
@@ -4284,7 +4284,7 @@ export default function Doctors() {
                             value={med.frequency}
                             onChange={(e) => updateMedication(index, 'frequency', e.target.value)}
                             placeholder="e.g., 3 times a day"
-                            className="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                            className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                           />
                         </div>
 
@@ -4296,7 +4296,7 @@ export default function Doctors() {
                             value={med.duration}
                             onChange={(e) => updateMedication(index, 'duration', e.target.value)}
                             placeholder="e.g., 7 days"
-                            className="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                            className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
                           />
                         </div>
 
@@ -4308,7 +4308,7 @@ export default function Doctors() {
                             onChange={(e) => updateMedication(index, 'instructions', e.target.value)}
                             placeholder="e.g., Take after meals, avoid dairy products"
                             rows={2}
-                            className="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition resize-none"
+                            className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none"
                           />
                         </div>
                       </div>
@@ -4317,14 +4317,14 @@ export default function Doctors() {
                 </div>
 
                 {/* General Notes */}
-                <div className="mt-6 pt-6 border-t-2 border-purple-300">
+                <div className="mt-6 pt-6 border-t-2 border-indigo-300">
                   <label className="block text-sm font-semibold text-stone-700 mb-2">General Prescription Notes</label>
                   <textarea
                     value={localPrescriptionForm.notes || ''}
                     onChange={(e) => setLocalPrescriptionForm({...localPrescriptionForm, notes: e.target.value})}
                     placeholder="e.g., Follow-up in 1 week, take with water"
                     rows={2}
-                    className="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition resize-none"
+                    className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none"
                   />
                 </div>
               </div>
@@ -4382,7 +4382,7 @@ export default function Doctors() {
                   className={`px-8 py-2.5 rounded-lg font-bold text-white transition shadow-lg flex items-center gap-2 ${
                     savingPrescription || localPrescriptionForm.medications.filter(m => m.name && m.dosage).length === 0
                       ? 'bg-gray-300 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-rose-600 via-pink-600 to-purple-600 hover:shadow-2xl'
+                      : 'bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 hover:shadow-2xl'
                   }`}
                 >
                   <span>💾</span>
@@ -4522,7 +4522,7 @@ export default function Doctors() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6 flex justify-between items-center">
+            <div className="sticky top-0 bg-gradient-to-r from-slate-900 to-indigo-900 text-white p-6 flex justify-between items-center">
               <div>
                 <h2 className="text-2xl font-bold">📋 Prescription Details {isEditMode && '(Edit Mode)'}</h2>
                 <p className="text-indigo-100 text-sm mt-1">Patient: {editedPrescription?.patientId || 'N/A'}</p>
@@ -4549,7 +4549,7 @@ export default function Doctors() {
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse text-sm">
                       <thead>
-                        <tr className="bg-gradient-to-r from-indigo-100 to-purple-100">
+                        <tr className="bg-gradient-to-r from-slate-200 to-indigo-200">
                           <th className="border border-indigo-300 px-4 py-3 text-left font-bold">Medicine Name</th>
                           <th className="border border-indigo-300 px-4 py-3 text-left font-bold">Dosage & Frequency</th>
                           <th className="border border-indigo-300 px-4 py-3 text-left font-bold">Duration</th>
@@ -4657,7 +4657,7 @@ export default function Doctors() {
                 className={`px-6 py-2.5 rounded-lg font-semibold transition flex items-center gap-2 ${
                   isEditMode
                     ? 'bg-gray-400 text-white hover:bg-gray-500'
-                    : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:shadow-lg'
+                    : 'bg-gradient-to-r from-slate-900 to-indigo-900 text-white hover:shadow-lg'
                 }`}
               >
                 <span>{isEditMode ? '✕ Cancel' : '✏️ Edit Prescription'}</span>
@@ -5249,7 +5249,7 @@ export default function Doctors() {
             className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
           >
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-violet-500 to-purple-500 px-6 py-4 sticky top-0 z-10">
+            <div className="bg-gradient-to-r from-slate-900 to-indigo-900 px-6 py-4 sticky top-0 z-10">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   ➕ Book New Appointment
@@ -5429,7 +5429,7 @@ export default function Doctors() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={handleBookAppointment}
-                className="px-6 py-2 rounded-lg font-semibold text-white transition shadow-md bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600"
+                className="px-6 py-2 rounded-lg font-semibold text-white transition shadow-md bg-gradient-to-r from-indigo-600 to-slate-900 hover:from-indigo-700 hover:to-slate-800"
               >
                 Book Appointment
               </motion.button>
@@ -5667,11 +5667,11 @@ export default function Doctors() {
         onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         whileHover={{ 
           scale: 1.1, 
-          boxShadow: "0 4px 20px rgba(99, 102, 241, 0.25)",
+          boxShadow: "0 4px 20px rgba(6, 182, 212, 0.25)",
           backgroundColor: "rgba(255, 255, 255, 1)"
         }}
         whileTap={{ scale: 0.9 }}
-        className="fixed top-[180px] w-5 h-12 bg-white/90 backdrop-blur-sm rounded-r-lg shadow-lg flex items-center justify-center text-indigo-600 hover:text-indigo-700 transition-all border border-l-0 border-indigo-100 hover:border-indigo-200 z-[60]"
+        className="fixed top-[180px] w-5 h-12 bg-white/90 backdrop-blur-sm rounded-r-lg shadow-lg flex items-center justify-center text-cyan-500 hover:text-cyan-400 transition-all border border-l-0 border-cyan-400/50 hover:border-cyan-400/80 z-[60]"
         style={{
           clipPath: "polygon(0 0, 100% 15%, 100% 85%, 0 100%)"
         }}
@@ -5712,7 +5712,7 @@ export default function Doctors() {
           opacity: { duration: 0.5 },
           width: { duration: 0.35, ease: "easeInOut" }
         }}
-        className="bg-gradient-to-b from-indigo-600 via-purple-600 to-pink-600 shadow-2xl fixed left-0 top-[148px] h-[calc(100vh-148px)] z-50 rounded-tr-3xl border-t-4 border-white/20"
+        className="bg-gradient-to-b from-slate-900 via-indigo-900 to-slate-900 shadow-2xl fixed left-0 top-[148px] h-[calc(100vh-148px)] z-50 rounded-tr-3xl border-t-4 border-cyan-400/30"
         style={{
           overflowY: 'auto',
           overflowX: 'hidden',
@@ -6394,9 +6394,9 @@ export default function Doctors() {
                             </motion.div>
                             <motion.div
                               whileHover={{ scale: 1.05, rotate: 1 }}
-                              className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-5 border border-purple-200/50 shadow-md"
+                              className="bg-gradient-to-br from-slate-100 to-blue-50 rounded-xl p-5 border border-indigo-200/50 shadow-md"
                             >
-                              <p className="text-lg font-bold text-purple-700">📅</p>
+                              <p className="text-lg font-bold text-indigo-700">📅</p>
                               <p className="text-xs text-stone-600 mt-2 font-medium">Your Clinic</p>
                             </motion.div>
                           </div>
@@ -7385,14 +7385,14 @@ export default function Doctors() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-purple-100/60 overflow-hidden">
-                <div className="p-6 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-200">
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-indigo-100/60 overflow-hidden">
+                <div className="p-6 bg-gradient-to-r from-slate-100 to-blue-50 border-b border-indigo-200">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
+                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-600 to-blue-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
                       ⚙️
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold bg-gradient-to-r from-purple-700 to-pink-700 bg-clip-text text-transparent">
+                      <h2 className="text-xl font-bold bg-gradient-to-r from-indigo-700 to-blue-700 bg-clip-text text-transparent">
                         Clinic Settings
                       </h2>
                       <p className="text-sm text-stone-600 mt-0.5">Manage clinic information and preferences</p>
