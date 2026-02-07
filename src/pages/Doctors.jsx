@@ -64,6 +64,102 @@ const SAMPLE_INVENTORY = [
   { id: 6, item: "Sterile Needles", category: "Supplies", available: 25, ordered: 50, status: "Low Stock", reorderLevel: 30 }
 ];
 
+// Memoized AppointmentCard component - TASK 1: Fix Re-rendering in Appointments
+const AppointmentCard = React.memo(({ appointment, onViewDetails, getStatusColor, index }) => {
+  const handleCardClick = useCallback(async () => {
+    const appt = appointment;
+    // Show quick view then hydrate with full data from API
+    onViewDetails(appt, appt);
+  }, [appointment, onViewDetails]);
+
+  return (
+    <motion.div
+      key={appointment.appointmentId}
+      initial={{ opacity: 0, scale: 0.95, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ delay: index * 0.05, type: "spring" }}
+      className="relative group"
+    >
+      {/* Gradient Background Blur */}
+      <div className="absolute inset-0 bg-gradient-to-br from-violet-300 via-purple-300 to-pink-300 rounded-2xl blur-lg opacity-40 group-hover:opacity-70 transition-all duration-300"></div>
+      
+      {/* Card Content */}
+      <div className="relative bg-white rounded-2xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 border-2 border-violet-200 hover:border-violet-400">
+        {/* Status Badge */}
+        <div className="absolute top-3 right-3">
+          <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(appointment.status || 'Scheduled')}`}>
+            {appointment.status || 'Scheduled'}
+          </span>
+        </div>
+        
+        {/* Patient Info */}
+        <div className="mb-4 pr-20">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
+              {appointment.firstName?.charAt(0)}{appointment.lastName?.charAt(0)}
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-stone-800">
+                {appointment.firstName} {appointment.lastName}
+              </h3>
+              <p className="text-xs text-stone-500">Patient ID: {appointment.patientId}</p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Appointment Details */}
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-lg">📅</span>
+            <span className="font-semibold text-stone-700">Date:</span>
+            <span className="text-stone-600">
+              {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric',
+                year: 'numeric'
+              }) : 'N/A'}
+            </span>
+          </div>
+          
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-lg">⏰</span>
+            <span className="font-semibold text-stone-700">Time:</span>
+            <span className="text-stone-600">{appointment.startTime || 'N/A'}</span>
+          </div>
+          
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-lg">🏥</span>
+            <span className="font-semibold text-stone-700">Type:</span>
+            <span className="text-stone-600">{appointment.appointmentType || 'General'}</span>
+          </div>
+          
+          {appointment.attendingPhysician && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-lg">👨‍⚕️</span>
+              <span className="font-semibold text-stone-700">Doctor:</span>
+              <span className="text-stone-600">{appointment.attendingPhysician}</span>
+            </div>
+          )}
+        </div>
+        
+        {/* Action Button */}
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={handleCardClick}
+          className="w-full mt-3 py-2.5 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 text-white rounded-xl font-semibold shadow-md hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
+        >
+          <span>📋</span>
+          <span>View Details</span>
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+});
+
+AppointmentCard.displayName = 'AppointmentCard';
+
 export default function Doctors() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
@@ -1821,7 +1917,7 @@ export default function Doctors() {
 
             {/* Body - TABBED SECTIONS */}
             <div className="flex-1 overflow-y-auto p-8">
-              <AnimatePresence mode="wait">
+              <AnimatePresence mode="wait" exitBeforeEnter>
                 {/* PATIENT INFO TAB */}
                 {activeEditSection === 'patient' && (
                   <motion.div
@@ -1829,6 +1925,7 @@ export default function Doctors() {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
                     className="space-y-6"
                   >
                     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-blue-200 shadow-md">
@@ -1897,6 +1994,7 @@ export default function Doctors() {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
                     className="space-y-6"
                   >
                     <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border-2 border-green-200 shadow-md">
@@ -2035,6 +2133,7 @@ export default function Doctors() {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
                     className="space-y-6"
                   >
                     <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-6 border-2 border-yellow-200 shadow-md">
