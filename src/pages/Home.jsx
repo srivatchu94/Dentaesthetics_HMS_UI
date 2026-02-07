@@ -73,7 +73,7 @@ export default function Home() {
       icon: "📊", 
       title: "Reports & Analytics", 
       description: "Comprehensive insights, revenue tracking, and report generation",
-      color: "from-slate-500/20 to-indigo-500/20",
+      color: "from-violet-400/20 to-purple-400/20",
       textColor: "text-purple-700",
       link: "/reports"
     },
@@ -368,7 +368,7 @@ export default function Home() {
               { label: "Clinics", icon: "🏥", path: "/clinics", color: "from-teal-500 to-cyan-600" },
               { label: "Patients", icon: "👥", path: "/patients", color: "from-blue-500 to-indigo-600" },
               { label: "Doctors", icon: "👨‍⚕️", path: "/doctors", color: "from-cyan-500 to-teal-600" },
-              { label: "Services", icon: "🛠️", path: "/services", color: "from-slate-900 to-indigo-900" },
+              { label: "Services", icon: "🛠️", path: "/services", color: "from-purple-500 to-violet-600" },
               { label: "Staff", icon: "👔", path: "/staff", color: "from-rose-500 to-pink-600" },
             ].map((link, idx) => (
               <Link

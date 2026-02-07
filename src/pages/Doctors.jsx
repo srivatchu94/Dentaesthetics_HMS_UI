@@ -1093,7 +1093,7 @@ export default function Doctors() {
                         handleOpenAddMedicineModal(currentMedication.name);
                         setMedicineDropdownOpen(false);
                       }}
-                      className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center gap-2"
+                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1226,7 +1226,7 @@ export default function Doctors() {
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={handleAddMedication}
-          className="px-6 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2"
+          className="px-6 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2"
         >
           <span>{editingMedicationIndex !== null ? '✏️' : '➕'}</span>
           <span>{editingMedicationIndex !== null ? 'Update Medication' : 'Add Medication'}</span>
@@ -1382,13 +1382,13 @@ export default function Doctors() {
   };
 
   const dashboardTabs = [
-    { key: "overview", label: "Overview", icon: "📊", gradient: "from-slate-900 to-indigo-900" },
+    { key: "overview", label: "Overview", icon: "📊", gradient: "from-indigo-500 to-purple-600" },
     { key: "clinic", label: "Clinic Details", icon: "🏥", gradient: "from-teal-500 to-cyan-600" },
     { key: "patients", label: "My Patients", icon: "👥", gradient: "from-blue-500 to-indigo-600" },
     { key: "payments", label: "Payments", icon: "💳", gradient: "from-emerald-500 to-teal-600" },
-    { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-slate-900 to-indigo-900" },
+    { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-violet-500 to-purple-600" },
     { key: "today-summary", label: "Today's Summary", icon: "⭐", gradient: "from-yellow-500 to-amber-600" },
-    { key: "patient-history", label: "Patient History", icon: "📋", gradient: "from-cyan-400 to-blue-500" },
+    { key: "patient-history", label: "Patient History", icon: "📋", gradient: "from-pink-500 to-rose-600" },
     { key: "follow-ups", label: "Follow-ups", icon: "🔔", gradient: "from-cyan-500 to-blue-600" },
     { key: "treatment-plans", label: "Treatment Plans", icon: "💼", gradient: "from-orange-500 to-red-600" },
     { key: "quick-notes", label: "Quick Notes", icon: "✏️", gradient: "from-lime-500 to-green-600" }
@@ -1864,7 +1864,7 @@ export default function Doctors() {
             className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden"
           >
             {/* Header - STICKY */}
-            <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 px-8 py-6 rounded-t-3xl flex-shrink-0">
+            <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-8 py-6 rounded-t-3xl flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl shadow-lg">
@@ -1872,7 +1872,7 @@ export default function Doctors() {
                   </div>
                   <div>
                     <h2 className="text-3xl font-bold text-white">Edit Appointment</h2>
-                    <p className="text-cyan-100 text-sm mt-1">
+                    <p className="text-purple-100 text-sm mt-1">
                       {editFormData.firstName} {editFormData.lastName} • ID: #{editFormData.appointmentId}
                     </p>
                   </div>
@@ -2279,7 +2279,7 @@ export default function Doctors() {
                 whileTap={{ scale: 0.95 }}
                 onClick={handleLocalSave}
                 disabled={isUpdatingAppointment}
-                className="px-8 py-2.5 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-8 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isUpdatingAppointment ? (
                   <>
@@ -2321,7 +2321,7 @@ export default function Doctors() {
             className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden"
           >
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-slate-900 to-indigo-900 px-6 py-4">
+            <div className="bg-gradient-to-r from-violet-500 to-purple-500 px-6 py-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   ✏️ Edit Appointment
@@ -3028,7 +3028,7 @@ export default function Doctors() {
                                 alert('❌ Failed to load prescription. Please try again.');
                               }
                             }}
-                            className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2 text-sm"
+                            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2 text-sm"
                           >
                             <span>👁️</span>
                             <span>View Prescription</span>
@@ -3121,7 +3121,7 @@ export default function Doctors() {
                                         handleOpenAddMedicineModal(currentMedication.name);
                                         setMedicineDropdownOpen(false);
                                       }}
-                                      className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center gap-2"
+                                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center gap-2"
                                     >
                                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -3301,7 +3301,7 @@ export default function Doctors() {
                             console.log('➕ Current medication:', currentMedication);
                             handleAddMedication();
                           }}
-                          className="px-6 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2"
+                          className="px-6 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2"
                         >
                           <span>{editingMedicationIndex !== null ? '✏️' : '➕'}</span>
                           <span>{editingMedicationIndex !== null ? 'Update Medication' : 'Add Medication'}</span>
@@ -3571,7 +3571,7 @@ export default function Doctors() {
             className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[95vh] flex flex-col"
           >
             {/* Header - STICKY */}
-            <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 px-8 py-6 rounded-t-3xl flex items-center justify-between flex-shrink-0">
+            <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-8 py-6 rounded-t-3xl flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl shadow-lg">
                   📋
@@ -3775,7 +3775,7 @@ export default function Doctors() {
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => handleEditAppointmentClick(selectedAppointmentDetails)}
-                  className="px-6 py-2.5 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                  className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                 >
                   <span>✏️</span>
                   <span>Edit</span>
@@ -3785,7 +3785,7 @@ export default function Doctors() {
                     whileHover={{ scale: 1.05, y: -2 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handlePrintPrescription}
-                    className="px-6 py-2.5 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                    className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                   >
                     <span>🖨️</span>
                     <span>Print</span>
@@ -4122,7 +4122,7 @@ export default function Doctors() {
             className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl h-[95vh] flex flex-col"
           >
             {/* Header - STICKY */}
-            <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 px-8 py-6 rounded-t-3xl flex-shrink-0">
+            <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-8 py-6 rounded-t-3xl flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl shadow-lg">
@@ -4245,7 +4245,7 @@ export default function Doctors() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={addMedication}
-                    className="px-4 py-2 bg-gradient-to-r from-slate-900 to-indigo-900 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-2"
                   >
                     <span>➕</span>
                     <span>Add Medication</span>
@@ -4481,7 +4481,7 @@ export default function Doctors() {
                   className={`px-8 py-2.5 rounded-lg font-bold text-white transition shadow-lg flex items-center gap-2 ${
                     savingPrescription || localPrescriptionForm.medications.filter(m => m.name && m.dosage).length === 0
                       ? 'bg-gray-300 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 hover:shadow-2xl'
+                      : 'bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:shadow-2xl'
                   }`}
                 >
                   <span>💾</span>
@@ -4621,7 +4621,7 @@ export default function Doctors() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-slate-900 to-indigo-900 text-white p-6 flex justify-between items-center">
+            <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-indigo-600 text-white p-6 flex justify-between items-center">
               <div>
                 <h2 className="text-2xl font-bold">📋 Prescription Details {isEditMode && '(Edit Mode)'}</h2>
                 <p className="text-indigo-100 text-sm mt-1">Patient: {editedPrescription?.patientId || 'N/A'}</p>
@@ -4756,7 +4756,7 @@ export default function Doctors() {
                 className={`px-6 py-2.5 rounded-lg font-semibold transition flex items-center gap-2 ${
                   isEditMode
                     ? 'bg-gray-400 text-white hover:bg-gray-500'
-                    : 'bg-gradient-to-r from-slate-900 to-indigo-900 text-white hover:shadow-lg'
+                    : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:shadow-lg'
                 }`}
               >
                 <span>{isEditMode ? '✕ Cancel' : '✏️ Edit Prescription'}</span>
@@ -5348,7 +5348,7 @@ export default function Doctors() {
             className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
           >
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-slate-900 to-indigo-900 px-6 py-4 sticky top-0 z-10">
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 sticky top-0 z-10">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   ➕ Book New Appointment
@@ -5770,7 +5770,7 @@ export default function Doctors() {
           backgroundColor: "rgba(255, 255, 255, 1)"
         }}
         whileTap={{ scale: 0.9 }}
-        className="fixed top-[180px] w-5 h-12 bg-white/90 backdrop-blur-sm rounded-r-lg shadow-lg flex items-center justify-center text-cyan-500 hover:text-cyan-400 transition-all border border-l-0 border-cyan-400/50 hover:border-cyan-400/80 z-[60]"
+        className="fixed top-[180px] w-5 h-12 bg-white/90 backdrop-blur-sm rounded-r-lg shadow-lg flex items-center justify-center text-indigo-600 hover:text-indigo-500 transition-all border border-l-0 border-indigo-100 hover:border-indigo-300 z-[60]"
         style={{
           clipPath: "polygon(0 0, 100% 15%, 100% 85%, 0 100%)"
         }}
@@ -5811,7 +5811,7 @@ export default function Doctors() {
           opacity: { duration: 0.5 },
           width: { duration: 0.35, ease: "easeInOut" }
         }}
-        className="bg-gradient-to-b from-slate-900 via-indigo-900 to-slate-900 shadow-2xl fixed left-0 top-[148px] h-[calc(100vh-148px)] z-50 rounded-tr-3xl border-t-4 border-cyan-400/30"
+        className="bg-gradient-to-b from-indigo-600 via-purple-600 to-pink-600 shadow-2xl fixed left-0 top-[148px] h-[calc(100vh-148px)] z-50 rounded-tr-3xl border-t-4 border-white/20"
         style={{
           overflowY: 'auto',
           overflowX: 'hidden',
@@ -6719,34 +6719,34 @@ export default function Doctors() {
                 </div>
 
                 {/* Filters */}
-                <div className="px-6 py-4 bg-stone-50 border-b border-stone-200">
-                  <div className="flex items-center gap-4 flex-wrap">
+                <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-200">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                     <div>
-                      <label className="text-sm font-semibold text-stone-700 mb-1 block">Date Filter:</label>
+                      <label className="text-sm font-semibold text-stone-700 mb-2 block">Date Filter:</label>
                       <input
                         type="date"
                         value={paymentDate}
                         onChange={(e) => setPaymentDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                        className="w-full px-3 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition font-medium text-stone-700"
                       />
                     </div>
                     <div>
-                      <label className="text-sm font-semibold text-stone-700 mb-1 block">Clinic ID:</label>
+                      <label className="text-sm font-semibold text-stone-700 mb-2 block">Clinic ID:</label>
                       <input
                         type="number"
                         value={paymentClinicId}
                         onChange={(e) => setPaymentClinicId(e.target.value)}
                         placeholder="Enter Clinic ID"
-                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                        className="w-full px-3 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition font-medium text-stone-700"
                       />
                     </div>
-                    <div className="flex items-end">
+                    <div>
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={loadPaymentAppointments}
                         disabled={loadingPayments}
-                        className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2 disabled:opacity-50"
+                        className="w-full px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span>🔍</span>
                         <span>{loadingPayments ? 'Loading...' : 'Search Payments'}</span>
