@@ -70,14 +70,28 @@ export default function PaymentManagement() {
       };
       
       console.log('💳 Loading payment appointments with params:', params);
-      const data = await getAppointmentsByFilters(params);
+      let data = await getAppointmentsByFilters(params);
       console.log('💳 Loaded appointments for payments:', data);
       
       if (!data || data.length === 0) {
         setErrorMessage('No appointments booked for the selected day.');
         setPaymentAppointments([]);
       } else {
-        setPaymentAppointments(data || []);
+        // Ensure pendingAmount is calculated correctly if not provided
+        data = data.map(appt => {
+          const billable = parseFloat(appt.billableAmount) || 0;
+          const paid = parseFloat(appt.paidAmount) || 0;
+          const pending = billable - paid;
+          
+          return {
+            ...appt,
+            billableAmount: billable,
+            paidAmount: paid,
+            pendingAmount: Math.max(pending, 0),
+            paymentStatus: appt.paymentStatus || 'Pending'
+          };
+        });
+        setPaymentAppointments(data);
         setErrorMessage('');
       }
     } catch (error) {
@@ -478,14 +492,19 @@ export default function PaymentManagement() {
             </div>
 
             {/* Summary Stats */}
-            {paymentAppointments.length > 0 && (
+            {paymentAppointments.length > 0 && (() => {
+              const filteredAppointments = paymentAppointments.filter(appt => 
+                paymentStatusFilter === 'All' || appt.paymentStatus === paymentStatusFilter
+              );
+              
+              return (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t-2 border-emerald-200">
                 <motion.div
                   whileHover={{ scale: 1.02, y: -2 }}
                   className="bg-gradient-to-br from-indigo-50 to-purple-100 rounded-xl p-4 border-2 border-indigo-200 shadow-md"
                 >
                   <p className="text-xs font-bold text-indigo-700 uppercase mb-1">Total Appointments</p>
-                  <p className="text-3xl font-bold text-indigo-900">{paymentAppointments.length}</p>
+                  <p className="text-3xl font-bold text-indigo-900">{filteredAppointments.length}</p>
                 </motion.div>
                 <motion.div
                   whileHover={{ scale: 1.02, y: -2 }}
@@ -493,7 +512,7 @@ export default function PaymentManagement() {
                 >
                   <p className="text-xs font-bold text-emerald-700 uppercase mb-1">Total Collected</p>
                   <p className="text-3xl font-bold text-emerald-900">
-                    ₹{paymentAppointments.reduce((sum, a) => sum + (a.paidAmount || 0), 0).toLocaleString('en-IN')}
+                    ₹{filteredAppointments.reduce((sum, a) => sum + (a.paidAmount || 0), 0).toLocaleString('en-IN')}
                   </p>
                 </motion.div>
                 <motion.div
@@ -502,7 +521,7 @@ export default function PaymentManagement() {
                 >
                   <p className="text-xs font-bold text-rose-700 uppercase mb-1">Total Pending</p>
                   <p className="text-3xl font-bold text-rose-900">
-                    ₹{paymentAppointments.reduce((sum, a) => sum + (a.pendingAmount || 0), 0).toLocaleString('en-IN')}
+                    ₹{filteredAppointments.reduce((sum, a) => sum + (a.pendingAmount || 0), 0).toLocaleString('en-IN')}
                   </p>
                 </motion.div>
                 <motion.div
@@ -511,11 +530,12 @@ export default function PaymentManagement() {
                 >
                   <p className="text-xs font-bold text-amber-700 uppercase mb-1">Grand Total</p>
                   <p className="text-3xl font-bold text-amber-900">
-                    ₹{paymentAppointments.reduce((sum, a) => sum + (a.billableAmount || 0), 0).toLocaleString('en-IN')}
+                    ₹{filteredAppointments.reduce((sum, a) => sum + (a.billableAmount || 0), 0).toLocaleString('en-IN')}
                   </p>
                 </motion.div>
               </div>
-            )}
+              );
+            })()}
           </div>
         )}
       </div>
