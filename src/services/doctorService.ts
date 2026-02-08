@@ -195,7 +195,8 @@ export function getDoctorsForMapping(params: {
 }
 
 export function getDoctorsByClinicId(clinicId: number): Promise<DoctorProfileModel[]> {
-  // Backend endpoint signature: [HttpGet("GetDoctorsForClinicID")] GetDoctorsByClinicId([FromQuery] int clinicId)
+  // Backend: [HttpGet("GetDoctorsForClinicID")] with [FromQuery] int clinicId
+  console.log('📞 Calling GetDoctorsForClinicID with clinicId:', clinicId);
   return request<DoctorProfileModel[]>(`/DoctorProfile/GetDoctorsForClinicID?clinicId=${clinicId}`);
 }
 

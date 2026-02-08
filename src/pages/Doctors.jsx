@@ -162,6 +162,527 @@ const AppointmentCard = React.memo(({ appointment, onViewDetails, getStatusColor
 
 AppointmentCard.displayName = 'AppointmentCard';
 
+// ✅ HOISTED: FullEditAppointmentModal Component
+// Hoisted outside Doctors to prevent recreation on every render
+const FullEditAppointmentModal = ({
+  showEditModal,
+  editFormData,
+  setEditFormData,
+  activeEditSection,
+  setActiveEditSection,
+  isUpdatingAppointment,
+  handleUpdateAppointmentSubmit,
+  setShowEditModal,
+  doctorsList,
+  setDoctorsList,
+  loadingDoctors,
+  setLoadingDoctors
+}) => {
+  if (!showEditModal || !editFormData) return null;
+  
+  // Load doctors when modal opens
+  React.useEffect(() => {
+    const loadDoctorsForClinic = async () => {
+      console.log('🚀 useEffect triggered - showEditModal:', showEditModal);
+      console.log('📋 editFormData:', editFormData);
+      
+      try {
+        setLoadingDoctors(true);
+        const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
+        const clinicId = editFormData?.clinicId || selectedAccess?.clinicId;
+        
+        console.log('🔍 Loading doctors for clinicId:', clinicId);
+        console.log('📦 selectedAccess:', selectedAccess);
+        
+        if (clinicId) {
+          console.log('📞 Calling getDoctorsByClinicId API...');
+          const doctors = await getDoctorsByClinicId(clinicId);
+          console.log('✅ API returned doctors:', doctors);
+          console.log('📊 Number of doctors:', doctors?.length || 0);
+          setDoctorsList(doctors || []);
+        } else {
+          console.warn('⚠️ No clinicId found in editFormData or localStorage');
+          console.warn('editFormData?.clinicId:', editFormData?.clinicId);
+          console.warn('selectedAccess?.clinicId:', selectedAccess?.clinicId);
+          setDoctorsList([]);
+        }
+      } catch (error) {
+        console.error('❌ Error loading doctors for edit modal:', error);
+        console.error('❌ Error details:', error.message);
+        setDoctorsList([]);
+      } finally {
+        setLoadingDoctors(false);
+        console.log('🏁 Finished loading doctors');
+      }
+    };
+    
+    if (showEditModal) {
+      loadDoctorsForClinic();
+    }
+  }, [showEditModal, editFormData?.clinicId, setDoctorsList, setLoadingDoctors]);
+  
+  // Work directly with parent's editFormData
+  const handleLocalInputChange = useCallback((field, value) => {
+    setEditFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  }, [setEditFormData]);
+  
+  const handleLocalSave = useCallback(async () => {
+    await handleUpdateAppointmentSubmit();
+  }, [handleUpdateAppointmentSubmit]);
+  
+  // Tab navigation logic
+  const editSections = ['patient', 'appointment', 'billing', 'other'];
+  const currentSectionIndex = editSections.indexOf(activeEditSection);
+  const isLastSection = currentSectionIndex === editSections.length - 1;
+  
+  const handleNextSection = useCallback(() => {
+    if (currentSectionIndex < editSections.length - 1) {
+      setActiveEditSection(editSections[currentSectionIndex + 1]);
+    }
+  }, [currentSectionIndex, editSections, setActiveEditSection]);
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[9999] p-4"
+        onClick={() => setShowEditModal(false)}
+      >
+        <motion.div
+          initial={{ scale: 0.9, y: 30 }}
+          animate={{ scale: 1, y: 0 }}
+          exit={{ scale: 0.9, y: 30 }}
+          onClick={(e) => e.stopPropagation()}
+          className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden"
+        >
+          {/* Header - STICKY */}
+          <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-8 py-6 rounded-t-3xl flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl shadow-lg">
+                  ✏️
+                </div>
+                <div>
+                  <h2 className="text-3xl font-bold text-white">Edit Appointment</h2>
+                  <p className="text-purple-100 text-sm mt-1">
+                    {editFormData.firstName} {editFormData.lastName} • ID: #{editFormData.appointmentId}
+                  </p>
+                </div>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowEditModal(false)}
+                className="flex-shrink-0 w-12 h-12 bg-white/20 hover:bg-red-500/30 text-white rounded-full flex items-center justify-center transition-all duration-300 border-2 border-white/40"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </motion.button>
+            </div>
+            
+            {/* Tab Navigation */}
+            <div className="flex gap-2 mt-6 flex-wrap justify-center">
+              {[
+                { id: 'patient', label: ' Patient Info', icon: '👤' },
+                { id: 'appointment', label: ' Appointment', icon: '📅' },
+                { id: 'billing', label: ' Billing', icon: '💰' },
+                { id: 'other', label: ' Other Details', icon: '📝' }
+              ].map(tab => (
+                <motion.button
+                  key={tab.id}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setActiveEditSection(tab.id)}
+                  className={`px-4 py-2 rounded-xl font-semibold transition-all whitespace-nowrap text-sm ${
+                    activeEditSection === tab.id
+                      ? 'bg-white text-indigo-700 shadow-lg'
+                      : 'bg-white/20 text-white hover:bg-white/30'
+                  }`}
+                >
+                  <span className="mr-2">{tab.icon}</span>
+                  {tab.label}
+                </motion.button>
+              ))}
+            </div>
+          </div>
+
+          {/* Body - TABBED SECTIONS */}
+          <div className="flex-1 overflow-y-auto p-8">
+            <AnimatePresence mode="wait">
+              {/* PATIENT INFO TAB */}
+              {activeEditSection === 'patient' && (
+                <motion.div
+                  key="patient"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-6"
+                >
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-blue-200 shadow-md">
+                    <h3 className="text-xl font-bold text-blue-900 mb-4 flex items-center gap-2">
+                      <span>👤</span> Patient Information
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Patient ID (Read-Only)</label>
+                        <input
+                          type="text"
+                          value={editFormData.patientId}
+                          disabled
+                          className="w-full px-4 py-3 bg-stone-100 border-2 border-stone-300 rounded-xl text-stone-600 cursor-not-allowed"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">First Name *</label>
+                        <input
+                          type="text"
+                          value={editFormData.firstName || ""}
+                          onChange={(e) => handleLocalInputChange("firstName", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                          placeholder="Enter first name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Last Name *</label>
+                        <input
+                          type="text"
+                          value={editFormData.lastName || ""}
+                          onChange={(e) => handleLocalInputChange("lastName", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                          placeholder="Enter last name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Phone Number</label>
+                        <input
+                          type="tel"
+                          value={editFormData.phoneNumber || ""}
+                          onChange={(e) => handleLocalInputChange("phoneNumber", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                          placeholder="Enter phone number"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Email</label>
+                        <input
+                          type="email"
+                          value={editFormData.email || ""}
+                          onChange={(e) => handleLocalInputChange("email", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                          placeholder="Enter email"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* APPOINTMENT TAB */}
+              {activeEditSection === 'appointment' && (
+                <motion.div
+                  key="appointment"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-6"
+                >
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border-2 border-green-200 shadow-md">
+                    <h3 className="text-xl font-bold text-green-900 mb-4 flex items-center gap-2">
+                      <span>📅</span> Scheduling Details
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Appointment Date *</label>
+                        <input
+                          type="date"
+                          value={editFormData.appointmentDate ? editFormData.appointmentDate.split('T')[0] : ""}
+                          onChange={(e) => handleLocalInputChange("appointmentDate", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Start Time *</label>
+                        <input
+                          type="time"
+                          value={editFormData.startTime || ""}
+                          onChange={(e) => handleLocalInputChange("startTime", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">End Time</label>
+                        <input
+                          type="time"
+                          value={editFormData.endTime || ""}
+                          onChange={(e) => handleLocalInputChange("endTime", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Duration (Minutes)</label>
+                        <input
+                          type="number"
+                          value={editFormData.durationMinutes || ""}
+                          onChange={(e) => handleLocalInputChange("durationMinutes", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                          placeholder="e.g., 30"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Appointment Type</label>
+                        <input
+                          type="text"
+                          value={editFormData.appointmentType || ""}
+                          onChange={(e) => handleLocalInputChange("appointmentType", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                          placeholder="e.g., Root Canal"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Status</label>
+                        <select
+                          value={editFormData.status || "Scheduled"}
+                          onChange={(e) => handleLocalInputChange("status", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                        >
+                          <option value="Scheduled">Scheduled</option>
+                          <option value="Confirmed">Confirmed</option>
+                          <option value="Cancelled">Cancelled</option>
+                          <option value="Completed">Completed</option>
+                          <option value="No-Show">No-Show</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Room Number</label>
+                        <input
+                          type="text"
+                          value={editFormData.roomNumber || ""}
+                          onChange={(e) => handleLocalInputChange("roomNumber", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                          placeholder="e.g., 101"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Attending Physician</label>
+                        <input
+                          type="text"
+                          value={editFormData.attendingPhysician || ""}
+                          onChange={(e) => handleLocalInputChange("attendingPhysician", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                          placeholder="Enter physician name"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="flex items-center gap-3 cursor-pointer bg-green-100 p-3 rounded-xl">
+                          <input
+                            type="checkbox"
+                            checked={editFormData.isConfirmed || false}
+                            onChange={(e) => handleLocalInputChange("isConfirmed", e.target.checked)}
+                            className="w-5 h-5 rounded border-stone-300 text-green-600 focus:ring-green-500"
+                          />
+                          <span className="text-sm font-semibold text-stone-700">✅ Confirmed Appointment</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-gradient-to-br from-slate-100 to-blue-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md">
+                    <h3 className="text-xl font-bold text-indigo-900 mb-4 flex items-center gap-2">
+                      <span>📝</span> Visit Details
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Reason for Visit</label>
+                        <textarea
+                          value={editFormData.reasonForVisit || ""}
+                          onChange={(e) => handleLocalInputChange("reasonForVisit", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none"
+                          rows="3"
+                          placeholder="Enter reason for visit"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Notes</label>
+                        <textarea
+                          value={editFormData.notes || ""}
+                          onChange={(e) => handleLocalInputChange("notes", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none"
+                          rows="3"
+                          placeholder="Additional notes"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* BILLING TAB */}
+              {activeEditSection === 'billing' && (
+                <motion.div
+                  key="billing"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-6"
+                >
+                  <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-6 border-2 border-yellow-200 shadow-md">
+                    <h3 className="text-xl font-bold text-yellow-900 mb-4 flex items-center gap-2">
+                      <span>💰</span> Payment Information
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Billable Amount (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editFormData.billableAmount || ""}
+                          onChange={(e) => handleLocalInputChange("billableAmount", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Paid Amount (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editFormData.paidAmount || ""}
+                          onChange={(e) => handleLocalInputChange("paidAmount", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Pending Amount (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={(parseFloat(editFormData.billableAmount || 0) - parseFloat(editFormData.paidAmount || 0)).toFixed(2)}
+                          disabled
+                          className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl bg-gray-100 text-gray-700 cursor-not-allowed"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Payment Status</label>
+                        <select
+                          value={editFormData.paymentStatus || "Pending"}
+                          onChange={(e) => handleLocalInputChange("paymentStatus", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Paid">Paid</option>
+                          <option value="Partial">Partial</option>
+                          <option value="Invoice">Invoice</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* OTHER TAB */}
+              {activeEditSection === 'other' && (
+                <motion.div
+                  key="other"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-6"
+                >
+                  <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border-2 border-purple-200 shadow-md">
+                    <h3 className="text-xl font-bold text-purple-900 mb-4 flex items-center gap-2">
+                      <span>👨‍⚕️</span> Additional Details
+                    </h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Attending Physician</label>
+                        <input
+                          type="text"
+                          value={editFormData.attendingPhysician || ""}
+                          onChange={(e) => handleLocalInputChange("attendingPhysician", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                          placeholder="Enter doctor's name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-stone-700 mb-2">Telehealth Link</label>
+                        <input
+                          type="url"
+                          value={editFormData.telehealthLink || ""}
+                          onChange={(e) => handleLocalInputChange("telehealthLink", e.target.value)}
+                          className="w-full px-4 py-3 border-2 border-purple-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                          placeholder="https://..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Footer - STICKY */}
+          <div className="bg-gradient-to-r from-stone-50 to-stone-100 px-8 py-5 rounded-b-3xl border-t-2 border-stone-200 flex justify-between items-center gap-4 flex-wrap flex-shrink-0">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowEditModal(false)}
+              disabled={isUpdatingAppointment}
+              className="px-6 py-2.5 bg-white border-2 border-stone-300 text-stone-700 hover:border-stone-500 hover:bg-stone-50 font-semibold transition-all rounded-lg disabled:opacity-50"
+            >
+              ✕ Close
+            </motion.button>
+            
+            {/* Show Next button on tabs 1-3, Save Changes button only on last tab */}
+            {!isLastSection ? (
+              <motion.button
+                whileHover={{ scale: 1.05, x: 5 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleNextSection}
+                className="px-8 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-bold shadow-lg hover:shadow-2xl transition-all flex items-center gap-2"
+              >
+                <span>Next</span>
+                <span>➜</span>
+              </motion.button>
+            ) : (
+              <motion.button
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleLocalSave}
+                disabled={isUpdatingAppointment}
+                className="px-8 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {isUpdatingAppointment ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    <span>Updating...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✅</span>
+                    <span>Save Changes</span>
+                  </>
+                )}
+              </motion.button>
+            )}
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+FullEditAppointmentModal.displayName = 'FullEditAppointmentModal';
+
 export default function Doctors() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
@@ -392,19 +913,70 @@ export default function Doctors() {
   };
   
   const handleUpdateAppointmentSubmit = async () => {
-    if (!editFormData) return;
+    if (!editFormData) {
+      console.error("❌ No edit form data available");
+      return;
+    }
     
+    console.log("════════════════════════════════════════════════════════════════");
+    console.log("🔥 SAVE CHANGES CLICKED - Starting Update Process");
+    console.log("════════════════════════════════════════════════════════════════");
+    console.log("📋 Edit Form Data:", editFormData);
+    console.log("🆔 Appointment ID:", editFormData.appointmentId);
+    console.log("👤 Patient:", editFormData.firstName, editFormData.lastName);
+    console.log("📅 Date:", editFormData.appointmentDate);
+    console.log("⏰ Time:", editFormData.startTime);
+    console.log("🏥 Clinic ID:", editFormData.clinicId);
+    console.log("👨‍⚕️ Doctor ID:", editFormData.doctorId);
+    console.log("════════════════════════════════════════════════════════════════");
+    console.log("💰 BILLING INFORMATION:");
+    console.log("   Billable Amount:", editFormData.billableAmount);
+    console.log("   Paid Amount:", editFormData.paidAmount);
+    console.log("   Pending Amount:", editFormData.pendingAmount);
+    console.log("   Payment Status:", editFormData.paymentStatus);
+    console.log("════════════════════════════════════════════════════════════════");
+    console.log("📤 FULL PAYLOAD BEING SENT TO API:");
+    console.log(JSON.stringify(editFormData, null, 2));
+    console.log("════════════════════════════════════════════════════════════════");
+    
+    const billableAmountNum = parseFloat(editFormData.billableAmount || 0);
+    const paidAmountNum = parseFloat(editFormData.paidAmount || 0);
+    const computedPendingAmount = Number((billableAmountNum - paidAmountNum).toFixed(2));
+    const payload = {
+      ...editFormData,
+      pendingAmount: computedPendingAmount
+    };
+
     setIsUpdatingAppointment(true);
     try {
-      // Call the API to update the appointment
-      await updateAppointment(editFormData);
+      console.log("🚀 Calling updateAppointment API...");
       
-      // Update local state
-      setAppointments(appointments.map(appt => 
-        appt.appointmentId === editFormData.appointmentId 
-          ? editFormData
+      // Call the API to update the appointment
+      const result = await updateAppointment(payload);
+      
+      console.log("✅ API call successful!");
+      console.log("📦 API Response:", result);
+      
+      // Update both appointment states with the new data
+      setAppointments(prev => prev.map(appt => 
+        appt.appointmentId === payload.appointmentId 
+          ? { ...appt, ...payload }
           : appt
       ));
+      
+      setRealAppointments(prev => prev.map(appt => 
+        appt.appointmentId === payload.appointmentId 
+          ? { ...appt, ...payload }
+          : appt
+      ));
+      
+      // Update selectedAppointmentDetails if it's the same appointment being viewed
+      if (selectedAppointmentDetails?.appointmentId === payload.appointmentId) {
+        setSelectedAppointmentDetails({ ...selectedAppointmentDetails, ...payload });
+        console.log("✅ Updated appointment details view with new data");
+      }
+      
+      console.log("✅ Local state updated with new data");
       
       // Show success modal
       setUpdateSuccessMessage("🎉 Appointment updated successfully! Your changes have been saved to the system.");
@@ -413,8 +985,16 @@ export default function Doctors() {
       // Close edit modal
       setShowEditModal(false);
       setEditFormData(null);
+      
+      console.log("✅ Update process completed successfully");
     } catch (error) {
-      console.error("Error updating appointment:", error);
+      console.error("════════════════════════════════════════════════════════════════");
+      console.error("❌ ERROR UPDATING APPOINTMENT");
+      console.error("════════════════════════════════════════════════════════════════");
+      console.error("Error object:", error);
+      console.error("Error message:", error?.message);
+      console.error("Error response:", error?.response);
+      console.error("════════════════════════════════════════════════════════════════");
       alert("❌ Failed to update appointment. Please try again.");
     } finally {
       setIsUpdatingAppointment(false);
@@ -1423,13 +2003,7 @@ export default function Doctors() {
     return colors[status] || "bg-stone-100 text-stone-600 border-stone-200";
   };
 
-  // Load real appointments when appointments tab is active
-  useEffect(() => {
-    if (activeSection === "dashboard" && activeTab === "appointments") {
-      loadAllAppointments();
-    }
-  }, [activeSection, activeTab, appointmentDate]); // FIXED: Only when these change
-
+  // Define loadAllAppointments before the useEffect that uses it
   const loadAllAppointments = useCallback(() => {
     setLoadingAppointments(true);
     setViewingMyAppointments(false);
@@ -1458,6 +2032,19 @@ export default function Doctors() {
       })
       .finally(() => setLoadingAppointments(false));
   }, [appointmentDate]); // FIXED: Memoized with appointmentDate dependency
+
+  // Load real appointments when appointments tab is active
+  useEffect(() => {
+    // Don't reload appointments while editing to prevent background refresh
+    if (showEditModal) {
+      console.log("⏸️ Skipping appointment reload - edit modal is open");
+      return;
+    }
+    
+    if (activeSection === "dashboard" && activeTab === "appointments") {
+      loadAllAppointments();
+    }
+  }, [activeSection, activeTab, appointmentDate, loadAllAppointments, showEditModal]); // Include showEditModal to prevent reload during edit
 
   const loadMyAppointments = () => {
     // Get clinic ID from selected access (most reliable source)
@@ -1817,492 +2404,8 @@ export default function Doctors() {
     }
   };
 
-  // Full Edit Appointment Modal Component
-  const handleInputChange = useCallback((field, value) => {
-    setEditFormData(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        [field]: value
-      };
-    });
-  }, []);
-
-  const FullEditAppointmentModal = () => {
-    if (!showEditModal || !editFormData) return null;
-    
-    const [localFormData, setLocalFormData] = React.useState(editFormData);
-    
-    React.useEffect(() => {
-      if (editFormData) {
-        setLocalFormData(editFormData);
-      }
-    }, [editFormData?.appointmentId]);
-    
-    const handleLocalInputChange = React.useCallback((field, value) => {
-      setLocalFormData(prev => ({
-        ...prev,
-        [field]: value
-      }));
-    }, []);
-    
-    const handleLocalSave = async () => {
-      setEditFormData(localFormData);
-      await handleUpdateAppointmentSubmit();
-    };
-    
-    return (
-      <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[9999] p-4"
-          onClick={() => setShowEditModal(false)}
-        >
-          <motion.div
-            initial={{ scale: 0.9, y: 30 }}
-            animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.9, y: 30 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col overflow-hidden"
-          >
-            {/* Header - STICKY */}
-            <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-8 py-6 rounded-t-3xl flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-3xl shadow-lg">
-                    ✏️
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-bold text-white">Edit Appointment</h2>
-                    <p className="text-purple-100 text-sm mt-1">
-                      {editFormData.firstName} {editFormData.lastName} • ID: #{editFormData.appointmentId}
-                    </p>
-                  </div>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.1, rotate: 90 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setShowEditModal(false)}
-                  className="flex-shrink-0 w-12 h-12 bg-white/20 hover:bg-red-500/30 text-white rounded-full flex items-center justify-center transition-all duration-300 border-2 border-white/40"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </motion.button>
-              </div>
-              
-              {/* Tab Navigation */}
-              <div className="flex gap-2 mt-6 flex-wrap justify-center">
-                {[
-                  { id: 'patient', label: ' Patient Info', icon: '👤' },
-                  { id: 'appointment', label: ' Appointment', icon: '📅' },
-                  { id: 'billing', label: ' Billing', icon: '💰' },
-                  { id: 'other', label: ' Other Details', icon: '📝' }
-                ].map(tab => (
-                  <motion.button
-                    key={tab.id}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setActiveEditSection(tab.id)}
-                    className={`px-4 py-2 rounded-xl font-semibold transition-all whitespace-nowrap text-sm ${
-                      activeEditSection === tab.id
-                        ? 'bg-white text-indigo-700 shadow-lg'
-                        : 'bg-white/20 text-white hover:bg-white/30'
-                    }`}
-                  >
-                    <span className="mr-2">{tab.icon}</span>
-                    {tab.label}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
-            {/* Body - TABBED SECTIONS */}
-            <div className="flex-1 overflow-y-auto p-8">
-              <AnimatePresence mode="wait">
-                {/* PATIENT INFO TAB */}
-                {activeEditSection === 'patient' && (
-                  <motion.div
-                    key="patient"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.2 }}
-                    className="space-y-6"
-                  >
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-blue-200 shadow-md">
-                      <h3 className="text-xl font-bold text-blue-900 mb-4 flex items-center gap-2">
-                        <span>👤</span> Patient Information
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Patient ID (Read-Only)</label>
-                          <input
-                            type="text"
-                            value={localFormData.patientId}
-                            disabled
-                            className="w-full px-4 py-3 bg-stone-100 border-2 border-stone-300 rounded-xl text-stone-600 cursor-not-allowed"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">First Name *</label>
-                          <input
-                            type="text"
-                            value={localFormData.firstName || ""}
-                            onChange={(e) => handleLocalInputChange("firstName", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                            placeholder="Enter first name"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Last Name *</label>
-                          <input
-                            type="text"
-                            value={localFormData.lastName || ""}
-                            onChange={(e) => handleLocalInputChange("lastName", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                            placeholder="Enter last name"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Phone Number</label>
-                          <input
-                            type="tel"
-                            value={localFormData.phoneNumber || ""}
-                            onChange={(e) => handleLocalInputChange("phoneNumber", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                            placeholder="Enter phone number"
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Email</label>
-                          <input
-                            type="email"
-                            value={localFormData.email || ""}
-                            onChange={(e) => handleLocalInputChange("email", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                            placeholder="Enter email"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* APPOINTMENT TAB */}
-                {activeEditSection === 'appointment' && (
-                  <motion.div
-                    key="appointment"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.2 }}
-                    className="space-y-6"
-                  >
-                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border-2 border-green-200 shadow-md">
-                      <h3 className="text-xl font-bold text-green-900 mb-4 flex items-center gap-2">
-                        <span>📅</span> Scheduling Details
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Appointment Date *</label>
-                          <input
-                            type="date"
-                            value={localFormData.appointmentDate ? localFormData.appointmentDate.split('T')[0] : ""}
-                            onChange={(e) => handleLocalInputChange("appointmentDate", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Start Time *</label>
-                          <input
-                            type="time"
-                            value={localFormData.startTime || ""}
-                            onChange={(e) => handleLocalInputChange("startTime", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">End Time</label>
-                          <input
-                            type="time"
-                            value={localFormData.endTime || ""}
-                            onChange={(e) => handleLocalInputChange("endTime", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Duration (Minutes)</label>
-                          <input
-                            type="number"
-                            value={localFormData.durationMinutes || ""}
-                            onChange={(e) => handleLocalInputChange("durationMinutes", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                            placeholder="e.g., 30"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Appointment Type</label>
-                          <input
-                            type="text"
-                            value={localFormData.appointmentType || ""}
-                            onChange={(e) => handleLocalInputChange("appointmentType", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                            placeholder="e.g., Root Canal"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Status</label>
-                          <select
-                            value={localFormData.status || "Scheduled"}
-                            onChange={(e) => handleLocalInputChange("status", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                          >
-                            <option value="Scheduled">Scheduled</option>
-                            <option value="Confirmed">Confirmed</option>
-                            <option value="Cancelled">Cancelled</option>
-                            <option value="Completed">Completed</option>
-                            <option value="No-Show">No-Show</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Room Number</label>
-                          <input
-                            type="text"
-                            value={localFormData.roomNumber || ""}
-                            onChange={(e) => handleLocalInputChange("roomNumber", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                            placeholder="e.g., 101"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Attending Physician</label>
-                          <input
-                            type="text"
-                            value={localFormData.attendingPhysician || ""}
-                            onChange={(e) => handleLocalInputChange("attendingPhysician", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                            placeholder="Enter physician name"
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="flex items-center gap-3 cursor-pointer bg-green-100 p-3 rounded-xl">
-                            <input
-                              type="checkbox"
-                              checked={localFormData.isConfirmed || false}
-                              onChange={(e) => handleLocalInputChange("isConfirmed", e.target.checked)}
-                              className="w-5 h-5 rounded border-stone-300 text-green-600 focus:ring-green-500"
-                            />
-                            <span className="text-sm font-semibold text-stone-700">✅ Confirmed Appointment</span>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-gradient-to-br from-slate-100 to-blue-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md">
-                      <h3 className="text-xl font-bold text-indigo-900 mb-4 flex items-center gap-2">
-                        <span>📝</span> Visit Details
-                      </h3>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Reason for Visit</label>
-                          <textarea
-                            value={localFormData.reasonForVisit || ""}
-                            onChange={(e) => handleLocalInputChange("reasonForVisit", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none"
-                            rows="3"
-                            placeholder="Enter reason for visit"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Notes</label>
-                          <textarea
-                            value={localFormData.notes || ""}
-                            onChange={(e) => handleLocalInputChange("notes", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none"
-                            rows="3"
-                            placeholder="Additional notes"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* BILLING TAB */}
-                {activeEditSection === 'billing' && (
-                  <motion.div
-                    key="billing"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.2 }}
-                    className="space-y-6"
-                  >
-                    <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-6 border-2 border-yellow-200 shadow-md">
-                      <h3 className="text-xl font-bold text-yellow-900 mb-4 flex items-center gap-2">
-                        <span>💰</span> Payment Information
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Billable Amount (₹)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={editFormData.billableAmount || ""}
-                            onChange={(e) => handleInputChange("billableAmount", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                            placeholder="0.00"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Paid Amount (₹)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={editFormData.paidAmount || ""}
-                            onChange={(e) => handleInputChange("paidAmount", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                            placeholder="0.00"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Pending Amount (₹)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={editFormData.pendingAmount || ""}
-                            onChange={(e) => handleInputChange("pendingAmount", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                            placeholder="0.00"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Payment Status</label>
-                          <select
-                            value={editFormData.paymentStatus || "Pending"}
-                            onChange={(e) => handleInputChange("paymentStatus", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                          >
-                            <option value="Pending">Pending</option>
-                            <option value="Paid">Paid</option>
-                            <option value="Partial">Partial</option>
-                            <option value="Invoice">Invoice</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {/* OTHER TAB */}
-                {activeSection === 'other' && (
-                  <motion.div
-                    key="other"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-6"
-                  >
-                    <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-2xl p-6 border-2 border-gray-200 shadow-md">
-                      <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                        <span>🔑</span> System IDs
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Doctor ID</label>
-                          <input
-                            type="number"
-                            value={editFormData.doctorId || ""}
-                            onChange={(e) => handleInputChange("doctorId", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition"
-                            placeholder="Enter doctor ID"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Clinic ID</label>
-                          <input
-                            type="number"
-                            value={editFormData.clinicId || ""}
-                            onChange={(e) => handleInputChange("clinicId", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition"
-                            placeholder="Enter clinic ID"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Enterprise ID</label>
-                          <input
-                            type="number"
-                            value={editFormData.enterpriseId || ""}
-                            onChange={(e) => handleInputChange("enterpriseId", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition"
-                            placeholder="Enter enterprise ID"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Visit ID</label>
-                          <input
-                            type="number"
-                            value={editFormData.visitId || ""}
-                            onChange={(e) => handleInputChange("visitId", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition"
-                            placeholder="Enter visit ID"
-                          />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-bold text-stone-700 mb-2">Telehealth Link</label>
-                          <input
-                            type="url"
-                            value={editFormData.telehealthLink || ""}
-                            onChange={(e) => handleInputChange("telehealthLink", e.target.value)}
-                            className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition"
-                            placeholder="https://..."
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Footer - STICKY */}
-            <div className="bg-gradient-to-r from-stone-50 to-stone-100 px-8 py-5 rounded-b-3xl border-t-2 border-stone-200 flex justify-between items-center gap-4 flex-wrap flex-shrink-0">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setShowEditModal(false)}
-                disabled={isUpdatingAppointment}
-                className="px-6 py-2.5 bg-white border-2 border-stone-300 text-stone-700 hover:border-stone-500 hover:bg-stone-50 font-semibold transition-all rounded-lg disabled:opacity-50"
-              >
-                ✕ Close
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.05, y: -2 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleLocalSave}
-                disabled={isUpdatingAppointment}
-                className="px-8 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isUpdatingAppointment ? (
-                  <>
-                    <span className="animate-spin">⏳</span>
-                    <span>Updating...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>✅</span>
-                    <span>Save Changes</span>
-                  </>
-                )}
-              </motion.button>
-            </div>
-          </motion.div>
-        </motion.div>
-      </AnimatePresence>
-    );
-  };
+  // ✅ Using the hoisted FullEditAppointmentModal component (defined at top of file)
+  // The modal is now defined outside this function to prevent recreation on every render
 
   // Old Edit Appointment Modal Component (keeping for reference, can be removed later)
   const EditAppointmentModal = () => {
@@ -9059,7 +9162,20 @@ export default function Doctors() {
       </AnimatePresence>
 
       {/* Full Edit Appointment Modal */}
-      <FullEditAppointmentModal />
+      <FullEditAppointmentModal
+        showEditModal={showEditModal}
+        editFormData={editFormData}
+        setEditFormData={setEditFormData}
+        activeEditSection={activeEditSection}
+        setActiveEditSection={setActiveEditSection}
+        isUpdatingAppointment={isUpdatingAppointment}
+        handleUpdateAppointmentSubmit={handleUpdateAppointmentSubmit}
+        setShowEditModal={setShowEditModal}
+        doctorsList={doctorsList}
+        setDoctorsList={setDoctorsList}
+        loadingDoctors={loadingDoctors}
+        setLoadingDoctors={setLoadingDoctors}
+      />
 
       {/* View Prescription Modal */}
       <ViewPrescriptionModal />
@@ -9722,5 +9838,7 @@ export default function Doctors() {
     </div>
   );
 }
+
+
 
 
