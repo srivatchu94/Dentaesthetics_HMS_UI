@@ -15,6 +15,7 @@ import AddToMasterInventoryModal from "../components/AddToMasterInventoryModal";
 import SuccessModal from "../components/SuccessModal";
 import ScheduleAppointmentsModal from "../components/ScheduleAppointmentsModal";
 import Assets from "./Assets";
+import DoctorSchedule from "./DoctorSchedule";
 import { getPatientFullProfile, getPatientVisit, editPatientVisit, getPatientsByClinic } from "../services/patientService";
 
 // Sample data
@@ -6333,17 +6334,7 @@ export default function Doctors() {
               transition={{ duration: 0.3 }}
               className="w-full"
             >
-              <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-8">
-                <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="max-w-7xl">
-                  {/* Header */}
-                  <div className="mb-8">
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
-                      📅 Doctor Schedule
-                    </h1>
-                    <p className="text-slate-600">View and manage your appointments by date</p>
-                  </div>
-                </motion.div>
-              </div>
+              <DoctorSchedule />
             </motion.div>
           )}
 
