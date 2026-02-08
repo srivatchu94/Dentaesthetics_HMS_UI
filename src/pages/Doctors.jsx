@@ -1789,26 +1789,27 @@ export default function Doctors() {
 
   const fetchAppointmentDetails = async (appt) => {
     try {
-      const clinicId = appt.clinicId || parseInt(localStorage.getItem('clinicId') || '0');
-      if (!clinicId) {
-        console.warn('Missing clinicId, cannot load full appointment details');
+      const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+      
+      // Use the new GetAppointmentDetailsbyAppointmentID API
+      const response = await fetch(
+        `${API_BASE_URL}/Appointment/GetAppointmentDetailsbyAppointmentID?appointmentId=${appt.appointmentId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const detailedData = await response.json();
+        console.log('📥 Fetched detailed appointment data:', detailedData);
+        return detailedData;
+      } else {
+        console.warn('Failed to fetch appointment details, using fallback');
         return appt;
       }
-
-      const params = {
-        clinicId: clinicId.toString(),
-        firstName: appt.firstName || undefined,
-        lastName: appt.lastName || undefined,
-        doctorId: appt.doctorId ? appt.doctorId.toString() : undefined,
-        appointmentDate: appt.appointmentDate ? appt.appointmentDate.split('T')[0] : undefined
-      };
-
-      const results = await getAppointmentsByFilters(params);
-      if (Array.isArray(results) && results.length > 0) {
-        const matched = results.find(item => item.appointmentId === appt.appointmentId);
-        return matched || results[0];
-      }
-      return appt;
     } catch (error) {
       console.error('Failed to load appointment details:', error);
       return appt;
