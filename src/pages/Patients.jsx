@@ -1160,13 +1160,11 @@ export default function Patients() {
           transition={{ delay: 0.2 }}
           className="mb-4"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {[
               { id: 'register', title: '📝 Register Patient', description: 'Add new patient records', icon: '📝', color: 'from-teal-400 to-cyan-400', action: () => setActiveView('register') },
               { id: 'list', title: '📋 View Patients', description: 'Browse patient records', icon: '📋', color: 'from-blue-400 to-indigo-400', action: () => setShowViewPatientsModal(true) },
-              { id: 'payments', title: '💳 Payments', description: 'Manage patient payments', icon: '💳', color: 'from-emerald-400 to-teal-400', action: () => navigate('/payments') },
-              { id: 'edit', title: '✏️ Edit Records', description: 'Update patient info', icon: '✏️', color: 'from-indigo-400 to-purple-400', action: () => navigate('/patients/edit') },
-              { id: 'remove', title: '🗑️ Remove Patient', description: 'Delete patient records', icon: '🗑️', color: 'from-rose-400 to-rose-500', action: () => navigate('/patients/delete') }
+              { id: 'payments', title: '💳 Payments', description: 'Manage patient payments', icon: '💳', color: 'from-emerald-400 to-teal-400', action: () => navigate('/payments') }
             ].map((tile, index) => (
               <motion.div
                 key={tile.id}
@@ -1983,88 +1981,6 @@ export default function Patients() {
                 </svg>
               </div>
             </div>
-
-            {/* Advanced Filters */}
-            <AnimatePresence>
-              {showFilters && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="overflow-hidden"
-                >
-                  <div className="bg-gradient-to-r from-coral-50 to-peach-50 rounded-xl p-6 mb-6 border-2 border-coral-200">
-                    <h3 className="text-lg font-semibold text-amber-900 mb-4 flex items-center gap-2">
-                      <span>🎯</span> Advanced Filters
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-stone-700 mb-2">First Name</label>
-                        <input
-                          type="text"
-                          value={filters.firstName}
-                          onChange={(e) => setFilters({ ...filters, firstName: e.target.value })}
-                          placeholder="Filter by first name"
-                          className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-stone-700 mb-2">Last Name</label>
-                        <input
-                          type="text"
-                          value={filters.lastName}
-                          onChange={(e) => setFilters({ ...filters, lastName: e.target.value })}
-                          placeholder="Filter by last name"
-                          className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-stone-700 mb-2">Date of Birth</label>
-                        <input
-                          type="date"
-                          value={filters.dateOfBirth}
-                          onChange={(e) => setFilters({ ...filters, dateOfBirth: e.target.value })}
-                          className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-stone-700 mb-2">Gender</label>
-                        <select
-                          value={filters.gender}
-                          onChange={(e) => setFilters({ ...filters, gender: e.target.value })}
-                          className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                        >
-                          <option value="">All Genders</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-stone-700 mb-2">Status</label>
-                        <select
-                          value={filters.status}
-                          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                          className="w-full px-4 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                        >
-                          <option value="">All Status</option>
-                          <option value="Active">Active</option>
-                          <option value="Inactive">Inactive</option>
-                        </select>
-                      </div>
-                      <div className="flex items-end">
-                        <button
-                          onClick={clearFilters}
-                          className="w-full px-4 py-2 bg-stone-200 text-stone-700 rounded-lg font-semibold hover:bg-stone-300 transition"
-                        >
-                          Clear All Filters
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {/* Results Table */}
               <div>

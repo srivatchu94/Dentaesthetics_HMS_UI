@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAppointmentsByFilters, updateAppointment } from '../services/appointmentService';
-import { getAccessToken, getClinicIdFromToken } from '../services/tokenManager';
+import { getAccessToken, getClinicIdFromToken, getSelectedAccess } from '../services/tokenManager';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
 export default function PaymentManagement() {
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentClinicId, setPaymentClinicId] = useState('');
+  const [clinicsList, setClinicsList] = useState([]);
   const [paymentAppointments, setPaymentAppointments] = useState([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [updatingPayment, setUpdatingPayment] = useState(null);
@@ -16,6 +17,7 @@ export default function PaymentManagement() {
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState('');
   const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
   const [editingPaymentAppointment, setEditingPaymentAppointment] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
   const [editPaymentForm, setEditPaymentForm] = useState({
     billableAmount: 0,
     paidAmount: 0,
@@ -25,28 +27,39 @@ export default function PaymentManagement() {
   });
   const [savingPaymentEdit, setSavingPaymentEdit] = useState(false);
 
-  // Load clinic ID on mount
+  // Load clinics from token on mount
   useEffect(() => {
-    const clinicId = getClinicIdFromToken();
-    if (clinicId) {
-      setPaymentClinicId(clinicId.toString());
+    const selectedAccess = getSelectedAccess();
+    if (selectedAccess?.clinics && Array.isArray(selectedAccess.clinics)) {
+      setClinicsList(selectedAccess.clinics);
+      if (selectedAccess.clinicId) {
+        setPaymentClinicId(selectedAccess.clinicId.toString());
+      }
+    } else {
+      // Fallback to getting clinic ID directly from token
+      const clinicId = getClinicIdFromToken();
+      if (clinicId) {
+        setPaymentClinicId(clinicId.toString());
+        setClinicsList([{ clinicId, clinicName: `Clinic ${clinicId}` }]);
+      }
     }
   }, []);
 
   // Load payment appointments
   const loadPaymentAppointments = useCallback(async () => {
-    const clinicId = paymentClinicId || getClinicIdFromToken();
+    const clinicId = paymentClinicId;
     
     if (!clinicId) {
-      alert('❌ Please select a clinic to load payments.');
+      setErrorMessage('Please select a clinic to load payments.');
       return;
     }
 
+    setErrorMessage('');
     setLoadingPayments(true);
     try {
       const token = getAccessToken();
       if (!token) {
-        alert('⚠️ Authentication required. Please login again.');
+        setErrorMessage('Authentication required. Please login again.');
         setLoadingPayments(false);
         return;
       }
@@ -59,10 +72,17 @@ export default function PaymentManagement() {
       console.log('💳 Loading payment appointments with params:', params);
       const data = await getAppointmentsByFilters(params);
       console.log('💳 Loaded appointments for payments:', data);
-      setPaymentAppointments(data || []);
+      
+      if (!data || data.length === 0) {
+        setErrorMessage('No appointments booked for the selected day.');
+        setPaymentAppointments([]);
+      } else {
+        setPaymentAppointments(data || []);
+        setErrorMessage('');
+      }
     } catch (error) {
       console.error('Failed to load payment appointments:', error);
-      alert('❌ Failed to load payments. Please try again.');
+      setErrorMessage('Failed to load payments. Please try again.');
       setPaymentAppointments([]);
     } finally {
       setLoadingPayments(false);
@@ -208,31 +228,36 @@ export default function PaymentManagement() {
             <h2 className="text-xl font-bold bg-gradient-to-r from-emerald-700 to-teal-700 bg-clip-text text-transparent">
               Payment Management
             </h2>
-            <p className="text-sm text-stone-600 mt-0.5">Track and manage patient payments and billing status</p>
+            <p className="text-sm text-slate-600 mt-0.5">Track and manage patient payments</p>
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-200">
+      <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
           <div>
-            <label className="text-sm font-semibold text-stone-700 mb-2 block">Date Filter:</label>
+            <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Clinic:</label>
+            <select
+              value={paymentClinicId}
+              onChange={(e) => setPaymentClinicId(e.target.value)}
+              className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+            >
+              <option value="">-- Choose a clinic --</option>
+              {clinicsList.map((clinic) => (
+                <option key={clinic.clinicId} value={clinic.clinicId}>
+                  {clinic.clinicName || `Clinic ${clinic.clinicId}`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Date:</label>
             <input
               type="date"
               value={paymentDate}
               onChange={(e) => setPaymentDate(e.target.value)}
-              className="w-full px-3 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition font-medium text-stone-700"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-semibold text-stone-700 mb-2 block">Clinic ID:</label>
-            <input
-              type="number"
-              value={paymentClinicId}
-              onChange={(e) => setPaymentClinicId(e.target.value)}
-              placeholder="Enter Clinic ID"
-              className="w-full px-3 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition font-medium text-stone-700"
+              className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
             />
           </div>
           <div>
@@ -240,8 +265,8 @@ export default function PaymentManagement() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={loadPaymentAppointments}
-              disabled={loadingPayments}
-              className="w-full px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loadingPayments || !paymentClinicId}
+              className="w-full px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>🔍</span>
               <span>{loadingPayments ? 'Loading...' : 'Search Payments'}</span>
@@ -249,6 +274,23 @@ export default function PaymentManagement() {
           </div>
         </div>
       </div>
+
+      {/* Error Message */}
+      <AnimatePresence>
+        {errorMessage && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="px-6 py-4 bg-amber-50 border-b-2 border-amber-200"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">ℹ️</span>
+              <p className="text-amber-800 font-medium">{errorMessage}</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Status Filter Tabs */}
       {paymentAppointments.length > 0 && (
@@ -266,13 +308,13 @@ export default function PaymentManagement() {
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setPaymentStatusFilter(status)}
-                  className={`px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-md flex items-center gap-2 ${
+                  className={`px-4 py-2 rounded-lg font-bold text-sm transition-all shadow-md flex items-center gap-2 ${
                     paymentStatusFilter === status
-                      ? status === 'All' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white ring-4 ring-indigo-200' :
-                        status === 'Paid' ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white ring-4 ring-emerald-200' :
-                        status === 'Partial' ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white ring-4 ring-yellow-200' :
-                        'bg-gradient-to-r from-rose-500 to-red-600 text-white ring-4 ring-rose-200'
-                      : 'bg-white text-stone-700 hover:bg-stone-100 border-2 border-stone-300'
+                      ? status === 'All' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white' :
+                        status === 'Paid' ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white' :
+                        status === 'Partial' ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white' :
+                        'bg-gradient-to-r from-rose-500 to-red-600 text-white'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
                   }`}
                 >
                   <span>{
