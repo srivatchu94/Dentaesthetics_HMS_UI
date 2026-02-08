@@ -1917,7 +1917,7 @@ export default function Doctors() {
 
             {/* Body - TABBED SECTIONS */}
             <div className="flex-1 overflow-y-auto p-8">
-              <AnimatePresence mode="wait" exitBeforeEnter>
+              <AnimatePresence mode="wait">
                 {/* PATIENT INFO TAB */}
                 {activeEditSection === 'patient' && (
                   <motion.div
