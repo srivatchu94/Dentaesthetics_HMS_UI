@@ -306,7 +306,7 @@ export default function SalaryManagement() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cream-50 via-warmGray-50 to-teal-50/30 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50/30 p-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -315,7 +315,7 @@ export default function SalaryManagement() {
       >
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-700 via-teal-700 to-cyan-700 bg-clip-text text-transparent mb-2">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 bg-clip-text text-transparent mb-2">
               💰 Salary Management
             </h1>
             <p className="text-slate-600">Calculate staff salaries with fixed components and patient-based incentives</p>
@@ -345,7 +345,7 @@ export default function SalaryManagement() {
               <select
                 value={selectedClinic}
                 onChange={(e) => setSelectedClinic(e.target.value)}
-                className="w-full px-4 py-3 rounded-lg border border-teal-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent outline-none bg-white font-semibold"
+                className="w-full px-4 py-3 rounded-lg border border-indigo-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent outline-none bg-white font-semibold"
               >
                 <option value="all">All Clinics</option>
                 {SAMPLE_CLINICS.map(clinic => (
@@ -413,7 +413,7 @@ export default function SalaryManagement() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 rounded-xl shadow-lg p-6 border border-teal-200"
+            className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-xl shadow-lg p-6 border border-indigo-200"
           >
             <div className="flex items-center justify-between mb-4">
               <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white w-12 h-12 rounded-lg flex items-center justify-center text-2xl">
@@ -445,10 +445,10 @@ export default function SalaryManagement() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl shadow-lg p-6 border border-indigo-200"
+            className="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 rounded-xl shadow-lg p-6 border border-indigo-200"
           >
             <div className="flex items-center justify-between mb-4">
-              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white w-12 h-12 rounded-lg flex items-center justify-center text-2xl">
+              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white w-12 h-12 rounded-lg flex items-center justify-center text-2xl">
                 👥
               </div>
             </div>

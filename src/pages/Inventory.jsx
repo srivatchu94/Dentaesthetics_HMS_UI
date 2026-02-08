@@ -61,7 +61,7 @@ export default function Inventory() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -87,11 +87,11 @@ export default function Inventory() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
           whileHover={{ y: -5 }}
-          className="bg-white rounded-2xl shadow-xl border-2 border-emerald-200 overflow-hidden cursor-pointer group"
+          className="bg-white rounded-2xl shadow-xl border-2 border-indigo-200 overflow-hidden cursor-pointer group"
           onClick={() => navigate('/inventory/add-master')}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-6 relative overflow-hidden">
+          <div className="bg-gradient-to-r from-indigo-500 to-purple-500 p-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20"></div>
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full -ml-16 -mb-16"></div>
             <div className="relative z-10">
@@ -133,7 +133,7 @@ export default function Inventory() {
                 e.stopPropagation();
                 navigate('/inventory/add-master');
               }}
-              className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300"
+              className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300"
             >
               Start Adding Items
             </motion.button>
@@ -146,11 +146,11 @@ export default function Inventory() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           whileHover={{ y: -5 }}
-          className="bg-white rounded-2xl shadow-xl border-2 border-blue-200 overflow-hidden cursor-pointer group"
+          className="bg-white rounded-2xl shadow-xl border-2 border-purple-200 overflow-hidden cursor-pointer group"
           onClick={() => navigate('/inventory/view-master')}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-500 to-indigo-500 p-6 relative overflow-hidden">
+          <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20"></div>
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full -ml-16 -mb-16"></div>
             <div className="relative z-10">
@@ -192,7 +192,7 @@ export default function Inventory() {
                 e.stopPropagation();
                 navigate('/inventory/view-master');
               }}
-              className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300"
+              className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300"
             >
               Browse Inventory
             </motion.button>
@@ -205,11 +205,11 @@ export default function Inventory() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
           whileHover={{ y: -5 }}
-          className="bg-white rounded-2xl shadow-xl border-2 border-orange-200 overflow-hidden cursor-pointer group"
+          className="bg-white rounded-2xl shadow-xl border-2 border-pink-200 overflow-hidden cursor-pointer group"
           onClick={() => setShowAddModal(true)}
         >
           {/* Header */}
-          <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 relative overflow-hidden">
+          <div className="bg-gradient-to-r from-pink-500 to-purple-500 p-6 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20"></div>
             <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full -ml-16 -mb-16"></div>
             <div className="relative z-10">
@@ -251,7 +251,7 @@ export default function Inventory() {
                 e.stopPropagation();
                 setShowAddModal(true);
               }}
-              className="w-full py-3 bg-gradient-to-r from-orange-600 to-amber-600 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300"
+              className="w-full py-3 bg-gradient-to-r from-pink-600 to-purple-600 text-white font-bold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300"
             >
               Manage Suppliers
             </motion.button>

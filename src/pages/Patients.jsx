@@ -32,7 +32,7 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
         className={`w-full px-3 py-1.5 text-sm border rounded-lg transition ${
           disabled 
             ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
-            : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
+            : "border-purple-300 focus:ring-1 focus:ring-indigo-500 focus:border-transparent"
         }`}
       >
         <option value="">{disabled ? "Select patient first" : `Select ${label}`}</option>
@@ -52,7 +52,7 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
         className={`w-full px-3 py-1.5 text-sm border rounded-lg resize-none transition ${
           disabled 
             ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
-            : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
+            : "border-purple-300 focus:ring-1 focus:ring-indigo-500 focus:border-transparent"
         }`}
       />
     ) : type === "date" ? (
@@ -69,7 +69,7 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
         className={`w-full px-3 py-1.5 text-sm border rounded-lg transition ${
           disabled 
             ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
-            : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
+            : "border-purple-300 focus:ring-1 focus:ring-indigo-500 focus:border-transparent"
         }`}
       />
     )}
@@ -78,11 +78,11 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
 
 // Reusable CollapsibleSection component - moved outside to prevent re-creation on renders
 const CollapsibleSection = ({ title, isOpen, onToggle, children, icon }) => (
-  <div className="mb-4 border border-stone-200 rounded-lg overflow-hidden shadow-sm">
+  <div className="mb-4 border border-purple-200 rounded-lg overflow-hidden shadow-sm">
     <button
       type="button"
       onClick={onToggle}
-      className="w-full px-6 py-4 bg-gradient-to-r from-cream-50 to-peach-50 hover:from-cream-100 hover:to-peach-100 flex items-center justify-between transition-all"
+      className="w-full px-6 py-4 bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 flex items-center justify-between transition-all"
     >
       <div className="flex items-center gap-3">
         <span className="text-2xl">{icon}</span>
@@ -1089,7 +1089,7 @@ export default function Patients() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 py-8">
       {/* Animated Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -1368,7 +1368,7 @@ export default function Patients() {
               className="bg-white rounded-2xl shadow-2xl border-2 border-teal-400 overflow-hidden max-w-5xl w-full my-8"
             >
               {/* Modal Header */}
-              <div className="bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600 p-6 text-white flex items-center justify-between">
+              <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6 text-white flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <motion.span
                     animate={{ rotate: [0, 10, -10, 0] }}
@@ -1396,7 +1396,7 @@ export default function Patients() {
               </div>
 
               {/* Tab Navigation */}
-              <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-slate-50 to-blue-50">
+              <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50">
                 {[
                   { key: "patient", label: "Patient Info", icon: "👤" },
                   { key: "contact", label: "Contact", icon: "📞" },
@@ -1411,7 +1411,7 @@ export default function Patients() {
                     whileTap={{ scale: 0.95 }}
                     className={`px-4 py-2 font-semibold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-md ${
                       registerActiveTab === tab.key
-                        ? "bg-gradient-to-r from-teal-600 to-cyan-600 text-white shadow-lg scale-105"
+                        ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg scale-105"
                         : "bg-white text-slate-600 hover:bg-gradient-to-r hover:from-teal-50 hover:to-cyan-50 hover:text-teal-600 border-2 border-slate-200"
                     }`}
                   >

@@ -69,12 +69,12 @@ const SAMPLE_CLINICS = [
 ];
 
 const REPORT_TYPES = [
-  { id: 'revenue', name: 'Revenue Report', icon: '💰', color: 'from-emerald-500 to-teal-500', description: 'Detailed revenue breakdown by clinic and period' },
-  { id: 'patient', name: 'Patient Statistics', icon: '👥', color: 'from-blue-500 to-indigo-500', description: 'Patient flow, demographics, and visit patterns' },
-  { id: 'treatment', name: 'Treatment Analysis', icon: '🦷', color: 'from-purple-500 to-pink-500', description: 'Popular treatments and success rates' },
-  { id: 'staff', name: 'Staff Performance', icon: '👨‍⚕️', color: 'from-amber-500 to-orange-500', description: 'Doctor productivity and efficiency metrics' },
-  { id: 'inventory', name: 'Inventory Report', icon: '📦', color: 'from-cyan-500 to-blue-500', description: 'Stock levels and usage patterns' },
-  { id: 'financial', name: 'Financial Summary', icon: '📊', color: 'from-violet-500 to-purple-500', description: 'Complete financial overview and P&L' }
+  { id: 'revenue', name: 'Revenue Report', icon: '💰', color: 'from-indigo-500 to-purple-500', description: 'Detailed revenue breakdown by clinic and period' },
+  { id: 'patient', name: 'Patient Statistics', icon: '👥', color: 'from-indigo-500 to-purple-500', description: 'Patient flow, demographics, and visit patterns' },
+  { id: 'treatment', name: 'Treatment Analysis', icon: '🦷', color: 'from-indigo-500 to-purple-500', description: 'Popular treatments and success rates' },
+  { id: 'staff', name: 'Staff Performance', icon: '👨‍⚕️', color: 'from-pink-500 to-purple-500', description: 'Doctor productivity and efficiency metrics' },
+  { id: 'inventory', name: 'Inventory Report', icon: '📆', color: 'from-purple-500 to-pink-500', description: 'Stock levels and usage patterns' },
+  { id: 'financial', name: 'Financial Summary', icon: '📋', color: 'from-indigo-500 to-purple-500', description: 'Complete financial overview and P&L' }
 ];
 
 export default function ReportsAnalytics() {
@@ -125,7 +125,7 @@ export default function ReportsAnalytics() {
       >
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-teal-700 via-coral-700 to-purple-700 bg-clip-text text-transparent mb-2">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 bg-clip-text text-transparent mb-2">
               Reports & Analytics Dashboard
             </h1>
             <p className="text-slate-600">Comprehensive insights, revenue tracking, and report generation</p>

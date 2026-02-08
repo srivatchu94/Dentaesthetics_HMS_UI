@@ -66,7 +66,7 @@ export default function Staff(){
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-emerald-50 to-teal-50 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 py-8">
       {/* Animated Header */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -137,9 +137,9 @@ export default function Staff(){
         >
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { id: 'add', title: '➕ Add Staff', description: 'Add new staff member', icon: '➕', color: 'from-emerald-400 to-teal-400', action: 'Add Staff' },
+              { id: 'add', title: '➕ Add Staff', description: 'Add new staff member', icon: '➕', color: 'from-indigo-400 to-purple-400', action: 'Add Staff' },
               { id: 'list', title: '📋 List Staff', description: 'View all staff', icon: '📋', color: 'from-teal-400 to-cyan-400', action: 'List Staff' },
-              { id: 'assign', title: '🎭 Assign Role', description: 'Assign staff roles', icon: '🎭', color: 'from-cyan-400 to-blue-400', action: 'Assign Role' },
+              { id: 'assign', title: '🎭 Assign Role', description: 'Assign staff roles', icon: '🎭', color: 'from-purple-400 to-pink-400', action: 'Assign Role' },
               { id: 'remove', title: '🗑️ Remove Staff', description: 'Remove staff member', icon: '🗑️', color: 'from-blue-400 to-indigo-400', action: 'Remove Staff' }
             ].map((tile, index) => (
               <motion.div
@@ -196,7 +196,7 @@ export default function Staff(){
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="bg-gradient-to-r from-amber-50 via-orange-50 to-red-50 rounded-xl shadow-lg p-6 border border-amber-200"
+          className="bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-xl shadow-lg p-6 border border-purple-200"
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -208,7 +208,7 @@ export default function Staff(){
                 💰
               </motion.div>
               <div>
-                <h3 className="text-2xl font-bold bg-gradient-to-r from-amber-700 via-orange-700 to-red-700 bg-clip-text text-transparent mb-1">
+                <h3 className="text-2xl font-bold bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 bg-clip-text text-transparent mb-1">
                   Salary Management
                 </h3>
                 <p className="text-slate-600">
@@ -220,7 +220,7 @@ export default function Staff(){
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => navigate("/salary")}
-              className="px-6 py-3 bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+              className="px-6 py-3 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
             >
               Manage Salaries →
             </motion.button>
@@ -248,7 +248,7 @@ export default function Staff(){
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.05 }}
-                  className="p-3 bg-slate-50 rounded-lg text-slate-700 border-l-4 border-teal-500"
+                  className="p-3 bg-slate-50 rounded-lg text-slate-700 border-l-4 border-indigo-500"
                 >
                   {l}
                 </motion.li>

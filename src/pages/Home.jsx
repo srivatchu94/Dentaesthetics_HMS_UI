@@ -57,40 +57,40 @@ export default function Home() {
       icon: "🏥", 
       title: "Clinic Management", 
       description: "Streamline operations across multiple locations with centralized control",
-      color: "from-teal-400/20 to-sage-400/20",
-      textColor: "text-teal-700",
+      color: "from-indigo-400/20 to-purple-400/20",
+      textColor: "text-indigo-700",
       link: "/clinics"
     },
     { 
       icon: "👥", 
       title: "Patient Care", 
       description: "Comprehensive records and personalized treatment tracking",
-      color: "from-peach-400/20 to-gold-400/20",
-      textColor: "text-peach-700",
+      color: "from-purple-400/20 to-pink-400/20",
+      textColor: "text-purple-700",
       link: "/patients"
     },
     { 
       icon: "📊", 
       title: "Reports & Analytics", 
       description: "Comprehensive insights, revenue tracking, and report generation",
-      color: "from-violet-400/20 to-purple-400/20",
-      textColor: "text-purple-700",
+      color: "from-indigo-400/20 to-purple-400/20",
+      textColor: "text-indigo-700",
       link: "/reports"
     },
     { 
       icon: "👔", 
       title: "Staff Coordination", 
       description: "Optimize team management and scheduling seamlessly",
-      color: "from-sage-400/20 to-teal-400/20",
-      textColor: "text-sage-700",
+      color: "from-purple-400/20 to-pink-400/20",
+      textColor: "text-purple-700",
       link: "/staff"
     },
     { 
       icon: "💰", 
       title: "Salary Management", 
       description: "Calculate dentist salaries with incentives based on treatments",
-      color: "from-emerald-400/20 to-cyan-400/20",
-      textColor: "text-emerald-700",
+      color: "from-indigo-400/20 to-purple-400/20",
+      textColor: "text-indigo-700",
       link: "/salary"
     },
   ];
@@ -116,7 +116,7 @@ export default function Home() {
       yearly: 79,
       blurb: "Multi-location teams scaling operations",
       features: ["Up to 3 Clinics", "30 Staff", "Unlimited Patients", "Advanced Analytics", "Priority Email Support"],
-      accent: "from-teal-500 to-sage-500"
+      accent: "from-indigo-500 to-purple-500"
     },
     {
       key: "pro",
@@ -136,7 +136,7 @@ export default function Home() {
       yearly: 279,
       blurb: "Large groups with custom governance",
       features: ["Unlimited Clinics", "Unlimited Staff", "SLA & Dedicated CSM", "Custom Integrations", "On-Prem / Hybrid Options"],
-      accent: "from-sage-600 to-teal-600"
+      accent: "from-purple-600 to-pink-600"
     }
   ];
 
@@ -165,7 +165,7 @@ export default function Home() {
               opacity: [0.1, 0.3, 0.1]
             }}
             transition={{ duration: 8, repeat: Infinity }}
-            className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full blur-3xl -z-0"
+            className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full blur-3xl -z-0"
           />
           <motion.div
             animate={{ 
@@ -173,7 +173,7 @@ export default function Home() {
               opacity: [0.1, 0.2, 0.1]
             }}
             transition={{ duration: 8, repeat: Infinity, delay: 2 }}
-            className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-cyan-400 to-blue-400 rounded-full blur-3xl -z-0"
+            className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-purple-400 to-pink-400 rounded-full blur-3xl -z-0"
           />
 
           <div className="text-center relative z-10">
@@ -182,13 +182,13 @@ export default function Home() {
               initial={{ scale: 0.5 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.6, type: "spring" }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full mb-4 shadow-lg"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full mb-4 shadow-lg"
             >
               <span className="text-sm font-bold text-white">✨ Premium Dental Management System</span>
             </motion.div>
 
             {/* Main Title */}
-            <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-blue-200 via-cyan-200 to-teal-200 bg-clip-text text-transparent mb-2 drop-shadow-lg">
+            <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 bg-clip-text text-transparent mb-2 drop-shadow-lg">
               Dentaesthetics VitalsVille
             </h1>
             
@@ -231,7 +231,7 @@ export default function Home() {
                 <motion.button
                   whileHover={{ scale: 1.08, y: -2 }}
                   whileTap={{ scale: 0.95 }}
-                  className="px-8 py-4 bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500 text-white rounded-xl font-bold shadow-2xl hover:shadow-cyan-500/50 transition-all flex items-center gap-2 text-lg border border-cyan-300/50"
+                  className="px-8 py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white rounded-xl font-bold shadow-2xl hover:shadow-purple-500/50 transition-all flex items-center gap-2 text-lg border border-purple-300/50"
                 >
                   <span className="text-2xl">👨‍⚕️</span>
                   <span>Doctor's Portal</span>
@@ -365,11 +365,11 @@ export default function Home() {
           <h3 className="text-lg font-bold text-slate-800 mb-4 text-center">Quick Access</h3>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             {[
-              { label: "Clinics", icon: "🏥", path: "/clinics", color: "from-teal-500 to-cyan-600" },
-              { label: "Patients", icon: "👥", path: "/patients", color: "from-blue-500 to-indigo-600" },
-              { label: "Doctors", icon: "👨‍⚕️", path: "/doctors", color: "from-cyan-500 to-teal-600" },
-              { label: "Services", icon: "🛠️", path: "/services", color: "from-purple-500 to-violet-600" },
-              { label: "Staff", icon: "👔", path: "/staff", color: "from-rose-500 to-pink-600" },
+              { label: "Clinics", icon: "🏥", path: "/clinics", color: "from-indigo-500 to-purple-600" },
+              { label: "Patients", icon: "👥", path: "/patients", color: "from-purple-500 to-pink-600" },
+              { label: "Doctors", icon: "👨‍⚕️", path: "/doctors", color: "from-indigo-500 to-purple-600" },
+              { label: "Services", icon: "🛠️", path: "/services", color: "from-purple-500 to-pink-600" },
+              { label: "Staff", icon: "👔", path: "/staff", color: "from-indigo-500 to-purple-600" },
             ].map((link, idx) => (
               <Link
                 key={idx}
@@ -402,8 +402,8 @@ export default function Home() {
               <p className="text-sm text-slate-600 mt-1">Flexible models to match clinic scale & evolution.</p>
             </div>
             <div className="flex items-center gap-3">
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${billingCycle==='monthly' ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-700'}`} onClick={()=>setBillingCycle('monthly')}>Monthly</span>
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${billingCycle==='yearly' ? 'bg-teal-600 text-white' : 'bg-slate-200 text-slate-700'}`} onClick={()=>setBillingCycle('yearly')}>Yearly <span className="text-[10px] font-normal">(save ~20%)</span></span>
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${billingCycle==='monthly' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'}`} onClick={()=>setBillingCycle('monthly')}>Monthly</span>
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${billingCycle==='yearly' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'}`} onClick={()=>setBillingCycle('yearly')}>Yearly <span className="text-[10px] font-normal">(save ~20%)</span></span>
             </div>
           </div>
 

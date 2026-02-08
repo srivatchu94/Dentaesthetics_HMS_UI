@@ -282,7 +282,7 @@ export default function Services(){
           description: "View all available services",
           action: "list",
           icon: "📊",
-          color: "from-blue-400 to-blue-500"
+          color: "from-indigo-400 to-purple-500"
         },
         {
           id: 'edit-service',
@@ -290,7 +290,7 @@ export default function Services(){
           description: "Modify service details",
           action: "edit",
           icon: "🔧",
-          color: "from-indigo-400 to-indigo-500"
+          color: "from-purple-400 to-pink-500"
         },
         {
           id: 'remove-service',
@@ -323,7 +323,7 @@ export default function Services(){
           description: "Browse treatment packages",
           action: "view-packages",
           icon: "📦",
-          color: "from-teal-400 to-cyan-400"
+          color: "from-indigo-400 to-purple-500"
         }
       ]
     },
@@ -348,7 +348,7 @@ export default function Services(){
           description: "Check current pricing",
           action: "rates",
           icon: "💰",
-          color: "from-orange-400 to-orange-500"
+          color: "from-pink-400 to-purple-500"
         }
       ]
     },
@@ -1078,7 +1078,7 @@ export default function Services(){
             <motion.div
               animate={{ y: [0, -10, 0] }}
               transition={{ duration: 2, repeat: Infinity }}
-              className="bg-gradient-to-r from-green-400 to-emerald-500 text-white px-10 py-6 rounded-2xl shadow-2xl text-center max-w-md pointer-events-auto"
+              className="bg-gradient-to-r from-indigo-400 to-purple-500 text-white px-10 py-6 rounded-2xl shadow-2xl text-center max-w-md pointer-events-auto"
             >
               <p className="text-2xl font-bold mb-2">{successMessage}</p>
               <p className="text-sm text-green-50">Redirecting to participants...</p>

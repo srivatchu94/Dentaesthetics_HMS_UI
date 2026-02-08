@@ -113,12 +113,12 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-center">
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-8 text-center">
           <h1 className="text-3xl font-bold text-white mb-2">🦷 Dentaesthetics HMS</h1>
-          <p className="text-blue-100">Create Your Account</p>
+          <p className="text-purple-100">Create Your Account</p>
         </div>
 
         {/* Form */}
