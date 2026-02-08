@@ -335,7 +335,7 @@ export default function RegisterPatient() {
           </div>
 
           {/* Form Content */}
-          <div className="p-6">
+          <div className="p-6 min-h-[500px] overflow-y-auto">
             <form onSubmit={handleSubmit} id="register-patient-form">
               <AnimatePresence mode="wait">
                 {/* Patient Tab */}

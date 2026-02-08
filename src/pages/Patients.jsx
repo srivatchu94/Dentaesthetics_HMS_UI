@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { getAccessToken } from "../services/tokenManager";
+import { getAccessToken, getClinicIdFromToken } from "../services/tokenManager";
 import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient, getAllPatientsByClinicID, getPatientVisit } from "../services/patientService";
 import { visitService } from "../services/visitService";
 import { getDoctorsByClinicID } from "../api/hmsApi";
@@ -753,13 +753,11 @@ export default function Patients() {
     gender: "",
     bloodGroup: "",
     maritalStatus: "",
-    enterpriseId: "",
     clinicId: "",
     role: "patient", // New role field
     isActive: true
   });
 
-  const [allEnterprises, setAllEnterprises] = useState([]);
   const [clinicList, setClinicList] = useState([]);
 
   const [contactData, setContactData] = useState({
@@ -812,17 +810,7 @@ export default function Patients() {
 
   // View/Filter states
   const [viewTab, setViewTab] = useState("search");
-  const [filterData, setFilterData] = useState({
-    firstName: "",
-    lastName: "",
-    dateOfBirth: "",
-    patientId: "",
-    clinicId: ""
-  });
-  const [selectedClinicId, setSelectedClinicId] = useState("");
-  const [clinicPatientsData, setClinicPatientsData] = useState([]);
-  const [clinicError, setClinicError] = useState("");
-  const [searchPerformed, setSearchPerformed] = useState(false);
+
 
   // Patient details modal states
   const [showPatientModal, setShowPatientModal] = useState(false);
@@ -839,10 +827,13 @@ export default function Patients() {
   const [patientToDelete, setPatientToDelete] = useState(null);
   const [deletingPatient, setDeletingPatient] = useState(false);
 
-  // Load enterprises when register patient modal opens
+  // Load clinic from token and populate patient data on component mount
   useEffect(() => {
-    if (activeView === "register") {
-      fetch("`${API_BASE_URL}/Enterprise", {
+    const clinicId = getClinicIdFromToken();
+    if (clinicId) {
+      setPatientData(prev => ({ ...prev, clinicId: clinicId.toString() }));
+      // Load clinics list
+      fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${clinicId}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -850,31 +841,16 @@ export default function Patients() {
         }
       })
         .then(res => res.ok ? res.json() : [])
-        .then(data => setAllEnterprises(Array.isArray(data) ? data : []))
-        .catch(err => console.error("Error loading enterprises:", err));
-    }
-  }, [activeView]);
-
-  // Load clinics when enterprise is selected
-  useEffect(() => {
-    if (patientData.enterpriseId) {
-      fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${patientData.enterpriseId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-        }
-      })
-        .then(res => res.ok ? res.json() : [])
-        .then(data => setClinicList(Array.isArray(data) ? data : []))
+        .then(data => {
+          const clinics = Array.isArray(data) ? data : (data ? [data] : []);
+          setClinicList(clinics);
+        })
         .catch(err => {
-          console.error("Error loading clinics:", err);
+          console.error("Error loading clinic:", err);
           setClinicList([]);
         });
-    } else {
-      setClinicList([]);
     }
-  }, [patientData.enterpriseId]);
+  }, []);
 
   // Mock patient data (replace with API call)
   const mockPatients = [
@@ -891,80 +867,9 @@ export default function Patients() {
     { clinicId: 3, clinicName: "Westside Family Dentistry" }
   ];
 
-  // Filter patients based on old search criteria (for register/edit views)
-  const filteredPatientsOld = mockPatients.filter(patient => {
-    if (filterData.firstName && !patient.firstName.toLowerCase().includes(filterData.firstName.toLowerCase())) return false;
-    if (filterData.lastName && !patient.lastName.toLowerCase().includes(filterData.lastName.toLowerCase())) return false;
-    if (filterData.dateOfBirth && patient.dateOfBirth !== filterData.dateOfBirth) return false;
-    if (filterData.patientId && patient.patientId !== parseInt(filterData.patientId)) return false;
-    if (filterData.clinicId && patient.clinicId !== parseInt(filterData.clinicId)) return false;
-    return true;
-  });
 
-  // Fetch patients using search API with multiple optional parameters
-  const fetchClinicPatients = async () => {
-    // Check if at least one search parameter is provided
-    const hasSearchParams = selectedClinicId.trim() || 
-                           filterData.patientId.trim() || 
-                           filterData.firstName.trim() || 
-                           filterData.lastName.trim() || 
-                           filterData.dateOfBirth.trim();
-    
-    if (!hasSearchParams) {
-      setClinicError("Please enter at least one search parameter");
-      return;
-    }
 
-    setLoadingClinicPatients(true);
-    setClinicError("");
-    setSearchPerformed(true);
 
-    try {
-      // Build search parameters object
-      const searchParams = {};
-      
-      if (selectedClinicId.trim()) {
-        const clinicId = parseInt(selectedClinicId);
-        if (!isNaN(clinicId)) {
-          searchParams.clinicId = clinicId;
-        }
-      }
-      
-      if (filterData.patientId.trim()) {
-        const patientId = parseInt(filterData.patientId);
-        if (!isNaN(patientId)) {
-          searchParams.patientId = patientId;
-        }
-      }
-      
-      if (filterData.firstName.trim()) {
-        searchParams.firstName = filterData.firstName.trim();
-      }
-      
-      if (filterData.lastName.trim()) {
-        searchParams.lastName = filterData.lastName.trim();
-      }
-      
-      if (filterData.dateOfBirth.trim()) {
-        searchParams.dob = filterData.dateOfBirth.trim();
-      }
-
-      const patients = await searchPatients(searchParams);
-      console.log("Patient Search Response:", patients);
-      console.log("Search Parameters:", searchParams);
-      setClinicPatientsData(patients);
-      setClinicError("");
-    } catch (error) {
-      console.error("Error searching patients:", error);
-      setClinicError(error.message || "Failed to find patients. Please check your search criteria.");
-      setClinicPatientsData([]);
-    } finally {
-      setLoadingClinicPatients(false);
-    }
-  };
-
-  // Filter patients by selected clinic (using real-time API data)
-  const clinicPatients = Array.isArray(clinicPatientsData) ? clinicPatientsData : [];
 
   const toggleSection = (section) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -1160,11 +1065,10 @@ export default function Patients() {
           transition={{ delay: 0.2 }}
           className="mb-4"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               { id: 'register', title: '📝 Register Patient', description: 'Add new patient records', icon: '📝', color: 'from-teal-400 to-cyan-400', action: () => setActiveView('register') },
-              { id: 'list', title: '📋 View Patients', description: 'Browse patient records', icon: '📋', color: 'from-blue-400 to-indigo-400', action: () => setShowViewPatientsModal(true) },
-              { id: 'payments', title: '💳 Payments', description: 'Manage patient payments', icon: '💳', color: 'from-emerald-400 to-teal-400', action: () => navigate('/payments') }
+              { id: 'list', title: '📋 View Patients', description: 'Browse patient records', icon: '📋', color: 'from-blue-400 to-indigo-400', action: () => setShowViewPatientsModal(true) }
             ].map((tile, index) => (
               <motion.div
                 key={tile.id}
@@ -1198,14 +1102,14 @@ export default function Patients() {
                         rotate: hoveredCard === tile.id ? [0, -10, 10, -10, 0] : 0,
                       }}
                       transition={{ duration: 0.5 }}
-                      className="text-3xl mb-2"
+                      className="text-5xl mb-3"
                     >
                       {tile.icon}
                     </motion.div>
-                    <h3 className="text-base font-bold text-white mb-1">
+                    <h3 className="text-xl font-bold text-white mb-2">
                       {tile.title}
                     </h3>
-                    <p className="text-white/90 text-xs">
+                    <p className="text-white/90 text-sm">
                       {tile.description}
                     </p>
                   </div>
@@ -1214,6 +1118,14 @@ export default function Patients() {
             ))}
           </div>
         </motion.div>
+
+        {/* Patient Management Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mb-4"
+        />
 
         {/* Visits Management Tiles */}
         <motion.div
@@ -1350,6 +1262,69 @@ export default function Patients() {
           </div>
         </motion.div>
 
+        {/* Payments Management Tiles */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="mb-4"
+        >
+          <h2 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <span className="text-2xl">💳</span>
+            Payments Management
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { id: 'payments', title: '💳 Payments', description: 'Manage patient payments', icon: '💳', color: 'from-emerald-400 to-teal-400', action: () => navigate('/payments') }
+            ].map((tile, index) => (
+              <motion.div
+                key={tile.id}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.5 + index * 0.05 }}
+                whileHover={{ scale: 1.03, y: -3 }}
+                whileTap={{ scale: 0.98 }}
+                onHoverStart={() => setHoveredCard(tile.id)}
+                onHoverEnd={() => setHoveredCard(null)}
+                onClick={tile.action}
+                className="relative cursor-pointer group"
+              >
+                <div className={`relative overflow-hidden rounded-lg bg-gradient-to-br ${tile.color} p-4 shadow-md hover:shadow-lg transition-all duration-300`}>
+                  <motion.div
+                    animate={{
+                      x: hoveredCard === tile.id ? ["-100%", "200%"] : "-100%",
+                    }}
+                    transition={{
+                      duration: 0.6,
+                      ease: "easeInOut"
+                    }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12"
+                  />
+                  
+                  <div className="relative z-10">
+                    <motion.div
+                      animate={{
+                        rotate: hoveredCard === tile.id ? [0, -10, 10, -10, 0] : 0,
+                      }}
+                      transition={{ duration: 0.5 }}
+                      className="text-5xl mb-3"
+                    >
+                      {tile.icon}
+                    </motion.div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      {tile.title}
+                    </h3>
+                    <p className="text-white/90 text-sm">
+                      {tile.description}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))
+            }
+          </div>
+        </motion.div>
+
         {/* Registration Modal */}
         {activeView === "register" && (
           <motion.div
@@ -1408,7 +1383,7 @@ export default function Patients() {
                     onClick={() => setRegisterActiveTab(tab.key)}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className={`px-4 py-2 font-semibold text-xs rounded-lg transition-all flex items-center gap-1.5 shadow-md ${
+                    className={`flex-1 px-4 py-2 font-semibold text-xs rounded-lg transition-all flex items-center justify-center gap-1.5 shadow-md ${
                       registerActiveTab === tab.key
                         ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg scale-105"
                         : "bg-white text-slate-600 hover:bg-gradient-to-r hover:from-teal-50 hover:to-cyan-50 hover:text-teal-600 border-2 border-slate-200"
@@ -1421,7 +1396,7 @@ export default function Patients() {
               </div>
 
               {/* Content */}
-              <div className="p-6 overflow-y-auto">
+              <div className="p-6 overflow-y-auto min-h-[500px]">
                 <form onSubmit={handleSubmit} id="register-patient-form">
             
             {/* Patient Basic Information - Tab */}
@@ -1486,29 +1461,12 @@ export default function Patients() {
                   options={["Single", "Married", "Divorced", "Widowed"]}
                 />
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Enterprise *</label>
-                  <select
-                    value={patientData.enterpriseId}
-                    onChange={(e) => setPatientData({ ...patientData, enterpriseId: e.target.value, clinicId: "" })}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">Select Enterprise</option>
-                    {allEnterprises.map(ent => (
-                      <option key={ent.enterpriseId} value={ent.enterpriseId}>
-                        {ent.enterpriseName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Clinic *</label>
                   <select
                     value={patientData.clinicId}
                     onChange={(e) => setPatientData({ ...patientData, clinicId: e.target.value })}
                     required
-                    disabled={!patientData.enterpriseId}
-                    className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none ${patientData.enterpriseId ? 'focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-100 cursor-not-allowed'}`}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Select Clinic</option>
                     {clinicList.map(clinic => (
@@ -1517,6 +1475,7 @@ export default function Patients() {
                       </option>
                     ))}
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">Pre-populated from your login credentials</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
@@ -1966,441 +1925,7 @@ export default function Patients() {
         )}
             </div>
 
-            {/* Global Search Bar */}
-            <div className="mb-6">
-              <div className="relative">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="🔍 Search by name, email, or phone number..."
-                  className="w-full px-4 py-3 pl-12 border-2 border-amber-200 rounded-xl focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition"
-                />
-                <svg className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-            </div>
-
-            {/* Results Table */}
-              <div>
-                {/* Filter Section */}
-                <div className="bg-stone-50 rounded-lg p-6 mb-6 border border-stone-200">
-                  <h3 className="text-lg font-semibold text-amber-900 mb-4">Filter Patients</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-2">First Name</label>
-                      <input
-                        type="text"
-                        value={filterData.firstName}
-                        onChange={(e) => setFilterData({ ...filterData, firstName: e.target.value })}
-                        placeholder="Search by first name"
-                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-2">Last Name</label>
-                      <input
-                        type="text"
-                        value={filterData.lastName}
-                        onChange={(e) => setFilterData({ ...filterData, lastName: e.target.value })}
-                        placeholder="Search by last name"
-                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-2">Date of Birth</label>
-                      <input
-                        type="date"
-                        value={filterData.dateOfBirth}
-                        onChange={(e) => setFilterData({ ...filterData, dateOfBirth: e.target.value })}
-                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-2">Patient ID</label>
-                      <input
-                        type="text"
-                        value={filterData.patientId}
-                        onChange={(e) => setFilterData({ ...filterData, patientId: e.target.value })}
-                        placeholder="Enter patient ID"
-                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-stone-700 mb-2">Clinic ID</label>
-                      <input
-                        type="text"
-                        value={selectedClinicId}
-                        onChange={(e) => setSelectedClinicId(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            fetchClinicPatients();
-                          }
-                        }}
-                        placeholder="Enter clinic ID"
-                        className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
-                      />
-                    </div>
-                    <div className="flex items-end gap-2">
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={fetchClinicPatients}
-                        disabled={loadingClinicPatients || (!selectedClinicId.trim() && !filterData.patientId.trim() && !filterData.firstName.trim() && !filterData.lastName.trim() && !filterData.dateOfBirth.trim())}
-                        className={`flex-1 px-4 py-2 rounded-lg font-semibold transition shadow-md ${
-                          loadingClinicPatients || (!selectedClinicId.trim() && !filterData.patientId.trim() && !filterData.firstName.trim() && !filterData.lastName.trim() && !filterData.dateOfBirth.trim())
-                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-teal-500 to-cyan-600 text-white hover:from-teal-600 hover:to-cyan-700 hover:shadow-lg'
-                        }`}
-                      >
-                        {loadingClinicPatients ? '⏳ Searching...' : '🔍 Search'}
-                      </motion.button>
-                      <button
-                        onClick={() => {
-                          setFilterData({ firstName: "", lastName: "", dateOfBirth: "", patientId: "", clinicId: "" });
-                          setSelectedClinicId("");
-                          setClinicPatientsData([]);
-                          setClinicError("");
-                          setSearchPerformed(false);
-                        }}
-                        className="flex-1 px-4 py-2 bg-stone-200 text-stone-700 rounded-lg font-semibold hover:bg-stone-300 transition"
-                      >
-                        Clear Filters
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Clinic Search Results */}
-                {loadingClinicPatients && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-center py-12 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border-2 border-blue-200 mb-6"
-                  >
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                      className="inline-block text-6xl mb-4"
-                    >
-                      ⏳
-                    </motion.div>
-                    <p className="text-blue-700 text-lg font-semibold">Loading patients...</p>
-                    <p className="text-blue-600 text-sm mt-2">Fetching data for Clinic ID: {selectedClinicId}</p>
-                  </motion.div>
-                )}
-
-                {clinicError && !loadingClinicPatients && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-300 rounded-xl p-6 text-center mb-6"
-                  >
-                    <div className="text-6xl mb-4">⚠️</div>
-                    <h3 className="text-xl font-bold text-red-900 mb-2">Unable to Load Patients</h3>
-                    <p className="text-red-700">{clinicError}</p>
-                  </motion.div>
-                )}
-
-                {/* No Results Found Message */}
-                {!loadingClinicPatients && !clinicError && clinicPatients.length === 0 && searchPerformed && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 rounded-2xl border-2 border-amber-300 p-10 text-center shadow-lg mb-6"
-                  >
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-                      className="text-8xl mb-6"
-                    >
-                      🔍❌
-                    </motion.div>
-                    <h3 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-amber-600 mb-4">
-                      Oops! No Patients Found
-                    </h3>
-                    <div className="bg-white/60 backdrop-blur-sm rounded-xl p-6 mb-4 border-2 border-amber-200">
-                      <p className="text-lg font-semibold text-amber-900 mb-3">
-                        We searched high and low, but couldn't find any patients matching:
-                      </p>
-                      <div className="space-y-2 text-left max-w-md mx-auto">
-                        {selectedClinicId && (
-                          <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 rounded-lg">
-                            <span className="text-amber-700 font-semibold">🏥 Clinic ID:</span>
-                            <span className="text-amber-900 font-bold">{selectedClinicId}</span>
-                          </div>
-                        )}
-                        {filterData.patientId && (
-                          <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 rounded-lg">
-                            <span className="text-amber-700 font-semibold">🆔 Patient ID:</span>
-                            <span className="text-amber-900 font-bold">{filterData.patientId}</span>
-                          </div>
-                        )}
-                        {filterData.firstName && (
-                          <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 rounded-lg">
-                            <span className="text-amber-700 font-semibold">👤 First Name:</span>
-                            <span className="text-amber-900 font-bold">{filterData.firstName}</span>
-                          </div>
-                        )}
-                        {filterData.lastName && (
-                          <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 rounded-lg">
-                            <span className="text-amber-700 font-semibold">👥 Last Name:</span>
-                            <span className="text-amber-900 font-bold">{filterData.lastName}</span>
-                          </div>
-                        )}
-                        {filterData.dateOfBirth && (
-                          <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 rounded-lg">
-                            <span className="text-amber-700 font-semibold">🎂 Date of Birth:</span>
-                            <span className="text-amber-900 font-bold">{filterData.dateOfBirth}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-slate-600 text-lg mb-3">
-                      Maybe they're playing hide and seek? 🙈
-                    </p>
-                    <p className="text-slate-500 text-base max-w-lg mx-auto leading-relaxed mb-4">
-                      Try adjusting your search criteria or double-check the information. 
-                      Perhaps the patient is registered under a different clinic?
-                    </p>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => {
-                        setFilterData({ firstName: "", lastName: "", dateOfBirth: "", patientId: "", clinicId: "" });
-                        setSelectedClinicId("");
-                        setClinicPatientsData([]);
-                        setClinicError("");
-                        setSearchPerformed(false);
-                      }}
-                      className="mt-4 px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-200"
-                    >
-                      🔄 Clear Search & Try Again
-                    </motion.button>
-                  </motion.div>
-                )}
-
-                {clinicPatients.length > 0 && !loadingClinicPatients && (
-                  <div className="mb-6 hidden">
-                    <motion.div 
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mb-6 flex justify-between items-center bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 rounded-xl p-5 border-2 border-emerald-200 shadow-md"
-                    >
-                      <h3 className="text-xl font-bold text-emerald-900 flex items-center gap-2">
-                        <span className="text-2xl">👥</span> 
-                        <span>Patients at Clinic <span className="text-teal-600">#{selectedClinicId}</span></span>
-                      </h3>
-                      <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border-2 border-emerald-300 shadow-sm">
-                        <span className="text-sm text-emerald-700 font-medium">Total:</span>
-                        <span className="font-bold text-3xl text-transparent bg-clip-text bg-gradient-to-r from-teal-600 to-cyan-600">{clinicPatients.length}</span>
-                      </div>
-                    </motion.div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                      {clinicPatients.map((patientData, idx) => {
-                        const patient = patientData || {};
-                        
-                        return (
-                        <motion.div
-                          key={patient.patientId || patient.id || idx}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          whileHover={{ scale: 1.03, y: -8 }}
-                          className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 border-2 border-blue-200 rounded-xl p-6 shadow-lg hover:shadow-2xl hover:border-indigo-300 transition-all duration-300 relative overflow-hidden group"
-                        >
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-200/20 to-purple-200/20 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-500" />
-                          
-                          <div className="relative flex items-center gap-4 mb-5">
-                            <motion.div 
-                              whileHover={{ rotate: 360 }}
-                              transition={{ duration: 0.6 }}
-                              className="w-16 h-16 bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-500 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg ring-4 ring-white"
-                            >
-                              {(patient.patientFirstName || 'P').charAt(0)}{(patient.patientLastName || 'N').charAt(0)}
-                            </motion.div>
-                            <div className="flex-1">
-                              <h4 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-900 to-purple-700">
-                                {patient.patientFirstName || ''} {patient.patientLastName || ''}
-                              </h4>
-                              <p className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full inline-block">
-                                ID: {patient.patientId || 'N/A'}
-                              </p>
-                            </div>
-                            <motion.button
-                              whileHover={{ scale: 1.1, rotate: 10 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => navigate('/calendar', { 
-                                state: { 
-                                  patientData: {
-                                    patientId: patient.patientId,
-                                    patientName: `${patient.patientFirstName || ''} ${patient.patientLastName || ''}`.trim(),
-                                    patientFirstName: patient.patientFirstName,
-                                    patientLastName: patient.patientLastName,
-                                    patientPhone: patient.patientPhone || '',
-                                    patientEmail: patient.patientEmail || '',
-                                    patientDOB: patient.patientDOB,
-                                    patientGender: patient.patientGender,
-                                    patientBloodType: patient.patientBloodType
-                                  }
-                                } 
-                              })}
-                              className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
-                              title="Book Appointment"
-                            >
-                              📅
-                            </motion.button>
-                          </div>
-                          
-                          <div className="relative space-y-3 mb-5">
-                            <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
-                              <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
-                                🆔 Entity ID:
-                              </span>
-                              <span className="text-sm font-bold text-indigo-900">{patient.patientEntityID || ''}</span>
-                            </div>
-                            <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
-                              <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
-                                🎂 DOB:
-                              </span>
-                              <span className="text-sm font-bold text-indigo-900">
-                                {patient.patientDOB ? new Date(patient.patientDOB).toLocaleDateString() : ''}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
-                              <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
-                                {patient.patientGender === 'Male' ? '👨' : '👩'} Gender:
-                              </span>
-                              <span className={`text-sm font-bold px-3 py-1 rounded-full ${
-                                patient.patientGender === 'Male' 
-                                  ? 'bg-blue-100 text-blue-700' 
-                                  : 'bg-pink-100 text-pink-700'
-                              }`}>
-                                {patient.patientGender || ''}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between bg-white/60 backdrop-blur-sm px-3 py-2 rounded-lg border border-indigo-200">
-                              <span className="text-xs font-semibold text-indigo-700 flex items-center gap-1">
-                                🩸 Blood Type:
-                              </span>
-                              <span className="text-sm font-bold text-red-700 bg-red-50 px-3 py-1 rounded-full">{patient.patientBloodType || ''}</span>
-                            </div>
-                          </div>
-
-                          <div className="relative flex gap-2 pt-4 border-t-2 border-indigo-200">
-                            <motion.button 
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={async () => {
-                                setLoadingPatientDetails(true);
-                                setShowPatientModal(true);
-                                setIsEditMode(false);
-                                try {
-                                  const fullProfile = await getPatientFullProfile(patient.patientId);
-                                  console.log("Full Patient Profile Response:", fullProfile);
-                                  console.log("Patient:", fullProfile?.patient);
-                                  console.log("Contact:", fullProfile?.patientContact);
-                                  console.log("Medical Info:", fullProfile?.patientMedicalInfo);
-                                  console.log("Insurance:", fullProfile?.patientInsurance);
-                                  setSelectedPatient(fullProfile);
-                                  setEditedPatient(fullProfile);
-                                } catch (error) {
-                                  console.error("Error fetching patient profile:", error);
-                                } finally {
-                                  setLoadingPatientDetails(false);
-                                }
-                              }}
-                              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg font-bold hover:from-blue-600 hover:to-indigo-700 transition shadow-md hover:shadow-lg text-sm"
-                            >
-                              👁️ View
-                            </motion.button>
-                            <motion.button 
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={async () => {
-                                setLoadingPatientDetails(true);
-                                setShowPatientModal(true);
-                                setIsEditMode(true);
-                                try {
-                                  const fullProfile = await getPatientFullProfile(patient.patientId);
-                                  console.log("Full Patient Profile Response (Edit):", fullProfile);
-                                  console.log("Patient:", fullProfile?.patient);
-                                  console.log("Contact:", fullProfile?.patientContact);
-                                  console.log("Medical Info:", fullProfile?.patientMedicalInfo);
-                                  console.log("Insurance:", fullProfile?.patientInsurance);
-                                  setSelectedPatient(fullProfile);
-                                  setEditedPatient(fullProfile);
-                                } catch (error) {
-                                  console.error("Error fetching patient profile:", error);
-                                } finally {
-                                  setLoadingPatientDetails(false);
-                                }
-                              }}
-                              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-bold hover:from-indigo-700 hover:to-purple-700 transition shadow-md hover:shadow-lg text-sm"
-                            >
-                              ✏️ Edit
-                            </motion.button>
-                            <motion.button 
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => {
-                                setPatientToDelete(patient);
-                                setShowDeleteConfirmModal(true);
-                              }}
-                              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-lg font-bold hover:from-red-600 hover:to-rose-700 transition shadow-md hover:shadow-lg text-sm"
-                            >
-                              🗑️ Delete
-                            </motion.button>
-                          </div>
-                        </motion.div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Funny Empty State Message - Only show when no clinic selected */}
-                {!selectedClinicId && !loadingClinicPatients && clinicPatients.length === 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-center py-20 bg-gradient-to-br from-purple-50 via-pink-50 to-blue-50 rounded-3xl border-2 border-dashed border-purple-300 shadow-lg"
-                  >
-                    <motion.div
-                      animate={{ 
-                        rotate: [0, -10, 10, -10, 10, 0],
-                        scale: [1, 1.1, 1, 1.1, 1]
-                      }}
-                      transition={{ 
-                        duration: 2,
-                        repeat: Infinity,
-                        repeatDelay: 3
-                      }}
-                      className="text-8xl mb-6"
-                    >
-                      🕵️
-                    </motion.div>
-                    <h3 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600 mb-3">
-                      Ready to Find Your Patients?
-                    </h3>
-                    <p className="text-slate-600 text-lg mb-2">
-                      🎯 Enter a <span className="font-bold text-purple-600">Clinic ID</span> above and hit that Search button!
-                    </p>
-                    <p className="text-slate-500 text-base max-w-md mx-auto leading-relaxed">
-                      Our super-powered search will fetch real-time patient data faster than you can say "dental hygiene"! 🦷✨
-                    </p>
-                    <motion.div
-                      animate={{ y: [0, -10, 0] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                      className="mt-8 text-4xl"
-                    >
-                      👆
-                    </motion.div>
-                  </motion.div>
-                )}
+      {/* Patient Details Modal */}
 
       {/* Success Modal */}
       <AnimatePresence>
@@ -3085,41 +2610,6 @@ export default function Patients() {
                             setShowPatientModal(false);
                             setIsEditMode(false);
                             setShowUpdateSuccessModal(true);
-                            
-                            // Reload patients using the same search criteria
-                            const searchParams = {};
-                            
-                            if (selectedClinicId.trim()) {
-                              const clinicId = parseInt(selectedClinicId);
-                              if (!isNaN(clinicId)) {
-                                searchParams.clinicId = clinicId;
-                              }
-                            }
-                            
-                            if (filterData.patientId.trim()) {
-                              const patientId = parseInt(filterData.patientId);
-                              if (!isNaN(patientId)) {
-                                searchParams.patientId = patientId;
-                              }
-                            }
-                            
-                            if (filterData.firstName.trim()) {
-                              searchParams.firstName = filterData.firstName.trim();
-                            }
-                            
-                            if (filterData.lastName.trim()) {
-                              searchParams.lastName = filterData.lastName.trim();
-                            }
-                            
-                            if (filterData.dateOfBirth.trim()) {
-                              searchParams.dob = filterData.dateOfBirth.trim();
-                            }
-                            
-                            // Only refresh if there are search parameters
-                            if (Object.keys(searchParams).length > 0) {
-                              const patientsData = await searchPatients(searchParams);
-                              setClinicPatientsData(patientsData);
-                            }
                           } catch (error) {
                             console.error("Error updating patient:", error);
                             alert("Failed to update patient. Please try again.");
@@ -3216,11 +2706,8 @@ export default function Patients() {
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => {
               setShowUpdateSuccessModal(false);
-              // Redirect back to clinic-based patient list
-              if (selectedClinicId) {
-                // Stay on same page but reset search
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }
+              // Scroll to top
+              window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
           >
             <motion.div
@@ -3273,9 +2760,7 @@ export default function Patients() {
                   whileTap={{ scale: 0.95 }}
                   onClick={() => {
                     setShowUpdateSuccessModal(false);
-                    if (selectedClinicId) {
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className="w-full px-6 py-3 bg-gradient-to-r from-coral-500 to-peach-500 hover:from-coral-600 hover:to-peach-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all duration-200"
                 >
@@ -3367,41 +2852,6 @@ export default function Patients() {
                         await deletePatient(patientToDelete.patientId);
                         setShowDeleteConfirmModal(false);
                         setShowDeleteSuccessModal(true);
-                        
-                        // Refresh patient list using the same search criteria
-                        const searchParams = {};
-                        
-                        if (selectedClinicId.trim()) {
-                          const clinicId = parseInt(selectedClinicId);
-                          if (!isNaN(clinicId)) {
-                            searchParams.clinicId = clinicId;
-                          }
-                        }
-                        
-                        if (filterData.patientId.trim()) {
-                          const patientId = parseInt(filterData.patientId);
-                          if (!isNaN(patientId)) {
-                            searchParams.patientId = patientId;
-                          }
-                        }
-                        
-                        if (filterData.firstName.trim()) {
-                          searchParams.firstName = filterData.firstName.trim();
-                        }
-                        
-                        if (filterData.lastName.trim()) {
-                          searchParams.lastName = filterData.lastName.trim();
-                        }
-                        
-                        if (filterData.dateOfBirth.trim()) {
-                          searchParams.dob = filterData.dateOfBirth.trim();
-                        }
-                        
-                        // Only refresh if there are search parameters
-                        if (Object.keys(searchParams).length > 0) {
-                          const patients = await searchPatients(searchParams);
-                          setClinicPatientsData(patients);
-                        }
                       } catch (error) {
                         console.error("Error deleting patient:", error);
                         alert("Failed to delete patient. Please try again.");
@@ -7786,6 +7236,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                             
                             if (Array.isArray(prescriptionData) && prescriptionData.length > 0) {
                               return (
+                                <>
                                 <div className="space-y-5">
                                   {/* Prescription Header */}
                                   <div className="flex items-center justify-between pb-4 border-b-3 border-pink-300">
@@ -7885,21 +7336,24 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                                     <p className="text-xs text-gray-600">⚕️ This prescription is valid for 90 days from the date of issue.</p>
                                   </div>
                                 </div>
+                                </>
                               );
                             }
                           } catch (e) {
                             console.error('Error parsing prescription:', e);
                           }
                           return (
+                            <>
                             <div className="flex items-center gap-3 pb-3 border-b-2 border-pink-300">
                               <div className="w-10 h-10 bg-gradient-to-br from-pink-400 to-rose-500 rounded-xl flex items-center justify-center">
                                 <span className="text-xl">💊</span>
                               </div>
                               <h3 className="text-base font-bold text-pink-900">Prescription Notes</h3>
-                              <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap mt-3">
-                                {selectedDiagnosis.prescriptions}
-                              </p>
                             </div>
+                            <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap mt-3">
+                              {selectedDiagnosis.prescriptions}
+                            </p>
+                            </>
                           );
                         })()}
                       </motion.div>
@@ -7950,7 +7404,6 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
         )}
       </AnimatePresence>
     </div>
-  </div>
   );
 }
 
