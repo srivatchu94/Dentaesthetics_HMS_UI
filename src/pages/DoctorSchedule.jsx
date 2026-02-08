@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import FancyDatePicker from '../components/FancyDatePicker';
+import DiagnosisModal from '../components/DiagnosisModal';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
@@ -11,10 +12,12 @@ export default function DoctorSchedule() {
   const [error, setError] = useState('');
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [doctorId, setDoctorId] = useState(null);
   const [clinicId, setClinicId] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   // Get doctor ID from local storage on mount
   useEffect(() => {
@@ -75,10 +78,35 @@ export default function DoctorSchedule() {
     }
   };
 
-  const handleViewDetails = (appointment) => {
-    setSelectedAppointment(appointment);
-    setEditForm({ ...appointment });
-    setShowDetailModal(true);
+  const handleViewDetails = async (appointment) => {
+    setDetailLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/Appointment/GetAppointmentDetailsbyAppointmentID?appointmentId=${appointment.appointmentId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const detailedData = await response.json();
+        setSelectedAppointment(detailedData);
+        setEditForm({ ...detailedData });
+      } else {
+        setSelectedAppointment(appointment);
+        setEditForm({ ...appointment });
+      }
+    } catch (err) {
+      console.error('Error fetching appointment details:', err);
+      setSelectedAppointment(appointment);
+      setEditForm({ ...appointment });
+    } finally {
+      setDetailLoading(false);
+      setShowDetailModal(true);
+    }
   };
 
   const handleEditToggle = () => {
@@ -117,6 +145,10 @@ export default function DoctorSchedule() {
       console.error('Error updating appointment:', err);
       setError('Error updating appointment');
     }
+  };
+
+  const handleOpenDiagnosis = () => {
+    setShowDiagnosisModal(true);
   };
 
   const getStatusColor = (status) => {
@@ -402,12 +434,31 @@ export default function DoctorSchedule() {
                       💾 Save
                     </motion.button>
                   )}
+
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleOpenDiagnosis}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-pink-600 to-purple-600 text-white rounded-lg font-bold hover:shadow-lg transition text-sm"
+                  >
+                    🏥 Diagnosis
+                  </motion.button>
                 </div>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Diagnosis Modal */}
+      <DiagnosisModal
+        isOpen={showDiagnosisModal}
+        onClose={() => setShowDiagnosisModal(false)}
+        appointmentId={selectedAppointment?.appointmentId}
+        onSave={() => {
+          setShowDiagnosisModal(false);
+        }}
+      />
     </div>
   );
 }
