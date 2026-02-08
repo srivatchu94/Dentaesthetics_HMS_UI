@@ -3,20 +3,32 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPatient } from "../services/patientService";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
-import FancyDatePicker from "../components/FancyDatePicker";
 
 // Reusable InputField component
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => (
   <div className="mb-2">
     {type === "date" ? (
-      <FancyDatePicker
-        label={label}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder || `Select ${label}`}
-        required={required}
-        disabled={disabled}
-      />
+      <>
+        <label className={`block text-xs font-medium mb-1 transition ${
+          disabled ? "text-gray-400" : "text-gray-700"
+        }`}>
+          {label} {required && <span className="text-red-500">*</span>}
+          {disabled && <span className="text-xs ml-1 text-gray-400">🔒</span>}
+        </label>
+        <input
+          type="date"
+          name={name}
+          value={value}
+          onChange={onChange}
+          required={required}
+          disabled={disabled}
+          className={`w-full px-3 py-2 text-sm border rounded-lg transition ${
+            disabled 
+              ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
+              : "border-stone-300 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
+          }`}
+        />
+      </>
     ) : options ? (
       <>
         <label className={`block text-xs font-medium mb-1 transition ${
