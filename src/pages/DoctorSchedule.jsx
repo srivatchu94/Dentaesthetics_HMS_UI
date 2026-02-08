@@ -21,8 +21,9 @@ export default function DoctorSchedule() {
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState(null);
   
-  // Diagnosis modal state - kept separate
+  // Diagnosis modal state - kept completely separate (no parent re-render)
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
+  const diagnosisModalRef = useRef(null);
   
   // User data
   const [doctorId, setDoctorId] = useState(null);
@@ -117,9 +118,11 @@ export default function DoctorSchedule() {
     }
   }, [selectedAppointmentId]);
 
-  // Handle selecting appointment
+  // Handle selecting appointment - keep diagnosis modal isolated
   const handleSelectAppointment = useCallback((appointmentId) => {
     setSelectedAppointmentId(appointmentId);
+    // Ensure diagnosis modal is closed when selecting new appointment
+    setShowDiagnosisModal(false);
   }, []);
 
   // Handle edit toggle
@@ -172,10 +175,12 @@ export default function DoctorSchedule() {
     }
   }, [editFormData, selectedAppointmentDetails, fetchAppointments]);
 
-  // Handle diagnosis button click
+  // Handle diagnosis button click - ISOLATED, doesn't trigger parent re-renders
   const handleOpenDiagnosis = useCallback(() => {
+    // Store current appointment ID in ref to avoid state update
+    diagnosisModalRef.current = selectedAppointmentDetails?.appointmentId;
     setShowDiagnosisModal(true);
-  }, []);
+  }, [selectedAppointmentDetails?.appointmentId]);
 
   // Get status color
   const getStatusColor = useCallback((status) => {
@@ -446,11 +451,11 @@ export default function DoctorSchedule() {
         )}
       </div>
 
-      {/* Diagnosis Modal */}
+      {/* Diagnosis Modal - Using ref to prevent parent re-renders when modal opens */}
       <DiagnosisModal
         isOpen={showDiagnosisModal}
         onClose={() => setShowDiagnosisModal(false)}
-        appointmentId={selectedAppointmentDetails?.appointmentId}
+        appointmentId={diagnosisModalRef.current || selectedAppointmentDetails?.appointmentId}
         onSave={() => {
           setShowDiagnosisModal(false);
         }}

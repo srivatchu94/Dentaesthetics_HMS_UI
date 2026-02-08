@@ -1302,7 +1302,7 @@ export function CreateAppointmentModal({
   );
 }
 
-export function EditAppointmentModal({
+export const EditAppointmentModal = React.memo(({
   show,
   onClose,
   form,
@@ -1313,7 +1313,16 @@ export function EditAppointmentModal({
   activeTab,
   setActiveTab,
   clinicDoctors = []
-}) {
+}) => {
+  // Use useCallback to prevent function recreation on every render
+  const handleTabClick = React.useCallback((tab) => {
+    setActiveTab(tab);
+  }, [setActiveTab]);
+
+  const handleFormChange = React.useCallback((field, value) => {
+    onFormChange(field, value);
+  }, [onFormChange]);
+
   if (!show) return null;
 
   return (
@@ -1348,7 +1357,7 @@ export function EditAppointmentModal({
           {["basic", "scheduling", "details", "billing"].map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => handleTabClick(tab)}
               className={`flex-1 px-4 py-3 font-semibold transition-colors ${
                 activeTab === tab
                   ? "border-b-2 border-blue-500 text-blue-600 bg-blue-50"
@@ -1369,7 +1378,7 @@ export function EditAppointmentModal({
                 <input
                   type="number"
                   value={form.patientId || ""}
-                  onChange={(e) => onFormChange("patientId", e.target.value)}
+                  onChange={(e) => handleFormChange("patientId", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1378,7 +1387,7 @@ export function EditAppointmentModal({
                 <input
                   type="number"
                   value={form.clinicId || ""}
-                  onChange={(e) => onFormChange("clinicId", e.target.value)}
+                  onChange={(e) => handleFormChange("clinicId", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1387,7 +1396,7 @@ export function EditAppointmentModal({
                 <input
                   type="text"
                   value={form.firstName || ""}
-                  onChange={(e) => onFormChange("firstName", e.target.value)}
+                  onChange={(e) => handleFormChange("firstName", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                   placeholder="First name"
                 />
@@ -1397,7 +1406,7 @@ export function EditAppointmentModal({
                 <input
                   type="text"
                   value={form.lastName || ""}
-                  onChange={(e) => onFormChange("lastName", e.target.value)}
+                  onChange={(e) => handleFormChange("lastName", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                   placeholder="Last name"
                 />
@@ -1407,7 +1416,7 @@ export function EditAppointmentModal({
                 <input
                   type="tel"
                   value={form.phoneNumber || ""}
-                  onChange={(e) => onFormChange("phoneNumber", e.target.value)}
+                  onChange={(e) => handleFormChange("phoneNumber", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1416,7 +1425,7 @@ export function EditAppointmentModal({
                 <input
                   type="email"
                   value={form.email || ""}
-                  onChange={(e) => onFormChange("email", e.target.value)}
+                  onChange={(e) => handleFormChange("email", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1424,7 +1433,7 @@ export function EditAppointmentModal({
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Reason for Visit</label>
                 <textarea
                   value={form.reasonForVisit || ""}
-                  onChange={(e) => onFormChange("reasonForVisit", e.target.value)}
+                  onChange={(e) => handleFormChange("reasonForVisit", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                   rows="3"
                 />
@@ -1439,7 +1448,7 @@ export function EditAppointmentModal({
                 <input
                   type="date"
                   value={form.appointmentDate ? form.appointmentDate.split('T')[0] : ""}
-                  onChange={(e) => onFormChange("appointmentDate", e.target.value)}
+                  onChange={(e) => handleFormChange("appointmentDate", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1458,9 +1467,9 @@ export function EditAppointmentModal({
                     console.log("👨‍⚕️ Selected doctor name:", doctorName);
                     
                     // Update both doctorId and attendingPhysician
-                    onFormChange("doctorId", selectedDoctorId);
+                    handleFormChange("doctorId", selectedDoctorId);
                     if (doctorName) {
-                      onFormChange("attendingPhysician", doctorName);
+                      handleFormChange("attendingPhysician", doctorName);
                     }
                   }}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
@@ -1485,7 +1494,7 @@ export function EditAppointmentModal({
                 <input
                   type="time"
                   value={form.startTime || ""}
-                  onChange={(e) => onFormChange("startTime", e.target.value)}
+                  onChange={(e) => handleFormChange("startTime", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1494,7 +1503,7 @@ export function EditAppointmentModal({
                 <input
                   type="time"
                   value={form.endTime || ""}
-                  onChange={(e) => onFormChange("endTime", e.target.value)}
+                  onChange={(e) => handleFormChange("endTime", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1503,7 +1512,7 @@ export function EditAppointmentModal({
                 <input
                   type="number"
                   value={form.durationMinutes || ""}
-                  onChange={(e) => onFormChange("durationMinutes", e.target.value)}
+                  onChange={(e) => handleFormChange("durationMinutes", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1511,7 +1520,7 @@ export function EditAppointmentModal({
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Appointment Type</label>
                 <select
                   value={form.appointmentType || ""}
-                  onChange={(e) => onFormChange("appointmentType", e.target.value)}
+                  onChange={(e) => handleFormChange("appointmentType", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 >
                   <option value="">Select Type</option>
@@ -1530,7 +1539,7 @@ export function EditAppointmentModal({
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
                 <select
                   value={form.status || ""}
-                  onChange={(e) => onFormChange("status", e.target.value)}
+                  onChange={(e) => handleFormChange("status", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 >
                   <option value="Scheduled">Scheduled</option>
@@ -1544,7 +1553,7 @@ export function EditAppointmentModal({
                   <input
                     type="checkbox"
                     checked={form.isConfirmed || false}
-                    onChange={(e) => onFormChange("isConfirmed", e.target.checked)}
+                    onChange={(e) => handleFormChange("isConfirmed", e.target.checked)}
                     className="mr-2"
                   />
                   Is Confirmed
@@ -1554,7 +1563,7 @@ export function EditAppointmentModal({
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Notes</label>
                 <textarea
                   value={form.notes || ""}
-                  onChange={(e) => onFormChange("notes", e.target.value)}
+                  onChange={(e) => handleFormChange("notes", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                   rows="3"
                 />
@@ -1564,7 +1573,7 @@ export function EditAppointmentModal({
                 <input
                   type="text"
                   value={form.roomNumber || ""}
-                  onChange={(e) => onFormChange("roomNumber", e.target.value)}
+                  onChange={(e) => handleFormChange("roomNumber", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1573,7 +1582,7 @@ export function EditAppointmentModal({
                 <input
                   type="text"
                   value={form.telehealthLink || ""}
-                  onChange={(e) => onFormChange("telehealthLink", e.target.value)}
+                  onChange={(e) => handleFormChange("telehealthLink", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1588,7 +1597,7 @@ export function EditAppointmentModal({
                   type="number"
                   step="0.01"
                   value={form.billableAmount || ""}
-                  onChange={(e) => onFormChange("billableAmount", e.target.value)}
+                  onChange={(e) => handleFormChange("billableAmount", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1598,7 +1607,7 @@ export function EditAppointmentModal({
                   type="number"
                   step="0.01"
                   value={form.paidAmount || ""}
-                  onChange={(e) => onFormChange("paidAmount", e.target.value)}
+                  onChange={(e) => handleFormChange("paidAmount", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1608,7 +1617,7 @@ export function EditAppointmentModal({
                   type="number"
                   step="0.01"
                   value={form.pendingAmount || ""}
-                  onChange={(e) => onFormChange("pendingAmount", e.target.value)}
+                  onChange={(e) => handleFormChange("pendingAmount", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -1616,7 +1625,7 @@ export function EditAppointmentModal({
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Payment Status</label>
                 <select
                   value={form.paymentStatus || ""}
-                  onChange={(e) => onFormChange("paymentStatus", e.target.value)}
+                  onChange={(e) => handleFormChange("paymentStatus", e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
                 >
                   <option value="Pending">Pending</option>
@@ -1648,7 +1657,9 @@ export function EditAppointmentModal({
       </motion.div>
     </motion.div>
   );
-}
+});
+
+EditAppointmentModal.displayName = 'EditAppointmentModal';
 
 export function DeleteAppointmentModal({
   show,

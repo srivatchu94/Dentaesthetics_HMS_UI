@@ -493,6 +493,25 @@ export const getSessionInfo = (): any => {
 };
 
 /**
+ * Get clinic ID from token payload (from login token claims)
+ * Extracts the clinicId from the currently selected access in localStorage
+ */
+export const getClinicIdFromToken = (): number | null => {
+  try {
+    const selectedAccess = getSelectedAccess();
+    if (selectedAccess && selectedAccess.clinicId) {
+      console.log(`✅ Clinic ID extracted from token: ${selectedAccess.clinicId}`);
+      return selectedAccess.clinicId;
+    }
+    console.warn('⚠️ No clinic ID found in token payload');
+    return null;
+  } catch (error) {
+    console.error('❌ Failed to extract clinic ID from token:', error);
+    return null;
+  }
+};
+
+/**
  * Export constants for use in other services
  */
 export const STORAGE_KEYS = {
