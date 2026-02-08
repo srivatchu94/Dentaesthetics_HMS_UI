@@ -10,7 +10,6 @@ import { createAppointment, listAppointments, getAppointmentsByFilters, updateAp
 import { sendPrescriptionEmail } from "../services/emailService";
 import ViewPatients from "./ViewPatients";
 import FancyDatePicker from "../components/FancyDatePicker";
-import PaymentManagement from "../components/PaymentManagement";
 
 const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
@@ -1165,7 +1164,7 @@ export default function Patients() {
             {[
               { id: 'register', title: '📝 Register Patient', description: 'Add new patient records', icon: '📝', color: 'from-teal-400 to-cyan-400', action: () => setActiveView('register') },
               { id: 'list', title: '📋 View Patients', description: 'Browse patient records', icon: '📋', color: 'from-blue-400 to-indigo-400', action: () => setShowViewPatientsModal(true) },
-              { id: 'payments', title: '💳 Payments', description: 'Manage patient payments', icon: '💳', color: 'from-emerald-400 to-teal-400', action: () => setActiveView('payments') },
+              { id: 'payments', title: '💳 Payments', description: 'Manage patient payments', icon: '💳', color: 'from-emerald-400 to-teal-400', action: () => navigate('/payments') },
               { id: 'edit', title: '✏️ Edit Records', description: 'Update patient info', icon: '✏️', color: 'from-indigo-400 to-purple-400', action: () => navigate('/patients/edit') },
               { id: 'remove', title: '🗑️ Remove Patient', description: 'Delete patient records', icon: '🗑️', color: 'from-rose-400 to-rose-500', action: () => navigate('/patients/delete') }
             ].map((tile, index) => (
@@ -1964,36 +1963,6 @@ export default function Patients() {
                   </motion.button>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-
-        {/* Payments View */}
-        {activeView === "payments" && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="mb-8"
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="relative"
-            >
-              {/* Close Button */}
-              <motion.button
-                whileHover={{ scale: 1.1, rotate: 90 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setActiveView("list")}
-                className="absolute top-4 right-4 z-10 text-white bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 rounded-full p-3 shadow-lg transition-all text-2xl font-bold"
-                title="Close Payments View"
-              >
-                ✕
-              </motion.button>
-              
-              <PaymentManagement />
             </motion.div>
           </motion.div>
         )}
