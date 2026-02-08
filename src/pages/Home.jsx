@@ -106,7 +106,7 @@ export default function Home() {
       yearly: 39,
       blurb: "For solo practitioners launching digital ops",
       features: ["1 Clinic", "Up to 5 Staff", "1000 Patient Records", "Basic Reports"],
-      accent: "from-coral-500 to-peach-500"
+      accent: "from-indigo-500 to-purple-500"
     },
     {
       key: "growth",
@@ -126,7 +126,7 @@ export default function Home() {
       yearly: 159,
       blurb: "Established networks needing deeper insight",
       features: ["Up to 8 Clinics", "100 Staff", "Unlimited Patients", "Predictive Insights", "24/7 Priority Support"],
-      accent: "from-gold-500 to-peach-500"
+      accent: "from-purple-500 to-pink-500"
     },
     {
       key: "enterprise",
@@ -148,7 +148,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-cream-50 via-warmGray-50 to-teal-50/30">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
       <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
         
         {/* Hero Section - PROFESSIONAL VITALS PANEL */}
@@ -184,7 +184,7 @@ export default function Home() {
               transition={{ duration: 0.6, type: "spring" }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full mb-4 shadow-lg"
             >
-              <span className="text-sm font-bold text-white">✨ Premium Dental Management System</span>
+              <span className="text-sm font-bold text-white">✨ Premium Patient Management System</span>
             </motion.div>
 
             {/* Main Title */}
@@ -360,7 +360,7 @@ export default function Home() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.6 }}
-          className="bg-gradient-to-br from-cream-50 to-warmGray-50 rounded-2xl p-6 border border-warmGray-200/50"
+          className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-purple-200/50"
         >
           <h3 className="text-lg font-bold text-slate-800 mb-4 text-center">Quick Access</h3>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -394,11 +394,11 @@ export default function Home() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.8 }}
-          className="bg-gradient-to-br from-white/80 via-peach-50/50 to-gold-50/50 backdrop-blur-sm rounded-2xl shadow-coral border border-peach-100/60 p-8"
+          className="bg-gradient-to-br from-white/80 via-purple-50/50 to-pink-50/50 backdrop-blur-sm rounded-2xl shadow-lg border border-purple-100/60 p-8"
         >
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-coral-700 via-peach-700 to-gold-700 bg-clip-text text-transparent">Subscription & Payment Options</h2>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 bg-clip-text text-transparent">Subscription & Payment Options</h2>
               <p className="text-sm text-slate-600 mt-1">Flexible models to match clinic scale & evolution.</p>
             </div>
             <div className="flex items-center gap-3">
@@ -421,7 +421,7 @@ export default function Home() {
                 <h3 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">{tier.name}</h3>
                 <p className="text-xs text-slate-500 mb-3 leading-relaxed">{tier.blurb}</p>
                 <div className="mb-4">
-                  <span className="text-3xl font-extrabold bg-gradient-to-r from-coral-600 to-peach-600 bg-clip-text text-transparent">
+                  <span className="text-3xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                     ${billingCycle === 'monthly' ? tier.monthly : tier.yearly}
                   </span>
                   <span className="text-xs text-slate-500 ml-1">/ {billingCycle}</span>
@@ -434,7 +434,7 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-                <button className="mt-5 w-full text-xs font-semibold px-3 py-2 rounded-lg bg-gradient-to-r from-coral-500 to-peach-500 text-white hover:shadow-coral hover:from-coral-600 hover:to-peach-600 transition">
+                <button className="mt-5 w-full text-xs font-semibold px-3 py-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:shadow-lg hover:from-indigo-600 hover:to-purple-600 transition">
                   Choose {tier.name}
                 </button>
                 {tier.key === 'enterprise' && (
@@ -470,7 +470,7 @@ export default function Home() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 1 + i * 0.05 }}
-                  className="rounded-lg border border-warmGray-200 p-3 text-xs flex flex-col gap-2 hover:shadow-md hover:border-coral-300 transition bg-gradient-to-br from-cream-50 to-coral-50"
+                  className="rounded-lg border border-purple-200 p-3 text-xs flex flex-col gap-2 hover:shadow-md hover:border-purple-300 transition bg-gradient-to-br from-indigo-50 to-purple-50"
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-base">{a.icon}</span>

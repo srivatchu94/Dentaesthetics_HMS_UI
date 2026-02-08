@@ -1383,24 +1383,25 @@ export default function Doctors() {
 
   const dashboardTabs = [
     { key: "overview", label: "Overview", icon: "📊", gradient: "from-indigo-500 to-purple-600" },
-    { key: "clinic", label: "Clinic Details", icon: "🏥", gradient: "from-teal-500 to-cyan-600" },
-    { key: "patients", label: "My Patients", icon: "👥", gradient: "from-blue-500 to-indigo-600" },
-    { key: "payments", label: "Payments", icon: "💳", gradient: "from-emerald-500 to-teal-600" },
-    { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-violet-500 to-purple-600" },
-    { key: "today-summary", label: "Today's Summary", icon: "⭐", gradient: "from-yellow-500 to-amber-600" },
-    { key: "patient-history", label: "Patient History", icon: "📋", gradient: "from-pink-500 to-rose-600" },
-    { key: "follow-ups", label: "Follow-ups", icon: "🔔", gradient: "from-cyan-500 to-blue-600" },
-    { key: "treatment-plans", label: "Treatment Plans", icon: "💼", gradient: "from-orange-500 to-red-600" },
-    { key: "quick-notes", label: "Quick Notes", icon: "✏️", gradient: "from-lime-500 to-green-600" }
+    { key: "schedule", label: "Schedule", icon: "📅", gradient: "from-indigo-500 to-purple-600" },
+    { key: "clinic", label: "Clinic Details", icon: "🏥", gradient: "from-purple-500 to-pink-600" },
+    { key: "patients", label: "My Patients", icon: "👥", gradient: "from-indigo-500 to-purple-600" },
+    { key: "payments", label: "Payments", icon: "💳", gradient: "from-purple-500 to-pink-600" },
+    { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-indigo-600 to-purple-600" },
+    { key: "today-summary", label: "Today's Summary", icon: "⭐", gradient: "from-purple-500 to-pink-600" },
+    { key: "patient-history", label: "Patient History", icon: "📋", gradient: "from-indigo-500 to-purple-600" },
+    { key: "follow-ups", label: "Follow-ups", icon: "🔔", gradient: "from-purple-500 to-pink-600" },
+    { key: "treatment-plans", label: "Treatment Plans", icon: "💼", gradient: "from-indigo-500 to-purple-600" },
+    { key: "quick-notes", label: "Quick Notes", icon: "✏️", gradient: "from-purple-500 to-pink-600" }
   ];
 
   const manageClinicTabs = [
-    { key: "settings", label: "Clinic Settings", icon: "⚙️", gradient: "from-slate-500 to-stone-600" },
-    { key: "staff", label: "Staff Management", icon: "👔", gradient: "from-blue-500 to-indigo-600" },
-    { key: "billing", label: "Billing & Insurance", icon: "💰", gradient: "from-emerald-500 to-teal-600" },
-    { key: "inventory", label: "Inventory", icon: "📦", gradient: "from-amber-500 to-orange-600" },
-    { key: "reports", label: "Reports & Analytics", icon: "📈", gradient: "from-orange-500 to-red-600" },
-    { key: "equipment", label: "Equipment & Assets", icon: "🔧", gradient: "from-amber-500 to-orange-600" }
+    { key: "settings", label: "Clinic Settings", icon: "⚙️", gradient: "from-indigo-500 to-purple-600" },
+    { key: "staff", label: "Staff Management", icon: "👔", gradient: "from-purple-500 to-pink-600" },
+    { key: "billing", label: "Billing & Insurance", icon: "💰", gradient: "from-indigo-500 to-purple-600" },
+    { key: "inventory", label: "Inventory", icon: "📦", gradient: "from-purple-500 to-pink-600" },
+    { key: "reports", label: "Reports & Analytics", icon: "📈", gradient: "from-indigo-500 to-purple-600" },
+    { key: "equipment", label: "Equipment & Assets", icon: "🔧", gradient: "from-purple-500 to-pink-600" }
   ];
 
   const tabs = activeSection === "dashboard" ? dashboardTabs : manageClinicTabs;
@@ -6318,6 +6319,30 @@ export default function Doctors() {
                     ))}
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Schedule Tab - Using DoctorSchedule Component */}
+          {activeSection === "dashboard" && activeTab === "schedule" && (
+            <motion.div
+              key="schedule"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="w-full"
+            >
+              <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 p-8">
+                <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="max-w-7xl">
+                  {/* Header */}
+                  <div className="mb-8">
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+                      📅 Doctor Schedule
+                    </h1>
+                    <p className="text-slate-600">View and manage your appointments by date</p>
+                  </div>
+                </motion.div>
               </div>
             </motion.div>
           )}

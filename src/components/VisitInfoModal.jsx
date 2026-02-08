@@ -301,7 +301,7 @@ const VisitInfoModal = React.memo(({
         className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col"
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 px-8 py-6 rounded-t-3xl flex items-center justify-between flex-shrink-0">
+        <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-8 py-6 rounded-t-3xl flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-4xl shadow-lg">
               🩺
@@ -336,13 +336,13 @@ const VisitInfoModal = React.memo(({
               className="lg:col-span-1 space-y-4"
             >
               {/* Patient Card */}
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-blue-200 shadow-md h-fit">
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md h-fit">
                 <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
                   <span>👤</span> Patient Info
                 </h3>
                 <div className="space-y-3 text-sm">
                   <div className="flex gap-3 pb-3 border-b border-blue-100">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md">
+                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md">
                       {selectedAppointment.firstName?.charAt(0)}{selectedAppointment.lastName?.charAt(0)}
                     </div>
                     <div>
@@ -364,7 +364,7 @@ const VisitInfoModal = React.memo(({
               </div>
 
               {/* Chronic Diseases */}
-              <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl p-6 border-2 border-red-200 shadow-md h-fit">
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-md h-fit">
                 <h3 className="text-lg font-bold text-red-900 mb-4 flex items-center gap-2">
                   <span>⚠️</span> Chronic Diseases
                 </h3>
@@ -384,7 +384,7 @@ const VisitInfoModal = React.memo(({
               </div>
 
               {/* Allergies */}
-              <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-6 border-2 border-orange-200 shadow-md h-fit">
+              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-md h-fit">
                 <h3 className="text-lg font-bold text-orange-900 mb-4 flex items-center gap-2">
                   <span>🚨</span> Allergies
                 </h3>
@@ -433,7 +433,7 @@ const VisitInfoModal = React.memo(({
               className="lg:col-span-2 space-y-5"
             >
               {/* Visit Dates */}
-              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-2xl p-6 border-2 border-yellow-200 shadow-md">
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md">
                 <h3 className="text-lg font-bold text-yellow-900 mb-4 flex items-center gap-2">
                   <span>📆</span> Visit Timeline
                 </h3>
@@ -474,7 +474,7 @@ const VisitInfoModal = React.memo(({
               </div>
 
               {/* Diagnosis */}
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-6 border-2 border-green-300 shadow-lg ring-2 ring-green-200">
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md ring-2 ring-indigo-100">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                   <h3 className="text-lg font-bold text-green-900 flex items-center gap-2">
                     <span>🔬</span> Diagnosis <span className="text-red-500">*</span>
@@ -671,7 +671,7 @@ const VisitInfoModal = React.memo(({
               </div>
 
               {/* Treatment Provided */}
-              <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200 shadow-md">
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md">
                 <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
                   <span>⚕️</span> Treatment Provided <span className="text-red-500">*</span>
                 </h3>
@@ -702,7 +702,7 @@ const VisitInfoModal = React.memo(({
         </div>
 
         {/* Footer */}
-        <div className="bg-gradient-to-r from-stone-50 to-stone-100 px-8 py-5 rounded-b-3xl border-t-2 border-stone-200 flex justify-between items-center gap-4 flex-wrap flex-shrink-0">
+        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-8 py-5 rounded-b-3xl border-t-2 border-purple-200 flex justify-between items-center gap-4 flex-wrap flex-shrink-0">
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -721,8 +721,8 @@ const VisitInfoModal = React.memo(({
                 savingVisit || !visitForm.chiefComplaint || !visitForm.diagnosis || !visitForm.treatmentProvided
                   ? 'bg-gray-300 cursor-not-allowed'
                   : isExistingVisit
-                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
-                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
+                  : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
               }`}
             >
               <span>{isExistingVisit ? '🔄' : '💾'}</span>
