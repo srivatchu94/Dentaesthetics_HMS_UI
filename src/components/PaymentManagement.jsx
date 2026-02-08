@@ -158,11 +158,23 @@ export default function PaymentManagement() {
   }, [paymentAppointments]);
 
   const openEditPaymentModal = useCallback((appointment) => {
+    // Ensure all values are properly parsed as numbers
+    const billable = parseFloat(appointment.billableAmount) || 0;
+    const paid = parseFloat(appointment.paidAmount) || 0;
+    const pending = billable - paid;
+
+    console.log('📋 Opening edit modal with appointment:', {
+      billable,
+      paid,
+      pending,
+      calculatedPending: Math.max(pending, 0)
+    });
+
     setEditingPaymentAppointment(appointment);
     setEditPaymentForm({
-      billableAmount: appointment.billableAmount || 0,
-      paidAmount: appointment.paidAmount || 0,
-      pendingAmount: appointment.pendingAmount || 0,
+      billableAmount: billable,
+      paidAmount: paid,
+      pendingAmount: Math.max(pending, 0),
       paymentStatus: appointment.paymentStatus || 'Pending',
       appointmentStatus: appointment.appointmentStatus || 'Scheduled'
     });
@@ -176,13 +188,24 @@ export default function PaymentManagement() {
     try {
       const billable = parseFloat(editPaymentForm.billableAmount) || 0;
       const paid = parseFloat(editPaymentForm.paidAmount) || 0;
-      const pending = billable - paid;
+      const pending = Math.max(billable - paid, 0);
+
+      console.log('💾 Saving payment with calculated values:', {
+        billable,
+        paid,
+        pending,
+        originalData: {
+          billable: editingPaymentAppointment.billableAmount,
+          paid: editingPaymentAppointment.paidAmount,
+          pending: editingPaymentAppointment.pendingAmount
+        }
+      });
 
       const updatedAppointment = {
         ...editingPaymentAppointment,
         billableAmount: billable,
-        paidAmount: Math.min(paid, billable),
-        pendingAmount: Math.max(pending, 0),
+        paidAmount: Math.min(paid, billable), // Ensure paid doesn't exceed billable
+        pendingAmount: pending, // Use calculated pending
         paymentStatus: editPaymentForm.paymentStatus,
         appointmentStatus: editPaymentForm.appointmentStatus
       };
@@ -421,10 +444,15 @@ export default function PaymentManagement() {
                         <span className="text-base font-bold text-stone-900">₹{(appt.billableAmount || 0).toLocaleString('en-IN')}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-sm font-bold text-emerald-700">₹{(appt.paidAmount || 0).toLocaleString('en-IN')}</span>
+                        <span className="text-sm font-bold text-emerald-700">₹{(appt.paidAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="text-sm font-bold text-rose-700">₹{(appt.pendingAmount || 0).toLocaleString('en-IN')}</span>
+                        {(() => {
+                          const billable = parseFloat(appt.billableAmount) || 0;
+                          const paid = parseFloat(appt.paidAmount) || 0;
+                          const pending = Math.max(billable - paid, 0);
+                          return <span className="text-sm font-bold text-rose-700">₹{pending.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>;
+                        })()}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
@@ -610,7 +638,17 @@ export default function PaymentManagement() {
                     type="number"
                     step="0.01"
                     value={editPaymentForm.billableAmount}
-                    onChange={(e) => setEditPaymentForm({ ...editPaymentForm, billableAmount: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const billable = parseFloat(e.target.value) || 0;
+                      const paid = parseFloat(editPaymentForm.paidAmount) || 0;
+                      const pending = Math.max(billable - paid, 0);
+                      console.log('💵 Updating billable amount:', { billable, paid, pending });
+                      setEditPaymentForm({ 
+                        ...editPaymentForm, 
+                        billableAmount: billable,
+                        pendingAmount: pending
+                      });
+                    }}
                     className="w-full p-3 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -623,11 +661,13 @@ export default function PaymentManagement() {
                     value={editPaymentForm.paidAmount}
                     onChange={(e) => {
                       const paid = parseFloat(e.target.value) || 0;
-                      const pending = editPaymentForm.billableAmount - paid;
+                      const billable = parseFloat(editPaymentForm.billableAmount) || 0;
+                      const pending = Math.max(billable - paid, 0);
+                      console.log('💰 Updating paid amount:', { paid, billable, pending });
                       setEditPaymentForm({ 
                         ...editPaymentForm, 
                         paidAmount: paid,
-                        pendingAmount: Math.max(pending, 0)
+                        pendingAmount: pending
                       });
                     }}
                     className="w-full p-3 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500"
