@@ -21,7 +21,7 @@ import Staff from "./pages/Staff";
 import TeamHub from "./pages/TeamHub";
 import Doctors from "./pages/Doctors";
 import ViewDoctors from "./pages/ViewDoctors";
-import DoctorClinicMapping from "./pages/DoctorClinicMapping";
+import DoctorClinicMappingTeamHub from "./pages/DoctorClinicMappingTeamHub";
 import DoctorClinicMappingSuperAdmin from "./pages/DoctorClinicMappingSuperAdmin";
 import ReceptionistOnboarding from "./pages/ReceptionistOnboarding";
 import ViewStaffDetails from "./pages/ViewStaffDetails";
@@ -44,7 +44,9 @@ import CampReports from "./pages/CampReports.jsx";
 import Footer from "./components/Footer";
 import WhatsAppChatbot from "./components/WhatsAppChatbot";
 import { useTokenExpiry } from "./context/TokenExpiryContext";
+import { ModalProvider } from "./context/ModalContext";
 import { tokenExpiryEmitter } from "./services/apiClient";
+import GlobalOnboardStaffModal from "./components/GlobalOnboardStaffModal";
 import { initializeTabFocusListener, startTokenRefreshHeartbeat, getAuthToken } from "./services/authService";
 
 export default function App(){
@@ -82,10 +84,11 @@ export default function App(){
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gradient-to-br from-cream-50 via-warmGray-50 to-teal-50/30">
-        <Header />
-        <main>
-          <Routes>
+      <ModalProvider>
+        <div className="min-h-screen bg-gradient-to-br from-cream-50 via-warmGray-50 to-teal-50/30">
+          <Header />
+          <main>
+            <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={<div className="max-w-6xl mx-auto"><Home /></div>} />
@@ -107,7 +110,7 @@ export default function App(){
           <Route path="/staff/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Staff" /></div>} />
           <Route path="/doctors" element={<Doctors />} />
           <Route path="/doctors/view" element={<ViewDoctors />} />
-          <Route path="/doctors/clinic-mapping" element={<DoctorClinicMapping />} />
+          <Route path="/doctors/clinic-mapping" element={<DoctorClinicMappingTeamHub />} />
           <Route path="/superadmin/clinic-mapping" element={<DoctorClinicMappingSuperAdmin />} />
           <Route path="/receptionists/onboard" element={<ReceptionistOnboarding />} />
           <Route path="/staff/onboard" element={<ReceptionistOnboarding />} />
@@ -137,7 +140,9 @@ export default function App(){
           onLogin={handleLoginRedirect}
           onClose={() => setShowTokenExpiryModal(false)}
         />
-      </div>
+        <GlobalOnboardStaffModal />
+        </div>
+      </ModalProvider>
     </ErrorBoundary>
   );
 }

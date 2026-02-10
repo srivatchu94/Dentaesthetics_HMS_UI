@@ -3,12 +3,15 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import FancyDatePicker from "../components/FancyDatePicker";
 import { createDoctor } from "../services/doctorService";
+import { getSelectedAccess } from "../services/authService";
+import { useModal } from "../context/ModalContext";
 
 const API_BASE_URL = (import.meta)?.env?.VITE_API_BASE_URL || 'https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api';
 
 export default function Clinics(){
   const [log, setLog] = useState([]);
   const navigate = useNavigate();
+  const { openOnboardStaffModal } = useModal();
   const [hoveredCard, setHoveredCard] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
   
@@ -133,7 +136,7 @@ export default function Clinics(){
   const [showClinicSuccessModal, setShowClinicSuccessModal] = useState(false);
   const [clinicSuccessMessage, setClinicSuccessMessage] = useState("");
   
-  // List Clinics Modal states
+  // View Clinics Modal states
   const [showListClinicsModal, setShowListClinicsModal] = useState(false);
   const [listClinicsSearchResults, setListClinicsSearchResults] = useState([]);
   const [listClinicsLoading, setListClinicsLoading] = useState(false);
@@ -148,6 +151,19 @@ export default function Clinics(){
   });
   const [selectedClinicView, setSelectedClinicView] = useState(null);
   const [showClinicDetailsModal, setShowClinicDetailsModal] = useState(false);
+  
+  // Edit Clinic Modal states
+  const [showEditClinicModal, setShowEditClinicModal] = useState(false);
+  const [editClinicForm, setEditClinicForm] = useState(null);
+  const [editingClinicId, setEditingClinicId] = useState(null);
+  const [editClinicLoading, setEditClinicLoading] = useState(false);
+  const [editClinicError, setEditClinicError] = useState("");
+  
+  // Delete Clinic confirmation states
+  const [showDeleteClinicConfirm, setShowDeleteClinicConfirm] = useState(false);
+  const [clinicToDelete, setClinicToDelete] = useState(null);
+  const [deletingClinic, setDeletingClinic] = useState(false);
+  const [deleteClinicError, setDeleteClinicError] = useState("");
   
   // Search Doctors Modal States
   const [showSearchDoctorsModal, setShowSearchDoctorsModal] = useState(false);
@@ -245,7 +261,7 @@ export default function Clinics(){
     const loadEnterprisesOnMount = async () => {
       try {
         setLoadingEnterprises(true);
-        const response = await fetch("`${API_BASE_URL}/Enterprise", {
+        const response = await fetch(`${API_BASE_URL}/Enterprise`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -259,10 +275,32 @@ export default function Clinics(){
           setAllEnterprises(Array.isArray(data) ? data : data.data || []);
           setDoctorEnterprises(Array.isArray(data) ? data : data.data || []);
         } else {
-          console.error("Failed to load enterprises on mount", response.status);
+          console.warn("Failed to load enterprises on mount", response.status, "using login enterprise");
+          // Fallback: Use enterprise from login
+          const selectedAccess = getSelectedAccess();
+          if (selectedAccess?.enterpriseId) {
+            const loginEnterprise = {
+              enterpriseId: selectedAccess.enterpriseId,
+              enterpriseName: `Enterprise ${selectedAccess.enterpriseId}`
+            };
+            setAllEnterprises([loginEnterprise]);
+            setDoctorEnterprises([loginEnterprise]);
+            console.log("✅ Using enterprise from login on mount:", loginEnterprise);
+          }
         }
       } catch (error) {
         console.error("Error loading enterprises on mount:", error);
+        // Fallback: Use enterprise from login
+        const selectedAccess = getSelectedAccess();
+        if (selectedAccess?.enterpriseId) {
+          const loginEnterprise = {
+            enterpriseId: selectedAccess.enterpriseId,
+            enterpriseName: `Enterprise ${selectedAccess.enterpriseId}`
+          };
+          setAllEnterprises([loginEnterprise]);
+          setDoctorEnterprises([loginEnterprise]);
+          console.log("✅ Using enterprise from login on mount (error):", loginEnterprise);
+        }
       } finally {
         setLoadingEnterprises(false);
       }
@@ -423,7 +461,7 @@ export default function Clinics(){
     const loadEnterprises = async () => {
       try {
         setLoadingEnterprises(true);
-        const response = await fetch("`${API_BASE_URL}/Enterprise", {
+        const response = await fetch(`${API_BASE_URL}/Enterprise`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -438,9 +476,33 @@ export default function Clinics(){
           
           // Also set for doctor onboarding
           setDoctorEnterprises(Array.isArray(data) ? data : data.data || []);
+        } else {
+          console.warn("Failed to load enterprises from API, using login enterprise");
+          // Fallback: Use enterprise from login
+          const selectedAccess = getSelectedAccess();
+          if (selectedAccess?.enterpriseId) {
+            const loginEnterprise = {
+              enterpriseId: selectedAccess.enterpriseId,
+              enterpriseName: `Enterprise ${selectedAccess.enterpriseId}`
+            };
+            setAllEnterprises([loginEnterprise]);
+            setDoctorEnterprises([loginEnterprise]);
+            console.log("✅ Using enterprise from login:", loginEnterprise);
+          }
         }
       } catch (error) {
         console.error("Error loading enterprises:", error);
+        // Fallback: Use enterprise from login
+        const selectedAccess = getSelectedAccess();
+        if (selectedAccess?.enterpriseId) {
+          const loginEnterprise = {
+            enterpriseId: selectedAccess.enterpriseId,
+            enterpriseName: `Enterprise ${selectedAccess.enterpriseId}`
+          };
+          setAllEnterprises([loginEnterprise]);
+          setDoctorEnterprises([loginEnterprise]);
+          console.log("✅ Using enterprise from login (error fallback):", loginEnterprise);
+        }
       } finally {
         setLoadingEnterprises(false);
       }
@@ -490,7 +552,7 @@ export default function Clinics(){
     loadClinics();
   }, [doctorFormData.enterpriseId]);
   
-  // Load clinics for List Clinics modal when enterprise is selected
+  // Load clinics for View Clinics modal when enterprise is selected
   useEffect(() => {
     const loadClinicsForListModal = async () => {
       if (!listClinicsFilters.enterpriseId || listClinicsFilters.enterpriseId === 0) {
@@ -510,7 +572,7 @@ export default function Clinics(){
         
         if (response.ok) {
           const data = await response.json();
-          console.log("🏥 Clinics loaded for enterprise in List Clinics:", data);
+          console.log("🏥 Clinics loaded for enterprise in View Clinics:", data);
           setDoctorClinics(Array.isArray(data) ? data : data.data || []);
           // Reset clinic selection when enterprise changes
           setListClinicsFilters(prev => ({ ...prev, clinicId: 0 }));
@@ -528,6 +590,45 @@ export default function Clinics(){
     
     loadClinicsForListModal();
   }, [listClinicsFilters.enterpriseId]);
+
+  // Load clinics automatically when View Clinics modal opens
+  useEffect(() => {
+    if (showListClinicsModal) {
+      const selectedAccess = getSelectedAccess();
+      if (selectedAccess?.enterpriseId) {
+        const loadAllClinics = async () => {
+          try {
+            setListClinicsLoading(true);
+            const response = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${selectedAccess.enterpriseId}`, {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+              }
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              console.log("🏥 All clinics loaded for enterprise:", data);
+              setListClinicsSearchResults(Array.isArray(data) ? data : [data]);
+              setListClinicsError("");
+            } else {
+              setListClinicsError("Failed to load clinics");
+              setListClinicsSearchResults([]);
+            }
+          } catch (error) {
+            console.error("Error loading clinics:", error);
+            setListClinicsError(error.message);
+            setListClinicsSearchResults([]);
+          } finally {
+            setListClinicsLoading(false);
+          }
+        };
+
+        loadAllClinics();
+      }
+    }
+  }, [showListClinicsModal]);
 
   // Load clinics for Search Doctors modal when enterprise is selected
   useEffect(() => {
@@ -617,24 +718,28 @@ export default function Clinics(){
       setManageEnterpriseError("");
       return;
     }
-    if (action === "Add Clinic") { 
+    if (action === "Add Clinic") {
+      // Pre-populate enterprise from login
+      const selectedAccess = getSelectedAccess();
+      if (selectedAccess?.enterpriseId) {
+        setCreateClinicForm(prev => ({
+          ...prev,
+          enterpriseId: selectedAccess.enterpriseId
+        }));
+      }
       setShowCreateClinicModal(true);
       return;
     }
-    if (action === "List Clinics") { 
+    if (action === "View Clinics") { 
       setShowListClinicsModal(true);
       return; 
     }
-    if (action === "View Doctors") { 
-      setShowSearchDoctorsModal(true);
-      setSearchDoctorsParams({ enterpriseId: 0, clinicId: 0 });
-      setSearchDoctorsResults([]);
-      setSearchDoctorsError("");
+    if (action === "View Staff") { 
+      navigate('/staff/details');
       return;
     }
-    if (action === "Onboard Doctors") { 
-      setShowDoctorModal(true);
-      setShowDoctorForm(true);
+    if (action === "Onboard Staff") { 
+      openOnboardStaffModal();
       return;
     }
     setLog((s) => [action, ...s].slice(0, 10));
@@ -1327,48 +1432,32 @@ export default function Clinics(){
       action: () => onAction("Add Clinic")
     },
     { 
-      title: "List Clinics", 
+      title: "View Clinics", 
       icon: "📋", 
       description: "View all registered clinics",
       color: "from-blue-400 to-cyan-400",
       bgColor: "from-blue-50 to-cyan-50",
-      action: () => onAction("List Clinics")
-    },
-    { 
-      title: "Update Clinic", 
-      icon: "✏️", 
-      description: "Modify clinic information",
-      color: "from-amber-400 to-orange-400",
-      bgColor: "from-amber-50 to-orange-50",
-      action: () => onAction("Update Clinic")
-    },
-    { 
-      title: "Delete Clinic", 
-      icon: "🗑️", 
-      description: "Remove clinic from system",
-      color: "from-rose-400 to-rose-500",
-      bgColor: "from-red-50 to-rose-50",
-      action: () => onAction("Delete Clinic")
+      action: () => onAction("View Clinics")
     }
   ];
 
-  // Doctor Onboarding Actions
+  // Staff Management Actions
   const doctorActions = [
     { 
-      title: "Onboard Doctors", 
+      title: "Onboard Staff", 
       icon: "👨‍⚕️", 
-      description: "Add and manage doctors",
+      description: "Add and manage staff",
       color: "from-indigo-400 to-purple-400",
       bgColor: "from-purple-50 to-indigo-50",
-      action: () => onAction("Onboard Doctors")
+      action: () => onAction("Onboard Staff")
     },
     { 
-      title: "View Doctors", 
-      icon: "👀", 
-      description: "Search and edit doctors",
+      title: "View Staff", 
+      icon: "👁️", 
+      description: "Search and manage staff profiles",
       color: "from-violet-400 to-purple-400",
       bgColor: "from-violet-50 to-purple-50",
-      action: () => onAction("View Doctors")
+      action: () => onAction("View Staff")
     },
     { 
       title: "Doctor-Clinic Mapping", 
@@ -1497,6 +1586,7 @@ export default function Clinics(){
       <div className="max-w-7xl mx-auto px-4 space-y-8">
         
         {/* ENTERPRISE MANAGEMENT SECTION */}
+        {getSelectedAccess().roleId === 1 && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1507,7 +1597,7 @@ export default function Clinics(){
             Enterprise Management
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {enterpriseActions.map((action, index) => (
+            {enterpriseActions.filter(() => getSelectedAccess().roleId === 1).map((action, index) => (
               <motion.div
                 key={action.title}
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -1556,6 +1646,7 @@ export default function Clinics(){
             ))}
           </div>
         </motion.div>
+        )}
 
         {/* CLINICS MANAGEMENT SECTION */}
         <motion.div
@@ -1615,56 +1706,10 @@ export default function Clinics(){
                 </div>
               </motion.div>
             ))}
-            
-            {/* Create Clinic Backup Tile */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.4 }}
-              whileHover={{ scale: 1.05, y: -5 }}
-              whileTap={{ scale: 0.98 }}
-              onHoverStart={() => setHoveredCard("Create Clinic Backup")}
-              onHoverEnd={() => setHoveredCard(null)}
-              onClick={() => setShowCreateClinicModal(true)}
-              className="relative cursor-pointer group"
-            >
-              <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-purple-400 to-indigo-400 p-6 shadow-lg hover:shadow-2xl transition-all duration-300">
-                {/* Animated shine effect */}
-                <motion.div
-                  animate={{
-                    x: hoveredCard === "Create Clinic Backup" ? ["-100%", "200%"] : "-100%",
-                  }}
-                  transition={{
-                    duration: 0.6,
-                    ease: "easeInOut"
-                  }}
-                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12"
-                />
-                
-                {/* Content */}
-                <div className="relative z-10">
-                  <motion.div
-                    animate={{
-                      rotate: hoveredCard === "Create Clinic Backup" ? [0, -10, 10, -10, 0] : 0,
-                    }}
-                    transition={{ duration: 0.5 }}
-                    className="text-5xl mb-3"
-                  >
-                    🏥
-                  </motion.div>
-                  <h3 className="text-xl font-bold text-white mb-2">
-                    Create Clinic
-                  </h3>
-                  <p className="text-white/90 text-sm">
-                    Backup access to clinic registration
-                  </p>
-                </div>
-              </div>
-            </motion.div>
           </div>
         </motion.div>
 
-        {/* DOCTOR ONBOARDING SECTION */}
+        {/* STAFF MANAGEMENT SECTION */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1672,7 +1717,7 @@ export default function Clinics(){
         >
           <h2 className="text-2xl font-bold text-slate-800 mb-4 flex items-center gap-3">
             <span>👨‍⚕️</span>
-            Doctor Onboarding
+            Staff Management
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {doctorActions.map((action, index) => (
@@ -1919,7 +1964,7 @@ export default function Clinics(){
                   <div>
                     <h2 className="text-3xl font-bold text-white flex items-center gap-3">
                       <span className="text-4xl">👨‍⚕️</span>
-                      Doctor Onboarding & Management
+                      Staff Management
                     </h2>
                     <p className="text-purple-100 mt-1">Manage doctor profiles, credentials, and specializations</p>
                   </div>
@@ -1946,7 +1991,7 @@ export default function Clinics(){
                 >
                   <h3 className="text-2xl font-bold text-purple-900 mb-6 flex items-center gap-2">
                     <span>➕</span>
-                    Doctor Onboarding
+                    Staff Management
                   </h3>
 
                     {/* Tab Navigation */}
@@ -2949,26 +2994,6 @@ export default function Clinics(){
                           className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-700 transition-colors"
                         />
                       </div>
-                      <div className="col-span-2">
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">Select Enterprise *</label>
-                        <select
-                          value={createClinicForm.enterpriseId}
-                          onChange={(e) => setCreateClinicForm({ ...createClinicForm, enterpriseId: parseInt(e.target.value) })}
-                          className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-700 transition-colors text-sm"
-                        >
-                          <option value="0">-- Select an Enterprise --</option>
-                          {allEnterprises.map((enterprise) => (
-                            <option key={enterprise.enterpriseId} value={enterprise.enterpriseId}>
-                              [{enterprise.enterpriseId}] {enterprise.enterpriseName}
-                            </option>
-                          ))}
-                        </select>
-                        {createClinicForm.enterpriseId === 0 && (
-                          <p className="text-xs text-red-600 font-semibold mt-1">
-                            ⚠️ Enterprise selection is required
-                          </p>
-                        )}
-                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -2991,18 +3016,38 @@ export default function Clinics(){
                           value={createClinicForm.contactEmail}
                           onChange={(e) => setCreateClinicForm({ ...createClinicForm, contactEmail: e.target.value })}
                           placeholder="clinic@example.com"
-                          className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-700 transition-colors"
+                          className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-700 transition-colors ${
+                            createClinicForm.contactEmail && !createClinicForm.contactEmail.includes('@') 
+                              ? 'border-red-500 bg-red-50' 
+                              : 'border-slate-300'
+                          }`}
                         />
+                        {createClinicForm.contactEmail && !createClinicForm.contactEmail.includes('@') && (
+                          <p className="text-xs text-red-600 font-semibold mt-1">⚠️ Please enter a valid email address</p>
+                        )}
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">Phone Number *</label>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Phone Number * (Max 10 digits)</label>
                         <input
                           type="tel"
                           value={createClinicForm.contactPhone}
-                          onChange={(e) => setCreateClinicForm({ ...createClinicForm, contactPhone: e.target.value })}
-                          placeholder="+1 (555) 000-0000"
-                          className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-700 transition-colors"
+                          onChange={(e) => {
+                            const phoneValue = e.target.value.replace(/\D/g, '');
+                            if (phoneValue.length <= 10) {
+                              setCreateClinicForm({ ...createClinicForm, contactPhone: phoneValue });
+                            }
+                          }}
+                          placeholder="Enter up to 10 digits"
+                          maxLength="10"
+                          className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-700 transition-colors ${
+                            createClinicForm.contactPhone.length > 10 ? 'border-red-500 bg-red-50' : 'border-slate-300'
+                          }`}
                         />
+                        {createClinicForm.contactPhone.length > 0 && (
+                          <p className="text-xs text-slate-600 font-semibold mt-1">
+                            {createClinicForm.contactPhone.length}/10 digits
+                          </p>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -3070,14 +3115,27 @@ export default function Clinics(){
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">Postal Code</label>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Postal Code * (Max 6 digits)</label>
                         <input
                           type="text"
                           value={createClinicForm.postalCode}
-                          onChange={(e) => setCreateClinicForm({ ...createClinicForm, postalCode: e.target.value })}
-                          placeholder="Postal Code"
-                          className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-700 transition-colors"
+                          onChange={(e) => {
+                            const postalValue = e.target.value.replace(/\D/g, '');
+                            if (postalValue.length <= 6) {
+                              setCreateClinicForm({ ...createClinicForm, postalCode: postalValue });
+                            }
+                          }}
+                          placeholder="Enter up to 6 digits"
+                          maxLength="6"
+                          className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-700 transition-colors ${
+                            createClinicForm.postalCode.length > 6 ? 'border-red-500 bg-red-50' : 'border-slate-300'
+                          }`}
                         />
+                        {createClinicForm.postalCode.length > 0 && (
+                          <p className="text-xs text-slate-600 font-semibold mt-1">
+                            {createClinicForm.postalCode.length}/6 digits
+                          </p>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -3289,10 +3347,10 @@ export default function Clinics(){
                           console.log("📋 Full clinic model:", clinicModel);
                           
                           // Call API to create clinic
-                          console.log("🔗 API Endpoint: `${API_BASE_URL}/Clinic/CreateClinicInfo");
+                          console.log("🔗 API Endpoint: ${API_BASE_URL}/Clinic/CreateClinicInfo");
                           console.log("📤 Sending clinicModel:", JSON.stringify(clinicModel, null, 2));
                           
-                          const response = await fetch("`${API_BASE_URL}/Clinic/CreateClinicInfo", {
+                          const response = await fetch(`${API_BASE_URL}/Clinic/CreateClinicInfo`, {
                             method: "POST",
                             headers: {
                               "Content-Type": "application/json",
@@ -4252,7 +4310,7 @@ export default function Clinics(){
         )}
       </AnimatePresence>
 
-      {/* List Clinics Modal */}
+      {/* View Clinics Modal */}
       <AnimatePresence>
         {showListClinicsModal && (
           <motion.div
@@ -4289,106 +4347,8 @@ export default function Clinics(){
 
               {/* Filter Section */}
               <div className="bg-gradient-to-r from-slate-50 to-blue-50 p-6 border-b-2 border-slate-200">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">🔍 Search Clinics by Enterprise</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                  {/* Enterprise Dropdown */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Select Enterprise *</label>
-                    <select
-                      value={listClinicsFilters.enterpriseId || 0}
-                      onChange={(e) => {
-                        setListClinicsFilters({
-                          ...listClinicsFilters, 
-                          enterpriseId: parseInt(e.target.value)
-                        });
-                        setDoctorClinics([]); // Reset clinic list when enterprise changes
-                        setListClinicsSearchResults([]);
-                      }}
-                      className="w-full px-3 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    >
-                      <option value="0">-- Select an Enterprise --</option>
-                      {allEnterprises.map((enterprise) => (
-                        <option key={enterprise.enterpriseId} value={enterprise.enterpriseId}>
-                          [{enterprise.enterpriseId}] {enterprise.enterpriseName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Clinic Dropdown */}
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Select Clinic *</label>
-                    <select
-                      value={listClinicsFilters.clinicId || 0}
-                      onChange={(e) => setListClinicsFilters({...listClinicsFilters, clinicId: parseInt(e.target.value)})}
-                      disabled={listClinicsFilters.enterpriseId === 0}
-                      className={`w-full px-3 py-2 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm ${
-                        listClinicsFilters.enterpriseId === 0
-                          ? "border-slate-300 bg-slate-100 cursor-not-allowed opacity-60"
-                          : "border-slate-300"
-                      }`}
-                    >
-                      <option value="0">-- Select a Clinic --</option>
-                      {loadingDoctorClinics ? (
-                        <option disabled>Loading clinics...</option>
-                      ) : (
-                        doctorClinics.map((clinic) => (
-                          <option key={clinic.clinicId} value={clinic.clinicId}>
-                            [{clinic.clinicId}] {clinic.clinicName} - {clinic.addressLine1}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </div>
-
-                  {/* Search Button */}
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={async () => {
-                      if (listClinicsFilters.clinicId === 0) {
-                        alert("⚠️ Please select a clinic to search");
-                        return;
-                      }
-
-                      try {
-                        setListClinicsLoading(true);
-                        const response = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${listClinicsFilters.clinicId}`, {
-                          method: "GET",
-                          headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-                          }
-                        });
-
-                        if (response.ok) {
-                          const data = await response.json();
-                          console.log("🏥 Clinic search result:", data);
-                          // If the API returns an array, use it; if single object, wrap in array
-                          setListClinicsSearchResults(Array.isArray(data) ? data : [data]);
-                          setListClinicsError("");
-                        } else {
-                          setListClinicsError("Failed to fetch clinic details");
-                          setListClinicsSearchResults([]);
-                        }
-                      } catch (error) {
-                        console.error("Error searching clinic:", error);
-                        setListClinicsError(error.message);
-                        setListClinicsSearchResults([]);
-                      } finally {
-                        setListClinicsLoading(false);
-                      }
-                    }}
-                    disabled={listClinicsFilters.clinicId === 0}
-                    className={`px-6 py-2 rounded-lg font-semibold transition ${
-                      listClinicsFilters.clinicId === 0
-                        ? "bg-slate-300 text-slate-500 cursor-not-allowed opacity-60"
-                        : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white"
-                    }`}
-                  >
-                    🔍 Search
-                  </motion.button>
-                </div>
+                <h3 className="text-lg font-bold text-slate-800">📋 Your Clinics</h3>
+                <p className="text-sm text-slate-600 mt-1">View and manage all clinics in your organization</p>
               </div>
 
               {/* Clinics List */}
@@ -4445,29 +4405,14 @@ export default function Clinics(){
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full">
-                    <p className="text-3xl mb-3">🔎</p>
-                    <p className="text-slate-600 text-center">No clinics found. Try adjusting your search filters or add a new clinic.</p>
+                    <p className="text-3xl mb-3">🏥</p>
+                    <p className="text-slate-600 text-center">No clinics found in your organization.</p>
                   </div>
                 )}
               </div>
 
               {/* Footer with Actions */}
               <div className="bg-slate-100 p-4 border-t-2 border-slate-200 flex justify-end items-center gap-3">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    setListClinicsFilters({
-                      enterpriseId: 0,
-                      clinicId: 0
-                    });
-                    setListClinicsSearchResults([]);
-                    setDoctorClinics([]);
-                  }}
-                  className="px-4 py-2 bg-slate-400 text-white rounded-lg font-semibold hover:bg-slate-500 transition"
-                >
-                  🔄 Reset
-                </motion.button>
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
@@ -4579,10 +4524,406 @@ export default function Clinics(){
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setEditClinicForm({ ...selectedClinicView });
+                    setEditingClinicId(selectedClinicView.clinicId);
+                    setShowClinicDetailsModal(false);
+                    setShowEditClinicModal(true);
+                  }}
+                  className="px-6 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg font-semibold hover:from-blue-600 hover:to-cyan-600 transition"
+                >
+                  ✏️ Edit
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    const confirmed = window.confirm(
+                      `⚠️ Are you sure you want to delete "${selectedClinicView.clinicName}"?\n\nThis action cannot be undone.`
+                    );
+                    if (confirmed) {
+                      setClinicToDelete(selectedClinicView);
+                      setShowClinicDetailsModal(false);
+                      setShowDeleteClinicConfirm(true);
+                    }
+                  }}
+                  className="px-6 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg font-semibold hover:from-red-600 hover:to-pink-600 transition"
+                >
+                  🗑️ Delete
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => setShowClinicDetailsModal(false)}
                   className="px-6 py-2 bg-slate-600 text-white rounded-lg font-semibold hover:bg-slate-700 transition"
                 >
                   Close
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Clinic Modal */}
+      <AnimatePresence>
+        {showEditClinicModal && editClinicForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowEditClinicModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-cyan-600 p-6 text-white sticky top-0">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-2xl font-bold">✏️ Edit Clinic</h3>
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowEditClinicModal(false)}
+                    className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center"
+                  >
+                    <span className="text-2xl">×</span>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Form Content */}
+              <div className="p-6 space-y-6">
+                {editClinicError && (
+                  <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
+                    <p className="text-red-600 font-semibold">❌ {editClinicError}</p>
+                  </div>
+                )}
+
+                {/* Basic Information */}
+                <div>
+                  <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <span>📋</span> Basic Information
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Clinic Name *</label>
+                      <input
+                        type="text"
+                        value={editClinicForm.clinicName}
+                        onChange={(e) => setEditClinicForm({ ...editClinicForm, clinicName: e.target.value })}
+                        placeholder="Enter clinic name"
+                        className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Clinic Code *</label>
+                      <input
+                        type="text"
+                        value={editClinicForm.clinicCode}
+                        onChange={(e) => setEditClinicForm({ ...editClinicForm, clinicCode: e.target.value })}
+                        placeholder="e.g., CLINIC-001"
+                        className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact Information */}
+                <div>
+                  <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <span>📞</span> Contact Information
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Email *</label>
+                      <input
+                        type="email"
+                        value={editClinicForm.contactEmail}
+                        onChange={(e) => setEditClinicForm({ ...editClinicForm, contactEmail: e.target.value })}
+                        placeholder="clinic@example.com"
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                          editClinicForm.contactEmail && !editClinicForm.contactEmail.includes('@') 
+                            ? 'border-red-500 bg-red-50' 
+                            : 'border-slate-300'
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Phone * (Max 10 digits)</label>
+                      <input
+                        type="tel"
+                        value={editClinicForm.contactPhone}
+                        onChange={(e) => {
+                          const phoneValue = e.target.value.replace(/\D/g, '');
+                          if (phoneValue.length <= 10) {
+                            setEditClinicForm({ ...editClinicForm, contactPhone: phoneValue });
+                          }
+                        }}
+                        placeholder="Enter up to 10 digits"
+                        maxLength="10"
+                        className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Address Information */}
+                <div>
+                  <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <span>📍</span> Address Information
+                  </h4>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Address Line 1 *</label>
+                      <input
+                        type="text"
+                        value={editClinicForm.addressLine1}
+                        onChange={(e) => setEditClinicForm({ ...editClinicForm, addressLine1: e.target.value })}
+                        placeholder="Street address"
+                        className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Address Line 2</label>
+                      <input
+                        type="text"
+                        value={editClinicForm.addressLine2 || ''}
+                        onChange={(e) => setEditClinicForm({ ...editClinicForm, addressLine2: e.target.value })}
+                        placeholder="Apartment, suite, etc. (optional)"
+                        className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">City *</label>
+                        <input
+                          type="text"
+                          value={editClinicForm.city}
+                          onChange={(e) => setEditClinicForm({ ...editClinicForm, city: e.target.value })}
+                          placeholder="City"
+                          className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">State *</label>
+                        <input
+                          type="text"
+                          value={editClinicForm.state}
+                          onChange={(e) => setEditClinicForm({ ...editClinicForm, state: e.target.value })}
+                          placeholder="State"
+                          className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Country</label>
+                        <input
+                          type="text"
+                          value={editClinicForm.country || ''}
+                          onChange={(e) => setEditClinicForm({ ...editClinicForm, country: e.target.value })}
+                          placeholder="Country"
+                          className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Postal Code * (Max 6 digits)</label>
+                        <input
+                          type="text"
+                          value={editClinicForm.postalCode || ''}
+                          onChange={(e) => {
+                            const postalValue = e.target.value.replace(/\D/g, '');
+                            if (postalValue.length <= 6) {
+                              setEditClinicForm({ ...editClinicForm, postalCode: postalValue });
+                            }
+                          }}
+                          placeholder="Enter up to 6 digits"
+                          maxLength="6"
+                          className="w-full px-4 py-2 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="bg-slate-100 p-4 border-t-2 border-slate-200 flex justify-end gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowEditClinicModal(false)}
+                  disabled={editClinicLoading}
+                  className="px-6 py-2 bg-slate-600 text-white rounded-lg font-semibold hover:bg-slate-700 transition disabled:opacity-60"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={async () => {
+                    if (!editClinicForm.clinicName || !editClinicForm.clinicCode || !editClinicForm.contactEmail || 
+                        !editClinicForm.contactPhone || !editClinicForm.addressLine1 || !editClinicForm.city || !editClinicForm.state) {
+                      setEditClinicError("Please fill in all required fields");
+                      return;
+                    }
+
+                    if (editClinicForm.contactEmail && !editClinicForm.contactEmail.includes('@')) {
+                      setEditClinicError("Please enter a valid email address");
+                      return;
+                    }
+
+                    try {
+                      setEditClinicLoading(true);
+                      setEditClinicError("");
+
+                      const response = await fetch(`${API_BASE_URL}/Clinic/${editingClinicId}`, {
+                        method: "PUT",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+                        },
+                        body: JSON.stringify(editClinicForm)
+                      });
+
+                      if (response.ok) {
+                        setShowEditClinicModal(false);
+                        // Refresh the clinics list
+                        setListClinicsSearchResults([]);
+                        setListClinicsFilters({ ...listClinicsFilters, clinicId: 0 });
+                        alert("✅ Clinic updated successfully!");
+                      } else {
+                        const errorData = await response.text();
+                        setEditClinicError(`Failed to update clinic: ${errorData || response.statusText}`);
+                      }
+                    } catch (error) {
+                      console.error("Error updating clinic:", error);
+                      setEditClinicError(error.message || "Error updating clinic");
+                    } finally {
+                      setEditClinicLoading(false);
+                    }
+                  }}
+                  disabled={editClinicLoading}
+                  className="px-6 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg font-semibold hover:from-blue-600 hover:to-cyan-600 transition disabled:opacity-60"
+                >
+                  {editClinicLoading ? "Saving..." : "💾 Save Changes"}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Clinic Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteClinicConfirm && clinicToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-6">
+                <span className="text-4xl">🗑️</span>
+                <h3 className="text-2xl font-bold text-slate-800">Delete Clinic?</h3>
+              </div>
+
+              {/* Message */}
+              <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-6">
+                <p className="text-slate-800">
+                  Are you sure you want to delete <span className="font-bold text-red-600">{clinicToDelete.clinicName}</span>?
+                </p>
+                <p className="text-sm text-slate-600 mt-2">This action cannot be undone.</p>
+              </div>
+
+              {/* Error Message */}
+              {deleteClinicError && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-4">
+                  <p className="text-red-600 font-semibold">❌ {deleteClinicError}</p>
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    setShowDeleteClinicConfirm(false);
+                    setClinicToDelete(null);
+                  }}
+                  disabled={deletingClinic}
+                  className="flex-1 px-4 py-2 bg-slate-600 text-white rounded-lg font-semibold hover:bg-slate-700 transition disabled:opacity-60"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={async () => {
+                    try {
+                      setDeletingClinic(true);
+                      setDeleteClinicError("");
+
+                      const response = await fetch(`${API_BASE_URL}/Clinic/${clinicToDelete.clinicId}`, {
+                        method: "DELETE",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+                        }
+                      });
+
+                      if (response.ok) {
+                        setShowDeleteClinicConfirm(false);
+                        alert("✅ Clinic deleted successfully!");
+                        
+                        // Reload clinics list from login enterprise
+                        const selectedAccess = getSelectedAccess();
+                        if (selectedAccess?.enterpriseId) {
+                          try {
+                            const reloadResponse = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${selectedAccess.enterpriseId}`, {
+                              method: "GET",
+                              headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+                              }
+                            });
+
+                            if (reloadResponse.ok) {
+                              const data = await reloadResponse.json();
+                              console.log("🏥 Clinics reloaded after deletion:", data);
+                              setListClinicsSearchResults(Array.isArray(data) ? data : [data]);
+                            }
+                          } catch (reloadError) {
+                            console.error("Error reloading clinics:", reloadError);
+                          }
+                        }
+                      } else {
+                        const errorData = await response.text();
+                        setDeleteClinicError(`Failed to delete clinic: ${errorData || response.statusText}`);
+                      }
+                    } catch (error) {
+                      console.error("Error deleting clinic:", error);
+                      setDeleteClinicError(error.message || "Error deleting clinic");
+                    } finally {
+                      setDeletingClinic(false);
+                    }
+                  }}
+                  disabled={deletingClinic}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg font-semibold hover:from-red-600 hover:to-pink-600 transition disabled:opacity-60"
+                >
+                  {deletingClinic ? "Deleting..." : "🗑️ Delete"}
                 </motion.button>
               </div>
             </motion.div>

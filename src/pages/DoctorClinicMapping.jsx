@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import FancyDatePicker from "../components/FancyDatePicker";
 import { listDoctorProfiles, searchDoctors, mapDoctorToClinics, listClinicalSpecialties, getDoctorsByEnterpriseId, getDoctorClinicMappings } from "../services/doctorService";
 import { listClinics, getClinicsByEnterpriseId as getEnterpriseClinics, getClinic as getClinicById } from "../services/clinicService";
+import { getSelectedAccess } from "../services/authService";
 
 export default function DoctorClinicMapping() {
   const [doctors, setDoctors] = useState([]);
@@ -39,6 +40,13 @@ export default function DoctorClinicMapping() {
 
   useEffect(() => {
     loadData();
+    const access = getSelectedAccess();
+    if (access?.enterpriseId) {
+      setSearchFilters((prev) => ({
+        ...prev,
+        enterpriseId: access.enterpriseId.toString(),
+      }));
+    }
   }, []);
 
   const loadData = async () => {
@@ -149,356 +157,9 @@ export default function DoctorClinicMapping() {
       try {
         const taggedMappings = await getDoctorClinicMappings(doctor.doctorId);
         taggedClinicIds = Array.isArray(taggedMappings)
-          ? taggedMappings.map(m => m.clinicId).filter(id => !!id && parseInt(id) > 0)
-          : [];
-      } catch (e) {
-        console.warn('Tagged clinic mappings fetch failed:', e);
-      }
+          import DoctorClinicMappingSuperAdmin from "./DoctorClinicMappingSuperAdmin";
 
-      // Pre-select: doctor's current branch and any tagged clinic ids
-      const preselected = [doctor.branchId, ...taggedClinicIds].filter((v, i, a) => v && a.indexOf(v) === i);
-      setSelectedClinics(preselected);
-
-      // Fetch enterprise clinics if enterpriseId available
-      let enterpriseClinics = [];
-      if (enterpriseId) {
-        try {
-          const resp = await getEnterpriseClinics(enterpriseId);
-          // Normalize to array in case API returns single object
-          enterpriseClinics = Array.isArray(resp) ? resp : (resp ? [resp] : []);
-          // Tag source for visual separation
-          enterpriseClinics = enterpriseClinics.map(c => ({ ...c, source: 'enterprise' }));
-        } catch (e) {
-          console.warn('Enterprise clinics fetch failed:', e);
-        }
-      }
-
-      // Ensure all tagged clinics have details; fetch missing ones by ID
-      const enterpriseClinicIds = new Set(enterpriseClinics.map(c => c.clinicId));
-      const missingTaggedIds = taggedClinicIds.filter(id => !enterpriseClinicIds.has(id));
-      const missingTaggedClinics = await Promise.all(
-        missingTaggedIds.map(async (id) => {
-          try {
-            const c = await getClinicById(id);
-            return c;
-          } catch (e) {
-            console.warn('Failed to fetch tagged clinic detail for id', id, e);
-            return null;
-          }
-        })
-      );
-
-      const taggedClinicsDetailed = missingTaggedClinics
-        .filter(Boolean)
-        .map(c => ({ ...c, source: 'tagged' }));
-
-      // Merge enterprise clinics with tagged clinics (unique by clinicId)
-      const mergedById = new Map();
-      [...enterpriseClinics, ...taggedClinicsDetailed].forEach(c => {
-        if (c && c.clinicId) mergedById.set(c.clinicId, c);
-      });
-      const mergedClinics = Array.from(mergedById.values());
-
-      setClinics(mergedClinics);
-      // Set active tab to first preselected clinic for quick configuration
-      setActiveClinicTab(preselected[0] || null);
-    } catch (error) {
-      console.error("Error preparing clinics for doctor selection:", error);
-      // Do not hard-fail; keep current clinics list
-    } finally {
-      setClinicsLoading(false);
-    }
-  };
-
-  const toggleClinicSelection = (clinicId) => {
-    // Validate clinic ID
-    if (!clinicId || parseInt(clinicId) <= 0) {
-      console.error('Invalid clinic ID:', clinicId);
-      return;
-    }
-    const clinicMeta = clinics.find(c => c.clinicId === clinicId);
-    
-    setSelectedClinics(prev => {
-      const isAlreadySelected = prev.includes(clinicId);
-      if (!isAlreadySelected && clinicMeta?.source === 'tagged') {
-        alert('This doctor is already mapped to this clinic. You can update its configuration and save.');
-      }
-      
-      if (prev.includes(clinicId)) {
-        // Remove clinic and its configuration
-        const newMappings = { ...clinicMappings };
-        delete newMappings[clinicId];
-        setClinicMappings(newMappings);
-        
-        // If removing the active clinic, switch to another or set to null
-        if (activeClinicTab === clinicId) {
-          const remainingClinics = prev.filter(id => id !== clinicId);
-          setActiveClinicTab(remainingClinics.length > 0 ? remainingClinics[0] : null);
-        }
-        
-        return prev.filter(id => id !== clinicId);
-      } else {
-        // Add clinic with default configuration
-        setClinicMappings(prev => ({
-          ...prev,
-          [clinicId]: {
-            doctorRole: "Consultant",
-            specialty: "",
-            startDate: new Date().toISOString().split('T')[0],
-            endDate: "",
-            availableDays: "",
-            isPrimaryClinic: false,
-            consultationType: "In-person",
-            isActive: true
-          }
-        }));
-        // Always set newly selected clinic as active tab to show configuration immediately
-        setActiveClinicTab(clinicId);
-        return [...prev, clinicId];
-      }
-    });
-  };
-
-  const updateClinicMapping = (clinicId, field, value) => {
-    // Check if user is trying to set another clinic as primary
-    if (field === 'isPrimaryClinic' && value === true) {
-      // Find if there's already a primary clinic selected
-      const currentPrimaryClinic = Object.entries(clinicMappings).find(
-        ([id, config]) => id !== clinicId.toString() && config.isPrimaryClinic === true
-      );
-      
-      if (currentPrimaryClinic) {
-        const [primaryClinicId] = currentPrimaryClinic;
-        const primaryClinic = clinics.find(c => c.clinicId === parseInt(primaryClinicId));
-        
-        setPrimaryClinicWarning({ 
-          clinicName: primaryClinic?.clinicName || 'Another clinic',
-          clinicAddress: primaryClinic?.clinicAddress || primaryClinic?.clinicCity || 'No address available'
-        });
-        setShowPrimaryWarning(true);
-        return; // Don't update if there's already a primary clinic
-      }
-    }
-
-    // Prevent end date earlier than start date
-    if (field === 'endDate' && value) {
-      const start = clinicMappings[clinicId]?.startDate;
-      if (start && new Date(value) < new Date(start)) {
-        alert('End date cannot be before start date.');
-        return;
-      }
-    }
-    if (field === 'startDate' && value) {
-      const end = clinicMappings[clinicId]?.endDate;
-      if (end && new Date(end) < new Date(value)) {
-        alert('End date cannot be before start date.');
-        return;
-      }
-    }
-    
-    setClinicMappings(prev => ({
-      ...prev,
-      [clinicId]: {
-        ...prev[clinicId],
-        [field]: value
-      }
-    }));
-  };
-
-  const handleSaveMapping = async () => {
-    if (!selectedDoctor) {
-      alert("Please select a doctor first.");
-      return;
-    }
-
-    if (selectedClinics.length === 0) {
-      alert("Please select at least one clinic.");
-      return;
-    }
-
-    // Validate that at least one clinic has configuration
-    const hasAnyConfiguration = selectedClinics.some(clinicId => {
-      const config = clinicMappings[clinicId];
-      return config && (config.doctorRole || config.consultationType || config.startDate);
-    });
-
-    if (!hasAnyConfiguration) {
-      alert("⚠️ Please configure at least one clinic before saving.");
-      return;
-    }
-
-    try {
-      // Build array of all mappings for selected clinics, filtering out invalid clinic IDs
-      const mappings = selectedClinics
-        .filter(clinicId => clinicId && parseInt(clinicId) > 0) // Only valid clinic IDs
-        .map(clinicId => {
-          const clinicConfig = clinicMappings[clinicId] || {};
-          
-          console.log('Building mapping for clinic:', clinicId, 'Config:', clinicConfig);
-          
-          // Build the model matching C# backend DoctorClinicMapping structure
-          return {
-            // Foreign Keys (required)
-            doctorId: selectedDoctor.staffId || selectedDoctor.doctorId, // Use staffId from doctor profile
-            clinicId: parseInt(clinicId),
-          
-          // Flags
-          isActive: true, // Default to active
-          
-          // Context / Role
-          doctorRole: clinicConfig.doctorRole || "Consultant",
-          specialty: selectedDoctor.specialty || clinicConfig.specialty || null,
-          
-          // Schedule / Availability
-          startDate: clinicConfig.startDate ? new Date(clinicConfig.startDate).toISOString() : new Date().toISOString(),
-          endDate: clinicConfig.endDate ? new Date(clinicConfig.endDate).toISOString() : null,
-          availableDays: clinicConfig.availableDays || null,
-          
-          // Operational Flags
-          isPrimaryClinic: clinicConfig.isPrimaryClinic || false,
-          consultationType: clinicConfig.consultationType || "In-person",
-          
-          // Audit Columns
-          createdBy: "System", // TODO: Get from auth context
-          createdAt: new Date().toISOString(),
-          updatedBy: "System",
-          updatedAt: new Date().toISOString()
-        };
-        });
-
-      console.log('Sending mappings to API:', JSON.stringify(mappings, null, 2));
-      
-      if (mappings.length === 0) {
-        setErrorMessage("No valid clinic mappings found. Did you forget to select clinics?");
-        setShowErrorModal(true);
-        return;
-      }
-
-      // Send all mappings in a single API call as List<DoctorClinicMapping>
-      const response = await mapDoctorToClinics(mappings);
-      
-      console.log('API Response:', response);
-      
-      // Show success modal with mapped clinic details
-      try {
-        const mappedClinics = selectedClinics
-          .map(id => clinics.find(c => c.clinicId === id)?.clinicName || `Clinic ${id}`);
-        const primaryClinics = selectedClinics
-          .filter(id => clinicMappings[id]?.isPrimaryClinic)
-          .map(id => clinics.find(c => c.clinicId === id)?.clinicName || `Clinic ${id}`);
-
-        setSuccessData({
-          doctorName: `${selectedDoctor.firstName} ${selectedDoctor.lastName}`,
-          clinicCount: mappings.length,
-          mappedClinics,
-          primaryClinics
-        });
-      } catch (e) {
-        console.warn('Could not build mapped clinics success details', e);
-        setSuccessData({
-          doctorName: `${selectedDoctor.firstName} ${selectedDoctor.lastName}`,
-          clinicCount: mappings.length,
-          mappedClinics: [],
-          primaryClinics: []
-        });
-      }
-      setShowSuccessModal(true);
-      
-      // Keep selections visible - don't reset
-      // User can see what was just saved
-      
-    } catch (error) {
-      console.error("Error saving mapping:", error);
-      const errorMsg = error.message || "Something went wrong";
-      setErrorMessage(errorMsg);
-      setShowErrorModal(true);
-    }
-  };
-
-  const filteredDoctors = doctors.filter(doctor =>
-    `${doctor.firstName} ${doctor.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    doctor.staffId.toString().includes(searchTerm)
-  );
-
-  // Guidance messages - skip welcome, start with step 1
-  const guidanceMessages = [
-    { icon: "🏭", title: "Step 1", message: "Enter your Enterprise ID to get started", color: "from-blue-500 to-cyan-500" },
-    { icon: "👨‍⚕️", title: "Step 2", message: "Search and select a doctor from the list", color: "from-green-500 to-emerald-500" },
-    { icon: "🏥", title: "Step 3", message: "Pick clinics and configure each mapping", color: "from-orange-500 to-amber-500" },
-  ];
-
-  return (
-    <div className="h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 overflow-hidden">
-      {/* Interactive Guidance Tooltip */}
-      <AnimatePresence>
-        {showGuidance && guidanceStep < guidanceMessages.length && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className={`fixed z-50 pointer-events-none ${
-              guidanceStep === 0 ? 'top-6 right-6' : // Move away from filters to avoid blocking input
-              guidanceStep === 1 ? 'top-1/2 left-8 transform -translate-y-1/2' : // Doctors - left side
-              'top-1/2 right-8 transform -translate-y-1/2' // Clinics - right side
-            }`}
-          >
-            <div className={`pointer-events-auto bg-gradient-to-r ${guidanceMessages[guidanceStep].color} text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 min-w-[400px]`}>
-              <span className="text-4xl">{guidanceMessages[guidanceStep].icon}</span>
-              <div className="flex-1">
-                <h3 className="font-bold text-lg">{guidanceMessages[guidanceStep].title}</h3>
-                <p className="text-sm opacity-90">{guidanceMessages[guidanceStep].message}</p>
-              </div>
-              <div className="flex gap-2">
-                {guidanceStep < guidanceMessages.length - 1 && (
-                  <button
-                    onClick={() => setGuidanceStep(guidanceStep + 1)}
-                    className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-sm font-semibold transition-all"
-                  >
-                    Next →
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowGuidance(false)}
-                  className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-sm font-semibold transition-all"
-                >
-                  Got it! ✔️
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Primary Clinic Warning Modal */}
-      <AnimatePresence>
-        {showPrimaryWarning && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowPrimaryWarning(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.8, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.8, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
-            >
-              {/* Modal Header */}
-              <div className="bg-gradient-to-r from-amber-500 to-orange-500 p-6 text-white">
-                <div className="flex items-center gap-4">
-                  <div className="bg-white/20 rounded-full p-3">
-                    <span className="text-4xl">⚠️</span>
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold">Primary Clinic Already Set</h3>
-                    <p className="text-amber-100 text-sm mt-1">Please review your selection</p>
-                  </div>
-                </div>
-              </div>
-
+          export default DoctorClinicMappingSuperAdmin;
               {/* Modal Body */}
               <div className="p-6">
                 <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4 mb-4">
@@ -732,18 +393,11 @@ export default function DoctorClinicMapping() {
         >
           <div className="flex items-center gap-3">
             <input
-              type="number"
-              inputMode="numeric"
-              placeholder="🏭 Enterprise ID"
+              type="text"
+              placeholder="Enterprise ID"
               value={searchFilters.enterpriseId}
-              onChange={(e) => {
-                // Allow empty value or digits only
-                const next = e.target.value;
-                if (next === "" || /^\d+$/.test(next)) {
-                  setSearchFilters({ ...searchFilters, enterpriseId: next });
-                }
-              }}
-              className="flex-1 px-4 py-2.5 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 text-sm font-medium"
+              readOnly
+              className="flex-1 px-4 py-2.5 border-2 border-indigo-300 rounded-lg bg-gray-100 text-sm font-medium cursor-not-allowed"
             />
             <input
               type="text"

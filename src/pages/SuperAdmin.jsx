@@ -596,7 +596,7 @@ export default function SuperAdmin() {
       const response = await fetch(SUPERADMIN_ENDPOINTS.list, {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
       if (!response.ok) {
@@ -635,7 +635,7 @@ export default function SuperAdmin() {
     try {
       setRolesLoading(true);
       console.log("📡 Fetching roles from:", ROLE_ENDPOINTS.getAll);
-      const token = localStorage.getItem("accessToken");
+      const token = localStorage.getItem("authToken");
       console.log("🔑 Token available:", !!token);
       
       const response = await fetch(ROLE_ENDPOINTS.getAll, {
@@ -757,7 +757,7 @@ export default function SuperAdmin() {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         },
         body: JSON.stringify(payload)
       });
@@ -850,7 +850,7 @@ export default function SuperAdmin() {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
       
@@ -924,7 +924,7 @@ export default function SuperAdmin() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         },
         body: JSON.stringify(payload)
       });
@@ -962,7 +962,7 @@ export default function SuperAdmin() {
         headers: {
           "Content-Type": "application/json",
           // Include token when available; API will ignore if not required
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
       
@@ -1091,7 +1091,7 @@ export default function SuperAdmin() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         },
         body: JSON.stringify(payload)
       });
@@ -1130,7 +1130,7 @@ export default function SuperAdmin() {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
       
@@ -1166,7 +1166,7 @@ export default function SuperAdmin() {
       const response = await fetch(CLINIC_ENDPOINTS.list, {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
       if (!response.ok) {
@@ -1257,7 +1257,7 @@ export default function SuperAdmin() {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
 
@@ -1452,7 +1452,7 @@ export default function SuperAdmin() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         },
         body: JSON.stringify(clinicModel)
       });
@@ -1513,7 +1513,7 @@ export default function SuperAdmin() {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
       
@@ -1831,7 +1831,7 @@ export default function SuperAdmin() {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
   
@@ -2029,7 +2029,7 @@ export default function SuperAdmin() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         },
         body: JSON.stringify(payload)
       });
@@ -2092,7 +2092,7 @@ export default function SuperAdmin() {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
       
@@ -2608,7 +2608,7 @@ export default function SuperAdmin() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         },
         body: JSON.stringify(payload)
       });
@@ -2675,7 +2675,7 @@ export default function SuperAdmin() {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
 
@@ -2954,7 +2954,7 @@ export default function SuperAdmin() {
       
       // SuperAdmins: Make API call with target enterprise/clinic headers
       if (isSuperAdmin) {
-        const token = localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken_session");
+        const token = localStorage.getItem("authToken") || sessionStorage.getItem("accessToken_session");
         const targetEnterpriseId = Number(createPatientForm.enterpriseId);
         const targetClinicId = Number(createPatientForm.clinicId);
         
@@ -3049,7 +3049,7 @@ export default function SuperAdmin() {
       const response = await fetch(INVENTORY_ENDPOINTS.master.list, {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
 
@@ -3098,7 +3098,7 @@ export default function SuperAdmin() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         },
         body: JSON.stringify(createInventoryForm)
       });
@@ -3143,7 +3143,7 @@ export default function SuperAdmin() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         },
         body: JSON.stringify(editInventoryForm)
       });
@@ -3177,7 +3177,7 @@ export default function SuperAdmin() {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
 
@@ -3321,7 +3321,7 @@ export default function SuperAdmin() {
       let endpoint = "";
       let headers = {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+        Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
       };
 
       if (clinicId) {
@@ -3399,7 +3399,7 @@ export default function SuperAdmin() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         },
         body: JSON.stringify(editPatientForm)
       });
@@ -3436,7 +3436,7 @@ export default function SuperAdmin() {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+          Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
         }
       });
 
@@ -3523,7 +3523,7 @@ export default function SuperAdmin() {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+              Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
             }
           });
 
@@ -3557,7 +3557,7 @@ export default function SuperAdmin() {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+              Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
             }
           });
 
@@ -3605,7 +3605,7 @@ export default function SuperAdmin() {
               method: "GET",
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+                Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
               }
             }
           );
@@ -6242,7 +6242,7 @@ export default function SuperAdmin() {
                             method: "POST",
                             headers: {
                               "Content-Type": "application/json",
-                              Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+                              Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
                             },
                             body: JSON.stringify(payload)
                           });
@@ -7723,7 +7723,7 @@ export default function SuperAdmin() {
                             method: "POST",
                             headers: {
                               "Content-Type": "application/json",
-                              Authorization: `Bearer ${localStorage.getItem("accessToken") || ""}`
+                              Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
                             },
                             body: JSON.stringify(clinicModel)
                           });

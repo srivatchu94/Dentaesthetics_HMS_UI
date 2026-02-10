@@ -352,7 +352,7 @@ export default function DoctorClinicMappingSuperAdmin() {
         StartDate: cfg.startDate ? new Date(cfg.startDate).toISOString() : new Date().toISOString(),
         EndDate: cfg.endDate ? new Date(cfg.endDate).toISOString() : null,
         AvailableDays: cfg.availableDays || null,
-        IsPrimaryClinic: cfg.isPrimaryClinic || (primaryClinicId && primaryClinicId === clinicId) || false,
+        IsPrimaryClinic: !!cfg.isPrimaryClinic,
         ConsultationType: cfg.consultationType,
         CreatedBy: "System",
         CreatedAt: new Date().toISOString(),

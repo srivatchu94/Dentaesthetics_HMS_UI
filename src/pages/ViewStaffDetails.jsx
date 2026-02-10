@@ -2,7 +2,10 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { listRolesForStaff } from "../services/roleService";
-import { getSelectedAccess } from "../services/authService";
+import { getSelectedAccess, getAuthToken } from "../services/authService";
+import { getClinicsByEnterpriseId } from "../services/clinicService";
+
+const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
 export default function ViewStaffDetails() {
   const navigate = useNavigate();
@@ -33,11 +36,8 @@ export default function ViewStaffDetails() {
   const [isDeletingStaff, setIsDeletingStaff] = useState(false);
 
   // Enterprise and Clinic state
-  const [enterprises, setEnterprises] = useState([]);
   const [clinics, setClinics] = useState([]);
-  const [isLoadingEnterprises, setIsLoadingEnterprises] = useState(false);
   const [isLoadingClinics, setIsLoadingClinics] = useState(false);
-  const [freezeEnterprise, setFreezeEnterprise] = useState(false);
 
   // Roles from API
   const [roleOptions, setRoleOptions] = useState([]);
@@ -61,37 +61,6 @@ export default function ViewStaffDetails() {
     loadRoles();
   }, []);
 
-  // Fetch all enterprises on component mount
-  useEffect(() => {
-    const fetchEnterprises = async () => {
-      try {
-        setIsLoadingEnterprises(true);
-        const response = await fetch("`${API_BASE_URL}/Enterprise/GetAllEnterprises", {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const enterpriseList = Array.isArray(data) ? data : (data?.enterprises || []);
-          console.log("📋 Enterprises loaded:", enterpriseList);
-          setEnterprises(enterpriseList);
-        } else {
-          console.error("Failed to fetch enterprises");
-        }
-      } catch (err) {
-        console.error("Error fetching enterprises:", err);
-      } finally {
-        setIsLoadingEnterprises(false);
-      }
-    };
-
-    fetchEnterprises();
-  }, []);
-
   // Pre-fill enterprise (and optional clinic) from login and freeze enterprise selection
   useEffect(() => {
     const selected = getSelectedAccess();
@@ -101,42 +70,28 @@ export default function ViewStaffDetails() {
         enterpriseId: selected.enterpriseId.toString(),
         clinicId: selected.clinicId ? selected.clinicId.toString() : prev.clinicId
       }));
-      setFreezeEnterprise(true);
     }
   }, []);
 
   // Fetch clinics when enterprise is selected
   useEffect(() => {
     const fetchClinics = async () => {
+      console.log("🔍 fetchClinics triggered, enterpriseId:", searchFilters.enterpriseId);
+      
       if (!searchFilters.enterpriseId) {
+        console.log("⚠️ No enterpriseId, clearing clinics");
         setClinics([]);
         return;
       }
 
       try {
         setIsLoadingClinics(true);
-        const response = await fetch(
-          `${API_BASE_URL}/Clinic/GetClinicByID?id=${searchFilters.enterpriseId}`,
-          {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
-            }
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          const clinicList = Array.isArray(data) ? data : (data?.clinics || [data]);
-          console.log("📋 Clinics loaded:", clinicList);
-          setClinics(clinicList);
-        } else {
-          console.error("Failed to fetch clinics");
-          setClinics([]);
-        }
+        console.log("📡 Fetching clinics for enterpriseId:", searchFilters.enterpriseId);
+        const data = await getClinicsByEnterpriseId(parseInt(searchFilters.enterpriseId));
+        console.log("✅ Clinics loaded:", data);
+        setClinics(Array.isArray(data) ? data : data?.data || []);
       } catch (err) {
-        console.error("Error fetching clinics:", err);
+        console.error("❌ Error fetching clinics:", err);
         setClinics([]);
       } finally {
         setIsLoadingClinics(false);
@@ -209,8 +164,11 @@ export default function ViewStaffDetails() {
 
     try {
       setIsSearching(true);
+      const token = getAuthToken();
+      console.log("🔑 Token exists:", !!token, "Token length:", token?.length || 0);
+
       const params = new URLSearchParams();
-      // Convert role to lowercase for API compatibility
+      // Role-based profile endpoint supports optional filters
       params.append("rolesAssigned", searchFilters.rolesAssigned.toLowerCase());
       params.append("enterpriseId", searchFilters.enterpriseId);
       if (searchFilters.clinicId) params.append("clinicId", searchFilters.clinicId);
@@ -223,14 +181,26 @@ export default function ViewStaffDetails() {
       console.log("✅ hasProfileID:", hasProfileID, "| hasFirstName:", hasFirstName, "| hasLastName:", hasLastName);
       console.log("🌐 Full API URL:", url);
       console.log("📋 Query Params:", params.toString());
+      console.log("📤 Sending request with Authorization header...");
+      
+      const headers = {
+        "Content-Type": "application/json"
+      };
+      
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
       
       const response = await fetch(url, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
-        }
+        headers
       });
+
+      console.log("📊 Response Status:", response.status, response.statusText);
+
+      if (response.status === 401) {
+        throw new Error("Authentication expired. Please login again.");
+      }
 
       if (response.status === 404) {
         setStaffList([]);
@@ -242,7 +212,8 @@ export default function ViewStaffDetails() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(errorText || "Failed to fetch staff profiles");
+        console.error("❌ API Error Response:", errorText);
+        throw new Error(errorText || `Failed to fetch staff profiles (${response.status})`);
       }
 
       const data = await response.json();
@@ -283,6 +254,20 @@ export default function ViewStaffDetails() {
 
   const handleEditFormChange = e => {
     const { name, value } = e.target;
+
+    if (name === "phone" || name === "emergencyContact") {
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+      setEditFormData(prev => ({ ...prev, [name]: digitsOnly }));
+      return;
+    }
+
+    if (name === "dateOfBirth" || name === "licenseExpiry" || name === "joiningDate") {
+      if (value) {
+        const yearPart = value.split("-")[0] || "";
+        if (yearPart.length > 4) return;
+      }
+    }
+
     setEditFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -291,6 +276,11 @@ export default function ViewStaffDetails() {
     
     if (!editFormData.firstName || !editFormData.lastName || !editFormData.email) {
       setError("Please fill all required fields");
+      return;
+    }
+
+    if (editFormData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editFormData.email)) {
+      setError("Please enter a valid email address");
       return;
     }
 
@@ -373,7 +363,7 @@ export default function ViewStaffDetails() {
           headers: {
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+            "Authorization": `Bearer ${getAuthToken() || ""}`
           },
           body: JSON.stringify(payload)
         });
@@ -408,8 +398,9 @@ export default function ViewStaffDetails() {
           const searchParams = new URLSearchParams();
           searchParams.append("rolesAssigned", searchFilters.rolesAssigned);
           searchParams.append("enterpriseId", searchFilters.enterpriseId);
+          // Role-based profile endpoint supports optional filters
           if (searchFilters.clinicId) searchParams.append("clinicId", searchFilters.clinicId);
-          if ((searchFilters.profileID || "").trim() !== "") searchParams.append("Id", searchFilters.profileID.trim());
+          if ((searchFilters.profileID || "").trim() !== "") searchParams.append("profileId", searchFilters.profileID.trim());
           if ((searchFilters.firstName || "").trim() !== "") searchParams.append("firstName", searchFilters.firstName.trim());
           if ((searchFilters.lastName || "").trim() !== "") searchParams.append("lastName", searchFilters.lastName.trim());
           
@@ -418,7 +409,7 @@ export default function ViewStaffDetails() {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+              "Authorization": `Bearer ${getAuthToken() || ""}`
             }
           });
           
@@ -486,7 +477,7 @@ export default function ViewStaffDetails() {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+          "Authorization": `Bearer ${getAuthToken() || ""}`
         }
       });
 
@@ -602,35 +593,6 @@ export default function ViewStaffDetails() {
                     ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">Select the staff role to search for</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Enterprise
-                  </label>
-                  <select
-                    name="enterpriseId"
-                    value={searchFilters.enterpriseId}
-                    onChange={handleSearchChange}
-                    className={`w-full border border-gray-300 rounded-lg px-4 py-2.5 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition disabled:bg-gray-100 disabled:text-gray-500 ${freezeEnterprise ? 'bg-gray-100 cursor-not-allowed opacity-90' : ''}`}
-                    disabled={isLoadingEnterprises || freezeEnterprise}
-                    required
-                  >
-                    <option value="">Select enterprise</option>
-                    {enterprises.map(enterprise => {
-                      const enterpriseId = enterprise.enterpriseID || enterprise.enterpriseId || enterprise.id;
-                      return (
-                        <option key={enterpriseId} value={enterpriseId}>
-                          {enterprise.enterpriseName || enterprise.name}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {freezeEnterprise ? (
-                    <p className="text-xs text-blue-600 mt-1 font-medium">🔒 Locked from login access</p>
-                  ) : (
-                    <p className="text-xs text-gray-500 mt-1">Choose the organization to search within</p>
-                  )}
                 </div>
               </div>
             </div>
@@ -921,23 +883,13 @@ export default function ViewStaffDetails() {
                         <label className="block text-sm font-semibold text-gray-700 mb-1">
                           Enterprise ID *
                         </label>
-                        <select
+                        <input
                           name="enterpriseID"
-                          value={editFormData.enterpriseID || ""}
-                          onChange={handleEditFormChange}
-                          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          value={editFormData.enterpriseID || searchFilters.enterpriseId || ""}
+                          readOnly
+                          className="w-full border rounded-lg px-3 py-2 bg-gray-100 text-gray-700 cursor-not-allowed"
                           required
-                        >
-                          <option value="">Select enterprise</option>
-                          {enterprises.map(enterprise => {
-                            const enterpriseId = enterprise.enterpriseID || enterprise.enterpriseId || enterprise.id;
-                            return (
-                              <option key={enterpriseId} value={enterpriseId}>
-                                {enterprise.enterpriseName || enterprise.name} ({enterpriseId})
-                              </option>
-                            );
-                          })}
-                        </select>
+                        />
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1">
@@ -1017,6 +969,8 @@ export default function ViewStaffDetails() {
                         name="phone"
                         value={editFormData.phone}
                         onChange={handleEditFormChange}
+                        maxLength={10}
+                        inputMode="numeric"
                         className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       />
                     </div>
@@ -1229,6 +1183,8 @@ export default function ViewStaffDetails() {
                           name="emergencyContact"
                           value={editFormData.emergencyContact || ""}
                           onChange={handleEditFormChange}
+                          maxLength={10}
+                          inputMode="numeric"
                           className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
@@ -1251,7 +1207,7 @@ export default function ViewStaffDetails() {
                           Profile Photo URL
                         </label>
                         <input
-                          type="url"
+                          type="text"
                           name="profilePhotoUrl"
                           value={editFormData.profilePhotoUrl || ""}
                           onChange={handleEditFormChange}

@@ -162,6 +162,13 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
       });
 
       if (response && response.accessToken) {
+        console.log('✅ Login response received:', {
+          hasAccessToken: !!response.accessToken,
+          hasAccess: !!response.access,
+          accessLength: response.access?.length || 0,
+          accessContent: response.access
+        });
+        
         saveAuthToken({
           accessToken: response.accessToken,
           refreshToken: response.refreshToken || '',

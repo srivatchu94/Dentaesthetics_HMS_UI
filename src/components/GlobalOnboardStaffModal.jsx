@@ -1,0 +1,1106 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { createStaffDetail } from '../services/staffService';
+import { getSelectedAccess } from '../services/authService';
+import { listRoles } from '../services/roleService';
+import { useModal } from '../context/ModalContext';
+
+const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+
+const GlobalOnboardStaffModal = () => {
+  const { showOnboardStaffModal, closeOnboardStaffModal } = useModal();
+  const [activeTab, setActiveTab] = useState("personal");
+  const [showPreview, setShowPreview] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [validationErrors, setValidationErrors] = useState([]);
+  const [onboardedRoleName, setOnboardedRoleName] = useState("");
+  const [isReceptionistMode, setIsReceptionistMode] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [allEnterprises, setAllEnterprises] = useState([]);
+  const [onboardingClinics, setOnboardingClinics] = useState([]);
+  const [loadingRoles, setLoadingRoles] = useState(false);
+  const [availableRolesFromApi, setAvailableRolesFromApi] = useState([]);
+  const [freezeEnterprise, setFreezeEnterprise] = useState(false);
+
+  const tabOrder = ["personal", "contact", "professional", "employment", "compliance", "profile"];
+
+  const [doctorFormData, setDoctorFormData] = useState({
+    staffId: "",
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    gender: "",
+    email: "",
+    phone: "",
+    address: "",
+    licenseNumber: "",
+    licenseExpiry: "",
+    specialtyId: "",
+    yearsExperience: "",
+    education: "",
+    certifications: "",
+    languages: "",
+    joiningDate: "",
+    employmentStatus: "",
+    availability: "",
+    insuranceDetails: "",
+    emergencyContact: "",
+    bio: "",
+    profilePhotoUrl: "",
+    achievements: "",
+    publications: "",
+    socialLinks: "",
+    enterpriseId: 0,
+    clinicId: 0,
+    roleId: "",
+    role: "",
+    rolesAssigned: ""
+  });
+
+  const today = new Date();
+  const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+  // Load initial data when modal opens
+  useEffect(() => {
+    if (showOnboardStaffModal) {
+      loadInitialData();
+    }
+  }, [showOnboardStaffModal]);
+
+  const loadInitialData = async () => {
+    try {
+      const access = getSelectedAccess();
+      
+      // Auto-set enterprise from login
+      if (access?.enterpriseId) {
+        setDoctorFormData(prev => ({
+          ...prev,
+          enterpriseId: access.enterpriseId
+        }));
+        setFreezeEnterprise(true);
+        
+        // Load clinics for this enterprise
+        await loadClinics(access.enterpriseId);
+      }
+
+      // Load roles
+      await loadRoles();
+
+      // Load enterprises if user is admin
+      if (access?.roleId === 1) {
+        await loadEnterprises();
+      }
+    } catch (error) {
+      console.error("Error loading initial data:", error);
+    }
+  };
+
+  const loadClinics = async (enterpriseId) => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("accessToken")}`
+          }
+        }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setOnboardingClinics(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error("Error loading clinics:", error);
+    }
+  };
+
+  const loadRoles = async () => {
+    setLoadingRoles(true);
+    try {
+      const roles = await listRoles();
+      setAvailableRolesFromApi(Array.isArray(roles) ? roles : roles?.data || []);
+    } catch (error) {
+      console.error("Error loading roles:", error);
+      setAvailableRolesFromApi([]);
+    } finally {
+      setLoadingRoles(false);
+    }
+  };
+
+  const loadEnterprises = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/Enterprise/GetEnterprises`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("accessToken")}`
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAllEnterprises(Array.isArray(data) ? data : []);
+      }
+    } catch (error) {
+      console.error("Error loading enterprises:", error);
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+
+    if (name === "phone" || name === "emergencyContact") {
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+      setDoctorFormData(prev => ({
+        ...prev,
+        [name]: digitsOnly
+      }));
+      return;
+    }
+
+    if (name === "dateOfBirth" || name === "licenseExpiry" || name === "joiningDate") {
+      const yearPart = value.split("-")[0] || "";
+      if (yearPart.length > 4) {
+        return;
+      }
+    }
+
+    setDoctorFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleEnterpriseChange = async (e) => {
+    const enterpriseId = e.target.value;
+    setDoctorFormData(prev => ({
+      ...prev,
+      enterpriseId: parseInt(enterpriseId) || 0,
+      clinicId: 0
+    }));
+    if (enterpriseId) {
+      await loadClinics(enterpriseId);
+    }
+  };
+
+  const validateTab = (tab) => {
+    const errors = [];
+
+    if (tab === "personal") {
+      if (!doctorFormData.clinicId) errors.push("clinicId");
+      if (!doctorFormData.firstName) errors.push("firstName");
+      if (!doctorFormData.lastName) errors.push("lastName");
+      if (!doctorFormData.dateOfBirth) errors.push("dateOfBirth");
+      if (doctorFormData.dateOfBirth && doctorFormData.dateOfBirth > todayISO) errors.push("dateOfBirth");
+      if (!doctorFormData.gender) errors.push("gender");
+      if (!doctorFormData.roleId || doctorFormData.roleId === "") errors.push("roleId");
+    } else if (tab === "contact") {
+      if (!doctorFormData.email) errors.push("email");
+      if (doctorFormData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(doctorFormData.email)) errors.push("email");
+      if (!doctorFormData.phone) errors.push("phone");
+      if (!doctorFormData.emergencyContact) errors.push("emergencyContact");
+    } else if (tab === "professional") {
+      const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId));
+      const roleName = selectedRole?.roleName?.toLowerCase() || "";
+      const requiresAcademic = roleName.includes("doctor") || roleName.includes("nurse");
+      const isAdmin = roleName.includes("admin");
+      if (!isReceptionistMode && requiresAcademic && !isAdmin) {
+        if (!doctorFormData.licenseNumber) errors.push("licenseNumber");
+        if (!doctorFormData.licenseExpiry) errors.push("licenseExpiry");
+        if (!doctorFormData.specialtyId) errors.push("specialtyId");
+      }
+    } else if (tab === "employment") {
+      if (!doctorFormData.joiningDate) errors.push("joiningDate");
+      if (!doctorFormData.employmentStatus) errors.push("employmentStatus");
+    }
+
+    return errors;
+  };
+
+  const validateBeforeSubmit = () => {
+    const missing = [];
+    if (!doctorFormData.clinicId || parseInt(doctorFormData.clinicId) <= 0) missing.push("Clinic ID");
+    if (!doctorFormData.firstName?.trim()) missing.push("First Name");
+    if (!doctorFormData.lastName?.trim()) missing.push("Last Name");
+    if (!doctorFormData.dateOfBirth) missing.push("Date of Birth");
+    if (doctorFormData.dateOfBirth && doctorFormData.dateOfBirth > todayISO) missing.push("Valid Date of Birth");
+    if (!doctorFormData.gender) missing.push("Gender");
+    if (!doctorFormData.roleId || doctorFormData.roleId === "") missing.push("Role");
+    if (!doctorFormData.email?.trim()) missing.push("Email");
+    if (doctorFormData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(doctorFormData.email)) missing.push("Valid Email");
+    if (!doctorFormData.phone?.trim()) missing.push("Phone");
+    if (!doctorFormData.emergencyContact?.trim()) missing.push("Emergency Contact");
+    if (!isReceptionistMode) {
+      const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId));
+      const roleName = selectedRole?.roleName?.toLowerCase() || "";
+      const requiresAcademic = roleName.includes("doctor") || roleName.includes("nurse");
+      const isAdmin = roleName.includes("admin");
+      if (requiresAcademic && !isAdmin) {
+        const specId = parseInt(doctorFormData.specialtyId);
+        if (!doctorFormData.licenseNumber?.trim()) missing.push("License Number");
+        if (!doctorFormData.licenseExpiry) missing.push("License Expiry");
+        if (!specId || specId <= 0 || Number.isNaN(specId)) missing.push("Specialty ID");
+      }
+    }
+    if (!doctorFormData.joiningDate) missing.push("Joining Date");
+    if (!doctorFormData.employmentStatus?.trim()) missing.push("Employment Status");
+    if (isReceptionistMode && (!doctorFormData.roleId || doctorFormData.roleId === 0)) missing.push("Assigned Role");
+    return missing;
+  };
+
+  const handleDoctorSubmit = async () => {
+    console.log("🚀 Submit clicked - validating...");
+    const missing = validateBeforeSubmit();
+    console.log("❌ Missing fields:", missing);
+    console.log("📋 Form data:", doctorFormData);
+    
+    if (missing.length > 0) {
+      setValidationErrors(missing);
+      alert(`⚠️ Please fill required fields:\n\n${missing.join('\n')}`);
+      console.error("Validation failed:", missing);
+      return;
+    }
+
+    console.log("✅ Validation passed, creating staff...");
+    setIsCreating(true);
+    try {
+      const access = getSelectedAccess();
+      const enterpriseId = doctorFormData.enterpriseId || access?.enterpriseId || 0;
+      
+      const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId));
+      const roleName = selectedRole?.roleName || "";
+      
+      console.log("📤 Creating staff with role:", roleName);
+      
+      // Build payload matching StaffDetailModel (PascalCase on backend, camelCase in TS)
+      const staffDetailPayload = {
+        enterpriseId: parseInt(doctorFormData.enterpriseId) || enterpriseId || null,
+        clinicId: parseInt(doctorFormData.clinicId) || null,
+        firstName: doctorFormData.firstName,
+        lastName: doctorFormData.lastName,
+        dateOfBirth: doctorFormData.dateOfBirth ? new Date(doctorFormData.dateOfBirth).toISOString() : null,
+        gender: doctorFormData.gender || null,
+        email: doctorFormData.email || null,
+        phone: doctorFormData.phone || null,
+        address: doctorFormData.address || null,
+        licenseNumber: doctorFormData.licenseNumber || null,
+        licenseExpiry: doctorFormData.licenseExpiry ? new Date(doctorFormData.licenseExpiry).toISOString() : null,
+        specialtyId: doctorFormData.specialtyId ? parseInt(doctorFormData.specialtyId) : null,
+        yearsExperience: doctorFormData.yearsExperience ? parseInt(doctorFormData.yearsExperience) : null,
+        education: doctorFormData.education || null,
+        certifications: doctorFormData.certifications || null,
+        languages: doctorFormData.languages || null,
+        joiningDate: doctorFormData.joiningDate ? new Date(doctorFormData.joiningDate).toISOString() : null,
+        employmentStatus: doctorFormData.employmentStatus || "Active",
+        availability: doctorFormData.availability || null,
+        insuranceDetails: doctorFormData.insuranceDetails || null,
+        emergencyContact: doctorFormData.emergencyContact || null,
+        bio: doctorFormData.bio || null,
+        profilePhotoUrl: doctorFormData.profilePhotoUrl || null,
+        achievements: doctorFormData.achievements || null,
+        publications: doctorFormData.publications || null,
+        socialLinks: doctorFormData.socialLinks || null,
+        rolesAssigned: roleName // Role name as string
+      };
+
+      console.log("📤 Sending payload to CreateRoleBasedProfile:", staffDetailPayload);
+
+      const response = await createStaffDetail(staffDetailPayload);
+      console.log("✅ Staff created successfully:", response);
+
+      setOnboardedRoleName(roleName || "Staff Member");
+      setShowSuccessModal(true);
+
+      setTimeout(() => {
+        handleClose();
+      }, 2000);
+    } catch (error) {
+      console.error("❌ Error creating staff:", error);
+      alert(`Error: ${error.message || "Failed to create staff member"}`);
+      setValidationErrors([error.message || "Failed to create staff member"]);
+    } finally {
+      setIsCreating(false);
+      console.log("🏁 Submit process completed");
+    }
+  };
+
+  const handleNextTab = () => {
+    const errors = validateTab(activeTab);
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
+    setValidationErrors([]);
+    const currentIndex = tabOrder.indexOf(activeTab);
+    if (currentIndex < tabOrder.length - 1) {
+      setActiveTab(tabOrder[currentIndex + 1]);
+    }
+  };
+
+  const handlePreviousTab = () => {
+    const currentIndex = tabOrder.indexOf(activeTab);
+    if (currentIndex > 0) {
+      setActiveTab(tabOrder[currentIndex - 1]);
+    }
+  };
+
+  const handleShowPreview = () => {
+    const errors = validateTab(activeTab);
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    setShowPreview(true);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    closeOnboardStaffModal();
+  };
+
+  const resetForm = () => {
+    setDoctorFormData({
+      staffId: "",
+      firstName: "",
+      lastName: "",
+      dateOfBirth: "",
+      gender: "",
+      email: "",
+      phone: "",
+      address: "",
+      licenseNumber: "",
+      licenseExpiry: "",
+      specialtyId: "",
+      yearsExperience: "",
+      education: "",
+      certifications: "",
+      languages: "",
+      joiningDate: "",
+      employmentStatus: "",
+      availability: "",
+      insuranceDetails: "",
+      emergencyContact: "",
+      bio: "",
+      profilePhotoUrl: "",
+      achievements: "",
+      publications: "",
+      socialLinks: "",
+      enterpriseId: getSelectedAccess()?.enterpriseId || 0,
+      clinicId: 0,
+      roleId: "",
+      role: "",
+      rolesAssigned: ""
+    });
+    setActiveTab("personal");
+    setShowPreview(false);
+    setValidationErrors([]);
+  };
+
+  if (!showOnboardStaffModal) return null;
+
+  return (
+    <AnimatePresence>
+      {/* Main Modal */}
+      {showOnboardStaffModal && !showPreview && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={handleClose}
+        >
+          <motion.div
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.9, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden"
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-500 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-bold text-white flex items-center gap-3">
+                    <span className="text-4xl">👨‍⚕️</span>
+                    Onboard Staff
+                  </h2>
+                  <p className="text-purple-100 mt-1">Fill in all required information to add a new team member to your organization</p>
+                </div>
+                <button
+                  onClick={handleClose}
+                  className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white text-xl transition-all"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+              {/* Tab Navigation */}
+              <div className="flex flex-wrap gap-2 mb-6 border-b-2 border-purple-200 pb-2">
+                {[
+                  { id: "personal", label: "Personal Info", icon: "👤" },
+                  { id: "contact", label: "Contact", icon: "📞" },
+                  { id: "professional", label: "Professional", icon: "🎓" },
+                  { id: "employment", label: "Employment", icon: "💼" },
+                  { id: "compliance", label: "Compliance", icon: "📋" },
+                  { id: "profile", label: "Profile", icon: "✨" }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${
+                      activeTab === tab.id
+                        ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-lg scale-105"
+                        : "bg-white text-purple-700 hover:bg-purple-100 border-2 border-purple-200"
+                    }`}
+                  >
+                    <span>{tab.icon}</span>
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Error Messages */}
+              {validationErrors.length > 0 && (
+                <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
+                  <p className="text-red-700 font-semibold">Please fill in all required fields marked with *</p>
+                </div>
+              )}
+
+              {/* Personal Info Tab */}
+              {activeTab === "personal" && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-4"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Clinic ID <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name="clinicId"
+                        value={doctorFormData.clinicId}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("clinicId") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                      >
+                        <option value="">Select clinic</option>
+                        {onboardingClinics.map(clinic => {
+                          const clinicId = clinic.clinicID || clinic.clinicId || clinic.id;
+                          return (
+                            <option key={clinicId} value={clinicId}>
+                              {clinic.clinicName || clinic.name} ({clinicId})
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Assign Role <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name="roleId"
+                        value={doctorFormData.roleId || ""}
+                        onChange={(e) => {
+                          const selectedRoleId = e.target.value;
+                          const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(selectedRoleId));
+                          setDoctorFormData(prev => ({
+                            ...prev,
+                            roleId: selectedRoleId,
+                            role: selectedRole?.roleName || "",
+                            rolesAssigned: selectedRoleId
+                          }));
+                        }}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("roleId") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                      >
+                        <option value="">{loadingRoles ? "Loading roles..." : "Select role"}</option>
+                        {availableRolesFromApi.map((role) => (
+                          <option key={role.roleId} value={role.roleId}>
+                            {role.roleName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        First Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="firstName"
+                        value={doctorFormData.firstName}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("firstName") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                        placeholder="Enter first name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Last Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="lastName"
+                        value={doctorFormData.lastName}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("lastName") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                        placeholder="Enter last name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Date of Birth <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        name="dateOfBirth"
+                        value={doctorFormData.dateOfBirth}
+                        onChange={handleInputChange}
+                        max={todayISO}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("dateOfBirth") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Gender <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name="gender"
+                        value={doctorFormData.gender}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("gender") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                      >
+                        <option value="">Select gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Contact Tab */}
+              {activeTab === "contact" && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-4"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        name="email"
+                        value={doctorFormData.email}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("email") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                        placeholder="doctor@example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Phone <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={doctorFormData.phone}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("phone") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                        placeholder="+91 98765 43210"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Address <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        name="address"
+                        value={doctorFormData.address}
+                        onChange={handleInputChange}
+                        rows={3}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("address") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                        placeholder="Enter full address"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Emergency Contact <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="emergencyContact"
+                        value={doctorFormData.emergencyContact}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("emergencyContact") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                        placeholder="Emergency contact number"
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Professional Tab */}
+              {activeTab === "professional" && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-4"
+                >
+                  {(() => {
+                    const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId));
+                    const roleName = selectedRole?.roleName?.toLowerCase() || "";
+                    const requiresAcademic = roleName.includes("doctor") || roleName.includes("nurse");
+                    const isAdmin = roleName.includes("admin");
+                    const disableClinicalFields = !requiresAcademic || isAdmin;
+                    const disabledClass = disableClinicalFields ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "";
+
+                    return (
+                      <>
+                        {isAdmin && (
+                          <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6 text-center mb-4">
+                            <span className="text-4xl">👑</span>
+                            <h3 className="text-lg font-bold text-yellow-800 mt-2">Admin Role Selected</h3>
+                            <p className="text-yellow-700 mt-1">License and academic credentials are not required for admin roles</p>
+                          </div>
+                        )}
+                        {!requiresAcademic && !isAdmin && (
+                          <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-4 text-center">
+                            <span className="text-2xl">ℹ️</span>
+                            <p className="text-blue-700 mt-1">Non-clinical role: license and specialty are optional</p>
+                          </div>
+                        )}
+                        {requiresAcademic && !isAdmin && (
+                          <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4 mb-4">
+                            <p className="text-sm text-green-800 font-semibold">
+                              🩺 Clinical Role: License and academic credentials are <strong>required</strong>
+                            </p>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-semibold text-purple-900 mb-2">
+                              License Number {requiresAcademic && !isAdmin ? <span className="text-red-500">*</span> : null}
+                            </label>
+                            <input
+                              type="text"
+                              name="licenseNumber"
+                              value={doctorFormData.licenseNumber}
+                              onChange={handleInputChange}
+                              disabled={disableClinicalFields}
+                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                                disableClinicalFields ? "border-gray-200 " + disabledClass : validationErrors.includes("licenseNumber") ? "border-red-500 bg-red-50" : "border-purple-300"
+                              }`}
+                              placeholder="Medical license number"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-purple-900 mb-2">
+                              License Expiry {requiresAcademic && !isAdmin ? <span className="text-red-500">*</span> : null}
+                            </label>
+                            <input
+                              type="date"
+                              name="licenseExpiry"
+                              value={doctorFormData.licenseExpiry}
+                              onChange={handleInputChange}
+                              disabled={disableClinicalFields}
+                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                                disableClinicalFields ? "border-gray-200 " + disabledClass : validationErrors.includes("licenseExpiry") ? "border-red-500 bg-red-50" : "border-purple-300"
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-purple-900 mb-2">
+                              Specialty ID {requiresAcademic && !isAdmin ? <span className="text-red-500">*</span> : null}
+                            </label>
+                            <input
+                              type="number"
+                              name="specialtyId"
+                              value={doctorFormData.specialtyId}
+                              onChange={handleInputChange}
+                              disabled={disableClinicalFields}
+                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                                disableClinicalFields ? "border-gray-200 " + disabledClass : validationErrors.includes("specialtyId") ? "border-red-500 bg-red-50" : "border-purple-300"
+                              }`}
+                              placeholder="Specialty ID"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-purple-900 mb-2">
+                              Years of Experience <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              name="yearsExperience"
+                              value={doctorFormData.yearsExperience}
+                              onChange={handleInputChange}
+                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                                validationErrors.includes("yearsExperience") ? "border-red-500 bg-red-50" : "border-purple-300"
+                              }`}
+                              placeholder="Years"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-semibold text-purple-900 mb-2">
+                              Education <span className="text-red-500">*</span>
+                            </label>
+                            <textarea
+                              name="education"
+                              value={doctorFormData.education}
+                              onChange={handleInputChange}
+                              rows={2}
+                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                                validationErrors.includes("education") ? "border-red-500 bg-red-50" : "border-purple-300"
+                              }`}
+                              placeholder="Educational qualifications"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-semibold text-purple-900 mb-2">
+                              Certifications
+                            </label>
+                            <textarea
+                              name="certifications"
+                              value={doctorFormData.certifications}
+                              onChange={handleInputChange}
+                              rows={2}
+                              className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                              placeholder="Professional certifications"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-purple-900 mb-2">
+                              Languages
+                            </label>
+                            <input
+                              type="text"
+                              name="languages"
+                              value={doctorFormData.languages}
+                              onChange={handleInputChange}
+                              className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                              placeholder="English, Hindi, etc."
+                            />
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </motion.div>
+              )}
+
+              {/* Employment Tab */}
+              {activeTab === "employment" && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-4"
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Joining Date <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        name="joiningDate"
+                        value={doctorFormData.joiningDate}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("joiningDate") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Employment Status <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        name="employmentStatus"
+                        value={doctorFormData.employmentStatus}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                          validationErrors.includes("employmentStatus") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        }`}
+                      >
+                        <option value="">Select status</option>
+                        <option value="Full-Time">Full-Time</option>
+                        <option value="Part-Time">Part-Time</option>
+                        <option value="Contract">Contract</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-semibold text-purple-900 mb-2">
+                        Availability
+                      </label>
+                      <textarea
+                        name="availability"
+                        value={doctorFormData.availability}
+                        onChange={handleInputChange}
+                        rows={2}
+                        className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="Mon-Fri 9AM-5PM, etc."
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Compliance Tab */}
+              {activeTab === "compliance" && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="block text-sm font-semibold text-purple-900 mb-2">
+                      Insurance Details
+                    </label>
+                    <textarea
+                      name="insuranceDetails"
+                      value={doctorFormData.insuranceDetails}
+                      onChange={handleInputChange}
+                      rows={3}
+                      className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Insurance coverage details"
+                    />
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Profile Tab */}
+              {activeTab === "profile" && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="block text-sm font-semibold text-purple-900 mb-2">
+                      Bio
+                    </label>
+                    <textarea
+                      name="bio"
+                      value={doctorFormData.bio}
+                      onChange={handleInputChange}
+                      rows={3}
+                      className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Professional biography"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-purple-900 mb-2">
+                      Profile Photo URL
+                    </label>
+                    <input
+                      type="text"
+                      name="profilePhotoUrl"
+                      value={doctorFormData.profilePhotoUrl}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="https://..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-purple-900 mb-2">
+                      Achievements
+                    </label>
+                    <textarea
+                      name="achievements"
+                      value={doctorFormData.achievements}
+                      onChange={handleInputChange}
+                      rows={2}
+                      className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Professional achievements"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-purple-900 mb-2">
+                      Publications
+                    </label>
+                    <textarea
+                      name="publications"
+                      value={doctorFormData.publications}
+                      onChange={handleInputChange}
+                      rows={2}
+                      className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Research publications"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-purple-900 mb-2">
+                      Social Links
+                    </label>
+                    <input
+                      type="text"
+                      name="socialLinks"
+                      value={doctorFormData.socialLinks}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="LinkedIn, Twitter, etc."
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Footer Navigation */}
+            <div className="p-6 bg-gray-50 border-t flex justify-between">
+              <button
+                type="button"
+                onClick={handlePreviousTab}
+                disabled={tabOrder.indexOf(activeTab) === 0}
+                className="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                ← Previous
+              </button>
+              <div className="flex gap-3">
+                {tabOrder.indexOf(activeTab) === tabOrder.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={handleShowPreview}
+                    className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                  >
+                    Review & Submit →
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleNextTab}
+                    className="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                  >
+                    Next →
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* Preview Modal */}
+      {showPreview && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-6">
+              <h2 className="text-3xl font-bold text-white">📋 Review Doctor Information</h2>
+              <p className="text-green-100">Please review all details before submitting</p>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)] space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="col-span-2"><span className="font-bold">Name:</span> {doctorFormData.firstName} {doctorFormData.lastName}</div>
+                <div><span className="font-bold">Staff ID:</span> {doctorFormData.staffId}</div>
+                <div><span className="font-bold">Enterprise ID:</span> {doctorFormData.enterpriseId}</div>
+                <div><span className="font-bold">Clinic ID:</span> {doctorFormData.clinicId}</div>
+                <div><span className="font-bold">Role:</span> {doctorFormData.role || availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId))?.roleName}</div>
+                <div><span className="font-bold">Email:</span> {doctorFormData.email}</div>
+                <div><span className="font-bold">Phone:</span> {doctorFormData.phone}</div>
+                <div><span className="font-bold">License:</span> {doctorFormData.licenseNumber}</div>
+                <div><span className="font-bold">Specialty ID:</span> {doctorFormData.specialtyId}</div>
+                <div><span className="font-bold">Employment:</span> {doctorFormData.employmentStatus}</div>
+                <div><span className="font-bold">Joining Date:</span> {doctorFormData.joiningDate}</div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t flex gap-3">
+              <button
+                onClick={() => setShowPreview(false)}
+                className="flex-1 px-6 py-3 bg-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-400 transition-all"
+              >
+                ← Go Back
+              </button>
+              <button
+                onClick={handleDoctorSubmit}
+                disabled={isCreating}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-bold hover:shadow-lg transition-all disabled:opacity-50"
+              >
+                {isCreating ? "⏳ Creating..." : "✅ Confirm & Submit"}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.5, rotate: -10 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", damping: 15 }}
+            className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl shadow-2xl max-w-md w-full p-8 border-4 border-green-300"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1, rotate: 360 }}
+              transition={{ delay: 0.2, type: "spring", damping: 10 }}
+              className="text-center mb-6"
+            >
+              <div className="text-8xl mb-4">🎉</div>
+              <h2 className="text-3xl font-bold text-green-900 mb-2">Success!</h2>
+            </motion.div>
+            
+            <div className="text-center space-y-3">
+              <p className="text-xl font-semibold text-green-800">
+                {onboardedRoleName} successfully onboarded! 🏥
+              </p>
+              <p className="text-green-700">
+                They're officially part of the team now!
+              </p>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+export default GlobalOnboardStaffModal;
