@@ -266,13 +266,15 @@ const TeamHub = () => {
 
         console.log('🆔 Staff ID:', staffId, '| Clinic ID:', clinicId);
 
-        const roleIdsFromStaff = Array.isArray(selectedStaff.roleIds)
-          ? selectedStaff.roleIds
-          : Array.isArray(selectedStaff.roles)
-            ? selectedStaff.roles.map(r => r.roleId || r.id).filter(Boolean)
-            : selectedStaff.roleId
-              ? [selectedStaff.roleId]
-              : [];
+        const roleIdsFromStaff = selectedStaff ? (
+          Array.isArray(selectedStaff.roleIds)
+            ? selectedStaff.roleIds
+            : Array.isArray(selectedStaff.roles)
+              ? selectedStaff.roles.filter(r => r !== null).map(r => r.roleId || r.id).filter(Boolean)
+              : selectedStaff.roleId
+                ? [selectedStaff.roleId]
+                : []
+        ) : [];
 
         const roleNamesFromStaff = typeof selectedStaff.rolesAssigned === "string"
           ? selectedStaff.rolesAssigned.split(',').map(r => r.trim()).filter(Boolean)
@@ -307,8 +309,9 @@ const TeamHub = () => {
         if (existingRoles && Array.isArray(existingRoles) && existingRoles.length > 0) {
           // Extract role IDs from existing roles
           const existingRoleIds = existingRoles.map(role => {
-            const roleId = access.roleId || access.RoleId || access.role_id;
-            console.log('🔗 Access entry:', access, '-> Role ID:', roleId);
+            if (!role) return null;
+            const roleId = role.roleId || role.RoleId || role.id;
+            console.log('🔗 Role entry:', role, '-> Role ID:', roleId);
             return roleId;
           }).filter(id => id); // Remove any undefined
           
@@ -1175,13 +1178,28 @@ const TeamHub = () => {
       const data = await response.json();
       console.log('📋 Raw response data:', data);
       
+      if (!data) {
+        console.warn('⚠️ Response data is null or undefined');
+        return [];
+      }
+      
       const rolesArray = Array.isArray(data) ? data : (data?.roles || data?.data || []);
       console.log('📋 Extracted roles array:', rolesArray);
       
+      if (!rolesArray || !Array.isArray(rolesArray)) {
+        console.warn('⚠️ Roles array is not valid');
+        return [];
+      }
+      
       const mappedRoles = rolesArray
+        .filter(role => role !== null && role !== undefined)
         .map(role => {
           const roleId = role.roleId || role.RoleId || role.id;
           console.log('  Processing role:', role, '-> Role ID:', roleId);
+          if (!roleId) {
+            console.warn('    ⚠️ Missing roleId for role:', role);
+            return null;
+          }
           const uiRole = availableRoles.find(r => r.id === roleId);
           if (uiRole) {
             console.log('    Found in availableRoles:', uiRole);
