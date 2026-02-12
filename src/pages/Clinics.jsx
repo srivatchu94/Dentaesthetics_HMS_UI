@@ -1011,7 +1011,7 @@ export default function Clinics(){
         joiningDate: doctorEditFormData.joiningDate ? new Date(doctorEditFormData.joiningDate).toISOString() : doctorEditFormData.joiningDate,
       };
 
-      const response = await fetch("`${API_BASE_URL}/DoctorProfile/UpdateDoctorProfile", {
+      const response = await fetch(`${API_BASE_URL}/DoctorProfile/UpdateDoctorProfile`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1166,7 +1166,7 @@ export default function Clinics(){
       console.log("📦 Adding inventory:", payload);
 
       // Use the correct API endpoint for adding clinic inventory
-      const response = await fetch("`${API_BASE_URL}/inventory/SaveClinicInventoryBatch?enterpriseId=" + payload.enterpriseId + "&clinicId=" + payload.clinicId, {
+      const response = await fetch(`${API_BASE_URL}/inventory/SaveClinicInventoryBatch?enterpriseId=${payload.enterpriseId}&clinicId=${payload.clinicId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1267,7 +1267,7 @@ export default function Clinics(){
 
     setMasterItemLoading(true);
     try {
-      const response = await fetch("`${API_BASE_URL}/inventory/AddInventoryMasterItemsBulk", {
+      const response = await fetch(`${API_BASE_URL}/inventory/AddInventoryMasterItemsBulk`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1282,7 +1282,7 @@ export default function Clinics(){
         setShowMasterSuccess(true);
         
         // Reload master items
-        const reloadResponse = await fetch("`${API_BASE_URL}/inventory/GetAllInventoryMasterItems", {
+        const reloadResponse = await fetch(`${API_BASE_URL}/inventory/GetAllInventoryMasterItems`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -3713,7 +3713,7 @@ export default function Clinics(){
                           
                           console.log("📤 Sending Enterprise Model:", enterpriseModel);
                           
-                          const response = await fetch("`${API_BASE_URL}/Enterprise/CreateEnterprise", {
+                          const response = await fetch(`${API_BASE_URL}/Enterprise/CreateEnterprise`, {
                             method: "POST",
                             headers: {
                               "Content-Type": "application/json",
