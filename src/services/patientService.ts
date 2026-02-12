@@ -81,3 +81,7 @@ export function editPatientVisit(visitData: any): Promise<any> {
     body: JSON.stringify(visitData)
   });
 }
+
+export function getPatientMedicalInfoSummary(patientId: number): Promise<any> {
+  return request<any>(`/Patient/GetMedicalInfoSummary?patientId=${patientId}`);
+}

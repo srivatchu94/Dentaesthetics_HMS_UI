@@ -4,7 +4,12 @@ import type { DoctorProfileModel, ClinicalSpecialtyModel } from '../Interfaces';
 
 // Doctor Profiles
 export function listDoctorProfiles(): Promise<DoctorProfileModel[]> {
-  return request<DoctorProfileModel[]>("/doctorprofiles");
+  console.log('📞 Fetching all doctors from /DoctorProfile/GetAllDoctors');
+  return request<DoctorProfileModel[]>("/DoctorProfile/GetAllDoctors")
+    .catch((err) => {
+      console.error('❌ GetAllDoctors failed, trying fallback /StaffDetail/GetAllStaffDetails:', err);
+      return request<DoctorProfileModel[]>("/StaffDetail/GetAllStaffDetails");
+    });
 }
 
 export function getDoctorProfile(doctorId: number): Promise<DoctorProfileModel> {

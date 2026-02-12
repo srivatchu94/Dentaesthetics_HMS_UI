@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { getCalendarAppointments, getAppointmentsByDoctorID, getAppointmentsByFilters, createPrescription, getPrescriptionsByAppointment, updateAppointment, addPrescription, updatePrescriptionData, getPrescriptionById, addPatientVisit } from "../services/appointmentService";
+import { getCalendarAppointments, getAppointmentsByDoctorID, getAppointmentsByFilters, createPrescription, getPrescriptionsByAppointment, updateAppointment, addPrescription, updatePrescriptionData, getPrescriptionById, addPatientVisit, getAppointment } from "../services/appointmentService";
 import { visitService, prescriptionService } from "../services/visitService";
 import { createInventoryMaster, listInventoryMasters, getClinicInventoryByClinicId, createClinicInventory, updateClinicInventory, deleteClinicInventory, addInventoryMasterItemsBulk } from "../services/inventoryService";
 import { getClinic, getClinicByClinicId } from "../services/clinicService";
@@ -10,6 +10,7 @@ import { getDoctorsByClinicId } from "../services/doctorService";
 import { sendPrescriptionEmail } from "../services/emailService";
 import PrescriptionWritingModal from "../components/PrescriptionWritingModal";
 import PrescriptionPrint from "../components/PrescriptionPrint";
+import VisitInfoModalExternal from "../components/VisitInfoModal";
 import InventoryAutoComplete from "../components/InventoryAutoComplete";
 import AddToMasterInventoryModal from "../components/AddToMasterInventoryModal";
 import SuccessModal from "../components/SuccessModal";
@@ -17,7 +18,7 @@ import ScheduleAppointmentsModal from "../components/ScheduleAppointmentsModal";
 import PatientHistory from "../components/PatientHistory";
 import Assets from "./Assets";
 import DoctorSchedule from "./DoctorSchedule";
-import { getPatientFullProfile, getPatientVisit, editPatientVisit, getPatientsByClinic } from "../services/patientService";
+import { getPatientFullProfile, getPatientVisit, editPatientVisit, getPatientsByClinic, getPatientMedicalInfoSummary } from "../services/patientService";
 
 // Sample data
 const SAMPLE_CLINIC_DETAILS = {
@@ -768,6 +769,13 @@ export default function Doctors() {
   const [showDiagnosisSaveSuccess, setShowDiagnosisSaveSuccess] = useState(false);
   const [diagnosisSaveMessage, setDiagnosisSaveMessage] = useState('');
   const [printPrescriptionData, setPrintPrescriptionData] = useState(null);
+  const visitFetchRef = useRef({ appointmentId: null, inFlight: false });
+  const inventoryLoadedRef = useRef(false);
+  const [medicalInfoSummary, setMedicalInfoSummary] = useState({ chronicDiseases: [], allergies: [] });
+  const [medicalInfoLoading, setMedicalInfoLoading] = useState(false);
+  const [medicalInfoError, setMedicalInfoError] = useState(false);
+  const medicalInfoCacheRef = useRef(new Map());
+  const medicalInfoInFlightRef = useRef(new Set());
 
   // Debug logging for currentMedication state changes
   useEffect(() => {
@@ -1209,10 +1217,143 @@ export default function Doctors() {
 
   useEffect(() => {
     if (showVisitInfoModal) {
+      if (inventoryLoadedRef.current || loadingMeds) return;
+      if (inventoryMeds.length > 0) {
+        inventoryLoadedRef.current = true;
+        return;
+      }
       console.log('🏥 Visit Info Modal opened, loading inventory medications...');
-      loadInventoryMedications();
+      loadInventoryMedications().finally(() => {
+        inventoryLoadedRef.current = true;
+      });
     }
   }, [showVisitInfoModal]);
+
+  useEffect(() => {
+    if (!showVisitInfoModal || !selectedAppointmentDetails?.appointmentId) return;
+    const appointmentId = selectedAppointmentDetails.appointmentId;
+    if (visitFetchRef.current.inFlight || visitFetchRef.current.appointmentId === appointmentId) return;
+
+    visitFetchRef.current = { appointmentId, inFlight: true };
+    (async () => {
+      try {
+        const existingVisitData = await getPatientVisit(appointmentId);
+        if (existingVisitData && existingVisitData.visitDate) {
+          setSelectedAppointmentForVisit({ ...selectedAppointmentDetails, existingVisitData });
+        } else {
+          setSelectedAppointmentForVisit(selectedAppointmentDetails);
+        }
+      } catch (error) {
+        setSelectedAppointmentForVisit(selectedAppointmentDetails);
+      } finally {
+        visitFetchRef.current = { appointmentId, inFlight: false };
+      }
+    })();
+  }, [showVisitInfoModal, selectedAppointmentDetails?.appointmentId]);
+
+  const loadMedicalInfoSummary = useCallback(async (patientId) => {
+    if (!patientId) {
+      console.warn('⚠️ No patientId provided to loadMedicalInfoSummary');
+      return;
+    }
+    if (medicalInfoCacheRef.current.has(patientId)) {
+      console.log('✅ Using cached medical info for patientId:', patientId);
+      setMedicalInfoSummary(medicalInfoCacheRef.current.get(patientId));
+      setMedicalInfoLoading(false);
+      return;
+    }
+    if (medicalInfoInFlightRef.current.has(patientId)) {
+      console.log('⏳ Medical info request already in flight for patientId:', patientId);
+      return;
+    }
+
+    medicalInfoInFlightRef.current.add(patientId);
+    setMedicalInfoLoading(true);
+    setMedicalInfoError(false);
+    const timeoutId = setTimeout(() => {
+      console.error('❌ Medical info request timed out after 5 seconds');
+      setMedicalInfoLoading(false);
+      setMedicalInfoError(true);
+      medicalInfoInFlightRef.current.delete(patientId);
+      setMedicalInfoSummary({ chronicDiseases: [], allergies: [] });
+    }, 5000);
+
+    try {
+      console.log('🔍 Fetching medical info for patientId:', patientId);
+      const data = await getPatientMedicalInfoSummary(patientId);
+      clearTimeout(timeoutId);
+      console.log('📋 Medical Info Response:', data);
+      
+      if (!data) {
+        console.warn('⚠️ API returned null/undefined for patientId:', patientId);
+        setMedicalInfoSummary({ chronicDiseases: [], allergies: [] });
+        return;
+      }
+      
+      // Parse chronic diseases - handle both array and string formats
+      let chronicDiseaseArray = [];
+      if (Array.isArray(data?.chronicDiseases)) {
+        chronicDiseaseArray = data.chronicDiseases;
+      } else if (typeof data?.chronicDiseases === 'string' && data.chronicDiseases.trim()) {
+        // Split comma-separated string into array
+        chronicDiseaseArray = data.chronicDiseases
+          .split(',')
+          .map(d => d.trim())
+          .filter(d => d !== '');
+      } else if (Array.isArray(data?.chronicDisease)) {
+        chronicDiseaseArray = data.chronicDisease;
+      } else if (typeof data?.chronicDisease === 'string' && data.chronicDisease.trim()) {
+        chronicDiseaseArray = data.chronicDisease
+          .split(',')
+          .map(d => d.trim())
+          .filter(d => d !== '');
+      }
+      
+      // Parse allergies - handle both array and string formats
+      let allergyArray = [];
+      if (Array.isArray(data?.allergies)) {
+        allergyArray = data.allergies;
+      } else if (typeof data?.allergies === 'string' && data.allergies.trim()) {
+        // Split comma-separated string into array
+        allergyArray = data.allergies
+          .split(',')
+          .map(a => a.trim())
+          .filter(a => a !== '');
+      } else if (typeof data?.patientAllergies === 'string' && data.patientAllergies.trim()) {
+        allergyArray = data.patientAllergies
+          .split(',')
+          .map(a => a.trim())
+          .filter(a => a !== '');
+      } else if (Array.isArray(data?.allergy)) {
+        allergyArray = data.allergy;
+      } else if (typeof data?.allergy === 'string' && data.allergy.trim()) {
+        allergyArray = data.allergy
+          .split(',')
+          .map(a => a.trim())
+          .filter(a => a !== '');
+      }
+      
+      console.log('✅ Parsed Medical Info:', { chronicDiseaseArray, allergyArray });
+      
+      const summary = { chronicDiseases: chronicDiseaseArray, allergies: allergyArray };
+      medicalInfoCacheRef.current.set(patientId, summary);
+      setMedicalInfoSummary(summary);
+      setMedicalInfoError(false);
+    } catch (error) {
+      console.error('❌ Failed to load medical info summary:', error);
+      setMedicalInfoSummary({ chronicDiseases: [], allergies: [] });
+      setMedicalInfoError(true);
+    } finally {
+      clearTimeout(timeoutId);
+      medicalInfoInFlightRef.current.delete(patientId);
+      setMedicalInfoLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!showVisitInfoModal || !selectedAppointmentForVisit?.patientId) return;
+    loadMedicalInfoSummary(selectedAppointmentForVisit.patientId);
+  }, [showVisitInfoModal, selectedAppointmentForVisit?.patientId]);
 
   // Load inventory data on component mount
   useEffect(() => {
@@ -2372,27 +2513,9 @@ export default function Doctors() {
 
   const fetchAppointmentDetails = async (appt) => {
     try {
-      const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
-      
-      // Use the new GetAppointmentDetailsbyAppointmentID API
-      const response = await fetch(
-        `${API_BASE_URL}/Appointment/GetAppointmentDetailsbyAppointmentID?appointmentId=${appt.appointmentId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      if (response.ok) {
-        const detailedData = await response.json();
-        console.log('📥 Fetched detailed appointment data:', detailedData);
-        return detailedData;
-      } else {
-        console.warn('Failed to fetch appointment details, using fallback');
-        return appt;
-      }
+      const detailedData = await getAppointment(appt.appointmentId);
+      console.log('📥 Fetched detailed appointment data:', detailedData);
+      return detailedData;
     } catch (error) {
       console.error('Failed to load appointment details:', error);
       return appt;
@@ -2580,7 +2703,7 @@ export default function Doctors() {
     }
   }, [showVisitInfoModal, showAppointmentDetails]);
 
-  const VisitInfoModal = React.memo(() => {
+  const VisitInfoModal = React.useMemo(() => React.memo(() => {
     if (!showVisitInfoModal || !selectedAppointmentForVisit) return null;
 
     const [visitForm, setVisitForm] = useState({
@@ -3650,7 +3773,14 @@ export default function Doctors() {
           </motion.div>
         </motion.div>
     );
-  });
+  }), [
+    showVisitInfoModal,
+    selectedAppointmentForVisit,
+    setShowVisitInfoModal,
+    setDiagnosisSaveMessage,
+    setShowDiagnosisSaveSuccess,
+    setPrintPrescriptionData
+  ]);
 
   // Appointment Details Modal Component - IMPROVED LAYOUT
   const AppointmentDetailsModal = () => {
@@ -3903,55 +4033,8 @@ export default function Doctors() {
                     console.log('📋 Selected Appointment:', selectedAppointmentDetails);
                     console.log('🆔 AppointmentID:', selectedAppointmentDetails.appointmentId);
                     
-                    try {
-                      // Load inventory before opening modal
-                      if (inventoryMeds.length === 0) {
-                        console.log('📦 Loading inventory medications...');
-                        await loadInventoryMedications();
-                      } else {
-                        console.log('✅ Inventory already loaded:', inventoryMeds.length, 'items');
-                      }
-                      
-                      // Check if patient visit data already exists for this appointment
-                      console.log('');
-                      console.log('🔍 CHECKING FOR EXISTING VISIT DATA...');
-                      console.log('📋 AppointmentID being sent:', selectedAppointmentDetails.appointmentId);
-                      console.log('🌐 API Call: POST /Patient/GetPatientVisit?AppointmentID=' + selectedAppointmentDetails.appointmentId);
-                      
-                      const existingVisitData = await getPatientVisit(selectedAppointmentDetails.appointmentId);
-                      
-                      console.log('');
-                      console.log('📥 API RESPONSE RECEIVED:');
-                      console.log('Response data:', existingVisitData);
-                      console.log('Has visitDate?', existingVisitData?.visitDate);
-                      console.log('Has diagnosis?', existingVisitData?.diagnosis);
-                      
-                      if (existingVisitData && existingVisitData.visitDate) {
-                        console.log('✅ EXISTING VISIT DATA FOUND - Loading into form');
-                        console.log('Visit Date:', existingVisitData.visitDate);
-                        console.log('Chief Complaint:', existingVisitData.chiefComplaint);
-                        console.log('Diagnosis:', existingVisitData.diagnosis);
-                        console.log('Prescriptions:', existingVisitData.prescriptions);
-                        
-                        // Create appointment data with visit data ONCE, before any setState calls
-                        const appointmentWithVisit = { ...selectedAppointmentDetails, existingVisitData };
-                        setSelectedAppointmentForVisit(appointmentWithVisit);
-                      } else {
-                        console.log('📝 NO EXISTING VISIT DATA - Showing new form');
-                        // No data exists - show empty form with appointment details
-                        setSelectedAppointmentForVisit(selectedAppointmentDetails);
-                      }
-                    } catch (error) {
-                      console.log('');
-                      console.log('⚠️ ERROR OR NO DATA:');
-                      console.error('Error details:', error);
-                      console.error('Error message:', error?.message);
-                      console.error('Error response:', error?.response);
-                      console.log('📝 Defaulting to empty form');
-                      
-                      // If API fails or returns no data, just show empty form
-                      setSelectedAppointmentForVisit(selectedAppointmentDetails);
-                    }
+                    setSelectedAppointmentForVisit(selectedAppointmentDetails);
+                    loadMedicalInfoSummary(selectedAppointmentDetails.patientId);
                     
                     console.log('🎯 Opening diagnosis modal...');
                     console.log('═══════════════════════════════════════════════════════');
@@ -8732,7 +8815,30 @@ export default function Doctors() {
       
       {/* Visit Info Modal */}
       <AnimatePresence mode="wait">
-        {showVisitInfoModal && <VisitInfoModal />}
+        {showVisitInfoModal && (
+          <VisitInfoModalExternal
+            key="visit-info-modal"
+            show={showVisitInfoModal}
+            onClose={() => setShowVisitInfoModal(false)}
+            selectedAppointment={selectedAppointmentForVisit}
+            onVisitSaved={() => setShowVisitInfoModal(false)}
+            loadInventoryMedications={loadInventoryMedications}
+            inventoryMeds={inventoryMeds}
+            loadingMeds={loadingMeds}
+            handleOpenAddMedicineModal={handleOpenAddMedicineModal}
+            handleRemoveMedication={handleRemoveMedication}
+            prescriptionId={prescriptionId}
+            getPrescriptionById={getPrescriptionById}
+            sendingEmail={sendingEmail}
+            setSendingEmail={setSendingEmail}
+            setSuccessMessage={setSuccessMessage}
+            setShowPrescriptionSuccessModal={setShowPrescriptionSuccessModal}
+            chronicDiseases={medicalInfoSummary.chronicDiseases}
+            allergies={medicalInfoSummary.allergies}
+            loadingMedicalInfo={medicalInfoLoading}
+            medicalInfoError={medicalInfoError}
+          />
+        )}
       </AnimatePresence>
       
       {/* Prescription Modal */}

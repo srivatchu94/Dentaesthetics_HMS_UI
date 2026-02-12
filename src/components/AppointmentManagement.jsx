@@ -604,10 +604,30 @@ export function CreateAppointmentModal({
           const contactInfo = patient.patientContact || {};
           
           // Try multiple field names for phone and email as API might return different field names
-          const phoneNumber = patient.patientPhone || patient.phone || patient.phoneNumber || patient.mobileNumber ||
-                            contactInfo.patientPhone || contactInfo.phone || contactInfo.phoneNumber || contactInfo.mobileNumber || "";
-          const email = patient.patientEmail || patient.email || patient.emailAddress ||
-                       contactInfo.patientEmail || contactInfo.email || contactInfo.emailAddress || "";
+          // Check direct fields first, then nested contact info
+          let phoneNumber = "";
+          if (patient.patientPhone) phoneNumber = patient.patientPhone;
+          else if (patient.phone) phoneNumber = patient.phone;
+          else if (patient.phoneNumber) phoneNumber = patient.phoneNumber;
+          else if (patient.mobileNumber) phoneNumber = patient.mobileNumber;
+          else if (patient.mobile) phoneNumber = patient.mobile;
+          else if (patient.contactNumber) phoneNumber = patient.contactNumber;
+          else if (contactInfo.patientPhone) phoneNumber = contactInfo.patientPhone;
+          else if (contactInfo.phone) phoneNumber = contactInfo.phone;
+          else if (contactInfo.phoneNumber) phoneNumber = contactInfo.phoneNumber;
+          else if (contactInfo.mobileNumber) phoneNumber = contactInfo.mobileNumber;
+          else if (contactInfo.mobile) phoneNumber = contactInfo.mobile;
+          else if (contactInfo.contactNumber) phoneNumber = contactInfo.contactNumber;
+          
+          let email = "";
+          if (patient.patientEmail) email = patient.patientEmail;
+          else if (patient.email) email = patient.email;
+          else if (patient.emailAddress) email = patient.emailAddress;
+          else if (patient.contactEmail) email = patient.contactEmail;
+          else if (contactInfo.patientEmail) email = contactInfo.patientEmail;
+          else if (contactInfo.email) email = contactInfo.email;
+          else if (contactInfo.emailAddress) email = contactInfo.emailAddress;
+          else if (contactInfo.contactEmail) email = contactInfo.contactEmail;
           
           // === DETAILED LOGGING FOR EMAIL AND MOBILE RETRIEVAL ===
           console.log("📋 ========== PATIENT SEARCH - DATA RETRIEVAL REPORT ==========");
@@ -616,8 +636,8 @@ export function CreateAppointmentModal({
           console.log("📊 Full Patient Object Keys:", Object.keys(patient));
           console.log("📞 Contact Info Object:", contactInfo);
           console.log("📞 Contact Info Keys:", Object.keys(contactInfo));
-          console.log("🔍 Phone Number Retrieved:", phoneNumber, "| Source: Found in patient data");
-          console.log("✉️ Email Retrieved:", email, "| Source: Found in patient data");
+          console.log("🔍 Phone Number Retrieved:", phoneNumber || "❌ NOT FOUND", "| Source: Found in patient data");
+          console.log("✉️ Email Retrieved:", email || "❌ NOT FOUND", "| Source: Found in patient data");
           console.log("📋 ========== END RETRIEVAL REPORT ==========");
           
           // Auto-fill form with all available patient details
@@ -736,12 +756,32 @@ export function CreateAppointmentModal({
         
         console.log("📋 Extracted patient info:", patientInfo);
         console.log("📞 Extracted contact info - Full object:", contactInfo);
-        console.log("📞 Phone field name possibilities - patientPhone:", contactInfo.patientPhone, "phone:", contactInfo.phone, "phoneNumber:", contactInfo.phoneNumber, "mobileNumber:", contactInfo.mobileNumber);
-        console.log("📧 Email field name possibilities - patientEmail:", contactInfo.patientEmail, "email:", contactInfo.email, "emailAddress:", contactInfo.emailAddress);
         
         // Try multiple field names for phone and email as API might return different field names
-        const phoneNumber = contactInfo.patientPhone || contactInfo.phone || contactInfo.phoneNumber || contactInfo.mobileNumber || "";
-        const email = contactInfo.patientEmail || contactInfo.email || contactInfo.emailAddress || "";
+        let phoneNumber = "";
+        if (contactInfo.patientPhone) phoneNumber = contactInfo.patientPhone;
+        else if (contactInfo.phone) phoneNumber = contactInfo.phone;
+        else if (contactInfo.phoneNumber) phoneNumber = contactInfo.phoneNumber;
+        else if (contactInfo.mobileNumber) phoneNumber = contactInfo.mobileNumber;
+        else if (contactInfo.mobile) phoneNumber = contactInfo.mobile;
+        else if (contactInfo.contactNumber) phoneNumber = contactInfo.contactNumber;
+        else if (patientInfo.patientPhone) phoneNumber = patientInfo.patientPhone;
+        else if (patientInfo.phone) phoneNumber = patientInfo.phone;
+        else if (patientInfo.phoneNumber) phoneNumber = patientInfo.phoneNumber;
+        else if (patientInfo.mobileNumber) phoneNumber = patientInfo.mobileNumber;
+        else if (patientInfo.mobile) phoneNumber = patientInfo.mobile;
+        
+        let email = "";
+        if (contactInfo.patientEmail) email = contactInfo.patientEmail;
+        else if (contactInfo.email) email = contactInfo.email;
+        else if (contactInfo.emailAddress) email = contactInfo.emailAddress;
+        else if (contactInfo.contactEmail) email = contactInfo.contactEmail;
+        else if (patientInfo.patientEmail) email = patientInfo.patientEmail;
+        else if (patientInfo.email) email = patientInfo.email;
+        else if (patientInfo.emailAddress) email = patientInfo.emailAddress;
+        
+        console.log("📞 Phone field possibilities - Found:", phoneNumber || "❌ NOT FOUND");
+        console.log("📧 Email field possibilities - Found:", email || "❌ NOT FOUND");
         
         // Auto-fill the form with patient data
         setForm(prevForm => ({
@@ -983,23 +1023,33 @@ export function CreateAppointmentModal({
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Phone *</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Phone * {patientSearchResult && <span className="text-xs text-green-600">🔒 From Patient</span>}</label>
                     <input
                       type="tel"
                       value={form.phoneNumber}
-                      onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
+                      onChange={(e) => !patientSearchResult && setForm({ ...form, phoneNumber: e.target.value })}
+                      readOnly={!!patientSearchResult}
+                      className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:border-transparent ${
+                        patientSearchResult
+                          ? 'bg-green-50 border-green-300 text-green-900 cursor-not-allowed'
+                          : 'border-slate-200 focus:ring-rose-400'
+                      }`}
                       placeholder="Patient phone"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Email {patientSearchResult && <span className="text-xs text-green-600">🔒 From Patient</span>}</label>
                     <input
                       type="email"
                       value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
+                      onChange={(e) => !patientSearchResult && setForm({ ...form, email: e.target.value })}
+                      readOnly={!!patientSearchResult}
+                      className={`w-full px-4 py-2 rounded-lg border focus:ring-2 focus:border-transparent ${
+                        patientSearchResult
+                          ? 'bg-green-50 border-green-300 text-green-900 cursor-not-allowed'
+                          : 'border-slate-200 focus:ring-rose-400'
+                      }`}
                       placeholder="Patient email"
                     />
                   </div>

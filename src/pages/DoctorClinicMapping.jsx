@@ -3,13 +3,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import FancyDatePicker from "../components/FancyDatePicker";
 import { listDoctorProfiles, searchDoctors, mapDoctorToClinics, listClinicalSpecialties, getDoctorsByEnterpriseId, getDoctorClinicMappings } from "../services/doctorService";
 import { listClinics, getClinicsByEnterpriseId as getEnterpriseClinics, getClinic as getClinicById } from "../services/clinicService";
+import { listEnterprises } from "../services/enterpriseService";
 import { getSelectedAccess } from "../services/authService";
 
 export default function DoctorClinicMapping() {
+  const selectedAccess = getSelectedAccess();
+  const isSuperAdmin = Array.isArray(selectedAccess?.roleIds) && selectedAccess.roleIds.includes(1);
   const [doctors, setDoctors] = useState([]);
   const [clinics, setClinics] = useState([]);
   const [clinicsLoading, setClinicsLoading] = useState(false);
   const [specialties, setSpecialties] = useState([]);
+  const [enterpriseOptions, setEnterpriseOptions] = useState([]);
+  const [enterpriseLoading, setEnterpriseLoading] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedClinics, setSelectedClinics] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -40,11 +45,10 @@ export default function DoctorClinicMapping() {
 
   useEffect(() => {
     loadData();
-    const access = getSelectedAccess();
-    if (access?.enterpriseId) {
+    if (selectedAccess?.enterpriseId) {
       setSearchFilters((prev) => ({
         ...prev,
-        enterpriseId: access.enterpriseId.toString(),
+        enterpriseId: selectedAccess.enterpriseId.toString(),
       }));
     }
   }, []);
@@ -56,6 +60,17 @@ export default function DoctorClinicMapping() {
       // Clinics will be loaded when a doctor is selected
       const specialtiesData = await listClinicalSpecialties();
       setSpecialties(specialtiesData);
+
+      setEnterpriseLoading(true);
+      try {
+        const enterprisesData = await listEnterprises();
+        setEnterpriseOptions(Array.isArray(enterprisesData) ? enterprisesData : []);
+      } catch (enterpriseError) {
+        console.error("Error loading enterprises:", enterpriseError);
+        setEnterpriseOptions([]);
+      } finally {
+        setEnterpriseLoading(false);
+      }
       
       // Don't load doctors or clinics initially - wait for search
       setDoctors([]);
@@ -69,6 +84,34 @@ export default function DoctorClinicMapping() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getEnterpriseDisplay = () => {
+    if (!searchFilters.enterpriseId) return "";
+    const enterpriseIdNum = parseInt(searchFilters.enterpriseId, 10);
+    const match = enterpriseOptions.find((enterprise) => {
+      const id = enterprise.enterpriseId ?? enterprise.enterpriseID ?? enterprise.id;
+      return parseInt(id, 10) === enterpriseIdNum;
+    });
+    const name = match?.enterpriseName || match?.name || "";
+    return name ? `${name} (${enterpriseIdNum})` : searchFilters.enterpriseId;
+  };
+
+  const handleEnterpriseChange = (event) => {
+    const nextEnterpriseId = event.target.value;
+    setSearchFilters({
+      enterpriseId: nextEnterpriseId,
+      doctorId: "",
+      firstName: "",
+      lastName: "",
+      specialtyId: ""
+    });
+    setDoctors([]);
+    setSelectedDoctor(null);
+    setSelectedClinics([]);
+    setClinicMappings({});
+    setClinics([]);
+    setActiveClinicTab(null);
   };
 
   const handleSearchDoctors = async () => {
@@ -392,13 +435,33 @@ export default function DoctorClinicMapping() {
           className="bg-white rounded-xl shadow-lg p-4 mb-4"
         >
           <div className="flex items-center gap-3">
-            <input
-              type="text"
-              placeholder="Enterprise ID"
-              value={searchFilters.enterpriseId}
-              readOnly
-              className="flex-1 px-4 py-2.5 border-2 border-indigo-300 rounded-lg bg-gray-100 text-sm font-medium cursor-not-allowed"
-            />
+            {isSuperAdmin ? (
+              <select
+                value={searchFilters.enterpriseId}
+                onChange={handleEnterpriseChange}
+                disabled={enterpriseLoading}
+                className="flex-1 px-4 py-2.5 border-2 border-indigo-300 rounded-lg bg-white text-sm font-medium focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+              >
+                <option value="">{enterpriseLoading ? "Loading enterprises..." : "Select Enterprise"}</option>
+                {enterpriseOptions.map((enterprise) => {
+                  const enterpriseId = enterprise.enterpriseId ?? enterprise.enterpriseID ?? enterprise.id;
+                  const enterpriseName = enterprise.enterpriseName || enterprise.name || `Enterprise ${enterpriseId}`;
+                  return (
+                    <option key={enterpriseId} value={enterpriseId}>
+                      {enterpriseName} ({enterpriseId})
+                    </option>
+                  );
+                })}
+              </select>
+            ) : (
+              <input
+                type="text"
+                placeholder={enterpriseLoading ? "Loading enterprise..." : "Enterprise"}
+                value={getEnterpriseDisplay()}
+                readOnly
+                className="flex-1 px-4 py-2.5 border-2 border-indigo-300 rounded-lg bg-gray-100 text-sm font-medium cursor-not-allowed"
+              />
+            )}
             <input
               type="text"
               placeholder="🆔 Doctor ID"

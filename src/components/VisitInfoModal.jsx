@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { editPatientVisit, addPatientVisit } from "../services/appointmentService";
+import { addPatientVisit } from "../services/appointmentService";
+import { editPatientVisit } from "../services/patientService";
 import { sendPrescriptionEmail } from "../services/emailService";
 
 // Extracted and properly memoized VisitInfoModal Component
@@ -19,7 +20,11 @@ const VisitInfoModal = React.memo(({
   sendingEmail,
   setSendingEmail,
   setSuccessMessage,
-  setShowPrescriptionSuccessModal
+  setShowPrescriptionSuccessModal,
+  chronicDiseases = [],
+  allergies = [],
+  loadingMedicalInfo = false,
+  medicalInfoError = false
 }) => {
   if (!show || !selectedAppointment) return null;
 
@@ -130,8 +135,8 @@ const VisitInfoModal = React.memo(({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const chronicDiseases = ['Diabetes', 'Hypertension', 'Asthma', 'Heart Disease', 'Kidney Disease'];
-  const allergies = ['Penicillin', 'Aspirin', 'Iodine'];
+  const chronicDiseaseList = Array.isArray(chronicDiseases) ? chronicDiseases : [];
+  const allergyList = Array.isArray(allergies) ? allergies : [];
 
   const handleAddMedication = useCallback(() => {
     console.log('➕ Adding medication:', currentMedication);
@@ -369,17 +374,25 @@ const VisitInfoModal = React.memo(({
                   <span>⚠️</span> Chronic Diseases
                 </h3>
                 <div className="space-y-2">
-                  {chronicDiseases.map((disease, idx) => (
-                    <motion.div
-                      key={idx}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className="bg-white rounded-lg p-3 border-l-4 border-red-400 shadow-sm"
-                    >
-                      <p className="text-sm font-semibold text-stone-800">✓ {disease}</p>
-                    </motion.div>
-                  ))}
+                  {loadingMedicalInfo ? (
+                    <div className="text-sm text-stone-600 animate-pulse">⏳ Checking medical history...</div>
+                  ) : medicalInfoError ? (
+                    <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded">ℹ️ Medical history unavailable - backend error</div>
+                  ) : chronicDiseaseList.length === 0 ? (
+                    <div className="text-sm text-stone-500">No chronic diseases recorded.</div>
+                  ) : (
+                    chronicDiseaseList.map((disease, idx) => (
+                      <motion.div
+                        key={`${disease}-${idx}`}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="bg-white rounded-lg p-3 border-l-4 border-red-400 shadow-sm"
+                      >
+                        <p className="text-sm font-semibold text-stone-800">✓ {disease}</p>
+                      </motion.div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -389,17 +402,25 @@ const VisitInfoModal = React.memo(({
                   <span>🚨</span> Allergies
                 </h3>
                 <div className="space-y-2">
-                  {allergies.map((allergy, idx) => (
-                    <motion.div
-                      key={idx}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.05 }}
-                      className="bg-white rounded-lg p-3 border-l-4 border-orange-400 shadow-sm"
-                    >
-                      <p className="text-sm font-semibold text-stone-800">⚠️ {allergy}</p>
-                    </motion.div>
-                  ))}
+                  {loadingMedicalInfo ? (
+                    <div className="text-sm text-stone-600 animate-pulse">⏳ Checking allergy data...</div>
+                  ) : medicalInfoError ? (
+                    <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded">ℹ️ Allergy data unavailable - backend error</div>
+                  ) : allergyList.length === 0 ? (
+                    <div className="text-sm text-stone-500">No allergies recorded.</div>
+                  ) : (
+                    allergyList.map((allergy, idx) => (
+                      <motion.div
+                        key={`${allergy}-${idx}`}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.05 }}
+                        className="bg-white rounded-lg p-3 border-l-4 border-orange-400 shadow-sm"
+                      >
+                        <p className="text-sm font-semibold text-stone-800">⚠️ {allergy}</p>
+                      </motion.div>
+                    ))
+                  )}
                 </div>
               </div>
 
