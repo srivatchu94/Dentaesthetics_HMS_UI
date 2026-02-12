@@ -56,7 +56,13 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
         }`}
       />
     ) : type === "date" ? (
-      <FancyDatePicker label="" value={value} onChange={onChange} required={required} disabled={disabled} />
+      <FancyDatePicker
+        label=""
+        value={value}
+        onChange={(dateValue) => onChange({ target: { name, value: dateValue } })}
+        required={required}
+        disabled={disabled}
+      />
     ) : (
       <input
         type={type}

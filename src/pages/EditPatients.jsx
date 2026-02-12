@@ -33,7 +33,12 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
         className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition resize-none"
       />
     ) : type === "date" ? (
-      <FancyDatePicker label="" value={value || ""} onChange={onChange} required={required} />
+      <FancyDatePicker
+        label=""
+        value={value || ""}
+        onChange={(dateValue) => onChange({ target: { name, value: dateValue } })}
+        required={required}
+      />
     ) : (
       <input
         type={type}

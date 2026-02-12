@@ -203,10 +203,12 @@ export default function ViewStaffDetails() {
       }
 
       if (response.status === 404) {
+        // No staff found for this search - handle gracefully without error
         setStaffList([]);
         setShowSearchResult(true);
         setSuccessMessage("");
-        setError("Currently not working in the hospital");
+        setError(""); // No error, just no results
+        console.log("ℹ️ No staff found for this search criteria");
         return;
       }
 

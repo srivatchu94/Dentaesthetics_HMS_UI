@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { createPatient } from "../services/patientService";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
+import { getSelectedAccess } from "../services/tokenManager";
 
 // Reusable InputField component
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => (
@@ -170,7 +171,84 @@ export default function RegisterPatient() {
   const [clinicList, setClinicList] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // Load enterprises on mount
+  // Tab validation with debugging
+  const isPatientTabValid = () => {
+    const valid = patientData.firstName && patientData.lastName && patientData.dateOfBirth && 
+           patientData.gender && patientData.clinicId;
+    
+    if (!valid) {
+      const missing = [];
+      if (!patientData.firstName) missing.push("firstName");
+      if (!patientData.lastName) missing.push("lastName");
+      if (!patientData.dateOfBirth) missing.push("dateOfBirth");
+      if (!patientData.gender) missing.push("gender");
+      if (!patientData.clinicId) missing.push("clinicId");
+      console.log("❌ Patient Tab Invalid - Missing:", missing);
+    }
+    return valid;
+  };
+
+  const isContactTabValid = () => {
+    const valid = contactData.phoneNumber && contactData.addressLine1 && 
+           contactData.city && contactData.state && contactData.postalCode && contactData.country;
+    
+    if (!valid) {
+      const missing = [];
+      if (!contactData.phoneNumber) missing.push("phoneNumber");
+      if (!contactData.addressLine1) missing.push("addressLine1");
+      if (!contactData.city) missing.push("city");
+      if (!contactData.state) missing.push("state");
+      if (!contactData.postalCode) missing.push("postalCode");
+      if (!contactData.country) missing.push("country");
+      console.log("❌ Contact Tab Invalid - Missing:", missing);
+    }
+    return valid;
+  };
+
+  const isAllTabsValid = () => {
+    const patientValid = isPatientTabValid();
+    const contactValid = isContactTabValid();
+    const allValid = patientValid && contactValid;
+    
+    if (allValid) {
+      console.log("✅ All tabs VALID - Button should be ENABLED");
+    } else {
+      console.log("❌ All tabs NOT valid - Patient:", patientValid, "Contact:", contactValid);
+    }
+    
+    return allValid;
+  };
+
+  // Track validation state changes
+  useEffect(() => {
+    console.log("📋 Current Form State:");
+    console.log("   Patient Data:", patientData);
+    console.log("   Contact Data:", contactData);
+    console.log("   Patient Tab Valid:", isPatientTabValid());
+    console.log("   Contact Tab Valid:", isContactTabValid());
+    console.log("   All Valid:", isAllTabsValid());
+  }, [patientData, contactData]);
+
+  // Load enterprise and clinic from token on mount
+  useEffect(() => {
+    const selectedAccess = getSelectedAccess();
+    if (selectedAccess && selectedAccess.enterpriseId && selectedAccess.clinicId) {
+      console.log('🔐 Pre-populated from token - Enterprise:', selectedAccess.enterpriseId, 'Clinic:', selectedAccess.clinicId);
+      setPatientData(prev => ({
+        ...prev,
+        enterpriseId: selectedAccess.enterpriseId.toString(),
+        clinicId: selectedAccess.clinicId.toString()
+      }));
+      
+      // Load clinic details for display
+      loadClinicsForEnterprise(selectedAccess.enterpriseId);
+    } else {
+      console.error('❌ No enterprise/clinic found in login token');
+      alert('⚠️ Unable to retrieve enterprise/clinic information from login token. Please re-login.');
+    }
+  }, []);
+
+  // Load enterprises on mount (for reference, though not used for selection)
   useEffect(() => {
     const enterprisesData = JSON.parse(localStorage.getItem('allEnterprises') || '[]');
     setAllEnterprises(enterprisesData);
@@ -195,21 +273,6 @@ export default function RegisterPatient() {
     }
   };
 
-  // Tab validation
-  const isPatientTabValid = () => {
-    return patientData.firstName && patientData.lastName && patientData.dateOfBirth && 
-           patientData.gender && patientData.clinicId;
-  };
-
-  const isContactTabValid = () => {
-    return contactData.phoneNumber && contactData.addressLine1 && 
-           contactData.city && contactData.state && contactData.postalCode && contactData.country;
-  };
-
-  const isAllTabsValid = () => {
-    return isPatientTabValid() && isContactTabValid();
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -229,6 +292,7 @@ export default function RegisterPatient() {
         patientDOB: patientData.dateOfBirth,
         patientGender: patientData.gender,
         patientBloodType: patientData.bloodGroup || "",
+        enterpriseID: patientData.enterpriseId || "",
         clinicID: patientData.clinicId || ""
       },
       patientContact: {
@@ -259,9 +323,13 @@ export default function RegisterPatient() {
     };
     
     try {
-      console.log("Submitting patient data:", patientDataModel);
+      console.log("📝 Submitting patient data:");
+      console.log("   Enterprise ID (from login token):", patientData.enterpriseId);
+      console.log("   Clinic ID (from login token):", patientData.clinicId);
+      console.log("   Full payload:", patientDataModel);
+      
       const response = await createPatient(patientDataModel);
-      console.log("Patient created successfully:", response);
+      console.log("✅ Patient created successfully:", response);
       
       alert(`✅ Patient registered successfully!\nPatient ID: ${response.patient.patientId}\nName: ${patientData.firstName} ${patientData.lastName}`);
       
@@ -411,37 +479,22 @@ export default function RegisterPatient() {
                         options={["Single", "Married", "Divorced", "Widowed"]}
                       />
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Enterprise *</label>
-                        <select
-                          value={patientData.enterpriseId}
-                          onChange={(e) => setPatientData({ ...patientData, enterpriseId: e.target.value, clinicId: "" })}
-                          required
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        >
-                          <option value="">Select Enterprise</option>
-                          {allEnterprises.map(ent => (
-                            <option key={ent.enterpriseId} value={ent.enterpriseId}>
-                              {ent.enterpriseName}
-                            </option>
-                          ))}
-                        </select>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Enterprise <span className="text-xs text-gray-500">🔒 From Login</span></label>
+                        <div className="w-full px-3 py-2 border border-gray-200 rounded-md shadow-sm bg-blue-50 text-gray-700 flex items-center gap-2">
+                          <span className="text-lg">🏢</span>
+                          <span className="font-medium">
+                            {allEnterprises.find(e => e.enterpriseId === parseInt(patientData.enterpriseId))?.enterpriseName || patientData.enterpriseId}
+                          </span>
+                        </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Clinic *</label>
-                        <select
-                          value={patientData.clinicId}
-                          onChange={(e) => setPatientData({ ...patientData, clinicId: e.target.value })}
-                          required
-                          disabled={!patientData.enterpriseId}
-                          className={`w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none ${patientData.enterpriseId ? 'focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-100 cursor-not-allowed'}`}
-                        >
-                          <option value="">Select Clinic</option>
-                          {clinicList.map(clinic => (
-                            <option key={clinic.clinicId} value={clinic.clinicId}>
-                              {clinic.clinicName}
-                            </option>
-                          ))}
-                        </select>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Clinic <span className="text-xs text-gray-500">🔒 From Login</span></label>
+                        <div className="w-full px-3 py-2 border border-gray-200 rounded-md shadow-sm bg-blue-50 text-gray-700 flex items-center gap-2">
+                          <span className="text-lg">🏥</span>
+                          <span className="font-medium">
+                            {clinicList.find(c => c.clinicId === parseInt(patientData.clinicId))?.clinicName || patientData.clinicId}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -794,7 +847,17 @@ export default function RegisterPatient() {
               )}
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-col items-end">
+              {!isAllTabsValid() && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-xs text-red-600 bg-red-50 px-4 py-2 rounded-lg border border-red-200"
+                >
+                  {!isPatientTabValid() && <div>⚠️ Complete Patient Info tab (First Name, Last Name, DOB, Gender)</div>}
+                  {!isContactTabValid() && <div>⚠️ Complete Contact tab (Phone, Address, City, State, Postal Code, Country)</div>}
+                </motion.div>
+              )}
               <motion.button
                 whileHover={{ scale: isAllTabsValid() ? 1.05 : 1 }}
                 whileTap={{ scale: isAllTabsValid() ? 0.95 : 1 }}
