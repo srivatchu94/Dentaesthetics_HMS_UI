@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import FancyDatePicker from "../components/FancyDatePicker";
 import { createDoctor } from "../services/doctorService";
 import { getSelectedAccess } from "../services/authService";
+import { getClinicIdFromToken, getEnterpriseIdFromToken } from "../services/tokenManager";
 import { useModal } from "../context/ModalContext";
 
 const API_BASE_URL = (import.meta)?.env?.VITE_API_BASE_URL || 'https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api';
@@ -312,9 +313,23 @@ export default function Clinics(){
   // Load master inventory items when modal opens
   useEffect(() => {
     if (showAddInventoryModal) {
+      // Load token data and set inventory form defaults
+      const tokenClinicId = getClinicIdFromToken();
+      const tokenEnterpriseId = getEnterpriseIdFromToken();
+      
+      if (tokenClinicId && tokenEnterpriseId) {
+        setInventoryFormData(prev => ({
+          ...prev,
+          clinicId: tokenClinicId,
+          enterpriseId: tokenEnterpriseId
+        }));
+        // Load clinics for this enterprise
+        loadClinicsForInventory(tokenEnterpriseId);
+      }
+      
       const loadMasterItems = async () => {
         try {
-          const response = await fetch("`${API_BASE_URL}/inventory/GetAllInventoryMasterItems", {
+          const response = await fetch(`${API_BASE_URL}/inventory/GetAllInventoryMasterItems`, {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
@@ -1318,9 +1333,9 @@ export default function Clinics(){
 
     setInventoryLoading(true);
     try {
-      // Use the correct API endpoint: GetClinicInventoryByClinicId
+      // Use the correct API endpoint: GetClinicInventoryByClinicId with enterpriseId parameter
       const response = await fetch(
-        `${API_BASE_URL}/Inventory/GetClinicInventoryByClinicId?clinicId=${inventoryFormData.clinicId}`,
+        `${API_BASE_URL}/Inventory/GetClinicInventoryByClinicId?enterpriseId=${inventoryFormData.enterpriseId}&clinicId=${inventoryFormData.clinicId}`,
         {
           method: "GET",
           headers: {
@@ -1828,38 +1843,6 @@ export default function Clinics(){
                 </div>
               </motion.div>
             ))}
-          </div>
-        </motion.div>
-
-        {/* Reports & Analytics Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-gradient-to-r from-purple-50 via-pink-50 to-rose-50 rounded-xl shadow-lg p-8 border border-purple-200"
-        >
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-2xl shadow-lg">
-                  📊
-                </div>
-                <h3 className="text-2xl font-bold bg-gradient-to-r from-purple-700 via-pink-700 to-rose-700 bg-clip-text text-transparent">
-                  Reports & Analytics Dashboard
-                </h3>
-              </div>
-              <p className="text-slate-600">
-                View revenue trends, patient flow, performance metrics, and generate comprehensive reports across all clinics
-              </p>
-            </div>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate("/reports")}
-              className="px-8 py-4 bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all whitespace-nowrap"
-            >
-              View Dashboard →
-            </motion.button>
           </div>
         </motion.div>
 
@@ -5687,39 +5670,14 @@ export default function Clinics(){
                 <form onSubmit={handleAddInventorySubmit} className="space-y-6">
                   {/* Enterprise & Clinic Selection */}
                   <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
-                    <h4 className="text-lg font-bold text-slate-800 mb-4">🏢 Select Location</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">Enterprise <span className="text-red-500">*</span></label>
-                        <select
-                          value={inventoryFormData.enterpriseId}
-                          onChange={(e) => {
-                            const enterpriseId = parseInt(e.target.value) || 0;
-                            setInventoryFormData(prev => ({
-                              ...prev,
-                              enterpriseId,
-                              clinicId: 0
-                            }));
-                            setInventoryError("");
-                            loadClinicsForInventory(enterpriseId);
-                          }}
-                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-cyan-500 focus:outline-none"
-                        >
-                          <option value="0">-- Select Enterprise --</option>
-                          {allEnterprises.map((enterprise) => (
-                            <option key={enterprise.enterpriseId} value={enterprise.enterpriseId}>
-                              [{enterprise.enterpriseId}] {enterprise.enterpriseName}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                    <h4 className="text-lg font-bold text-slate-800 mb-4">🏢 Select Clinic</h4>
+                    <div className="grid grid-cols-1 gap-4">
                       <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-2">Clinic <span className="text-red-500">*</span></label>
                         <select
                           value={inventoryFormData.clinicId}
                           onChange={(e) => setInventoryFormData(prev => ({ ...prev, clinicId: parseInt(e.target.value) || 0 }))}
-                          disabled={inventoryFormData.enterpriseId === 0}
-                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-cyan-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                          className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-cyan-500 focus:outline-none"
                         >
                           <option value="0">-- Select Clinic --</option>
                           {inventoryClinics.map((clinic) => (
@@ -5728,6 +5686,7 @@ export default function Clinics(){
                             </option>
                           ))}
                         </select>
+                        <p className="text-xs text-gray-500 mt-1">📌 Enterprise loaded from login token</p>
                       </div>
                     </div>
                   </div>

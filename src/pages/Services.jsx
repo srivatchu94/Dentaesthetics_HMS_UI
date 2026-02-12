@@ -263,15 +263,15 @@ export default function Services(){
   const serviceCategories = [
     {
       id: 'dental-services',
-      title: "🦷 Dental Services",
-      description: "Manage dental treatments and procedures",
+      title: "⚕️ Healthcare Services",
+      description: "Manage medical treatments and procedures",
       gradient: "from-slate-500 via-slate-600 to-slate-700",
       bgGradient: "from-slate-50 to-slate-100",
       options: [
         {
           id: 'add-service',
           title: "➕ Add Service",
-          description: "Create new dental service",
+          description: "Create new healthcare service",
           action: "add",
           icon: "✨",
           color: "from-slate-400 to-slate-500"

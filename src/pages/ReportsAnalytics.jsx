@@ -38,7 +38,7 @@ const generateRevenueData = (period) => {
 const SAMPLE_CLINICS = [
   {
     clinicId: 101,
-    clinicName: "Dentaesthetics Mumbai Central",
+    clinicName: "VitalsVille Healthcare Center",
     city: "Mumbai",
     monthlyRevenue: 3750000,
     monthlyPatients: 420,

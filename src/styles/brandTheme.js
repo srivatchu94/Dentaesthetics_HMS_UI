@@ -1,4 +1,4 @@
-// Dentaesthetics HMS Brand Design System
+// VitalsVille HMS Brand Design System
 // Cool, professional, gradient-rich color palette
 
 export const brandTheme = {
@@ -148,7 +148,7 @@ export const brandTheme = {
   // Icons (Emoji-based for unique branding)
   icons: {
     medical: {
-      tooth: '🦷',
+      medical: '⚕️',
       hospital: '🏥',
       doctor: '👨‍⚕️',
       stethoscope: '🩺',

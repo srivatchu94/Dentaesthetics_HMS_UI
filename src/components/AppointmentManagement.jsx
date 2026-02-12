@@ -600,17 +600,37 @@ export function CreateAppointmentModal({
         if (patient && (patient.patientId || patient.patientID || patient.id)) {
           setPatientSearchResult(patient);
           
+          // Extract contact info - could be flat or nested under patientContact
+          const contactInfo = patient.patientContact || {};
+          
+          // Try multiple field names for phone and email as API might return different field names
+          const phoneNumber = patient.patientPhone || patient.phone || patient.phoneNumber || patient.mobileNumber ||
+                            contactInfo.patientPhone || contactInfo.phone || contactInfo.phoneNumber || contactInfo.mobileNumber || "";
+          const email = patient.patientEmail || patient.email || patient.emailAddress ||
+                       contactInfo.patientEmail || contactInfo.email || contactInfo.emailAddress || "";
+          
+          // === DETAILED LOGGING FOR EMAIL AND MOBILE RETRIEVAL ===
+          console.log("📋 ========== PATIENT SEARCH - DATA RETRIEVAL REPORT ==========");
+          console.log("👤 Patient Name:", patient.patientFirstName || patient.firstName, patient.patientLastName || patient.lastName);
+          console.log("🆔 Patient ID:", patient.patientId || patient.patientID || patient.id);
+          console.log("📊 Full Patient Object Keys:", Object.keys(patient));
+          console.log("📞 Contact Info Object:", contactInfo);
+          console.log("📞 Contact Info Keys:", Object.keys(contactInfo));
+          console.log("🔍 Phone Number Retrieved:", phoneNumber, "| Source: Found in patient data");
+          console.log("✉️ Email Retrieved:", email, "| Source: Found in patient data");
+          console.log("📋 ========== END RETRIEVAL REPORT ==========");
+          
           // Auto-fill form with all available patient details
           setForm(prevForm => ({
             ...prevForm,
             patientId: patient.patientId || patient.patientID || patient.id || "",
             firstName: patient.patientFirstName || patient.firstName || "",
             lastName: patient.patientLastName || patient.lastName || "",
-            phoneNumber: patient.patientPhone || patient.phone || patient.phoneNumber || patient.mobileNumber || prevForm.phoneNumber,
-            email: patient.patientEmail || patient.email || patient.emailAddress || prevForm.email
+            phoneNumber: phoneNumber || prevForm.phoneNumber,
+            email: email || prevForm.email
           }));
           
-          console.log("✅ Form auto-filled with patient data");
+          console.log("✅ Form auto-filled with patient data - Phone:", phoneNumber, "Email:", email);
         } else {
           console.warn("⚠️ No valid patient data found in response");
           setPatientSearchResult(null);
@@ -716,12 +736,12 @@ export function CreateAppointmentModal({
         
         console.log("📋 Extracted patient info:", patientInfo);
         console.log("📞 Extracted contact info - Full object:", contactInfo);
-        console.log("📞 Phone field name possibilities - patientPhone:", contactInfo.patientPhone, "phone:", contactInfo.phone, "mobileNumber:", contactInfo.mobileNumber);
-        console.log("📧 Email field name possibilities - patientEmail:", contactInfo.patientEmail, "email:", contactInfo.email);
+        console.log("📞 Phone field name possibilities - patientPhone:", contactInfo.patientPhone, "phone:", contactInfo.phone, "phoneNumber:", contactInfo.phoneNumber, "mobileNumber:", contactInfo.mobileNumber);
+        console.log("📧 Email field name possibilities - patientEmail:", contactInfo.patientEmail, "email:", contactInfo.email, "emailAddress:", contactInfo.emailAddress);
         
         // Try multiple field names for phone and email as API might return different field names
-        const phoneNumber = contactInfo.patientPhone || contactInfo.phone || contactInfo.mobileNumber || "";
-        const email = contactInfo.patientEmail || contactInfo.email || "";
+        const phoneNumber = contactInfo.patientPhone || contactInfo.phone || contactInfo.phoneNumber || contactInfo.mobileNumber || "";
+        const email = contactInfo.patientEmail || contactInfo.email || contactInfo.emailAddress || "";
         
         // Auto-fill the form with patient data
         setForm(prevForm => ({

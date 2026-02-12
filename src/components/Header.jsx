@@ -9,7 +9,7 @@ const TABS = [
   { key: "home", path: "/", label: "Home", icon: "🏠" },
   { key: "clinics", path: "/clinics", label: "Clinics", icon: "🏥" },
   { key: "patients", path: "/patients", label: "Patients", icon: "👥" },
-  { key: "services", path: "/services", label: "Services", icon: "🦷" },
+  { key: "services", path: "/services", label: "Services", icon: "⚕️" },
   { key: "inventory", path: "/inventory", label: "Inventory", icon: "📦" },
   { key: "analytics", path: "/analytics", label: "Analytics", icon: "📊" },
   { key: "team-hub", path: "/team-hub", label: "Team Hub", icon: "🌟" },

@@ -284,6 +284,7 @@ export const isInactive = (): boolean => {
  * Refresh access token using HYBRID storage
  * - Access Token refreshed and stored in Memory + SessionStorage
  * - Refresh Token (HttpOnly Cookie) is automatic from backend
+ * - Automatically retries on failure
  */
 export const refreshAccessToken = async (): Promise<boolean> => {
   try {
@@ -295,8 +296,9 @@ export const refreshAccessToken = async (): Promise<boolean> => {
       return false;
     }
     
-    console.log('🔄 REFRESHING ACCESS TOKEN via backend');
+    console.log('🔄 ==================== REFRESHING ACCESS TOKEN ====================');
     console.log('   🍪 Using HttpOnly Refresh Token (sent automatically in request)');
+    console.log('   📤 Calling backend /refresh-token endpoint...');
     
     const response = await request<RefreshTokenResponse>(`${AUTH_BASE_URL}/refresh-token`, {
       method: 'POST',
@@ -304,32 +306,58 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     });
     
     // Validate response has required fields
-    if (!response.accessToken || !response.accessTokenExpiresAt) {
-      console.error('❌ Invalid refresh response - missing token or expiry');
+    if (!response.accessToken) {
+      console.error('❌ Invalid refresh response - missing new access token');
+      console.error('   Response:', response);
       return false;
     }
     
     // Update access token in HYBRID storage (Memory + SessionStorage)
-    saveAccessToken(response.accessToken, response.accessTokenExpiresAt);
+    // Now saveAccessToken will extract expiry from JWT's exp claim automatically
+    saveAccessToken(response.accessToken);
     
     // Backend updates HttpOnly cookie automatically - no action needed
     console.log('✅ TOKEN REFRESH SUCCESSFUL');
     console.log('   🧠 Access Token: Memory + SessionStorage updated');
     console.log('   🍪 Refresh Token: HttpOnly Cookie updated by backend');
-    console.log('   🔑 New access token expires at:', response.accessTokenExpiresAt);
-    console.log('   ⏱️ Expires in:', Math.floor((new Date(response.accessTokenExpiresAt).getTime() - Date.now()) / 1000 / 60), 'minutes');
+    
+    // Extract and log new expiry time
+    const newExpiryStr = getTokenExpiry();
+    if (newExpiryStr) {
+      const newExpiry = new Date(newExpiryStr);
+      const minutesRemaining = Math.floor((newExpiry.getTime() - Date.now()) / 1000 / 60);
+      console.log(`   🔑 New token expires in: ${minutesRemaining} minutes (at ${newExpiry.toLocaleTimeString()})`);
+    }
+    
+    console.log('🔄 ====================================================================');
     
     // Restart refresh timer with new expiry
     startTokenRefreshTimer();
     
     return true;
   } catch (error) {
-    console.error('❌ FAILED TO REFRESH TOKEN');
+    console.error('❌ ==================== FAILED TO REFRESH TOKEN ====================');
     console.error('   Error:', error);
-    console.error('   This may happen if: ');
+    console.error('   This may happen if:');
     console.error('   1. Refresh token has expired (user needs to login again)');
     console.error('   2. Backend /refresh-token endpoint is not responding');
     console.error('   3. Network error occurred');
+    console.error('   - Stored refresh token may be invalid or expired');
+    console.error('   - Retrying refresh in background...');
+    console.error('🔄 ====================================================================');
+    
+    // Attempt automatic retry after 5 seconds if we have less than 2 minutes left
+    const expiryStr = getTokenExpiry();
+    if (expiryStr) {
+      const timeRemaining = new Date(expiryStr).getTime() - Date.now();
+      if (timeRemaining < 2 * 60 * 1000) {
+        console.warn('⚠️ Token expiring very soon and refresh failed. Will retry in 5 seconds...');
+        setTimeout(() => {
+          console.log('🔄 Retrying token refresh...');
+          refreshAccessToken();
+        }, 5000);
+      }
+    }
     
     return false;
   }
@@ -346,6 +374,7 @@ const startTokenRefreshTimer = (): void => {
   // Clear existing timer
   if (refreshTokenTimer) {
     clearTimeout(refreshTokenTimer);
+    console.log('🔄 Cleared existing refresh timer');
   }
   
   try {
@@ -359,25 +388,37 @@ const startTokenRefreshTimer = (): void => {
     const now = Date.now();
     const timeUntilExpiry = expiryTime - now;
     
-    // If token is already expired or expires in less than 1 minute, refresh immediately
-    if (timeUntilExpiry <= 60000) {
-      console.warn('⚠️ Token expires very soon or already expired. Refreshing immediately...');
+    console.log('⏰ ==================== TOKEN REFRESH TIMER ====================');
+    console.log(`   📅 Token expires at: ${new Date(expiryTime).toLocaleTimeString()}`);
+    console.log(`   ⏱️ Total remaining: ${Math.floor(timeUntilExpiry / 1000 / 60)} minutes ${Math.floor((timeUntilExpiry % 60000) / 1000)} seconds`);
+    
+    // If token is already expired, refresh immediately
+    if (timeUntilExpiry <= 0) {
+      console.error('🚨 TOKEN ALREADY EXPIRED! Refreshing immediately...');
       refreshAccessToken();
       return;
     }
     
-    // Refresh 2 minutes before expiry (gives buffer for network delay)
-    const refreshTime = timeUntilExpiry - (2 * 60 * 1000);
+    // If token expires in less than 30 seconds, refresh immediately
+    if (timeUntilExpiry < 30 * 1000) {
+      console.warn('⚠️ Token expires in less than 30 seconds! Refreshing immediately...');
+      refreshAccessToken();
+      return;
+    }
+    
+    // Refresh 3 minutes before expiry (aggressive buffer for 15-min tokens)
+    // This ensures refresh completes before token actually expires
+    const refreshBuffer = 3 * 60 * 1000; // 3 minutes
+    const refreshTime = Math.max(0, timeUntilExpiry - refreshBuffer);
     const minutesUntilRefresh = Math.floor(refreshTime / 1000 / 60);
     const secondsUntilRefresh = Math.floor((refreshTime % 60000) / 1000);
     
-    console.log(`⏰ TOKEN REFRESH SCHEDULED`);
-    console.log(`   📅 Token expires in: ${Math.floor(timeUntilExpiry / 1000 / 60)} minutes (${new Date(expiryTime).toLocaleTimeString()})`);
     console.log(`   🔄 Will refresh in: ${minutesUntilRefresh}m ${secondsUntilRefresh}s`);
-    console.log(`   💡 Refresh happens 2 minutes before expiry to prevent interruption`);
+    console.log(`   💡 Refresh happens 3 minutes before expiry for safety margin`);
+    console.log('⏰ ================================================================');
     
     refreshTokenTimer = window.setTimeout(async () => {
-      console.log('🔄 AUTO-REFRESHING TOKEN (proactive refresh)...');
+      console.log('🔄 AUTO-REFRESH TRIGGERED (proactive refresh before expiry)');
       const success = await refreshAccessToken();
       if (!success) {
         console.error('❌ Token refresh failed. Session may be expired.');
@@ -798,13 +839,15 @@ export const startTokenRefreshHeartbeat = (): void => {
     clearInterval(tokenRefreshHeartbeatTimer);
   }
 
-  console.log('💓 Starting token refresh heartbeat (checks every 30 seconds)');
+  console.log('💓 Starting token refresh heartbeat (checks every 15 seconds)');
+  console.log('   This ensures token is refreshed even if browser tab loses focus');
 
+  // Check more frequently for short-lived tokens (15 mins)
   tokenRefreshHeartbeatTimer = window.setInterval(() => {
     try {
       const expiryStr = getTokenExpiry();
       if (!expiryStr) {
-        console.warn('⚠️ No token expiry found');
+        console.warn('⚠️ [Heartbeat] No token expiry found');
         return;
       }
 
@@ -814,35 +857,35 @@ export const startTokenRefreshHeartbeat = (): void => {
 
       // If token is already expired, trigger immediate logout
       if (timeUntilExpiry <= 0) {
-        console.error('🚨 TOKEN HAS EXPIRED! Logging out...');
+        console.error('🚨 [Heartbeat] TOKEN HAS EXPIRED! Logging out immediately...');
         showSessionExpiredPopup();
         handleLogout();
         return;
       }
 
-      // If less than 5 minutes until expiry and refresh timer not running, refresh immediately
-      if (timeUntilExpiry < 5 * 60 * 1000 && !refreshTokenTimer) {
-        console.warn('⚠️ Less than 5 minutes until expiry and no refresh timer. Refreshing NOW...');
+      // If less than 3.5 minutes until expiry and refresh timer not running, refresh NOW
+      if (timeUntilExpiry < 3.5 * 60 * 1000 && !refreshTokenTimer) {
+        console.warn(`⚠️ [Heartbeat] Token expires in ${Math.floor(timeUntilExpiry / 1000 / 60)}m and no refresh timer! Refreshing NOW...`);
         refreshAccessToken();
         return;
       }
 
       // If refresh timer is not set but token still valid, restart it
       if (!refreshTokenTimer && timeUntilExpiry > 60000) {
-        console.warn('⚠️ Refresh timer not running but token valid. Restarting timer...');
+        console.warn(`⚠️ [Heartbeat] Refresh timer not running but token valid (${Math.floor(timeUntilExpiry / 1000 / 60)}m left). Restarting...`);
         startTokenRefreshTimer();
         return;
       }
 
-      // Everything is good, log brief heartbeat
+      // Log heartbeat status periodically (every 2 minutes)
       const minutesLeft = Math.floor(timeUntilExpiry / 1000 / 60);
-      if (minutesLeft > 0 && minutesLeft % 5 === 0) {
-        console.log(`💓 Heartbeat: Token valid for ${minutesLeft} more minutes`);
+      if (minutesLeft > 0 && timeUntilExpiry % 120000 < 15000) { // Log every 2 minutes
+        console.log(`💓 [Heartbeat OK] Token valid for ${minutesLeft}m ${Math.floor((timeUntilExpiry % 60000) / 1000)}s`);
       }
     } catch (error) {
-      console.error('❌ Heartbeat error:', error);
+      console.error('❌ [Heartbeat] error:', error);
     }
-  }, 30 * 1000); // Check every 30 seconds
+  }, 15 * 1000); // Check every 15 seconds (was 30 seconds)
 };
 
 /**

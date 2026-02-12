@@ -117,7 +117,7 @@ const Register = () => {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-8 text-center">
-          <h1 className="text-3xl font-bold text-white mb-2">🦷 Dentaesthetics HMS</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">⚕️ VitalsVille HMS</h1>
           <p className="text-purple-100">Create Your Account</p>
         </div>
 

@@ -561,9 +561,10 @@ export default function Patients() {
   useEffect(() => {
     if (showViewAppointmentsModal) {
       loadAppointments();
-      // Reset filters when modal opens
+      // Reset filters when modal opens and load clinicId from token
+      const tokenClinicId = getClinicIdFromToken() || "";
       setAppointmentFilter({
-        clinicId: localStorage.getItem('clinicId') || "",
+        clinicId: tokenClinicId.toString(),
         firstName: "",
         lastName: "",
         doctorId: "",
@@ -1133,69 +1134,6 @@ export default function Patients() {
           className="mb-4"
         />
 
-        {/* Visits Management Tiles */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mb-4"
-        >
-          <h2 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
-            <span className="text-2xl">🏥</span>
-            Visits Management
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {[
-              { id: 'add-visit', title: '📝 Add Visit', description: 'Capture visit + prescription', icon: '📝', color: 'from-emerald-400 to-teal-400', action: () => setShowAddVisitModal(true) },
-              { id: 'view-visits', title: '📋 View Visits', description: 'Browse visit history', icon: '📋', color: 'from-violet-400 to-purple-400', action: () => setShowViewVisitsModal(true) }
-            ].map((tile, index) => (
-              <motion.div
-                key={tile.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.4 + index * 0.05 }}
-                whileHover={{ scale: 1.03, y: -3 }}
-                whileTap={{ scale: 0.98 }}
-                onHoverStart={() => setHoveredCard(tile.id)}
-                onHoverEnd={() => setHoveredCard(null)}
-                onClick={tile.action}
-                className="relative cursor-pointer group"
-              >
-                <div className={`relative overflow-hidden rounded-lg bg-gradient-to-br ${tile.color} p-4 shadow-md hover:shadow-lg transition-all duration-300`}>
-                  <motion.div
-                    animate={{
-                      x: hoveredCard === tile.id ? ["-100%", "200%"] : "-100%",
-                    }}
-                    transition={{
-                      duration: 0.6,
-                      ease: "easeInOut"
-                    }}
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12"
-                  />
-                  
-                  <div className="relative z-10">
-                    <motion.div
-                      animate={{
-                        rotate: hoveredCard === tile.id ? [0, -10, 10, -10, 0] : 0,
-                      }}
-                      transition={{ duration: 0.5 }}
-                      className="text-5xl mb-3"
-                    >
-                      {tile.icon}
-                    </motion.div>
-                    <h3 className="text-xl font-bold text-white mb-2">
-                      {tile.title}
-                    </h3>
-                    <p className="text-white/90 text-sm">
-                      {tile.description}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
         {/* Appointments Management Tiles */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -1484,20 +1422,16 @@ export default function Patients() {
                   <p className="text-xs text-gray-500 mt-1">Pre-populated from your login credentials</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Role *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Role * <span className="text-xs text-gray-400 ml-1">🔒</span></label>
                   <select
                     value={patientData.role}
-                    onChange={(e) => setPatientData({ ...patientData, role: e.target.value })}
+                    disabled
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-400 cursor-not-allowed"
                   >
                     <option value="patient">Patient</option>
-                    <option value="doctor">Doctor</option>
-                    <option value="nurse">Nurse</option>
-                    <option value="admin">Administrator</option>
-                    <option value="receptionist">Receptionist</option>
-                    <option value="staff">Staff</option>
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">Role is restricted to Patient for this form</p>
                 </div>
               </div>
               </motion.div>
@@ -5580,19 +5514,24 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                   </h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    {/* Clinic ID - Mandatory */}
+                    {/* Clinic ID - Dropdown (Mandatory) */}
                     <div>
                       <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
-                        <span>🏥</span> Clinic ID *
+                        <span>🏥</span> Clinic *
                       </label>
-                      <input
-                        type="text"
+                      <select
                         required
                         value={appointmentFilter.clinicId}
                         onChange={(e) => setAppointmentFilter({ ...appointmentFilter, clinicId: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
-                        placeholder="Enter Clinic ID"
-                      />
+                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all bg-white"
+                      >
+                        <option value="">Select Clinic</option>
+                        {clinicList.map((clinic) => (
+                          <option key={clinic.clinicId} value={clinic.clinicId}>
+                            {clinic.clinicName}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     {/* First Name */}

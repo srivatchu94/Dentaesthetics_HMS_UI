@@ -120,13 +120,68 @@ export const decodeAndLogTokenClaims = (token: string): any => {
 };
 
 /**
+ * Extract token expiry from JWT token's 'exp' claim
+ * This is the ground truth - the exp claim in JWT is Unix timestamp
+ */
+export const extractTokenExpiryFromJWT = (token: string): string | null => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      console.error('❌ Invalid JWT format');
+      return null;
+    }
+    
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    
+    const decoded = JSON.parse(jsonPayload);
+    
+    if (!decoded.exp) {
+      console.error('❌ No exp claim in JWT token');
+      return null;
+    }
+    
+    // Convert Unix timestamp (seconds) to ISO date string
+    const expiryDate = new Date(decoded.exp * 1000);
+    const isoString = expiryDate.toISOString();
+    
+    const now = Math.floor(Date.now() / 1000);
+    const timeRemaining = decoded.exp - now;
+    
+    console.log('🔑 JWT Token Expiry Extracted:');
+    console.log(`   exp claim (Unix): ${decoded.exp}`);
+    console.log(`   Expires at (ISO): ${isoString}`);
+    console.log(`   Time remaining: ${timeRemaining} seconds (${Math.floor(timeRemaining / 60)} minutes)`);
+    
+    return isoString;
+  } catch (error) {
+    console.error('❌ Failed to extract expiry from JWT:', error);
+    return null;
+  }
+};
+
+/**
  * Save access token using hybrid strategy:
  * 1. Store in MEMORY first (fastest access)
  * 2. Backup in sessionStorage (survives page refresh)
- * 3. Store expiry time
+ * 3. Extract expiry from JWT's exp claim (ground truth)
  */
-export const saveAccessToken = (token: string, expiryTime: string): void => {
+export const saveAccessToken = (token: string, backendExpiryTime?: string): void => {
   try {
+    // IMPORTANT: Extract expiry from JWT token's exp claim (ground truth)
+    // This is more reliable than using backend's response
+    const jwtExpiry = extractTokenExpiryFromJWT(token);
+    
+    if (!jwtExpiry) {
+      console.error('❌ Could not extract expiry from JWT token');
+      return;
+    }
+    
+    const expiryTime = jwtExpiry; // Use JWT expiry as source of truth
+    
     // Store in memory (primary)
     memoryAccessToken = token;
     memoryTokenExpiry = expiryTime;
@@ -137,34 +192,13 @@ export const saveAccessToken = (token: string, expiryTime: string): void => {
     
     console.log('✅ ACCESS TOKEN SAVED SUCCESSFULLY:');
     console.log('   Token (first 50 chars):', token.substring(0, 50) + '...');
+    console.log('   🔑 Expiry extracted from JWT exp claim (ground truth)');
     console.log('   Storage locations:');
     console.log('      🧠 Memory: Active (fast access)');
     console.log('      📋 SessionStorage: Backup (persists on page refresh)');
     
     // Decode and show full claims
     decodeAndLogTokenClaims(token);
-    
-    // Decode and show expiry info
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      const decoded = JSON.parse(jsonPayload);
-      
-      if (decoded.exp) {
-        const expiryDate = new Date(decoded.exp * 1000).toISOString();
-        const now = Math.floor(Date.now() / 1000);
-        const timeRemaining = decoded.exp - now;
-        console.log(`   ⏰ Expiration Details:`);
-        console.log(`      Expires at: ${expiryDate}`);
-        console.log(`      Unix timestamp: ${decoded.exp}`);
-        console.log(`      Time remaining: ${timeRemaining} seconds (${Math.floor(timeRemaining / 60)} minutes)`);
-      }
-    } catch (e) {
-      console.log('   ⏰ Expiry time: ' + expiryTime);
-    }
     
     console.log('   🔒 Security: Protected from XSS via memory storage');
   } catch (error) {
@@ -507,6 +541,25 @@ export const getClinicIdFromToken = (): number | null => {
     return null;
   } catch (error) {
     console.error('❌ Failed to extract clinic ID from token:', error);
+    return null;
+  }
+};
+
+/**
+ * Get enterprise ID from token payload (from login token claims)
+ * Extracts the enterpriseId from the currently selected access in localStorage
+ */
+export const getEnterpriseIdFromToken = (): number | null => {
+  try {
+    const selectedAccess = getSelectedAccess();
+    if (selectedAccess && selectedAccess.enterpriseId) {
+      console.log(`✅ Enterprise ID extracted from token: ${selectedAccess.enterpriseId}`);
+      return selectedAccess.enterpriseId;
+    }
+    console.warn('⚠️ No enterprise ID found in token payload');
+    return null;
+  } catch (error) {
+    console.error('❌ Failed to extract enterprise ID from token:', error);
     return null;
   }
 };

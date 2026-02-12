@@ -846,29 +846,12 @@ export default function ViewPatients() {
                     options={bloodGroupOptions}
                     disabled={!isEditMode}
                   />
-                  <InputField
-                    label="Marital Status"
-                    name="maritalStatus"
-                    value={editPatientData.maritalStatus}
-                    onChange={(e) => setEditPatientData({...editPatientData, maritalStatus: e.target.value})}
-                    options={maritalStatusOptions}
-                    disabled={!isEditMode}
-                  />
                   <div>
                     <label className="block text-sm font-medium text-stone-700 mb-2">Clinic (Read-only)</label>
                     <input
                       type="text"
                       disabled
                       value={editPatientData.clinicID}
-                      className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-gray-50 text-stone-500 cursor-not-allowed"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-stone-700 mb-2">Enterprise ID (Read-only)</label>
-                    <input
-                      type="text"
-                      disabled
-                      value={editPatientData.enterpriseId}
                       className="w-full px-4 py-2 border border-stone-300 rounded-lg bg-gray-50 text-stone-500 cursor-not-allowed"
                     />
                   </div>

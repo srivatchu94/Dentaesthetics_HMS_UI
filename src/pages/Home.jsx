@@ -9,23 +9,23 @@ export default function Home() {
     mission: {
       title: "Our Mission",
       icon: "🎯",
-      content: "To provide comprehensive and compassionate dental care through innovative technology, making healthcare management seamless for practitioners and accessible for patients.",
+      content: "To provide comprehensive and compassionate healthcare through innovative technology, making healthcare management seamless for practitioners and accessible for patients.",
       points: [
         "Deliver exceptional patient care through digital transformation",
-        "Empower dental professionals with efficient management tools",
+        "Empower healthcare professionals with efficient management tools",
         "Ensure data security and privacy in all operations",
-        "Foster continuous improvement in dental healthcare delivery"
+        "Foster continuous improvement in healthcare delivery"
       ]
     },
     vision: {
       title: "Our Vision",
       icon: "✨",
-      content: "To be the leading dental healthcare management platform, revolutionizing how dental practices operate and enhancing patient experiences worldwide.",
+      content: "To be the leading healthcare management platform, revolutionizing how practices operate and enhancing patient experiences worldwide.",
       points: [
-        "Seamless integration across all dental practice operations",
+        "Seamless integration across all practice operations",
         "Patient-centered care with personalized health tracking",
         "Data-driven insights for better clinical outcomes",
-        "A connected ecosystem of dental health professionals"
+        "A connected ecosystem of healthcare professionals"
       ]
     },
     values: {
@@ -42,7 +42,7 @@ export default function Home() {
     commitment: {
       title: "Our Commitment",
       icon: "🤝",
-      content: "Dedicated to supporting dental practices with reliable, user-friendly technology that enhances both efficiency and patient care quality.",
+      content: "Dedicated to supporting healthcare practices with reliable, user-friendly technology that enhances both efficiency and patient care quality.",
       points: [
         "24/7 technical support for uninterrupted service",
         "Regular updates and feature enhancements",
@@ -189,12 +189,12 @@ export default function Home() {
 
             {/* Main Title */}
             <h1 className="text-4xl md:text-5xl font-black bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 bg-clip-text text-transparent mb-2 drop-shadow-lg">
-              Dentaesthetics VitalsVille
+              VitalsVille Healthcare
             </h1>
             
             {/* Subtitle */}
             <p className="text-lg md:text-xl text-slate-200 max-w-3xl mx-auto leading-relaxed mb-8 font-medium">
-              Advanced dental practice management for clinics of all sizes. Smart scheduling, patient care, and revenue optimization in one platform.
+              Advanced healthcare practice management for clinics of all sizes. Smart scheduling, patient care, and revenue optimization in one platform.
             </p>
 
             {/* Vital Stats Grid */}
