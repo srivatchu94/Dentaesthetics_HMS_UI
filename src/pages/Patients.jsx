@@ -2015,7 +2015,7 @@ export default function Patients() {
                     whileTap={{ scale: 0.98 }}
                     onClick={() => {
                       setShowSuccessModal(false);
-                      setActiveView("list");
+                      setShowViewPatientsModal(true);
                     }}
                     className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
                   >
