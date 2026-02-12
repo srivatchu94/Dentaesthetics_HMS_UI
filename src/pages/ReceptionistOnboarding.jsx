@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getSelectedAccess } from "../services/authService";
+import { getSelectedAccess, getAuthToken } from "../services/authService";
 
 export default function ReceptionistOnboarding() {
   const navigate = useNavigate();
@@ -82,11 +82,14 @@ export default function ReceptionistOnboarding() {
     const loadEnterprises = async () => {
       try {
         setLoadingEnterprises(true);
-        const response = await fetch("`${API_BASE_URL}/Enterprise", {
+        const selectedAccess = getSelectedAccess();
+        const response = await fetch(`${API_BASE_URL}/Enterprise/GetEnterprises`, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+            "Authorization": `Bearer ${getAuthToken()}`,
+            ...(selectedAccess?.enterpriseId && { "X-Enterprise-Id": selectedAccess.enterpriseId.toString() }),
+            ...(selectedAccess?.clinicId && { "X-Clinic-Id": selectedAccess.clinicId.toString() })
           }
         });
 
@@ -115,13 +118,16 @@ export default function ReceptionistOnboarding() {
 
       try {
         setLoadingClinics(true);
+        const selectedAccess = getSelectedAccess();
         const response = await fetch(
           `${API_BASE_URL}/Clinic/GetClinicByID?id=${form.enterpriseId}`,
           {
             method: "GET",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+              "Authorization": `Bearer ${getAuthToken()}`,
+              "X-Enterprise-Id": form.enterpriseId.toString(),
+              ...(selectedAccess?.clinicId && { "X-Clinic-Id": selectedAccess.clinicId.toString() })
             }
           }
         );
@@ -304,17 +310,20 @@ export default function ReceptionistOnboarding() {
     setError("");
     setSuccessMessage("");
     
-    const apiUrl = "`${API_BASE_URL}/StaffDetail/CreateRoleBasedProfile";
+    const selectedAccess = getSelectedAccess();
+    const apiUrl = `${API_BASE_URL}/StaffDetail/CreateRoleBasedProfile`;
     console.log("🎯 Calling API:", apiUrl);
     console.log("📋 Method: POST");
-    console.log("🔑 Auth Token:", localStorage.getItem("accessToken") ? "Present" : "Missing");
+    console.log("🔑 Auth Token:", getAuthToken() ? "Present" : "Missing");
     console.log("📦 Request body:", jsonBody);
     
     fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${localStorage.getItem("accessToken")}`
+        "Authorization": `Bearer ${getAuthToken()}`,
+        "X-Enterprise-Id": (form.enterpriseId || selectedAccess?.enterpriseId || "").toString(),
+        "X-Clinic-Id": (form.clinicId || selectedAccess?.clinicId || "").toString()
       },
       body: jsonBody
     })

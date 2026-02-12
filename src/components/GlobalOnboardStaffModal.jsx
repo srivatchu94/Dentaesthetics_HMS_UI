@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createStaffDetail } from '../services/staffService';
-import { getSelectedAccess } from '../services/authService';
+import { getSelectedAccess, getAuthToken } from '../services/authService';
 import { listRoles } from '../services/roleService';
 import { useModal } from '../context/ModalContext';
 
@@ -97,19 +97,24 @@ const GlobalOnboardStaffModal = () => {
 
   const loadClinics = async (enterpriseId) => {
     try {
+      const selectedAccess = getSelectedAccess();
       const response = await fetch(
         `${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseId}`,
         {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("accessToken")}`
+            Authorization: `Bearer ${getAuthToken()}`,
+            "X-Enterprise-Id": enterpriseId.toString(),
+            ...(selectedAccess?.clinicId && { "X-Clinic-Id": selectedAccess.clinicId.toString() })
           }
         }
       );
       if (response.ok) {
         const data = await response.json();
         setOnboardingClinics(Array.isArray(data) ? data : []);
+      } else {
+        console.error("Failed to load clinics:", response.statusText);
       }
     } catch (error) {
       console.error("Error loading clinics:", error);
@@ -131,16 +136,21 @@ const GlobalOnboardStaffModal = () => {
 
   const loadEnterprises = async () => {
     try {
+      const selectedAccess = getSelectedAccess();
       const response = await fetch(`${API_BASE_URL}/Enterprise/GetEnterprises`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`
+          Authorization: `Bearer ${getAuthToken()}`,
+          ...(selectedAccess?.enterpriseId && { "X-Enterprise-Id": selectedAccess.enterpriseId.toString() }),
+          ...(selectedAccess?.clinicId && { "X-Clinic-Id": selectedAccess.clinicId.toString() })
         }
       });
       if (response.ok) {
         const data = await response.json();
         setAllEnterprises(Array.isArray(data) ? data : []);
+      } else {
+        console.error("Failed to load enterprises:", response.statusText);
       }
     } catch (error) {
       console.error("Error loading enterprises:", error);
@@ -150,6 +160,7 @@ const GlobalOnboardStaffModal = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
 
+    // Phone and emergency contact: digits only, max 10
     if (name === "phone" || name === "emergencyContact") {
       const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
       setDoctorFormData(prev => ({
@@ -159,13 +170,17 @@ const GlobalOnboardStaffModal = () => {
       return;
     }
 
+    // Date fields: always update state to prevent cursor from disappearing
+    // The HTML date input type will handle date validation
     if (name === "dateOfBirth" || name === "licenseExpiry" || name === "joiningDate") {
-      const yearPart = value.split("-")[0] || "";
-      if (yearPart.length > 4) {
-        return;
-      }
+      setDoctorFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+      return;
     }
 
+    // Other inputs
     setDoctorFormData(prev => ({
       ...prev,
       [name]: value

@@ -18,16 +18,25 @@ body {
   @apply cursor-default bg-slate-50 text-slate-900;
 }
 
-* {
-  cursor: inherit;
-}
-
 a, button, [role="button"] {
   @apply cursor-pointer;
 }
 
 input, textarea, select {
-  @apply cursor-text;
+  @apply cursor-text !important;
+}
+
+input:not(:disabled), textarea:not(:disabled), select:not(:disabled) {
+  cursor: text !important;
+}
+
+input:disabled, textarea:disabled, select:disabled {
+  @apply cursor-not-allowed;
+}
+
+/* Ensure inputs show cursor even during typing */
+input:focus, textarea:focus, select:focus {
+  cursor: text !important;
 }
 
 .app-container { @apply min-h-screen p-4 md:p-8; }

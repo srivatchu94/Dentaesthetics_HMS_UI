@@ -255,19 +255,21 @@ export default function ViewStaffDetails() {
   const handleEditFormChange = e => {
     const { name, value } = e.target;
 
+    // Phone and emergency contact: digits only, max 10
     if (name === "phone" || name === "emergencyContact") {
       const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
       setEditFormData(prev => ({ ...prev, [name]: digitsOnly }));
       return;
     }
 
+    // Date fields: always update state to prevent cursor from disappearing
+    // The HTML date input type will handle date validation
     if (name === "dateOfBirth" || name === "licenseExpiry" || name === "joiningDate") {
-      if (value) {
-        const yearPart = value.split("-")[0] || "";
-        if (yearPart.length > 4) return;
-      }
+      setEditFormData(prev => ({ ...prev, [name]: value }));
+      return;
     }
 
+    // Other inputs
     setEditFormData(prev => ({ ...prev, [name]: value }));
   };
 

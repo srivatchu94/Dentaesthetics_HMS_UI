@@ -1,5 +1,6 @@
 // Staff API Service
 import { request } from './apiClient';
+import { getAuthToken } from './authService';
 import type { StaffModel, StaffDetailsModel } from '../Interfaces';
 
 const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || 'https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api';
@@ -96,32 +97,14 @@ export function createStaffDetail(payload: CreateStaffDetailDto): Promise<StaffD
   console.log("specialtyId:", cleanPayload.specialtyId, "(Type:", typeof cleanPayload.specialtyId, ")");
   console.log("rolesAssigned:", cleanPayload.rolesAssigned, "(Type:", typeof cleanPayload.rolesAssigned, ")");
   
-  // Use the new CreateRoleBasedProfile endpoint
-  return fetch(`${API_BASE_URL}/StaffDetail/CreateRoleBasedProfile`, {
+  // Use the request function which automatically includes required headers (X-Enterprise-Id, X-Clinic-Id, Authorization)
+  return request<StaffDetailsModel>("/StaffDetail/CreateRoleBasedProfile", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${localStorage.getItem("accessToken") || ""}`
-    },
     body: JSON.stringify(cleanPayload)
   })
-    .then(async response => {
-      console.log("Response status:", response.status, response.statusText);
-      
-      // Handle 204 NoContent (success)
-      if (response.status === 204) {
-        console.log("✅ Staff profile created successfully (204 NoContent)");
-        return {} as StaffDetailsModel; // Return empty object since no body is returned
-      }
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("❌ API Error:", errorText);
-        throw new Error(`HTTP ${response.status} - ${errorText || response.statusText}`);
-      }
-      
-      // For other 2xx responses, try parsing as JSON
-      return response.json();
+    .then(response => {
+      console.log("✅ Staff profile created successfully");
+      return response;
     })
     .catch(err => {
       console.error("❌ Error calling CreateRoleBasedProfile:", err);
