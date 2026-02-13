@@ -11,7 +11,7 @@ export default function DoctorClinicMappingTeamHub() {
   const doctorIdLookupRef = useRef(new Map());
 
   useEffect(() => {
-    const access = getSelectedAccess();
+    const access = getSelectedAccess(); 
     const isSuperAdmin = Array.isArray(access?.roleIds) && access.roleIds.includes(1);
     const enterpriseId = access?.enterpriseId ? access.enterpriseId.toString() : "";
     if (isSuperAdmin) return;

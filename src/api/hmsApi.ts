@@ -585,3 +585,33 @@ export async function getDoctorsByClinicID(clinicID: number): Promise<any> {
     return [];
   }
 }
+
+// ============================================
+// VISIT & MEDICAL INFO ENDPOINTS
+// ============================================
+
+export function getPatientVisit(appointmentId: number): Promise<any> {
+  console.log('📞 API CALL: getPatientVisit with appointmentId:', appointmentId);
+  return request<any>(`/Visit/GetPatientVisit?AppointmentID=${appointmentId}`)
+    .then(data => {
+      console.log('✅ PATIENT VISIT FETCHED:', data);
+      return data;
+    })
+    .catch(error => {
+      console.error('❌ FAILED TO FETCH PATIENT VISIT:', error);
+      throw error;
+    });
+}
+
+export function getMedicalInfoSummary(patientId: number): Promise<any> {
+  console.log('📞 API CALL: getMedicalInfoSummary with patientId:', patientId);
+  return request<any>(`/Patient/GetMedicalInfoSummary?patientId=${patientId}`)
+    .then(data => {
+      console.log('✅ MEDICAL INFO SUMMARY FETCHED:', data);
+      return data;
+    })
+    .catch(error => {
+      console.error('❌ FAILED TO FETCH MEDICAL INFO SUMMARY:', error);
+      throw error;
+    });
+}

@@ -771,11 +771,30 @@ export default function Doctors() {
   const [printPrescriptionData, setPrintPrescriptionData] = useState(null);
   const visitFetchRef = useRef({ appointmentId: null, inFlight: false });
   const inventoryLoadedRef = useRef(false);
-  const [medicalInfoSummary, setMedicalInfoSummary] = useState({ chronicDiseases: [], allergies: [] });
+  const [medicalInfoSummary, setMedicalInfoSummary] = useState({ 
+    chronicDiseases: [], 
+    allergies: [],
+    diagnosis: '',
+    treatment: '',
+    medications: '',
+    notes: '',
+    reasonForVisit: ''
+  });
   const [medicalInfoLoading, setMedicalInfoLoading] = useState(false);
   const [medicalInfoError, setMedicalInfoError] = useState(false);
   const medicalInfoCacheRef = useRef(new Map());
   const medicalInfoInFlightRef = useRef(new Set());
+
+  // 🔍 Debug: Track every change to medicalInfoSummary
+  useEffect(() => {
+    console.log('👁️ [DOCTORS] ★ MEDICAL INFO SUMMARY CHANGED:');
+    console.log('   diagnosis:', medicalInfoSummary.diagnosis ? `"${medicalInfoSummary.diagnosis}"` : '(empty)');
+    console.log('   treatment:', medicalInfoSummary.treatment ? `"${medicalInfoSummary.treatment}"` : '(empty)');
+    console.log('   medications:', medicalInfoSummary.medications ? `"${medicalInfoSummary.medications}"` : '(empty)');
+    console.log('   notes:', medicalInfoSummary.notes ? `"${medicalInfoSummary.notes}"` : '(empty)');
+    console.log('   Full object:', JSON.stringify(medicalInfoSummary, null, 2));
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  }, [medicalInfoSummary]);
 
   // Debug logging for currentMedication state changes
   useEffect(() => {
@@ -1226,8 +1245,28 @@ export default function Doctors() {
       loadInventoryMedications().finally(() => {
         inventoryLoadedRef.current = true;
       });
+    } else {
+      // Reset medical info when modal closes
+      console.log('🏥 Visit Info Modal closed, resetting medical info');
+      setMedicalInfoSummary({ chronicDiseases: [], allergies: [], diagnosis: '', treatment: '', medications: '', notes: '', reasonForVisit: '' });
+      setMedicalInfoLoading(false);
+      setMedicalInfoError(false);
+      medicalInfoInFlightRef.current.clear();
     }
   }, [showVisitInfoModal]);
+
+  // Function to reload visit data after saving
+  const reloadVisitData = useCallback(() => {
+    console.log('🔄 RELOADING VISIT DATA');
+    if (selectedAppointmentDetails?.appointmentId) {
+      // Reset the ref to force re-fetch
+      visitFetchRef.current = { appointmentId: null, inFlight: false };
+      // Clear medical info to force reload
+      setMedicalInfoSummary({ chronicDiseases: [], allergies: [], diagnosis: '', treatment: '', medications: '', notes: '', reasonForVisit: '' });
+      setMedicalInfoLoading(true);
+      setMedicalInfoError(false);
+    }
+  }, [selectedAppointmentDetails?.appointmentId]);
 
   useEffect(() => {
     if (!showVisitInfoModal || !selectedAppointmentDetails?.appointmentId) return;
@@ -1238,32 +1277,109 @@ export default function Doctors() {
     (async () => {
       try {
         const existingVisitData = await getPatientVisit(appointmentId);
-        if (existingVisitData && existingVisitData.visitDate) {
+        console.log('═══════════════════════════════════════════════════════');
+        console.log('📝 VISIT DATA RECEIVED FROM FIRST API CALL:');
+        console.log('═══════════════════════════════════════════════════════');
+        console.log(JSON.stringify(existingVisitData, null, 2));
+        console.log('═══════════════════════════════════════════════════════');
+        
+        if (existingVisitData) {
+          // Extract diagnosis, treatment, and other fields from visit data
+          const visitDiagnosis = existingVisitData.diagnosis || existingVisitData.diagnoses || '';
+          const visitTreatment = existingVisitData.treatmentProvided || existingVisitData.treatment || existingVisitData.treatments || '';
+          const visitMedications = existingVisitData.medications || existingVisitData.medicationPrescriptions || '';
+          const visitNotes = existingVisitData.notes || existingVisitData.additionalNotes || '';
+          const visitReasonForVisit = existingVisitData.reasonForVisit || existingVisitData.chiefComplaint || '';
+          
+          // Extract medicine names from prescriptions array if available
+          let prescriptionMedicines = '';
+          if (Array.isArray(existingVisitData.prescriptions) && existingVisitData.prescriptions.length > 0) {
+            prescriptionMedicines = existingVisitData.prescriptions
+              .map(p => `${p.medicineName || 'Unknown'} - ${p.dosage || 'N/A'} (${p.frequency || 'N/A'})`)
+              .join('\n• ');
+            prescriptionMedicines = '\n\n📋 Prescribed Medicines:\n• ' + prescriptionMedicines;
+          }
+          
+          // Append prescriptions to treatment provided
+          const treatmentWithMedicines = visitTreatment + prescriptionMedicines;
+          
+          console.log('📋 STEP 1 - EXTRACTED FROM VISIT DATA:');
+          console.log('   ✅ diagnosis:', visitDiagnosis);
+          console.log('   ✅ treatment:', visitTreatment);
+          console.log('   ✅ medications:', visitMedications);
+          console.log('   ✅ notes:', visitNotes);
+          console.log('   ✅ reasonForVisit:', visitReasonForVisit);
+          console.log('   ✅ prescriptions:', existingVisitData.prescriptions);
+          console.log('   ✅ treatmentWithMedicines:', treatmentWithMedicines);
+          console.log('═══════════════════════════════════════════════════════');
+          
+          // Merge visit data into medical summary - IMPORTANT: Always set the values!
+          if (visitDiagnosis || visitTreatment || visitMedications || visitNotes || visitReasonForVisit) {
+            console.log('📋 STEP 2 - MERGING INTO MEDICAL SUMMARY');
+            
+            // Use functional update to preserve chronic diseases/allergies from previous state
+            setMedicalInfoSummary(prevState => {
+              const updatedSummary = {
+                chronicDiseases: prevState.chronicDiseases,  // PRESERVE from previous state
+                allergies: prevState.allergies,  // PRESERVE from previous state
+                diagnosis: visitDiagnosis || prevState.diagnosis,  // Use visit data first
+                treatment: treatmentWithMedicines || prevState.treatment,  // Use visit data with medicines
+                medications: visitMedications || prevState.medications,  // Use visit data first
+                notes: visitNotes || prevState.notes,  // Use visit data first
+                reasonForVisit: visitReasonForVisit || prevState.reasonForVisit  // Use visit data first
+              };
+              
+              console.log('📤 UPDATED SUMMARY:');
+              console.log(JSON.stringify(updatedSummary, null, 2));
+              console.log('═══════════════════════════════════════════════════════');
+              
+              return updatedSummary;
+            });
+            
+            // CRITICAL: Set loading to false after visit data populates the form
+            console.log('✅ VISIT DATA LOADED - SETTING LOADING STATE TO FALSE');
+            setMedicalInfoLoading(false);
+          }
+          
           setSelectedAppointmentForVisit({ ...selectedAppointmentDetails, existingVisitData });
         } else {
           setSelectedAppointmentForVisit(selectedAppointmentDetails);
         }
       } catch (error) {
+        console.error('❌ Failed to fetch patient visit:', error);
         setSelectedAppointmentForVisit(selectedAppointmentDetails);
       } finally {
         visitFetchRef.current = { appointmentId, inFlight: false };
       }
     })();
-  }, [showVisitInfoModal, selectedAppointmentDetails?.appointmentId]);
+  }, [showVisitInfoModal, selectedAppointmentDetails?.appointmentId, medicalInfoSummary]);
 
   const loadMedicalInfoSummary = useCallback(async (patientId) => {
     if (!patientId) {
       console.warn('⚠️ No patientId provided to loadMedicalInfoSummary');
+      setMedicalInfoLoading(false);
       return;
     }
+    
+    // Check cache first
     if (medicalInfoCacheRef.current.has(patientId)) {
       console.log('✅ Using cached medical info for patientId:', patientId);
       setMedicalInfoSummary(medicalInfoCacheRef.current.get(patientId));
       setMedicalInfoLoading(false);
+      setMedicalInfoError(false);
       return;
     }
+    
+    // If request already in flight, try again in 100ms instead of returning
     if (medicalInfoInFlightRef.current.has(patientId)) {
       console.log('⏳ Medical info request already in flight for patientId:', patientId);
+      setMedicalInfoLoading(true);
+      await new Promise(resolve => setTimeout(resolve, 100));
+      if (medicalInfoCacheRef.current.has(patientId)) {
+        console.log('✅ Cached data now available after waiting, patientId:', patientId);
+        setMedicalInfoSummary(medicalInfoCacheRef.current.get(patientId));
+        setMedicalInfoLoading(false);
+      }
       return;
     }
 
@@ -1275,7 +1391,7 @@ export default function Doctors() {
       setMedicalInfoLoading(false);
       setMedicalInfoError(true);
       medicalInfoInFlightRef.current.delete(patientId);
-      setMedicalInfoSummary({ chronicDiseases: [], allergies: [] });
+      setMedicalInfoSummary({ chronicDiseases: [], allergies: [], diagnosis: '', treatment: '', medications: '', notes: '', reasonForVisit: '' });
     }, 5000);
 
     try {
@@ -1286,7 +1402,9 @@ export default function Doctors() {
       
       if (!data) {
         console.warn('⚠️ API returned null/undefined for patientId:', patientId);
-        setMedicalInfoSummary({ chronicDiseases: [], allergies: [] });
+        setMedicalInfoSummary({ chronicDiseases: [], allergies: [], diagnosis: '', treatment: '', medications: '', notes: '', reasonForVisit: '' });
+        medicalInfoCacheRef.current.set(patientId, { chronicDiseases: [], allergies: [], diagnosis: '', treatment: '', medications: '', notes: '', reasonForVisit: '' });
+        setMedicalInfoLoading(false);
         return;
       }
       
@@ -1295,7 +1413,6 @@ export default function Doctors() {
       if (Array.isArray(data?.chronicDiseases)) {
         chronicDiseaseArray = data.chronicDiseases;
       } else if (typeof data?.chronicDiseases === 'string' && data.chronicDiseases.trim()) {
-        // Split comma-separated string into array
         chronicDiseaseArray = data.chronicDiseases
           .split(',')
           .map(d => d.trim())
@@ -1314,7 +1431,6 @@ export default function Doctors() {
       if (Array.isArray(data?.allergies)) {
         allergyArray = data.allergies;
       } else if (typeof data?.allergies === 'string' && data.allergies.trim()) {
-        // Split comma-separated string into array
         allergyArray = data.allergies
           .split(',')
           .map(a => a.trim())
@@ -1335,18 +1451,54 @@ export default function Doctors() {
       
       console.log('✅ Parsed Medical Info:', { chronicDiseaseArray, allergyArray });
       
-      const summary = { chronicDiseases: chronicDiseaseArray, allergies: allergyArray };
+      // Extract diagnosis, treatment, medications, and notes from API response
+      // The API returns medicalHistory which contains diagnosis/treatment info
+      let diagnosisText = data?.diagnosis || data?.diagnoses || '';
+      let treatmentText = data?.treatment || data?.treatmentProvided || data?.treatments || '';
+      let medicationsText = data?.medications || data?.medicationPrescriptions || data?.patientCurrentMedications || data?.prescriptions || '';
+      let notesText = data?.notes || data?.additionalNotes || data?.medicalHistory || '';
+      
+      // If medicalHistory contains the info, use it
+      if (data?.medicalHistory && !diagnosisText) {
+        diagnosisText = data.medicalHistory;
+      }
+      
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('🔍 FULL API RESPONSE:');
+      console.log(JSON.stringify(data, null, 2));
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('📋 Extracted ONLY Chronic Diseases & Allergies:');
+      console.log('   chronicDiseases:', chronicDiseaseArray);
+      console.log('   allergies:', allergyArray);
+      console.log('   NOTE: Diagnosis, Treatment, Notes will come from Visit API');
+      console.log('═══════════════════════════════════════════════════════');
+      
+      // ONLY extract chronic diseases and allergies from this API
+      // Diagnosis, treatment, notes, medications will come from GetPatientVisit API
+      const summary = { 
+        chronicDiseases: chronicDiseaseArray, 
+        allergies: allergyArray,
+        diagnosis: '',
+        treatment: '',
+        medications: '',
+        notes: ''
+      };
+      console.log('📤 SETTING MEDICAL INFO SUMMARY (with empty diagnosis/treatment/notes):');
+      console.log(JSON.stringify(summary, null, 2));
+      console.log('═══════════════════════════════════════════════════════');
+      
       medicalInfoCacheRef.current.set(patientId, summary);
       setMedicalInfoSummary(summary);
       setMedicalInfoError(false);
+      setMedicalInfoLoading(false);
     } catch (error) {
       console.error('❌ Failed to load medical info summary:', error);
-      setMedicalInfoSummary({ chronicDiseases: [], allergies: [] });
+      setMedicalInfoSummary({ chronicDiseases: [], allergies: [], diagnosis: '', treatment: '', medications: '', notes: '', reasonForVisit: '' });
       setMedicalInfoError(true);
+      setMedicalInfoLoading(false);
     } finally {
       clearTimeout(timeoutId);
       medicalInfoInFlightRef.current.delete(patientId);
-      setMedicalInfoLoading(false);
     }
   }, []);
 
@@ -1360,6 +1512,20 @@ export default function Doctors() {
     console.log('📦 Component mounted, loading inventory data...');
     loadInventoryData();
   }, []);
+
+  // 🔥 Debug: Log when about to pass props to VisitInfoModal
+  useEffect(() => {
+    if (showVisitInfoModal) {
+      console.log('🚀 [DOCTORS → MODAL] Passing props to VisitInfoModal:');
+      console.log('   chronicDiseases:', medicalInfoSummary.chronicDiseases ? JSON.stringify(medicalInfoSummary.chronicDiseases) : '(empty)');
+      console.log('   allergies:', medicalInfoSummary.allergies ? JSON.stringify(medicalInfoSummary.allergies) : '(empty)');
+      console.log('   diagnosis:', medicalInfoSummary.diagnosis ? `"${medicalInfoSummary.diagnosis}"` : '(empty)');
+      console.log('   treatment:', medicalInfoSummary.treatment ? `"${medicalInfoSummary.treatment}"` : '(empty)');
+      console.log('   medications:', medicalInfoSummary.medications ? `"${medicalInfoSummary.medications}"` : '(empty)');
+      console.log('   notes:', medicalInfoSummary.notes ? `"${medicalInfoSummary.notes}"` : '(empty)');
+      console.log('   loadingMedicalInfo:', medicalInfoLoading);
+    }
+  }, [showVisitInfoModal, medicalInfoSummary, medicalInfoLoading]);
 
   // Load master items when inventory modal opens
   useEffect(() => {
@@ -5787,10 +5953,10 @@ export default function Doctors() {
             {/* Content */}
             <div className="px-8 py-6 text-center">
               <p className="text-stone-700 text-lg font-semibold mb-2">
-                Prescription Saved Successfully! 🎉
+                {successMessage || "Operation Completed Successfully! 🎉"}
               </p>
               <p className="text-stone-600 text-sm">
-                All medications have been saved. Redirecting to diagnosis page...
+                Your changes have been saved. Please wait...
               </p>
             </div>
 
@@ -5799,14 +5965,10 @@ export default function Doctors() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  setShowPrescriptionSuccessModal(false);
-                  setShowPrescriptionModal(false);
-                  setShowVisitInfoModal(true);
-                }}
+                onClick={() => setShowPrescriptionSuccessModal(false)}
                 className="w-full px-6 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all"
               >
-                Go to Diagnosis Page
+                ✓ Dismiss
               </motion.button>
             </div>
           </motion.div>
@@ -8849,7 +9011,10 @@ export default function Doctors() {
             show={showVisitInfoModal}
             onClose={() => setShowVisitInfoModal(false)}
             selectedAppointment={selectedAppointmentForVisit}
-            onVisitSaved={() => setShowVisitInfoModal(false)}
+            onVisitSaved={() => {
+              setShowVisitInfoModal(false);
+              reloadVisitData();
+            }}
             loadInventoryMedications={loadInventoryMedications}
             inventoryMeds={inventoryMeds}
             loadingMeds={loadingMeds}
@@ -8863,6 +9028,11 @@ export default function Doctors() {
             setShowPrescriptionSuccessModal={setShowPrescriptionSuccessModal}
             chronicDiseases={medicalInfoSummary.chronicDiseases}
             allergies={medicalInfoSummary.allergies}
+            diagnosis={medicalInfoSummary.diagnosis}
+            treatment={medicalInfoSummary.treatment}
+            medications={medicalInfoSummary.medications}
+            notes={medicalInfoSummary.notes}
+            reasonForVisit={medicalInfoSummary.reasonForVisit}
             loadingMedicalInfo={medicalInfoLoading}
             medicalInfoError={medicalInfoError}
           />

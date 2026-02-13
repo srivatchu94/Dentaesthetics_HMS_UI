@@ -5,7 +5,7 @@ import { editPatientVisit } from "../services/patientService";
 import { sendPrescriptionEmail } from "../services/emailService";
 
 // Extracted and properly memoized VisitInfoModal Component
-const VisitInfoModal = React.memo(({
+const VisitInfoModal = ({
   show,
   onClose,
   selectedAppointment,
@@ -23,9 +23,27 @@ const VisitInfoModal = React.memo(({
   setShowPrescriptionSuccessModal,
   chronicDiseases = [],
   allergies = [],
+  diagnosis = '',
+  treatment = '',
+  medications = '',
+  notes = '',
+  reasonForVisit = '',
   loadingMedicalInfo = false,
   medicalInfoError = false
 }) => {
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('🔴 VisitInfoModal FUNCTION CALLED WITH NEW PROPS');
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('🔥 VisitInfoModal RENDERED - Props received:', {
+    show,
+    diagnosis: diagnosis ? `"${diagnosis}"` : '(empty)',
+    treatment: treatment ? `"${treatment}"` : '(empty)',
+    medications: medications ? `"${medications}"` : '(empty)',
+    notes: notes ? `"${notes}"` : '(empty)',
+    loadingMedicalInfo,
+    medicalInfoError
+  });
+  
   if (!show || !selectedAppointment) return null;
 
   const [visitForm, setVisitForm] = useState({
@@ -67,6 +85,62 @@ const VisitInfoModal = React.memo(({
   const medicineDropdownOpen = localMedicineDropdownOpen;
   const setMedicineDropdownOpen = setLocalMedicineDropdownOpen;
   const medicineInputRef = localMedicineInputRef;
+
+  // Initialize form state with new data when modal opens
+  useEffect(() => {
+    if (show && selectedAppointment) {
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('📂 VisitInfoModal OPENED');
+      console.log('═══════════════════════════════════════════════════════');
+      console.log('Props Received:');
+      console.log('  diagnosis:', diagnosis ? `"${diagnosis}"` : '(empty)');
+      console.log('  treatment:', treatment ? `"${treatment}"` : '(empty)');
+      console.log('  medications:', medications ? `"${medications}"` : '(empty)');
+      console.log('  notes:', notes ? `"${notes}"` : '(empty)');
+      console.log('  chronicDiseases:', chronicDiseases);
+      console.log('  allergies:', allergies);
+      console.log('Loading States:');
+      console.log('  loadingMedicalInfo:', loadingMedicalInfo);
+      console.log('  medicalInfoError:', medicalInfoError);
+      console.log('═══════════════════════════════════════════════════════');
+    }
+  }, [show, diagnosis, treatment, medications, notes, reasonForVisit, chronicDiseases, allergies, selectedAppointment, loadingMedicalInfo, medicalInfoError]);
+  
+  // Track every prop change
+  useEffect(() => {
+    console.log('🔄 PROP CHANGED (diagnosis):', diagnosis ? `"${diagnosis}"` : '(empty)');
+  }, [diagnosis]);
+  
+  useEffect(() => {
+    console.log('🔄 PROP CHANGED (treatment):', treatment ? `"${treatment}"` : '(empty)');
+  }, [treatment]);
+  
+  useEffect(() => {
+    console.log('🔄 PROP CHANGED (medications):', medications ? `"${medications}"` : '(empty)');
+  }, [medications]);
+  
+  useEffect(() => {
+    console.log('🔄 PROP CHANGED (notes):', notes ? `"${notes}"` : '(empty)');
+  }, [notes]);
+
+  // Reset form when modal opens or appointment changes
+  useEffect(() => {
+    if (show && selectedAppointment?.appointmentId) {
+      console.log('🔄 RESET FORM - Modal opened or appointment changed:', selectedAppointment.appointmentId);
+      setVisitForm({
+        visitDate: new Date().toISOString().split('T')[0],
+        chiefComplaint: '',
+        diagnosis: '',
+        treatmentProvided: '',
+        prescriptions: '',
+        followUpDate: '',
+        notes: ''
+      });
+      setLocalInlineMedications([]);
+      // Clear the ref to allow existing visit data check to run again
+      loadedAppointmentRef.current = null;
+    }
+  }, [show, selectedAppointment?.appointmentId]);
 
   // Load existing visit data - ONLY ONCE per appointment
   useEffect(() => {
@@ -111,6 +185,257 @@ const VisitInfoModal = React.memo(({
       })));
     }
   }, [selectedAppointment?.appointmentId, show]);
+
+  // Track visitForm state changes
+  useEffect(() => {
+    console.log('📝 VISITFORM STATE UPDATED:', {
+      diagnosis: visitForm.diagnosis ? visitForm.diagnosis.substring(0, 50) + '...' : '(empty)',
+      treatmentProvided: visitForm.treatmentProvided ? visitForm.treatmentProvided.substring(0, 50) + '...' : '(empty)',
+      notes: visitForm.notes ? visitForm.notes.substring(0, 50) + '...' : '(empty)'
+    });
+  }, [visitForm.diagnosis, visitForm.treatmentProvided, visitForm.notes]);
+
+  // Specific effect: when loading completes, fill the form
+  useEffect(() => {
+    if (show && !loadingMedicalInfo && medicalInfoError === false) {
+      console.log('✅ LOADING COMPLETE! Medical info available. Triggering auto-fill.');
+      console.log('   diagnosis prop value:', diagnosis ? `"${diagnosis}"` : '(empty)');
+      console.log('   treatment prop value:', treatment ? `"${treatment}"` : '(empty)');
+      console.log('   medications prop value:', medications ? `"${medications}"` : '(empty)');
+      console.log('   notes prop value:', notes ? `"${notes}"` : '(empty)');
+      console.log('   reasonForVisit prop value:', reasonForVisit ? `"${reasonForVisit}"` : '(empty)');
+      
+      // Force fill all fields when loading completes
+      if (diagnosis || treatment || notes || reasonForVisit) {
+        console.log('📋 DATA DETECTED - FILLING FORM NOW');
+        setVisitForm(prev => {
+          const updated = { ...prev };
+          let changed = false;
+          
+          if (reasonForVisit && updated.chiefComplaint === '') {
+            console.log('   ✅ Setting chiefComplaint:', reasonForVisit);
+            updated.chiefComplaint = reasonForVisit;
+            changed = true;
+          }
+          
+          if (diagnosis && updated.diagnosis === '') {
+            console.log('   ✅ Setting diagnosis:', diagnosis);
+            updated.diagnosis = diagnosis;
+            changed = true;
+          }
+          
+          if (treatment && updated.treatmentProvided === '') {
+            console.log('   ✅ Setting treatmentProvided:', treatment);
+            updated.treatmentProvided = treatment;
+            changed = true;
+          }
+          
+          if (notes && updated.notes === '') {
+            console.log('   ✅ Setting notes:', notes);
+            updated.notes = notes;
+            changed = true;
+          }
+          
+          if (changed) {
+            console.log('   📤 Form state updated:', { diagnosis: updated.diagnosis, treatment: updated.treatmentProvided, notes: updated.notes });
+          }
+          
+          return updated;
+        });
+      } else {
+        console.log('⚠️ NO DATA TO FILL FORM - All props are empty');
+      }
+      
+      // Handle medications
+      if (medications && inlineMedications.length === 0) {
+        console.log('   → Processing medications on load complete:', medications);
+        const medArray = medications
+          .split(',')
+          .map(med => {
+            const parts = med.trim().split('-');
+            return {
+              name: parts[0]?.trim() || '',
+              dosage: parts[1]?.trim() || '',
+              frequency: parts[2]?.trim() || 'As needed',
+              duration: parts[3]?.trim() || '7 days',
+              instructions: parts[4]?.trim() || ''
+            };
+          })
+          .filter(med => med.name);
+        
+        if (medArray.length > 0) {
+          console.log('   ✅ Adding medications to form:', medArray);
+          setLocalInlineMedications(medArray);
+        }
+      }
+    }
+  }, [show, loadingMedicalInfo, medicalInfoError, diagnosis, treatment, medications, notes, reasonForVisit, inlineMedications.length]);
+
+  // Separate effect to forcefully fill form when medical data props arrive
+  useEffect(() => {
+    if (show && reasonForVisit && visitForm.chiefComplaint === '') {
+      console.log('💥 FORCE FILL: ReasonForVisit detected, forcing form update');
+      setVisitForm(prev => ({
+        ...prev,
+        chiefComplaint: reasonForVisit
+      }));
+    }
+  }, [reasonForVisit, show]);
+
+  useEffect(() => {
+    if (show && diagnosis && visitForm.diagnosis === '') {
+      console.log('💥 FORCE FILL: Diagnosis detected, forcing form update');
+      setVisitForm(prev => ({
+        ...prev,
+        diagnosis: diagnosis
+      }));
+    }
+  }, [diagnosis, show]);
+
+  useEffect(() => {
+    if (show && treatment && visitForm.treatmentProvided === '') {
+      console.log('💥 FORCE FILL: Treatment detected, forcing form update');
+      setVisitForm(prev => ({
+        ...prev,
+        treatmentProvided: treatment
+      }));
+    }
+  }, [treatment, show]);
+
+  useEffect(() => {
+    if (show && notes && visitForm.notes === '') {
+      console.log('💥 FORCE FILL: Notes detected, forcing form update');
+      setVisitForm(prev => ({
+        ...prev,
+        notes: notes
+      }));
+    }
+  }, [notes, show]);
+
+  // Medications separate effect
+  useEffect(() => {
+    if (show && medications && inlineMedications.length === 0 && typeof medications === 'string' && medications.trim()) {
+      console.log('💥 FORCE FILL: Medications detected, parsing and forking form update');
+      const medArray = medications
+        .split(',')
+        .map(med => {
+          const parts = med.trim().split('-');
+          return {
+            name: parts[0]?.trim() || '',
+            dosage: parts[1]?.trim() || '',
+            frequency: parts[2]?.trim() || 'As needed',
+            duration: parts[3]?.trim() || '7 days',
+            instructions: parts[4]?.trim() || ''
+          };
+        })
+        .filter(med => med.name);
+      
+      if (medArray.length > 0) {
+        console.log('💥 FORCE FILL: Setting medications array:', medArray);
+        setLocalInlineMedications(medArray);
+      }
+    }
+  }, [medications, show, inlineMedications.length]);
+
+  // Separate effect just to track when critical props change
+  useEffect(() => {
+    console.log('⚡ CRITICAL PROPS CHANGED - New values available');
+    console.log('   diagnosis:', diagnosis ? `"${diagnosis}"` : '(empty)');
+    console.log('   treatment:', treatment ? `"${treatment}"` : '(empty)');
+    console.log('   notes:', notes ? `"${notes}"` : '(empty)');
+    console.log('   loadingMedicalInfo:', loadingMedicalInfo);
+  }, [diagnosis, treatment, notes, loadingMedicalInfo]);
+
+  // Auto-fill form with medical info when available - fills empty fields with API data
+  useEffect(() => {
+    console.log('🔍 Auto-fill Effect Running:');
+    console.log('   show:', show);
+    console.log('   loadingMedicalInfo:', loadingMedicalInfo);
+    console.log('   medicalInfoError:', medicalInfoError);
+    console.log('   diagnosis prop:', diagnosis);
+    console.log('   treatment prop:', treatment);
+    console.log('   medications prop:', medications);
+    console.log('   notes prop:', notes);
+    
+    // If modal is open and loading is done
+    if (show && !loadingMedicalInfo && !medicalInfoError) {
+      // Check if we have data to fill
+      const hasDataToFill = diagnosis || treatment || medications || notes;
+      console.log('   hasDataToFill:', hasDataToFill);
+      
+      if (hasDataToFill) {
+        console.log('📋 TRIGGER: AUTO-FILLING FORM WITH API DATA');
+        
+        // Fill form with API data - ALWAYS update if new data differs from current form data
+        setVisitForm(prev => {
+          const updated = { ...prev };
+          let anyChanges = false;
+          
+          // Update diagnosis if API data differs from current form data
+          if (diagnosis && prev.diagnosis !== diagnosis) {
+            console.log('   ✅ Updating diagnosis:', prev.diagnosis || '(empty)', '→', diagnosis);
+            updated.diagnosis = diagnosis;
+            anyChanges = true;
+          } else if (!diagnosis && prev.diagnosis) {
+            console.log('   ℹ️ No diagnosis in API, keeping existing:', prev.diagnosis);
+          }
+          
+          // Update treatment if API data differs from current form data 
+          if (treatment && prev.treatmentProvided !== treatment) {
+            console.log('   ✅ Updating treatmentProvided:', prev.treatmentProvided || '(empty)', '→', treatment);
+            updated.treatmentProvided = treatment;
+            anyChanges = true;
+          } else if (!treatment && prev.treatmentProvided) {
+            console.log('   ℹ️ No treatment in API, keeping existing:', prev.treatmentProvided);
+          }
+          
+          // Update notes if API data differs from current form data
+          if (notes && prev.notes !== notes) {
+            console.log('   ✅ Updating notes:', prev.notes || '(empty)', '→', notes);
+            updated.notes = notes;
+            anyChanges = true;
+          } else if (!notes && prev.notes) {
+            console.log('   ℹ️ No notes in API, keeping existing:', prev.notes);
+          }
+          
+          if (anyChanges) {
+            console.log('   📤 Updated visitForm state:', { diagnosis: updated.diagnosis, treatmentProvided: updated.treatmentProvided, notes: updated.notes });
+          } else {
+            console.log('   ℹ️ No changes needed, form already has data');
+          }
+          
+          return updated;
+        });
+        
+        // Handle medications - add to existing medications array
+        if (medications && typeof medications === 'string' && medications.trim()) {
+          console.log('   → Processing medications string:', medications);
+          const medArray = medications
+            .split(',')
+            .map(med => {
+              const parts = med.trim().split('-');
+              return {
+                name: parts[0]?.trim() || '',
+                dosage: parts[1]?.trim() || '',
+                frequency: parts[2]?.trim() || 'As needed',
+                duration: parts[3]?.trim() || '7 days',
+                instructions: parts[4]?.trim() || ''
+              };
+            })
+            .filter(med => med.name);
+          
+          if (medArray.length > 0) {
+            console.log('   ✅ Adding medications array:', medArray);
+            setLocalInlineMedications(medArray);
+          } else {
+            console.log('   ⚠️ No valid medications after parsing');
+          }
+        }
+      } else {
+        console.log('⚠️ NO DATA TO FILL FORM - All props are empty');
+      }
+    }
+  }, [show, diagnosis, treatment, medications, notes, loadingMedicalInfo, medicalInfoError]);
 
   useEffect(() => {
     if (!show) {
@@ -265,6 +590,10 @@ const VisitInfoModal = React.memo(({
       
       const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
       console.log('✅ Visit saved successfully:', response);
+      
+      // Show success message
+      setSuccessMessage(randomMessage);
+      setShowPrescriptionSuccessModal(true);
       
       setTimeout(() => {
         onClose();
@@ -519,7 +848,7 @@ const VisitInfoModal = React.memo(({
                 {/* Medication Input Form */}
                 <div className="bg-white rounded-xl p-5 mb-5 border-2 border-purple-200">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                    {/* Medicine Name */}
+                    {/* Medicine Name Searchable Dropdown */}
                     <div className="md:col-span-2" ref={medicineInputRef}>
                       <label className="block text-sm font-semibold text-stone-700 mb-2">
                         Medicine Name <span className="text-red-500">*</span>
@@ -539,7 +868,7 @@ const VisitInfoModal = React.memo(({
                             if (inventoryMeds.length === 0 && !loadingMeds) {
                               loadInventoryMedications();
                             }
-                            setLocalMedicineDropdownOpen(true);
+                            setMedicineDropdownOpen(true);
                           }}
                           placeholder="Search or type medication name..."
                           className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
@@ -548,6 +877,81 @@ const VisitInfoModal = React.memo(({
                         {currentMedication.name && !medicineDropdownOpen && (
                           <div className="mt-1 px-3 py-2 bg-green-50 border border-green-300 rounded-lg text-sm">
                             <span className="text-green-700">✓ Selected:</span> <span className="font-bold text-stone-900">{currentMedication.name}</span>
+                          </div>
+                        )}
+                        
+                        {/* Dropdown Panel */}
+                        {medicineDropdownOpen && (
+                          <div className="absolute z-30 mt-1 w-full bg-white border-2 border-purple-200 rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto">
+                            {loadingMeds ? (
+                              <div className="px-3 py-8 text-center">
+                                <div className="inline-block w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                <p className="text-sm text-stone-600 font-medium">Loading medicines...</p>
+                              </div>
+                            ) : inventoryMeds.length === 0 ? (
+                              <div className="px-4 py-6 text-center">
+                                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                  <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                                  </svg>
+                                </div>
+                                <p className="text-sm text-stone-600 mb-4">No medicines in inventory. Add one to get started!</p>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleOpenAddMedicineModal(currentMedication.name);
+                                    setMedicineDropdownOpen(false);
+                                  }}
+                                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center gap-2"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                  Add to Inventory
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                {inventoryMeds
+                                  .filter(med => {
+                                    const searchVal = (currentMedication.name || "").toLowerCase();
+                                    return !searchVal || med.itemName?.toLowerCase().includes(searchVal) || med.itemCode?.toLowerCase().includes(searchVal);
+                                  })
+                                  .map((m) => (
+                                  <button
+                                    type="button"
+                                    key={m.itemId || m.id}
+                                    onClick={() => {
+                                      setCurrentMedication(prev => ({ ...prev, name: m.itemName }));
+                                      setMedicineDropdownOpen(false);
+                                    }}
+                                    className="w-full text-left px-4 py-3 hover:bg-purple-50 transition border-b border-purple-50 last:border-b-0 focus:outline-none focus:bg-purple-100"
+                                  >
+                                    <div className="font-semibold text-stone-800">{m.itemName}{m.itemCode ? ` (${m.itemCode})` : ""}</div>
+                                    <div className="text-xs text-stone-500 flex gap-3 flex-wrap">
+                                      {m.category && <span>Category: {m.category}</span>}
+                                      {m.unit && <span>Unit: {m.unit}</span>}
+                                    </div>
+                                  </button>
+                                ))}
+                                {/* Add New Medicine Button at Bottom */}
+                                <div className="sticky bottom-0 bg-gradient-to-r from-slate-100 to-purple-100 p-3 border-t border-purple-200">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleOpenAddMedicineModal(currentMedication.name);
+                                      setMedicineDropdownOpen(false);
+                                    }}
+                                    className="w-full px-4 py-2 bg-white border-2 border-purple-300 text-purple-700 rounded-lg font-semibold hover:bg-purple-50 transition-all flex items-center justify-center gap-2"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Add New Medicine
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -754,15 +1158,30 @@ const VisitInfoModal = React.memo(({
       </motion.div>
     </motion.div>
   );
-}, (prevProps, nextProps) => {
-  // Custom comparison - re-render only if these props change
-  return (
-    prevProps.show === nextProps.show &&
-    prevProps.selectedAppointment?.appointmentId === nextProps.selectedAppointment?.appointmentId &&
-    prevProps.prescriptionId === nextProps.prescriptionId
-  );
-});
+};
 
 VisitInfoModal.displayName = 'VisitInfoModal';
 
-export default VisitInfoModal;
+export default React.memo(VisitInfoModal, (prevProps, nextProps) => {
+  // Return TRUE if props are equal (skip re-render)
+  // Return FALSE if props are different (do re-render)
+  
+  // CRITICAL: Check if diagnosis/treatment/notes/loaded changed
+  const propsEqual = 
+    prevProps.diagnosis === nextProps.diagnosis &&
+    prevProps.treatment === nextProps.treatment &&
+    prevProps.medications === nextProps.medications &&
+    prevProps.notes === nextProps.notes &&
+    prevProps.loadingMedicalInfo === nextProps.loadingMedicalInfo &&
+    prevProps.show === nextProps.show &&
+    prevProps.selectedAppointment?.appointmentId === nextProps.selectedAppointment?.appointmentId;
+  
+  if (!propsEqual) {
+    console.log('🚨 [MEMO COMPARISON] Props changed - will re-render');
+    console.log('   diagnosis changed:', prevProps.diagnosis !== nextProps.diagnosis);
+    console.log('   treatment changed:', prevProps.treatment !== nextProps.treatment);
+    console.log('   loadingMedicalInfo changed:', prevProps.loadingMedicalInfo !== nextProps.loadingMedicalInfo);
+  }
+  
+  return propsEqual; // TRUE = skip re-render, FALSE = do re-render
+});

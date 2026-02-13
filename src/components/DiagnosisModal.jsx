@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getPatientVisit, getMedicalInfoSummary } from '../api/hmsApi';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
@@ -109,55 +110,98 @@ export default function DiagnosisModal({ isOpen, onClose, appointmentId, initial
     medications: ''
   });
 
-  // Fetch diagnosis only when modal opens or appointmentId changes
+  // Fetch diagnosis, visit info, and medical info summary when modal opens
   useEffect(() => {
     if (appointmentId && isOpen) {
-      const fetchDiagnosis = async () => {
+      const fetchDiagnosisAndRelatedData = async () => {
         setLoading(true);
         try {
-          const response = await fetch(
-            `${API_BASE_URL}/Diagnosis/GetDiagnosisByAppointmentId?appointmentId=${appointmentId}`,
-            {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
+          let patientId = null;
+          let medicalInfoData = null;
+          let existingDiagnosis = null;
 
-          if (response.ok) {
-            const data = await response.json();
-            setDiagnosisData(data);
+          // Call 1: Get Patient Visit details (includes patient ID)
+          try {
+            const visitData = await getPatientVisit(appointmentId);
+            console.log('📋 Visit Data:', visitData);
+            patientId = visitData?.patientId || visitData?.PatientId;
+          } catch (err) {
+            console.warn('⚠️ Could not fetch visit data:', err);
+          }
+
+          // Call 2: Get existing diagnosis (if any) - this takes priority
+          try {
+            const response = await fetch(
+              `${API_BASE_URL}/Diagnosis/GetDiagnosisByAppointmentId?appointmentId=${appointmentId}`,
+              {
+                headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+
+            if (response.ok) {
+              existingDiagnosis = await response.json();
+              console.log('✅ Existing Diagnosis Found:', existingDiagnosis);
+              setDiagnosisData(existingDiagnosis);
+            }
+          } catch (err) {
+            console.warn('⚠️ Could not fetch existing diagnosis:', err);
+          }
+
+          // Call 3: If we have a patientId and NO existing diagnosis, fetch medical info summary
+          if (patientId && !existingDiagnosis) {
+            try {
+              medicalInfoData = await getMedicalInfoSummary(patientId);
+              console.log('🏥 Medical Info Summary:', medicalInfoData);
+            } catch (err) {
+              console.warn('⚠️ Could not fetch medical info summary:', err);
+            }
+          }
+
+          // Auto-fill form: Priority is Existing Diagnosis > Medical Info > Empty
+          if (existingDiagnosis) {
+            // Use existing diagnosis
             setFormData({
-              diagnosis: data?.diagnosis || '',
-              treatment: data?.treatment || '',
-              notes: data?.notes || '',
-              medications: data?.medications || ''
+              diagnosis: existingDiagnosis.diagnosis || '',
+              treatment: existingDiagnosis.treatment || '',
+              notes: existingDiagnosis.notes || '',
+              medications: existingDiagnosis.medications || ''
+            });
+          } else if (medicalInfoData) {
+            // Use medical info summary as fallback
+            setFormData({
+              diagnosis: medicalInfoData.diagnosis || '',
+              treatment: medicalInfoData.treatment || '',
+              medications: medicalInfoData.medications || '',
+              notes: medicalInfoData.notes || ''
+            });
+          } else {
+            // Keep empty form for manual entry
+            setFormData({
+              diagnosis: '',
+              treatment: '',
+              notes: '',
+              medications: ''
             });
           }
-        } catch (err) {
-          console.error('Error fetching diagnosis:', err);
         } finally {
           setLoading(false);
         }
       };
 
-      fetchDiagnosis();
-    }
-  }, [appointmentId, isOpen]); // Only fetch when these specific values change
-
-  // Initialize form data from initialData only on mount or when explicitly changed
-  useEffect(() => {
-    if (initialData && isOpen) {
-      setDiagnosisData(initialData);
+      fetchDiagnosisAndRelatedData();
+    } else if (!isOpen) {
+      // Reset form when modal closes
       setFormData({
-        diagnosis: initialData.diagnosis || '',
-        treatment: initialData.treatment || '',
-        notes: initialData.notes || '',
-        medications: initialData.medications || ''
+        diagnosis: '',
+        treatment: '',
+        notes: '',
+        medications: ''
       });
     }
-  }, [initialData, isOpen]);
+  }, [appointmentId, isOpen]);
 
   const handleInputChange = useCallback((field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
