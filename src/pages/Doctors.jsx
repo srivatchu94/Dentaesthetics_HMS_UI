@@ -5309,7 +5309,18 @@ export default function Doctors() {
           .join('\n');
         
         const patientName = `${selectedAppointmentForVisit?.patientFirstName || ''} ${selectedAppointmentForVisit?.patientLastName || ''}`.trim() || 'Patient';
-        const doctorName = userData?.username || 'Doctor';
+        const doctorName = selectedAppointmentForVisit?.doctorName || userData?.username || selectedAppointmentForVisit?.doctor_name || 'Dr. Physician';
+        const clinicName = selectedAppointmentForVisit?.clinicName || 'Dental Clinic';
+        const doctorId = selectedAppointmentForVisit?.doctorId || userData?.doctorId || '';
+
+        console.log('📧 Email Details:', {
+          patientEmail,
+          patientName,
+          doctorName,
+          clinicName,
+          doctorId,
+          medicationsCount: prescriptionForm.medications.length
+        });
 
         await sendPrescriptionEmail(
           patientEmail,
@@ -5322,8 +5333,8 @@ export default function Doctors() {
             duration: m.duration || 'As prescribed',
             instructions: m.instructions || ''
           })),
-          selectedAppointmentForVisit?.clinicName || 'Dental Clinic',
-          selectedAppointmentForVisit?.doctorId || userData?.doctorId || ''
+          clinicName,
+          doctorId
         );
 
         setSuccessMessage('🚀 Prescription zoomed through the internet! Check your inbox magic! ✨');

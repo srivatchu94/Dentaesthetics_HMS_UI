@@ -4380,13 +4380,27 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                             instructions: m.instructions || ''
                           }));
 
+                          // Get doctor name from multiple sources
+                          const doctorName = CURRENT_DOCTOR?.name || selectedPatientForVisit?.doctorName || 'Dr. Physician';
+                          const doctorId = CURRENT_DOCTOR?.doctorId || selectedPatientForVisit?.doctorId || '';
+                          const clinicName = selectedPatientForVisit?.clinicName || CURRENT_DOCTOR?.clinic || 'Dental Clinic';
+
+                          console.log('📧 Sending Email Details:', {
+                            to: selectedPatientForVisit.patientEmail,
+                            patient: `${selectedPatientForVisit.patientFirstName} ${selectedPatientForVisit.patientLastName}`,
+                            doctorName,
+                            doctorId,
+                            clinicName,
+                            medications: medicationData.length
+                          });
+
                           await sendPrescriptionEmail(
                             selectedPatientForVisit.patientEmail,
                             `${selectedPatientForVisit.patientFirstName} ${selectedPatientForVisit.patientLastName}`,
-                            CURRENT_DOCTOR?.name || 'Doctor',
+                            doctorName,
                             medicationData,
-                            selectedPatientForVisit.clinicName || 'Dental Clinic',
-                            CURRENT_DOCTOR?.doctorId || CURRENT_DOCTOR?.id || ''
+                            clinicName,
+                            doctorId
                           );
 
                           showCustomPopup('success', '📧 Email Sent!', '🎉 Prescription email delivered successfully! Your patient will find it waiting in their inbox.', '✨');

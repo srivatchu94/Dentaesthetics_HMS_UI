@@ -182,7 +182,11 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
               <div class="doctor-grid">
                 <div class="doctor-item">
                   <label>Doctor Name</label>
-                  <span>Dr. ${doctorInfo?.doctorName || doctorInfo?.doctor_name || "N/A"}</span>
+                  <span>Dr. ${doctorInfo?.doctorName || doctorInfo?.doctor_name || doctorInfo?.firstName || "Not Specified"}</span>
+                </div>
+                <div class="doctor-item">
+                  <label>Doctor ID</label>
+                  <span>${doctorInfo?.doctorId || doctorInfo?.doctor_id || doctorInfo?.id || "N/A"}</span>
                 </div>
                 <div class="doctor-item">
                   <label>Specialization</label>
@@ -190,11 +194,21 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
                 </div>
                 <div class="doctor-item">
                   <label>Registration Number</label>
-                  <span>${doctorInfo?.registrationNumber || doctorInfo?.registration_number || "N/A"}</span>
+                  <span>${doctorInfo?.registrationNumber || doctorInfo?.registration_number || doctorInfo?.licenseNumber || "N/A"}</span>
                 </div>
+              </div>
+              <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
                 <div class="doctor-item">
                   <label>Clinic Name</label>
-                  <span>${doctorInfo?.clinicName || clinicInfo?.clinicName || "N/A"}</span>
+                  <span>${doctorInfo?.clinicName || clinicInfo?.clinicName || "Not Specified"}</span>
+                </div>
+                <div class="doctor-item" style="margin-top: 10px;">
+                  <label>Clinic Address</label>
+                  <span>${clinicInfo?.address || doctorInfo?.clinicAddress || "Address available at clinic"}</span>
+                </div>
+                <div class="doctor-item" style="margin-top: 10px;">
+                  <label>Clinic Contact</label>
+                  <span>${clinicInfo?.phone || doctorInfo?.clinicPhone || "Contact available at clinic"}</span>
                 </div>
               </div>
             </div>

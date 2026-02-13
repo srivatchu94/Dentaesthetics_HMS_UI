@@ -350,22 +350,44 @@ const PrescriptionWritingModal = ({
           .join("\n"),
         medicationsList: validMeds
       };
+
+      // Ensure complete doctor info - extract from multiple sources
+      const completeDoctorInfo = {
+        doctorId: doctorInfo?.doctorId || appointmentDetails?.doctorId || userData?.doctorId,
+        doctorName: doctorInfo?.doctorName || doctorInfo?.doctor_name || appointmentDetails?.doctorName || userData?.username || "Dr. Physician",
+        specialization: doctorInfo?.specialization || doctorInfo?.specialty || appointmentDetails?.specialty || "General Dentistry",
+        registrationNumber: doctorInfo?.registrationNumber || doctorInfo?.registration_number || appointmentDetails?.registrationNumber || "LIC-001",
+        clinicName: doctorInfo?.clinicName || appointmentDetails?.clinicName || "Dental Clinic",
+        clinicAddress: doctorInfo?.clinicAddress || appointmentDetails?.address || "Clinic Address",
+        clinicPhone: doctorInfo?.clinicPhone || appointmentDetails?.phone || "Contact"
+      };
+
+      // Ensure complete clinic info
+      const completeClinicInfo = {
+        clinicName: appointmentDetails?.clinicName || completeDoctorInfo.clinicName || "Dental Clinic",
+        address: appointmentDetails?.address || completeDoctorInfo.clinicAddress || "Address",
+        phone: appointmentDetails?.phone || completeDoctorInfo.clinicPhone || "Contact",
+        email: appointmentDetails?.clinicEmail || "clinic@example.com"
+      };
       
-      // Generate email template
+      // Generate email template with complete information
       const emailTemplate = PrescriptionEmailTemplate({
         prescription: prescriptionForEmail,
         patientInfo: patientInfo,
-        doctorInfo: doctorInfo,
-        clinicInfo: appointmentDetails?.clinicInfo || {}
+        doctorInfo: completeDoctorInfo,
+        clinicInfo: completeClinicInfo
       });
       
       const emailHTML = emailTemplate.getHTML();
       
       console.log('📧 Sending email with template:', {
         to: patientEmail,
-        subject: `Prescription from Dr. ${doctorInfo?.doctorName || 'Doctor'}`,
+        subject: `Prescription from Dr. ${completeDoctorInfo.doctorName || 'Physician'}`,
         medications: validMeds.length,
-        patientName: `${patientInfo?.patientFirstName} ${patientInfo?.patientLastName}`
+        patientName: `${patientInfo?.patientFirstName} ${patientInfo?.patientLastName}`,
+        doctorName: completeDoctorInfo.doctorName,
+        doctorId: completeDoctorInfo.doctorId,
+        clinicName: completeClinicInfo.clinicName
       });
       
       // Copy email HTML to clipboard
