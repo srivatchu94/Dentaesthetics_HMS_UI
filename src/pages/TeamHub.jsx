@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { createDoctor, searchDoctors } from '../services/doctorService';
 import { bulkAssignRoles } from '../services/accessControlService';
 import { listRoles } from '../services/roleService';
-import { createStaffDetail } from '../services/staffService';
+import { createStaffDetail, searchStaff } from '../services/staffService';
 import { getSelectedAccess } from '../services/authService';
 
 const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
@@ -594,26 +594,7 @@ const TeamHub = () => {
         return;
       }
 
-      // Build query parameters
-      const queryParams = new URLSearchParams();
-      queryParams.append('enterpriseId', enterpriseId);
-      
-      if (searchFilters.clinicId) {
-        queryParams.append('clinicId', searchFilters.clinicId);
-      }
-      if (searchFilters.staffId) {
-        queryParams.append('profileId', searchFilters.staffId);
-      }
-      if (searchFilters.firstName) {
-        queryParams.append('firstName', searchFilters.firstName);
-      }
-      if (searchFilters.lastName) {
-        queryParams.append('lastName', searchFilters.lastName);
-      }
-
-      const apiUrl = `${API_BASE_URL}/StaffDetail/GetStaffProfile?${queryParams.toString()}`;
-      console.log('🔍 Searching staff with URL:', apiUrl);
-      console.log('📊 Query Params:', {
+      console.log('🔍 Searching staff with filters:', {
         enterpriseId,
         clinicId: searchFilters.clinicId,
         profileId: searchFilters.staffId,
@@ -621,46 +602,76 @@ const TeamHub = () => {
         lastName: searchFilters.lastName
       });
       
-      // Call GetStaffProfile API
-      const response = await fetch(apiUrl, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-        }
+      // Call searchStaff service function with proper parameters
+      const allStaff = await searchStaff({
+        enterpriseId,
+        clinicId: searchFilters.clinicId ? parseInt(searchFilters.clinicId) : undefined,
+        profileId: searchFilters.staffId,
+        firstName: searchFilters.firstName,
+        lastName: searchFilters.lastName
       });
-
-      console.log('📡 API Response Status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API Error Response:', errorText);
-        throw new Error(`API returned status ${response.status}: ${errorText}`);
-      }
-
-      const allStaff = await response.json();
+      
       console.log('✅ Staff found from API:', allStaff);
       console.log('📋 First staff object structure:', allStaff[0]);
+      
+      // Log all available fields from first result for debugging
+      if (allStaff && allStaff.length > 0) {
+        console.log('📊 Available fields in API response:');
+        console.log(Object.keys(allStaff[0]));
+        console.log('🔍 Raw first staff:', JSON.stringify(allStaff[0], null, 2));
+      }
 
       // Transform API results to match UI structure
       const transformedResults = (Array.isArray(allStaff) ? allStaff : (allStaff?.data || [])).map((staff, index) => {
+        // Try multiple field name variations for ID
+        const staffId = staff.staffId || staff.id || staff.profileId || staff.StaffId || staff.StaffID || 'N/A';
+        const id = staff.id || staff.staffId || staff.profileId || `staff_${index}`;
+        
+        // Parse fullName into firstName and lastName
+        let firstName = '';
+        let lastName = '';
+        
+        if (staff.fullName && typeof staff.fullName === 'string') {
+          const nameParts = staff.fullName.trim().split(' ');
+          if (nameParts.length >= 2) {
+            firstName = nameParts[0];
+            lastName = nameParts.slice(1).join(' ');
+          } else {
+            firstName = staff.fullName;
+            lastName = '';
+          }
+        } else {
+          // Fallback to individual fields if fullName not available
+          firstName = staff.firstName || staff.first_name || staff.firstname || '';
+          lastName = staff.lastName || staff.last_name || staff.lastname || '';
+        }
+        
         const transformed = {
-          id: staff.id,
-          staffId: staff.id,  // Use id as staffId since API returns id as STF001
-          firstName: staff.firstName,
-          lastName: staff.lastName,
-          enterpriseID: staff.enterpriseID,  // Include enterpriseID from API
-          clinicId: staff.clinicID,  // API uses clinicID (capital D)
-          currentRole: staff.roleType || staff.role || staff.roleName,
-          roleId: staff.roleId || staff.RoleId,
-          roleIds: staff.roleIds || staff.RoleIds,
-          roles: staff.roles || staff.Roles,
-          rolesAssigned: staff.rolesAssigned || staff.roleType || staff.role || staff.roleName,
-          email: staff.email || staff.emailId
+          id: id,
+          staffId: staffId,  // Display the staff ID
+          profileId: staff.profileId || staffId,
+          firstName: firstName,
+          lastName: lastName,
+          fullName: staff.fullName || `${firstName} ${lastName}`.trim(),
+          enterpriseID: staff.enterpriseID || staff.enterpriseId || '',
+          clinicId: staff.clinicID || staff.clinicId || '',
+          currentRole: staff.role || staff.roleType || staff.role_name || staff.roleName || '',
+          roleId: staff.roleId || staff.RoleId || null,
+          roleIds: staff.roleIds || staff.RoleIds || [],
+          roles: staff.roles || staff.Roles || [],
+          rolesAssigned: staff.rolesAssigned || staff.role || staff.roleType || staff.roleName || '',
+          email: staff.email || staff.emailId || '',
+          phone: staff.phone || ''
         };
         
         if (index === 0) {
           console.log('🔄 First transformed result:', transformed);
+          console.log('✅ Staff ID value:', staffId);
+          console.log('📝 Full Name from API:', staff.fullName);
+          console.log('📝 Parsed firstName:', firstName);
+          console.log('📝 Parsed lastName:', lastName);
+          console.log('📝 Role from API:', staff.role);
+          console.log('📝 Transformed role/currentRole:', transformed.currentRole);
         }
         
         return transformed;
@@ -2727,10 +2738,15 @@ const TeamHub = () => {
                                   👤
                                 </div>
                                 <div className="flex-1">
-                                  <h4 className="font-bold text-slate-800 text-lg">{staff.firstName} {staff.lastName}</h4>
-                                  <p className="text-sm text-slate-600">ID: {staff.staffId}</p>
+                                  <h4 className="font-bold text-slate-800 text-lg">
+                                    🆔 {staff.staffId || 'N/A'}
+                                  </h4>
+                                  <p className="text-sm text-slate-700 font-semibold">
+                                    {staff.fullName || (staff.firstName && staff.lastName ? `${staff.firstName} ${staff.lastName}` : (staff.firstName || staff.lastName || '(Name not available)'))}
+                                  </p>
                                 </div>
                               </div>
+
                               <div className="space-y-1 text-sm">
                                 <div className="flex items-center gap-2">
                                   <span className="text-slate-600">Role:</span>

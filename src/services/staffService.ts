@@ -135,3 +135,44 @@ export function getStaffProfileByClinicId(clinicId: number): Promise<StaffDetail
   return request<StaffDetailsModel[]>(endpoint);
 }
 
+// Search staff with multiple filters
+// Supports filtering by enterprise, clinic, staff ID, first name, last name
+export interface SearchStaffParams {
+  enterpriseId?: number;
+  clinicId?: number;
+  profileId?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+export function searchStaff(params: SearchStaffParams): Promise<StaffDetailsModel[]> {
+  // If only clinicId is provided, use the dedicated endpoint for better performance
+  if (params.clinicId && !params.firstName && !params.lastName && !params.profileId) {
+    console.log('📞 Using optimized endpoint: GetStaffProfileByClinicId');
+    return getStaffProfileByClinicId(params.clinicId);
+  }
+
+  // Build query string for general search endpoint
+  const queryParams = new URLSearchParams();
+  
+  if (params.enterpriseId) queryParams.append('enterpriseId', params.enterpriseId.toString());
+  if (params.clinicId) queryParams.append('clinicId', params.clinicId.toString());
+  if (params.profileId) queryParams.append('profileId', params.profileId);
+  if (params.firstName) queryParams.append('firstName', params.firstName);
+  if (params.lastName) queryParams.append('lastName', params.lastName);
+
+  // Try the Search endpoint first, with clinic-based search as fallback
+  const endpoint = `/StaffDetail/Search?${queryParams.toString()}`;
+  console.log('📞 API CALL: searchStaff with params:', params);
+  console.log('🔗 Endpoint:', endpoint);
+  
+  return request<StaffDetailsModel[]>(endpoint).catch(error => {
+    // If Search endpoint fails, try with just clinic ID as fallback
+    if (params.clinicId && error.message?.includes('404')) {
+      console.warn('⚠️ Search endpoint not found, trying GetStaffProfileByClinicId fallback');
+      return getStaffProfileByClinicId(params.clinicId);
+    }
+    throw error;
+  });
+}
+
