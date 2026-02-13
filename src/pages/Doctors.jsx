@@ -3610,105 +3610,122 @@ export default function Doctors() {
                           ))}
                         </div>
 
-                        {/* WhatsApp Button - With Medications Panel */}
-                        <motion.button
-                          whileHover={{ scale: 1.02, y: -2 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => {
-                            const appointmentDetails = selectedAppointmentForVisit;
-                            const medicationText = inlineMedications
-                              .map((med, i) => `${i+1}. ${med.name}\n   Dosage: ${med.dosage}\n   Frequency: ${med.frequency}\n   Duration: ${med.duration}${med.instructions ? `\n   Instructions: ${med.instructions}` : ''}`)
-                              .join('\n\n');
-                            const message = `Hello, here is the prescription for ${appointmentDetails.firstName} ${appointmentDetails.lastName}:\n\n${medicationText}\n\nPlease follow the instructions carefully.`;
-                            const encodedMessage = encodeURIComponent(message);
-                            const whatsappLink = `https://wa.me/?text=${encodedMessage}`;
-                            window.open(whatsappLink, '_blank');
-                          }}
-                          className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2"
-                        >
-                          <span>💬</span>
-                          <span>Send via WhatsApp</span>
-                        </motion.button>
                       </div>
                     )}
                   </div>
 
-                  {/* Action Buttons - Only Email */}
-                  <div className="grid grid-cols-1 gap-3">
-                    <motion.button
-                      whileHover={{ scale: 1.02, y: -2 }}
-                      whileTap={{ scale: 0.98 }}
-                      disabled={sendingEmail}
-                      onClick={async () => {
-                        try {
-                          setSendingEmail(true);
+                  {/* Action Buttons - Email, WhatsApp, and Print - Horizontal Layout */}
+                  {inlineMedications.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 mb-5">
+                      {/* Print Button */}
+                      <motion.button
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          setShowPrescriptionPrintModal(true);
+                        }}
+                        className="px-3 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-1 text-sm"
+                      >
+                        <span>🖨️</span>
+                        <span>Print</span>
+                      </motion.button>
+
+                      {/* WhatsApp Button */}
+                      <motion.button
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
                           const appointmentDetails = selectedAppointmentForVisit;
-                          
-                          // ===== COMPREHENSIVE LOGGING =====
-                          console.log('🔍 ===== DOCTORS PAGE PRESCRIPTION EMAIL SEND CALLED =====');
-                          console.log('📋 Full appointmentDetails object:', appointmentDetails);
-                          console.log('📧 appointmentDetails.patientEmail:', appointmentDetails?.patientEmail);
-                          console.log('📧 appointmentDetails.email:', appointmentDetails?.email);
-                          console.log('📧 appointmentDetails.patientContact:', appointmentDetails?.patientContact);
-                          console.log('📧 appointmentDetails.patientContact?.patientEmail:', appointmentDetails?.patientContact?.patientEmail);
-                          
-                          // Multiple fallback options
-                          const patientEmail = (appointmentDetails?.patientContact?.patientEmail 
-                            || appointmentDetails?.patientEmail 
-                            || appointmentDetails?.email 
-                            || '').trim() ? 
-                            (appointmentDetails?.patientContact?.patientEmail 
+                          const medicationText = inlineMedications
+                            .map((med, i) => `${i+1}. ${med.name}\n   Dosage: ${med.dosage}\n   Frequency: ${med.frequency}\n   Duration: ${med.duration}${med.instructions ? `\n   Instructions: ${med.instructions}` : ''}`)
+                            .join('\n\n');
+                          const message = `Hello, here is the prescription for ${appointmentDetails.firstName} ${appointmentDetails.lastName}:\n\n${medicationText}\n\nPlease follow the instructions carefully.`;
+                          const encodedMessage = encodeURIComponent(message);
+                          const whatsappLink = `https://wa.me/?text=${encodedMessage}`;
+                          window.open(whatsappLink, '_blank');
+                        }}
+                        className="px-3 py-2.5 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-1 text-sm"
+                      >
+                        <span>💬</span>
+                        <span>WhatsApp</span>
+                      </motion.button>
+
+                      {/* Email Button */}
+                      <motion.button
+                        whileHover={{ scale: 1.05, y: -1 }}
+                        whileTap={{ scale: 0.95 }}
+                        disabled={sendingEmail}
+                        onClick={async () => {
+                          try {
+                            setSendingEmail(true);
+                            const appointmentDetails = selectedAppointmentForVisit;
+                            
+                            // ===== COMPREHENSIVE LOGGING =====
+                            console.log('🔍 ===== DOCTORS PAGE PRESCRIPTION EMAIL SEND CALLED =====');
+                            console.log('📋 Full appointmentDetails object:', appointmentDetails);
+                            console.log('📧 appointmentDetails.patientEmail:', appointmentDetails?.patientEmail);
+                            console.log('📧 appointmentDetails.email:', appointmentDetails?.email);
+                            console.log('📧 appointmentDetails.patientContact:', appointmentDetails?.patientContact);
+                            console.log('📧 appointmentDetails.patientContact?.patientEmail:', appointmentDetails?.patientContact?.patientEmail);
+                            
+                            // Multiple fallback options
+                            const patientEmail = (appointmentDetails?.patientContact?.patientEmail 
                               || appointmentDetails?.patientEmail 
-                              || appointmentDetails?.email).trim()
-                            : 'srivatchu94@gmail.com';
-                          
-                          console.log('✅ Final patientEmail being used:', patientEmail);
-                          
-                          if (!patientEmail || patientEmail === 'srivatchu94@gmail.com') {
-                            console.warn('⚠️ Using fallback email: srivatchu94@gmail.com');
-                          }
+                              || appointmentDetails?.email 
+                              || '').trim() ? 
+                              (appointmentDetails?.patientContact?.patientEmail 
+                                || appointmentDetails?.patientEmail 
+                                || appointmentDetails?.email).trim()
+                              : 'srivatchu94@gmail.com';
+                            
+                            console.log('✅ Final patientEmail being used:', patientEmail);
+                            
+                            if (!patientEmail || patientEmail === 'srivatchu94@gmail.com') {
+                              console.warn('⚠️ Using fallback email: srivatchu94@gmail.com');
+                            }
 
-                          if (!patientEmail) {
-                            alert('❌ Patient email not found. Please update patient contact information.');
+                            if (!patientEmail) {
+                              alert('❌ Patient email not found. Please update patient contact information.');
+                              setSendingEmail(false);
+                              return;
+                            }
+
+                            if (inlineMedications.length === 0) {
+                              alert('❌ Please add at least one medication before sending email');
+                              setSendingEmail(false);
+                              return;
+                            }
+
+                            await sendPrescriptionEmail(
+                              patientEmail,
+                              `${appointmentDetails.patientFirstName} ${appointmentDetails.patientLastName}`,
+                              appointmentDetails.doctorName || 'Doctor',
+                              inlineMedications,
+                              appointmentDetails.clinicName || 'Dental Clinic',
+                              appointmentDetails.doctorId || appointmentDetails.doctorCode || ''
+                            );
+
+                            setSuccessMessage('🎉 Email delivered! Your patient\'s inbox just got a little healthier!');
+                            setShowPrescriptionSuccessModal(true);
                             setSendingEmail(false);
-                            return;
-                          }
-
-                          if (inlineMedications.length === 0) {
-                            alert('❌ Please add at least one medication before sending email');
+                          } catch (error) {
+                            console.error('Error sending email:', error);
+                            setSuccessMessage(`❌ Oops! Email got lost in the digital void: ${error.message}`);
+                            setShowPrescriptionSuccessModal(true);
                             setSendingEmail(false);
-                            return;
                           }
-
-                          await sendPrescriptionEmail(
-                            patientEmail,
-                            `${appointmentDetails.patientFirstName} ${appointmentDetails.patientLastName}`,
-                            appointmentDetails.doctorName || 'Doctor',
-                            inlineMedications,
-                            appointmentDetails.clinicName || 'Dental Clinic',
-                            appointmentDetails.doctorId || appointmentDetails.doctorCode || ''
-                          );
-
-                          setSuccessMessage('🎉 Email delivered! Your patient\'s inbox just got a little healthier!');
-                          setShowPrescriptionSuccessModal(true);
-                          setSendingEmail(false);
-                        } catch (error) {
-                          console.error('Error sending email:', error);
-                          setSuccessMessage(`❌ Oops! Email got lost in the digital void: ${error.message}`);
-                          setShowPrescriptionSuccessModal(true);
-                          setSendingEmail(false);
-                        }
-                      }}
-                      className={`px-6 py-3 text-white rounded-xl font-bold shadow-xl transition flex items-center justify-center gap-2 ${
-                        sendingEmail 
-                          ? 'bg-gray-400 cursor-not-allowed' 
-                          : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 hover:shadow-2xl'
-                      }`}
-                    >
-                      <span>{sendingEmail ? '⏳' : '📧'}</span>
-                      <span>{sendingEmail ? 'Sending...' : 'Send via Email'}</span>
-                    </motion.button>
-                  </div>
+                        }}
+                        className={`px-3 py-2.5 text-white rounded-lg font-semibold shadow-lg transition flex items-center justify-center gap-1 text-sm ${
+                          sendingEmail 
+                            ? 'bg-gray-400 cursor-not-allowed' 
+                            : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 hover:shadow-xl'
+                        }`}
+                      >
+                        <span>{sendingEmail ? '⏳' : '📧'}</span>
+                        <span>{sendingEmail ? 'Sending...' : 'Email'}</span>
+                      </motion.button>
+                    </div>
+                  )}
 
                   {/* Treatment Provided */}
                   <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200 shadow-md">
@@ -9936,6 +9953,103 @@ export default function Doctors() {
         isOpen={showScheduleModal}
         onClose={() => setShowScheduleModal(false)}
       />
+
+      {/* Prescription Print Modal */}
+      <AnimatePresence>
+        {showPrescriptionPrintModal && selectedAppointmentForVisit && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto"
+            onClick={() => setShowPrescriptionPrintModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl my-8"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 sticky top-0 rounded-t-2xl flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                    <span>🖨️</span> Print Prescription
+                  </h2>
+                  <p className="text-purple-100 text-sm mt-1">
+                    {selectedAppointmentForVisit?.firstName} {selectedAppointmentForVisit?.lastName}
+                  </p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowPrescriptionPrintModal(false)}
+                  className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-all"
+                >
+                  <span className="text-2xl text-white">✕</span>
+                </motion.button>
+              </div>
+
+              {/* Print Preview */}
+              <div className="p-6 max-h-[70vh] overflow-y-auto bg-stone-50">
+                <div className="bg-white rounded-xl p-8 shadow-lg">
+                  <PrescriptionPrint
+                    prescription={{
+                      diagnosisId: diagnosisData?.diagnosisId,
+                      prescriptionContent: inlineMedications,
+                      prescriptionDate: new Date(),
+                      appointmentId: selectedAppointmentForVisit?.appointmentId
+                    }}
+                    patientInfo={{
+                      patientId: selectedAppointmentForVisit?.patientId,
+                      firstName: selectedAppointmentForVisit?.firstName,
+                      lastName: selectedAppointmentForVisit?.lastName,
+                      age: selectedAppointmentForVisit?.age,
+                      gender: selectedAppointmentForVisit?.gender
+                    }}
+                    doctorInfo={{
+                      doctorId: selectedAppointmentForVisit?.doctorId,
+                      doctorName: selectedAppointmentForVisit?.doctorName,
+                      registrationNumber: selectedAppointmentForVisit?.registrationNumber
+                    }}
+                    clinicInfo={{
+                      clinicId: selectedAppointmentForVisit?.clinicId,
+                      clinicName: selectedAppointmentForVisit?.clinicName,
+                      address: selectedAppointmentForVisit?.clinicAddress,
+                      phone: selectedAppointmentForVisit?.clinicPhone,
+                      email: selectedAppointmentForVisit?.clinicEmail
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="bg-stone-50 border-t border-stone-200 p-6 rounded-b-2xl flex justify-end gap-3 sticky bottom-0">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowPrescriptionPrintModal(false)}
+                  className="px-6 py-2.5 bg-stone-300 text-stone-800 rounded-lg font-semibold hover:bg-stone-400 transition"
+                >
+                  Close
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    window.print();
+                  }}
+                  className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition flex items-center gap-2"
+                >
+                  <span>🖨️</span>
+                  <span>Print Now</span>
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

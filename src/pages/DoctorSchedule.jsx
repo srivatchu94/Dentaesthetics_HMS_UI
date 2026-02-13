@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import FancyDatePicker from '../components/FancyDatePicker';
 import DiagnosisModal from '../components/DiagnosisModal';
+import { getPatientVisit } from '../services/patientService';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
@@ -16,6 +17,10 @@ export default function DoctorSchedule() {
   const [selectedAppointmentId, setSelectedAppointmentId] = useState(null);
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  
+  // Prescriptions and diagnosis data
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [diagnosisData, setDiagnosisData] = useState(null);
   
   // Edit state - kept separate to prevent flicker
   const [isEditing, setIsEditing] = useState(false);
@@ -91,7 +96,10 @@ export default function DoctorSchedule() {
 
   const fetchAppointmentDetails = useCallback(async () => {
     setDetailLoading(true);
+    setPrescriptions([]);
+    setDiagnosisData(null);
     try {
+      // First, fetch basic appointment details
       const response = await fetch(
         `${API_BASE_URL}/Appointment/GetAppointmentDetailsbyAppointmentID?appointmentId=${selectedAppointmentId}`,
         {
@@ -110,6 +118,28 @@ export default function DoctorSchedule() {
         setEditFormData(null);
       } else {
         console.error('Failed to fetch appointment details');
+      }
+      
+      // Then, fetch comprehensive visit data including prescriptions and diagnosis
+      try {
+        console.log('📋 Fetching GetPatientVisit for appointmentId:', selectedAppointmentId);
+        const visitData = await getPatientVisit(selectedAppointmentId);
+        console.log('✅ Visit data received:', visitData);
+        
+        // Extract prescriptions
+        if (visitData?.prescriptions && Array.isArray(visitData.prescriptions)) {
+          setPrescriptions(visitData.prescriptions);
+          console.log('✅ Prescriptions loaded:', visitData.prescriptions);
+        }
+        
+        // Extract diagnosis data
+        if (visitData?.diagnosis) {
+          setDiagnosisData(visitData.diagnosis);
+          console.log('✅ Diagnosis data loaded:', visitData.diagnosis);
+        }
+      } catch (visitErr) {
+        console.log('⚠️ Note: GetPatientVisit not available or no visit data yet:', visitErr.message);
+        // This is not critical - continue with basic appointment details
       }
     } catch (err) {
       console.error('Error fetching appointment details:', err);
@@ -398,6 +428,55 @@ export default function DoctorSchedule() {
                     </div>
                   </div>
 
+                  {/* Prescriptions Section */}
+                  {prescriptions && prescriptions.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-5 border-2 border-green-200"
+                    >
+                      <h3 className="text-lg font-bold text-green-900 mb-4 flex items-center gap-2">
+                        <span>💊</span> Prescriptions ({prescriptions.length})
+                      </h3>
+                      <div className="space-y-3">
+                        {prescriptions.map((prescription, idx) => (
+                          <motion.div
+                            key={idx}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.1 }}
+                            className="bg-white rounded-xl p-4 border-l-4 border-green-500 shadow-sm hover:shadow-md transition-shadow"
+                          >
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-xs font-bold text-gray-600 uppercase">Medicine</p>
+                                <p className="text-gray-900 font-semibold">{prescription.medicineName || prescription.medicineId || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-gray-600 uppercase">Dosage</p>
+                                <p className="text-gray-900 font-semibold">{prescription.dosage || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-gray-600 uppercase">Frequency</p>
+                                <p className="text-gray-900 font-semibold">{prescription.frequency || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-gray-600 uppercase">Duration</p>
+                                <p className="text-gray-900 font-semibold">{prescription.duration || 'N/A'}</p>
+                              </div>
+                              {prescription.instructions && (
+                                <div className="col-span-2">
+                                  <p className="text-xs font-bold text-gray-600 uppercase">Instructions</p>
+                                  <p className="text-gray-700">{prescription.instructions}</p>
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+
                   {/* Action Buttons */}
                   <div className="flex gap-3 pt-4 border-t-2 border-purple-200">
                     <motion.button
@@ -455,8 +534,11 @@ export default function DoctorSchedule() {
       <DiagnosisModal
         isOpen={showDiagnosisModal}
         onClose={() => setShowDiagnosisModal(false)}
-        appointmentId={diagnosisModalRef.current || selectedAppointmentDetails?.appointmentId}
-        onSave={() => {
+        appointmentId={selectedAppointmentId}
+        initialData={diagnosisData || selectedAppointmentDetails}
+        onSave={(diagnosisData) => {
+          console.log("Diagnosis saved:", diagnosisData);
+          setDiagnosisData(diagnosisData);
           setShowDiagnosisModal(false);
         }}
       />

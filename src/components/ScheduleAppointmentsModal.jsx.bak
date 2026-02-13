@@ -5,7 +5,7 @@ import { getAppointmentsByDate, getAppointmentById, updateAppointment } from "..
 import FancyDatePicker from "./FancyDatePicker";
 
 const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
-  // State declarations
+  // Main states
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -18,10 +18,7 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [savingChanges, setSavingChanges] = useState(false);
-  
-  // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
   
   const [funnyMessages] = useState([
     "🎉 Boom! Your appointment has been updated!",
@@ -35,22 +32,20 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
     "🎭 Plot twist: Your appointment is updated!",
     "🌈 Rainbow of success! Changes applied!"
   ]);
+  const [successMessage, setSuccessMessage] = useState("");
 
-  // Effects
+  // Utility functions here (existing code removed for brevity - will stay same)
   useEffect(() => {
-    if (isOpen) {
-      fetchAppointments();
-    }
+    if (isOpen) fetchAppointments();
   }, [isOpen, selectedDate]);
 
-  // Fetch appointments
   const fetchAppointments = async () => {
     setLoading(true);
     setErrorMessage("");
     try {
       const selectedAccess = getSelectedAccess();
       if (!selectedAccess?.enterpriseId || !selectedAccess?.clinicId) {
-        setErrorMessage("Unable to fetch clinic information. Please refresh and try again.");
+        setErrorMessage("Unable to fetch clinic information. Please refresh.");
         setLoading(false);
         return;
       }
@@ -67,7 +62,6 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
     }
   };
 
-  // View appointment details
   const handleViewDetails = async (appointment) => {
     setLoadingDetails(true);
     setEditMode(false);
@@ -76,10 +70,9 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
     try {
       const selectedAccess = getSelectedAccess();
       let appointmentDateFormatted = appointment.appointmentDate;
-      if (appointmentDateFormatted && appointmentDateFormatted.includes('T')) {
+      if (appointmentDateFormatted?.includes('T')) {
         appointmentDateFormatted = appointmentDateFormatted.split('T')[0];
       }
-      
       let doctorIdParam = null;
       if (appointment.doctorId) {
         if (typeof appointment.doctorId === 'string' && !isNaN(parseInt(appointment.doctorId))) {
@@ -88,7 +81,6 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
           doctorIdParam = appointment.doctorId;
         }
       }
-      
       const requestParams = {
         clinicId: selectedAccess?.clinicId,
         firstName: appointment.firstName,
@@ -96,7 +88,6 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
         doctorId: doctorIdParam,
         appointmentDate: appointmentDateFormatted
       };
-      
       const details = await getAppointmentById(requestParams);
       setAppointmentDetails(details);
       setEditForm(details || {});
@@ -109,7 +100,6 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
     }
   };
 
-  // Save appointment changes
   const handleSaveChanges = async () => {
     setSavingChanges(true);
     setErrorMessage("");
@@ -135,8 +125,175 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
   };
 
   if (!isOpen) return null;
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  
+  // Detail modal states
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [appointmentDetails, setAppointmentDetails] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [savingChanges, setSavingChanges] = useState(false);
+  
+  // Success modal
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage2, setSuccessMessage2] = useState("");
+  const [funnyMessages] = useState([
+    "🎉 Boom! Your appointment has been updated!",
+    "✨ Done like a pro! Your changes are saved!",
+    "🚀 Faster than a speeding bullet! Update complete!",
+    "💪 Champion-level update right here!",
+    "🎪 Tadaa! Your appointment is now updated!",
+    "🌟 Shining bright! Changes saved successfully!",
+    "🎯 Bullseye! Perfect appointment update!",
+    "🏆 You're a wizard! Appointment updated!",
+    "🎭 Plot twist: Your appointment is updated!",
+    "🌈 Rainbow of success! Changes applied!"
+  ]);
 
-  // Render main modal
+  // Fetch appointments when date changes or modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchAppointments();
+    }
+  }, [isOpen, selectedDate]);
+
+  const fetchAppointments = async () => {
+    setLoading(true);
+    setErrorMessage("");
+    try {
+      const selectedAccess = getSelectedAccess();
+      
+      if (!selectedAccess?.enterpriseId || !selectedAccess?.clinicId) {
+        setErrorMessage("Unable to fetch clinic information. Please refresh and try again.");
+        setLoading(false);
+        return;
+      }
+
+      // Call API with date, enterprise ID, and clinic ID
+      const data = await getAppointmentsByDate(
+        selectedAccess.enterpriseId,
+        selectedAccess.clinicId,
+        selectedDate
+      );
+      
+      setAppointments(data || []);
+      if (!data || data.length === 0) {
+        setErrorMessage(`No appointments scheduled for ${new Date(selectedDate).toLocaleDateString()}`);
+      }
+    } catch (error) {
+      console.error("Error fetching appointments:", error);
+      setErrorMessage("Failed to load appointments. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewDetails = async (appointment) => {
+    setSelectedAppointment(appointment);
+    setLoadingDetails(true);
+    setEditMode(false);
+    setAppointmentDetails(null);
+    setErrorMessage("");
+
+    try {
+      const selectedAccess = getSelectedAccess();
+      
+      console.log("🔍 DEBUG: Starting handleViewDetails");
+      console.log("📋 Appointment object:", appointment);
+      console.log("📊 Selected Access:", selectedAccess);
+      
+      // Extract date part only (YYYY-MM-DD format)
+      let appointmentDateFormatted = appointment.appointmentDate;
+      if (appointmentDateFormatted && appointmentDateFormatted.includes('T')) {
+        appointmentDateFormatted = appointmentDateFormatted.split('T')[0];
+      }
+      
+      console.log("📅 Appointment Date (formatted):", appointmentDateFormatted);
+      console.log("👨‍⚕️ Doctor ID (type):", typeof appointment.doctorId, "Value:", appointment.doctorId);
+      
+      // Parse doctorId - check if it's a number or string
+      let doctorIdParam = null;
+      if (appointment.doctorId) {
+        if (typeof appointment.doctorId === 'string' && !isNaN(parseInt(appointment.doctorId))) {
+          // If it's a numeric string like "5" or "123", convert to number
+          doctorIdParam = parseInt(appointment.doctorId);
+          console.log("✅ Converted doctorId from string to number:", doctorIdParam);
+        } else if (typeof appointment.doctorId === 'number') {
+          doctorIdParam = appointment.doctorId;
+          console.log("✅ doctorId is already a number:", doctorIdParam);
+        } else {
+          console.warn("⚠️ doctorId is not numeric (likely a code like 'DOC008'), skipping...", appointment.doctorId);
+          // Don't include non-numeric doctorId
+        }
+      }
+      
+      const requestParams = {
+        clinicId: selectedAccess?.clinicId,
+        firstName: appointment.firstName,
+        lastName: appointment.lastName,
+        doctorId: doctorIdParam,
+        appointmentDate: appointmentDateFormatted
+      };
+      
+      console.log("📤 Request parameters being sent:", requestParams);
+      
+      // Call getAppointmentById with the required parameters
+      const details = await getAppointmentById(requestParams);
+      
+      console.log("✅ API Response received:", details);
+      setAppointmentDetails(details);
+      setEditForm(details || {});
+      setShowDetailModal(true);
+    } catch (error) {
+      console.error("❌ Error fetching appointment details:", error);
+      console.error("📊 Error details:", error.response?.data || error.message);
+      setErrorMessage("Failed to load appointment details. Please try again.");
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    setSavingChanges(true);
+    setErrorMessage("");
+    
+    try {
+      // Update appointment using the API
+      const result = await updateAppointment(editForm);
+      
+      if (result) {
+        // Show funny success message
+        const randomMessage = funnyMessages[Math.floor(Math.random() * funnyMessages.length)];
+        setSuccessMessage2(randomMessage);
+        setShowSuccessModal(true);
+        
+        // Update the appointment in the list
+        setAppointments(appointments.map(appt => 
+          appt.appointmentId === editForm.appointmentId ? editForm : appt
+        ));
+        
+        // Close detail modal after a delay
+        setTimeout(() => {
+          setShowDetailModal(false);
+          setShowSuccessModal(false);
+        }, 2000);
+      }
+    } catch (error) {
+      console.error("Error updating appointment:", error);
+      setErrorMessage("Failed to save changes. Please try again.");
+    } finally {
+      setSavingChanges(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -175,7 +332,7 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
               </div>
             </div>
 
-            {/* Main Content */}
+            {/* Content */}
             <div className="p-6 space-y-6">
               {/* Date Picker Section */}
               <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-2xl p-5 border-2 border-violet-200">
@@ -225,24 +382,31 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
                         className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-5 border-2 border-indigo-200 hover:border-indigo-400 transition-all shadow-md hover:shadow-lg"
                       >
                         <div className="space-y-3">
+                          {/* Patient Name */}
                           <div>
                             <p className="text-xs text-gray-600 font-semibold">PATIENT</p>
                             <p className="text-lg font-bold text-indigo-900">
                               {appointment.firstName} {appointment.lastName}
                             </p>
                           </div>
+
+                          {/* Time */}
                           <div>
                             <p className="text-xs text-gray-600 font-semibold">TIME</p>
                             <p className="text-base font-bold text-purple-600">
                               {appointment.appointmentTime || "N/A"}
                             </p>
                           </div>
+
+                          {/* Doctor */}
                           <div>
                             <p className="text-xs text-gray-600 font-semibold">DOCTOR</p>
                             <p className="text-sm text-gray-700">
                               {appointment.doctorName || "Not assigned"}
                             </p>
                           </div>
+
+                          {/* Status */}
                           <div>
                             <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
                               appointment.appointmentStatus === 'Confirmed'
@@ -254,6 +418,8 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
                               {appointment.appointmentStatus || "Pending"}
                             </span>
                           </div>
+
+                          {/* View Details Button */}
                           <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
@@ -279,7 +445,7 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
             </div>
           </motion.div>
 
-          {/* Details Modal */}
+          {/* Appointment Details Modal */}
           <AnimatePresence>
             {showDetailModal && appointmentDetails && (
               <motion.div
@@ -296,7 +462,7 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
                   onClick={(e) => e.stopPropagation()}
                   className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
                 >
-                  {/* Detail Modal Header */}
+                  {/* Header */}
                   <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-cyan-500 p-6 text-white z-10">
                     <div className="flex items-center justify-between">
                       <div>
@@ -340,7 +506,9 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
                               onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
                               disabled={!editMode}
                               className={`w-full px-3 py-2 border-2 border-blue-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-blue-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+                                editMode
+                                  ? "bg-white focus:border-blue-500"
+                                  : "bg-gray-50 text-gray-600 cursor-not-allowed"
                               }`}
                             />
                           </div>
@@ -352,7 +520,9 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
                               onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
                               disabled={!editMode}
                               className={`w-full px-3 py-2 border-2 border-blue-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-blue-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+                                editMode
+                                  ? "bg-white focus:border-blue-500"
+                                  : "bg-gray-50 text-gray-600 cursor-not-allowed"
                               }`}
                             />
                           </div>
@@ -364,7 +534,9 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
                               onChange={(e) => setEditForm({ ...editForm, contactNumber: e.target.value })}
                               disabled={!editMode}
                               className={`w-full px-3 py-2 border-2 border-blue-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-blue-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+                                editMode
+                                  ? "bg-white focus:border-blue-500"
+                                  : "bg-gray-50 text-gray-600 cursor-not-allowed"
                               }`}
                             />
                           </div>
@@ -383,7 +555,9 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
                               onChange={(e) => setEditForm({ ...editForm, appointmentDate: e.target.value })}
                               disabled={!editMode}
                               className={`w-full px-3 py-2 border-2 border-purple-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-purple-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+                                editMode
+                                  ? "bg-white focus:border-purple-500"
+                                  : "bg-gray-50 text-gray-600 cursor-not-allowed"
                               }`}
                             />
                           </div>
@@ -395,7 +569,9 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
                               onChange={(e) => setEditForm({ ...editForm, appointmentTime: e.target.value })}
                               disabled={!editMode}
                               className={`w-full px-3 py-2 border-2 border-purple-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-purple-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+                                editMode
+                                  ? "bg-white focus:border-purple-500"
+                                  : "bg-gray-50 text-gray-600 cursor-not-allowed"
                               }`}
                             />
                           </div>
@@ -406,7 +582,9 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
                               onChange={(e) => setEditForm({ ...editForm, appointmentStatus: e.target.value })}
                               disabled={!editMode}
                               className={`w-full px-3 py-2 border-2 border-purple-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-purple-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+                                editMode
+                                  ? "bg-white focus:border-purple-500"
+                                  : "bg-gray-50 text-gray-600 cursor-not-allowed"
                               }`}
                             >
                               <option value="Pending">Pending</option>
@@ -427,7 +605,9 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
                           disabled={!editMode}
                           rows={3}
                           className={`w-full px-3 py-2 border-2 border-amber-200 rounded-lg outline-none transition-all resize-none ${
-                            editMode ? "bg-white focus:border-amber-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+                            editMode
+                              ? "bg-white focus:border-amber-500"
+                              : "bg-gray-50 text-gray-600 cursor-not-allowed"
                           }`}
                           placeholder="Add appointment notes here..."
                         />
@@ -482,31 +662,31 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
                       </div>
                     </div>
                   )}
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
-          {/* Success Modal - Outside detail modal */}
-          <AnimatePresence>
-            {showSuccessModal && (
-              <motion.div
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                className="fixed inset-0 flex items-center justify-center z-[70]"
-              >
-                <motion.div
-                  animate={{
-                    scale: [1, 1.1, 1],
-                    rotate: [0, 5, -5, 0]
-                  }}
-                  transition={{ duration: 1 }}
-                  className="bg-gradient-to-br from-green-400 to-emerald-500 text-white px-8 py-6 rounded-3xl shadow-2xl text-center"
-                >
-                  <p className="text-3xl font-bold">{successMessage}</p>
-                  <p className="text-lg mt-2">✨</p>
-                </motion.div>
+                {/* Success Modal */}
+                <AnimatePresence>
+                  {showSuccessModal && (
+                    <motion.div
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      className="fixed inset-0 flex items-center justify-center z-[70]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <motion.div
+                        animate={{
+                          scale: [1, 1.1, 1],
+                          rotate: [0, 5, -5, 0]
+                        }}
+                        transition={{ duration: 1 }}
+                        className="bg-gradient-to-br from-green-400 to-emerald-500 text-white px-8 py-6 rounded-3xl shadow-2xl text-center"
+                      >
+                        <p className="text-3xl font-bold">{successMessage2}</p>
+                        <p className="text-lg mt-2">✨</p>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             )}
           </AnimatePresence>

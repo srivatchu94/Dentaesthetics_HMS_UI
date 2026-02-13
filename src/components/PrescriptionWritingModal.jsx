@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { listInventoryMasters, createInventoryMaster } from "../services/inventoryService";
 import { addPrescription } from "../services/appointmentService";
 import PrescriptionEmailTemplate from "./PrescriptionEmailTemplate";
+import InventoryAutoComplete from "./InventoryAutoComplete";
 
 const PrescriptionWritingModal = ({
   isOpen,
@@ -15,7 +16,7 @@ const PrescriptionWritingModal = ({
   onSavePrescription
 }) => {
   const [medications, setMedications] = useState([
-    { name: "", dosage: "", frequency: "", duration: "", instructions: "", searchTerm: "" }
+    { name: "", dosage: "", frequency: "", duration: "", instructions: "" }
   ]);
   const [inventoryMeds, setInventoryMeds] = useState([]);
   const [loadingMeds, setLoadingMeds] = useState(false);
@@ -31,8 +32,6 @@ const PrescriptionWritingModal = ({
   const [savingPrescription, setSavingPrescription] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [medicationToAdd, setMedicationToAdd] = useState(null);
-  const [openMedicationDropdown, setOpenMedicationDropdown] = useState(null);
-  const medicationDropdownRefs = useRef({});
 
   const categoryOptions = {
     Medicines: ["General", "Antibiotic", "Analgesic", "Anti-inflammatory", "Steroid", "Antiseptic"],
@@ -47,29 +46,7 @@ const PrescriptionWritingModal = ({
     if (isOpen) {
       loadInventoryMedications();
     }
-    setOpenMedicationDropdown(null);
   }, [isOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (openMedicationDropdown === null) return;
-      // Check if click is outside all medication dropdowns
-      let isInside = false;
-      for (let i = 0; i < medications.length; i++) {
-        const activeRef = medicationDropdownRefs.current[i];
-        if (activeRef && activeRef.contains(event.target)) {
-          isInside = true;
-          break;
-        }
-      }
-      if (!isInside) {
-        setOpenMedicationDropdown(null);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [openMedicationDropdown, medications.length]);
   const loadInventoryMedications = async () => {
     setLoadingMeds(true);
     try {
@@ -86,7 +63,7 @@ const PrescriptionWritingModal = ({
   const handleAddMedicationRow = () => {
     setMedications([
       ...medications,
-      { name: "", dosage: "", frequency: "", duration: "", instructions: "", searchTerm: "" }
+      { name: "", dosage: "", frequency: "", duration: "", instructions: "" }
     ]);
   };
 
@@ -97,20 +74,6 @@ const PrescriptionWritingModal = ({
   const handleMedicationChange = (index, field, value) => {
     const updated = [...medications];
     updated[index][field] = value;
-    setMedications(updated);
-  };
-
-  const handleSelectMedication = (index, selectedMed) => {
-    const updated = [...medications];
-    updated[index].name = selectedMed;
-    updated[index].searchTerm = selectedMed;
-    setMedications(updated);
-    setOpenMedicationDropdown(null);
-  };
-
-  const handleMedicationSearch = (index, value) => {
-    const updated = [...medications];
-    updated[index].searchTerm = value;
     setMedications(updated);
   };
 
@@ -691,12 +654,6 @@ const PrescriptionWritingModal = ({
               <div className="space-y-4">
                 {medications.map((med, index) => {
                   const selectedMeta = inventoryMeds.find(medItem => medItem.itemName === med.name);
-                  const searchTerm = (med.searchTerm || "").toLowerCase();
-                  const filteredInventory = inventoryMeds.filter((m) => {
-                    const nameMatch = m.itemName?.toLowerCase().includes(searchTerm);
-                    const codeMatch = m.itemCode?.toLowerCase().includes(searchTerm);
-                    return searchTerm ? (nameMatch || codeMatch) : true;
-                  });
 
                   return (
                     <motion.div
@@ -722,68 +679,47 @@ const PrescriptionWritingModal = ({
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="md:col-span-2" ref={(el) => { medicationDropdownRefs.current[index] = el; }}>
+                        <div className="md:col-span-2">
                           <label className="block text-sm font-semibold text-stone-700 mb-1">
                             Medication Name <span className="text-red-500">*</span>
                           </label>
-                          <div className="flex flex-col gap-3 md:flex-row md:items-start">
-                            <div className="flex-1 relative">
-                              <div className="relative">
-                                <input
-                                  type="text"
-                                  value={med.searchTerm || ""}
-                                  onChange={(e) => handleMedicationSearch(index, e.target.value)}
-                                  onFocus={() => setOpenMedicationDropdown(index)}
-                                  placeholder="Search or type medication name..."
-                                  disabled={loadingMeds}
-                                  className="w-full px-4 py-2 border-2 border-green-300 rounded-lg bg-white text-left focus:ring-2 focus:ring-green-500 focus:border-transparent transition disabled:bg-stone-100 disabled:text-stone-500"
-                                />
-                                {med.name && (
-                                  <div className="mt-1 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-stone-600">
-                                    Selected: <span className="font-semibold text-stone-900">{med.name}</span>
-                                    {selectedMeta?.itemCode && <span className="ml-2">Code: {selectedMeta.itemCode}</span>}
-                                  </div>
-                                )}
-                              </div>
+                          <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                            <div className="flex-1">
+                              <InventoryAutoComplete
+                                value={{ itemName: med.name, itemId: 0 }}
+                                onChange={(item) => {
+                                  const updated = [...medications];
+                                  updated[index].name = item.itemName;
+                                  setMedications(updated);
+                                }}
+                                onSelect={(item) => {
+                                  const updated = [...medications];
+                                  updated[index].name = item.itemName;
+                                  setMedications(updated);
+                                }}
+                                masterItems={inventoryMeds}
+                                placeholder="Search medication by name or code..."
+                                onAddNewItem={(item) => {
+                                  // Pre-fill the new medication form with the search term
+                                  setNewMedicationForm({
+                                    ...newMedicationForm,
+                                    itemName: item.itemName || ""
+                                  });
+                                  setMedicationToAdd(index);
+                                  setShowAddMedModal(true);
+                                }}
+                              />
+                            </div>
+                          </div>
 
-                              {openMedicationDropdown === index && (med.searchTerm || inventoryMeds.length > 0) && (
-                                <div className="absolute z-30 mt-1 w-full bg-white border-2 border-green-200 rounded-xl shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
-                                  {(searchTerm ? filteredInventory : inventoryMeds).length === 0 && !loadingMeds ? (
-                                    <div className="px-3 py-4 text-sm text-stone-500 text-center">
-                                      {searchTerm ? "No matches found" : "No medications available"}
-                                    </div>
-                                  ) : (
-                                    (searchTerm ? filteredInventory : inventoryMeds).map((m) => (
-                                      <button
-                                        type="button"
-                                        key={m.itemId || m.id}
-                                        onClick={() => {
-                                          handleSelectMedication(index, m.itemName);
-                                          setOpenMedicationDropdown(null);
-                                        }}
-                                        className="w-full text-left px-4 py-3 hover:bg-green-50 transition border-b border-green-50 last:border-b-0 focus:outline-none focus:bg-green-100"
-                                      >
-                                        <div className="font-semibold text-stone-800">{m.itemName}{m.itemCode ? ` (${m.itemCode})` : ""}</div>
-                                        <div className="text-xs text-stone-500 flex gap-3 flex-wrap">
-                                          {m.category && <span>Category: {m.category}</span>}
-                                          {m.unit && <span>Unit: {m.unit}</span>}
-                                        </div>
-                                      </button>
-                                    ))
-                                  )}
-                                </div>
+                          {med.name && (
+                            <div className="mt-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-xs text-stone-600">
+                              ✓ Selected: <span className="font-semibold text-stone-900">{med.name}</span>
+                              {inventoryMeds.find(m => m.itemName === med.name)?.itemCode && (
+                                <span className="ml-2">Code: {inventoryMeds.find(m => m.itemName === med.name)?.itemCode}</span>
                               )}
                             </div>
-
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => handleOpenAddMedication(index)}
-                              className="md:ml-3 px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg font-semibold hover:from-indigo-600 hover:to-purple-600 transition whitespace-nowrap shadow"
-                            >
-                              ➕ Add to Inventory
-                            </motion.button>
-                          </div>
+                          )}
                         </div>
 
                         {selectedMeta && (

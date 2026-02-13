@@ -5980,189 +5980,198 @@ export default function Clinics(){
                       ← Back to Search
                     </motion.button>
 
-                    {/* Innovative Inventory Display - Compact & Beautiful */}
+                    {/* Innovative Inventory Display - Professional Grid/Table Layout */}
                     <div className="space-y-3">
-                      <h4 className="text-xl font-bold text-slate-800 mb-4">📦 Inventory Items ({inventoryResults.length})</h4>
+                      <h4 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <span>📦</span> Inventory Items ({inventoryResults.length})
+                      </h4>
                       
-                      {/* Ultra-Compact Grid Layout - 4-5 columns on large screens */}
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                        {inventoryResults.map((item, index) => (
-                          <motion.div
-                            key={`inventory-${item.inventoryId || index}`}
-                            initial={{ opacity: 0, scale: 0.7 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: index * 0.03 }}
-                            whileHover={{ y: -8, scale: 1.05 }}
-                            className={`group relative rounded-lg overflow-hidden cursor-pointer shadow-md hover:shadow-xl transition-all ${
-                              item.status === 'Available' 
-                                ? 'bg-gradient-to-br from-emerald-100 via-green-50 to-teal-100 border border-emerald-300' 
-                                : item.status === 'LowStock'
-                                ? 'bg-gradient-to-br from-yellow-100 via-amber-50 to-orange-100 border border-yellow-300'
-                                : 'bg-gradient-to-br from-red-100 via-pink-50 to-rose-100 border border-red-300'
-                            }`}
-                          >
-                            {/* Animated background shimmer */}
-                            <motion.div
-                              animate={{ opacity: [0.3, 0.6, 0.3] }}
-                              transition={{ duration: 3, repeat: Infinity }}
-                              className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-30"
-                            />
+                      {/* Modern Table Layout - Responsive Grid */}
+                      <div className="overflow-x-auto rounded-2xl shadow-xl border-2 border-orange-200">
+                        <div className="min-w-full bg-white">
+                          {/* Table Header */}
+                          <div className="grid grid-cols-12 gap-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white p-4 font-bold text-sm sticky top-0 z-10">
+                            <div className="col-span-1 text-center">#</div>
+                            <div className="col-span-3">Item Name</div>
+                            <div className="col-span-1 text-center">Unit</div>
+                            <div className="col-span-1 text-center">Qty</div>
+                            <div className="col-span-1 text-center">Min</div>
+                            <div className="col-span-1 text-center">Reorder</div>
+                            <div className="col-span-2 text-left">Location</div>
+                            <div className="col-span-2 text-center">Actions</div>
+                          </div>
 
-                            <div className="relative z-10 p-3">
-                              {/* Status Badge */}
-                              <div className="flex items-center justify-between mb-2">
-                                <motion.div
-                                  animate={{ scale: [1, 1.2, 1] }}
-                                  transition={{ duration: 2, repeat: Infinity }}
-                                  className="text-2xl"
-                                >
-                                  {item.status === 'Available' ? '✅' : item.status === 'LowStock' ? '⚠️' : '❌'}
-                                </motion.div>
-                                <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                                  item.status === 'Available' 
-                                    ? 'bg-emerald-200 text-emerald-800' 
-                                    : item.status === 'LowStock'
-                                    ? 'bg-yellow-200 text-yellow-800'
-                                    : 'bg-red-200 text-red-800'
-                                }`}>
-                                  {item.status}
-                                </span>
-                              </div>
+                          {/* Table Body */}
+                          <div className="divide-y divide-orange-100">
+                            {inventoryResults.map((item, index) => (
+                              <motion.div
+                                key={`inventory-${item.inventoryId || index}`}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: index * 0.05 }}
+                                className={`grid grid-cols-12 gap-2 p-4 hover:bg-orange-50 transition-all group ${
+                                  index % 2 === 0 ? 'bg-white' : 'bg-stone-50'
+                                } ${
+                                  editingItemIndex === index ? 'bg-yellow-50 ring-2 ring-yellow-400 rounded-lg' : ''
+                                }`}
+                              >
+                                {/* Index */}
+                                <div className="col-span-1 text-center">
+                                  <span className="font-bold text-slate-600 text-sm">{index + 1}</span>
+                                </div>
 
-                              {/* Item Name */}
-                              <h5 className="text-sm font-bold text-slate-800 mb-2 line-clamp-2 leading-tight">{item.itemName}</h5>
+                                {/* Item Name */}
+                                <div className="col-span-3">
+                                  <p className="font-bold text-slate-800 text-sm truncate">{item.itemName}</p>
+                                  {editingItemIndex === index && (
+                                    <input
+                                      type="text"
+                                      value={item.itemName}
+                                      disabled
+                                      className="mt-1 w-full px-2 py-1 border border-gray-300 rounded bg-gray-100 text-xs"
+                                    />
+                                  )}
+                                </div>
 
-                              {/* Quick Stats */}
-                              <div className="space-y-1.5 bg-white/60 backdrop-blur-sm rounded-lg p-2.5 mb-2">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-semibold text-slate-600">Qty:</span>
-                                  <span className={`text-sm font-bold ${
-                                    item.status === 'Available' 
-                                      ? 'text-emerald-700' 
-                                      : item.status === 'LowStock'
-                                      ? 'text-amber-700'
-                                      : 'text-red-700'
-                                  }`}>
-                                    {item.quantityAvailable}
+                                {/* Unit */}
+                                <div className="col-span-1 text-center">
+                                  <span className="text-xs font-semibold text-slate-600 bg-blue-100 text-blue-700 px-2 py-1 rounded-full inline-block">
+                                    {item.unit || '-'}
                                   </span>
                                 </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-semibold text-slate-600">Min:</span>
-                                  <span className="text-xs font-semibold text-slate-700">{item.minimumStock}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-semibold text-slate-600">Loc:</span>
-                                  <span className="text-xs text-slate-700 text-right line-clamp-1">{item.storageLocation || '—'}</span>
-                                </div>
-                              </div>
 
-                              {/* Edit Button */}
-                              <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.95 }}
-                                type="button"
-                                onClick={() => setEditingItemIndex(editingItemIndex === index ? null : index)}
-                                className="w-full px-2 py-1.5 bg-gradient-to-r from-blue-400 to-cyan-400 text-white rounded font-bold text-xs hover:shadow-lg transition"
-                              >
-                                {editingItemIndex === index ? '✓ Done' : '✏️ Edit'}
-                              </motion.button>
+                                {/* Quantity Available */}
+                                <div className="col-span-1 text-center">
+                                  {editingItemIndex === index ? (
+                                    <input
+                                      type="number"
+                                      value={item.quantityAvailable}
+                                      onChange={(e) => {
+                                        const updated = [...inventoryResults];
+                                        updated[index].quantityAvailable = parseInt(e.target.value) || 0;
+                                        setInventoryResults(updated);
+                                      }}
+                                      className="w-full px-2 py-1.5 border-2 border-yellow-400 rounded font-bold text-center text-sm"
+                                      min="0"
+                                    />
+                                  ) : (
+                                    <span className={`font-bold text-sm ${
+                                      item.quantityAvailable > (item.minimumStock || 0) 
+                                        ? 'text-green-700' 
+                                        : item.quantityAvailable > 0 
+                                        ? 'text-amber-700' 
+                                        : 'text-red-700'
+                                    }`}>
+                                      {item.quantityAvailable}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Min Stock */}
+                                <div className="col-span-1 text-center">
+                                  {editingItemIndex === index ? (
+                                    <input
+                                      type="number"
+                                      value={item.minimumStock}
+                                      onChange={(e) => {
+                                        const updated = [...inventoryResults];
+                                        updated[index].minimumStock = parseInt(e.target.value) || 0;
+                                        setInventoryResults(updated);
+                                      }}
+                                      className="w-full px-2 py-1.5 border-2 border-yellow-400 rounded font-bold text-center text-sm"
+                                      min="0"
+                                    />
+                                  ) : (
+                                    <span className="font-semibold text-slate-700 text-sm">{item.minimumStock || '-'}</span>
+                                  )}
+                                </div>
+
+                                {/* Reorder Level */}
+                                <div className="col-span-1 text-center">
+                                  {editingItemIndex === index ? (
+                                    <input
+                                      type="number"
+                                      value={item.reorderLevel}
+                                      onChange={(e) => {
+                                        const updated = [...inventoryResults];
+                                        updated[index].reorderLevel = parseInt(e.target.value) || 0;
+                                        setInventoryResults(updated);
+                                      }}
+                                      className="w-full px-2 py-1.5 border-2 border-yellow-400 rounded font-bold text-center text-sm"
+                                      min="0"
+                                    />
+                                  ) : (
+                                    <span className="font-semibold text-slate-700 text-sm">{item.reorderLevel || '-'}</span>
+                                  )}
+                                </div>
+
+                                {/* Storage Location */}
+                                <div className="col-span-2">
+                                  {editingItemIndex === index ? (
+                                    <input
+                                      type="text"
+                                      value={item.storageLocation}
+                                      onChange={(e) => {
+                                        const updated = [...inventoryResults];
+                                        updated[index].storageLocation = e.target.value;
+                                        setInventoryResults(updated);
+                                      }}
+                                      className="w-full px-2 py-1.5 border-2 border-yellow-400 rounded text-xs"
+                                      placeholder="Shelf A-1"
+                                    />
+                                  ) : (
+                                    <span className="text-xs text-slate-600 truncate block">{item.storageLocation || 'Not specified'}</span>
+                                  )}
+                                </div>
+
+                                {/* Actions */}
+                                <div className="col-span-2 flex items-center justify-center gap-2">
+                                  {editingItemIndex === index ? (
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => setEditingItemIndex(null)}
+                                      className="px-3 py-1.5 bg-green-500 text-white rounded-lg font-bold text-xs hover:bg-green-600 transition"
+                                    >
+                                      ✓ Done
+                                    </motion.button>
+                                  ) : (
+                                    <>
+                                      <motion.button
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                        onClick={() => setEditingItemIndex(index)}
+                                        className="px-3 py-1.5 bg-blue-500 text-white rounded-lg font-bold text-xs hover:bg-blue-600 transition"
+                                      >
+                                        ✏️ Edit
+                                      </motion.button>
+                                      <motion.button
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                        onClick={() => {
+                                          const updated = inventoryResults.filter((_, i) => i !== index);
+                                          setInventoryResults(updated);
+                                        }}
+                                        className="px-3 py-1.5 bg-red-500 text-white rounded-lg font-bold text-xs hover:bg-red-600 transition"
+                                      >
+                                        🗑️ Remove
+                                      </motion.button>
+                                    </>
+                                  )}
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+
+                          {/* Empty State */}
+                          {inventoryResults.length === 0 && (
+                            <div className="p-12 text-center bg-stone-50">
+                              <span className="text-4xl mb-2 block">📭</span>
+                              <p className="text-slate-600 font-semibold">No inventory items found</p>
+                              <p className="text-slate-500 text-sm mt-1">Add your first item from the master inventory</p>
                             </div>
-
-                            {/* Edit Mode - Overlay */}
-                            <AnimatePresence>
-                              {editingItemIndex === index && (
-                                <motion.div
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 1 }}
-                                  exit={{ opacity: 0 }}
-                                  className="absolute inset-0 bg-black/40 backdrop-blur-sm z-20 flex items-center justify-center p-2"
-                                >
-                                  <motion.div
-                                    initial={{ scale: 0.8 }}
-                                    animate={{ scale: 1 }}
-                                    className="bg-white rounded-lg shadow-2xl p-3 w-full max-h-[90vh] overflow-y-auto"
-                                  >
-                                    <h6 className="font-bold text-slate-800 mb-2 text-sm">Edit {item.itemName}</h6>
-                                    <div className="space-y-2 text-sm">
-                                      <div>
-                                        <label className="text-xs font-semibold text-slate-600">Qty Available</label>
-                                        <input
-                                          type="number"
-                                          value={item.quantityAvailable}
-                                          onChange={(e) => {
-                                            const updated = [...inventoryResults];
-                                            updated[index].quantityAvailable = parseInt(e.target.value) || 0;
-                                            setInventoryResults(updated);
-                                          }}
-                                          className="mt-0.5 w-full px-2 py-1 border border-gray-300 rounded text-xs"
-                                          min="0"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="text-xs font-semibold text-slate-600">Reorder Level</label>
-                                        <input
-                                          type="number"
-                                          value={item.reorderLevel}
-                                          onChange={(e) => {
-                                            const updated = [...inventoryResults];
-                                            updated[index].reorderLevel = parseInt(e.target.value) || 0;
-                                            setInventoryResults(updated);
-                                          }}
-                                          className="mt-0.5 w-full px-2 py-1 border border-gray-300 rounded text-xs"
-                                          min="0"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="text-xs font-semibold text-slate-600">Min Stock</label>
-                                        <input
-                                          type="number"
-                                          value={item.minimumStock}
-                                          onChange={(e) => {
-                                            const updated = [...inventoryResults];
-                                            updated[index].minimumStock = parseInt(e.target.value) || 0;
-                                            setInventoryResults(updated);
-                                          }}
-                                          className="mt-0.5 w-full px-2 py-1 border border-gray-300 rounded text-xs"
-                                          min="0"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="text-xs font-semibold text-slate-600">Location</label>
-                                        <input
-                                          type="text"
-                                          value={item.storageLocation}
-                                          onChange={(e) => {
-                                            const updated = [...inventoryResults];
-                                            updated[index].storageLocation = e.target.value;
-                                            setInventoryResults(updated);
-                                          }}
-                                          className="mt-0.5 w-full px-2 py-1 border border-gray-300 rounded text-xs"
-                                          placeholder="Shelf A-1"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="text-xs font-semibold text-slate-600">Status</label>
-                                        <select
-                                          value={item.status}
-                                          onChange={(e) => {
-                                            const updated = [...inventoryResults];
-                                            updated[index].status = e.target.value;
-                                            setInventoryResults(updated);
-                                          }}
-                                          className="mt-0.5 w-full px-2 py-1 border border-gray-300 rounded text-xs"
-                                        >
-                                          <option value="Available">Available</option>
-                                          <option value="LowStock">LowStock</option>
-                                          <option value="OutOfStock">OutOfStock</option>
-                                        </select>
-                                      </div>
-                                    </div>
-                                  </motion.div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </motion.div>
-                        ))}
+                          )}
+                        </div>
                       </div>
                     </div>
 
