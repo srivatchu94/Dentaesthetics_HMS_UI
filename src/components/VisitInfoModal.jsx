@@ -2,7 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { addPatientVisit } from "../services/appointmentService";
 import { editPatientVisit } from "../services/patientService";
-import { sendPrescriptionEmail } from "../services/emailService";
+import { sendPrescriptionEmail, sendEmail } from "../services/emailService";
+import PrescriptionPrint from "./PrescriptionPrint";
+import PrescriptionEmailTemplate from "./PrescriptionEmailTemplate";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 // Extracted and properly memoized VisitInfoModal Component
 const VisitInfoModal = ({
@@ -71,6 +75,8 @@ const VisitInfoModal = ({
   const [viewedPrescription, setViewedPrescription] = useState(null);
   const [showViewPrescriptionModal, setShowViewPrescriptionModal] = useState(false);
   const [printPrescriptionData, setPrintPrescriptionData] = useState(null);
+  const [showPrintPreviewModal, setShowPrintPreviewModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
   
   const localMedicineInputRef = useRef(null);
   const loadedAppointmentRef = useRef(null);
@@ -498,6 +504,8 @@ const VisitInfoModal = ({
 
   const handlePrintPrescription = () => {
     const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+    const selectedAccess = JSON.parse(localStorage.getItem("selectedAccess") || "{}");
+    
     setPrintPrescriptionData({
       patientName: `${selectedAppointment.firstName} ${selectedAppointment.lastName}`,
       patientId: selectedAppointment.patientId,
@@ -506,8 +514,150 @@ const VisitInfoModal = ({
       registrationNumber: selectedAppointment.registrationNumber || 'N/A',
       diagnosis: visitForm.diagnosis,
       medications: inlineMedications,
-      notes: visitForm.notes
+      notes: visitForm.notes,
+      clinicInfo: {
+        clinicName: userData.clinicName || selectedAccess.clinicName || 'My Dental Clinic',
+        address: userData.clinicAddress || selectedAccess.address || 'Clinic Address',
+        phone: userData.clinicPhone || selectedAccess.phone || '+1-555-1234',
+        email: userData.clinicEmail || selectedAccess.email || 'clinic@example.com'
+      },
+      doctorInfo: {
+        doctorName: selectedAppointment.doctorName || userData.username || 'Doctor',
+        registrationNumber: selectedAppointment.registrationNumber || 'N/A'
+      }
     });
+    setShowPrintPreviewModal(true);
+  };
+
+  const handleSendEmail = async () => {
+    const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+    const selectedAccess = JSON.parse(localStorage.getItem("selectedAccess") || "{}");
+    
+    try {
+      setSendingEmail(true);
+      
+      const patientEmail = selectedAppointment.email || '';
+      if (!patientEmail) {
+        alert('Patient email not available');
+        return;
+      }
+
+      // Prepare prescription data for email template
+      const prescriptionData = {
+        prescriptionId: selectedAppointment.appointmentId,
+        prescriptionDate: new Date().toISOString(),
+        prescriptionContent: inlineMedications.map(med => 
+          `${med.name} - ${med.dosage} - ${med.frequency} - ${med.duration}`
+        ).join('\n')
+      };
+
+      const patientInfo = {
+        firstName: selectedAppointment.firstName,
+        lastName: selectedAppointment.lastName,
+        email: patientEmail,
+        phone: selectedAppointment.phone,
+        patientId: selectedAppointment.patientId
+      };
+
+      const doctorInfo = {
+        doctorName: selectedAppointment.doctorName || userData.username || 'Doctor',
+        registrationNumber: selectedAppointment.registrationNumber || 'N/A'
+      };
+
+      const clinicInfo = {
+        clinicName: userData.clinicName || selectedAccess.clinicName || 'My Dental Clinic',
+        address: userData.clinicAddress || selectedAccess.address || 'Clinic Address',
+        phone: userData.clinicPhone || selectedAccess.phone || '+1-555-1234',
+        email: userData.clinicEmail || selectedAccess.email || 'clinic@example.com'
+      };
+
+      // Use the email template
+      const emailTemplate = PrescriptionEmailTemplate({ 
+        prescription: prescriptionData, 
+        patientInfo, 
+        doctorInfo, 
+        clinicInfo 
+      });
+      const emailHTML = emailTemplate.getHTML();
+
+      // Send email
+      const response = await sendEmail({
+        Email: patientEmail,
+        Subject: `Prescription from Dr. ${doctorInfo.doctorName} - ${clinicInfo.clinicName}`,
+        HtmlBody: emailHTML
+      });
+
+      if (response.success) {
+        alert('✅ Prescription email sent successfully!');
+        setShowEmailModal(false);
+      } else {
+        alert('❌ Failed to send email');
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert('❌ Error sending email. Please try again.');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  const generatePrescriptionPDF = async () => {
+    try {
+      // Wait for modal to be fully rendered
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const prescriptionElement = document.querySelector('.prescription-print-container');
+      if (!prescriptionElement) {
+        alert('❌ Could not find prescription template. Please try again.');
+        return;
+      }
+
+      // Show loading indicator
+      const originalContent = document.body.innerHTML;
+      
+      // Capture the prescription element as canvas
+      const canvas = await html2canvas(prescriptionElement, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 295; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // Add image to PDF, handling multi-page PDFs if needed
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Download the PDF
+      const patientName = `${selectedAppointment.firstName || 'Patient'}_${selectedAppointment.lastName || 'Name'}`;
+      const timestamp = new Date().toISOString().split('T')[0];
+      pdf.save(`Prescription_${patientName}_${timestamp}.pdf`);
+      
+      alert('✅ Prescription PDF downloaded successfully!');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('❌ Error generating PDF. Please try again.');
+    }
   };
 
   const handleVisitFormChange = useCallback((field, value) => {
@@ -1091,6 +1241,53 @@ const VisitInfoModal = ({
                         </motion.div>
                       ))}
                     </div>
+
+                    {/* Prescription Action Buttons - ALWAYS VISIBLE WHEN MEDICATIONS EXIST */}
+                    <div className="mt-6 bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-2xl border-2 border-blue-300 shadow-lg">
+                      <h3 className="text-sm font-bold text-slate-800 mb-4 text-center">💊 Prescription Actions</h3>
+                      <div className="grid grid-cols-3 gap-4">
+                        <motion.button
+                          whileHover={{ scale: 1.08 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={handlePrintPrescription}
+                          className="flex flex-col items-center justify-center gap-2 px-4 py-5 bg-white border-2 border-blue-400 text-blue-700 rounded-xl font-bold hover:bg-blue-50 hover:border-blue-600 hover:shadow-md transition text-sm"
+                        >
+                          <span className="text-3xl">🖨️</span>
+                          <span>Print</span>
+                        </motion.button>
+
+                        <motion.button
+                          whileHover={{ scale: 1.08 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setShowEmailModal(true)}
+                          className="flex flex-col items-center justify-center gap-2 px-4 py-5 bg-white border-2 border-green-400 text-green-700 rounded-xl font-bold hover:bg-green-50 hover:border-green-600 hover:shadow-md transition text-sm"
+                        >
+                          <span className="text-3xl">📧</span>
+                          <span>Email</span>
+                        </motion.button>
+
+                        <motion.button
+                          whileHover={{ scale: 1.08 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => {
+                            const patientPhone = selectedAppointment.phone || selectedAppointment.patientPhone || '';
+                            if (!patientPhone) {
+                              alert('Patient phone number not available');
+                              return;
+                            }
+                            const medicationsText = inlineMedications.map(m => `${m.name} - ${m.dosage} - ${m.frequency} - ${m.duration}`).join('\n');
+                            const prescriptionText = `🏥 *Prescription from Dr. ${selectedAppointment.doctorName || 'Doctor'}*\n\n📋 *Medications:*\n${medicationsText}\n\n📝 *Diagnosis:* ${visitForm.diagnosis}\n\n*For queries, please contact the clinic.* ☺️`;
+                            const encodedText = encodeURIComponent(prescriptionText);
+                            const whatsappURL = `https://api.whatsapp.com/send?phone=${patientPhone}&text=${encodedText}`;
+                            window.open(whatsappURL, '_blank');
+                          }}
+                          className="flex flex-col items-center justify-center gap-2 px-4 py-5 bg-white border-2 border-green-500 text-green-700 rounded-xl font-bold hover:bg-green-50 hover:border-green-700 hover:shadow-md transition text-sm"
+                        >
+                          <span className="text-3xl">💬</span>
+                          <span>WhatsApp</span>
+                        </motion.button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1156,6 +1353,154 @@ const VisitInfoModal = ({
           </div>
         </div>
       </motion.div>
+
+      {/* Print Preview Modal */}
+      <AnimatePresence>
+        {showPrintPreviewModal && printPrescriptionData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            onClick={() => setShowPrintPreviewModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border-2 border-blue-200"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 sticky top-0 flex items-center justify-between text-white">
+                <h2 className="text-2xl font-bold">📋 Prescription Preview</h2>
+                <div className="flex gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      generatePrescriptionPDF();
+                    }}
+                    className="px-4 py-2 bg-white text-blue-600 rounded-lg font-bold hover:bg-blue-50 transition text-sm"
+                  >
+                    📥 Download PDF
+                  </motion.button>
+                  <button
+                    onClick={() => setShowPrintPreviewModal(false)}
+                    className="text-2xl hover:bg-white/20 p-2 rounded-full transition"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Preview Content */}
+              <div className="p-8 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 80px)' }}>
+                <div className="bg-white">
+                  <PrescriptionPrint
+                    prescription={{
+                      prescriptionId: selectedAppointment.appointmentId,
+                      prescriptionDate: new Date().toISOString(),
+                      prescriptionContent: JSON.stringify(
+                        inlineMedications.map(m => ({
+                          medicineName: m.name,
+                          dosage: m.dosage,
+                          frequency: m.frequency,
+                          duration: m.duration,
+                          specialInstructions: m.instructions
+                        }))
+                      )
+                    }}
+                    patientInfo={{
+                      firstName: selectedAppointment.firstName,
+                      lastName: selectedAppointment.lastName,
+                      age: selectedAppointment.age,
+                      gender: selectedAppointment.gender,
+                      patientId: selectedAppointment.patientId
+                    }}
+                    doctorInfo={printPrescriptionData.doctorInfo}
+                    clinicInfo={printPrescriptionData.clinicInfo}
+                  />
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Email Modal */}
+      <AnimatePresence>
+        {showEmailModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            onClick={() => setShowEmailModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full border-2 border-green-200"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-green-600 to-green-700 p-6 flex items-center justify-between text-white">
+                <h2 className="text-2xl font-bold">📧 Send Email</h2>
+                <button
+                  onClick={() => setShowEmailModal(false)}
+                  className="text-2xl hover:bg-white/20 p-2 rounded-full transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 space-y-4">
+                <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+                  <p className="text-sm text-green-800">
+                    <strong>📧 Will send to:</strong>
+                    <p className="mt-2 font-bold">{selectedAppointment.email || 'Patient Email'}</p>
+                  </p>
+                </div>
+
+                <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+                  <p className="text-sm text-green-800">
+                    <strong>📋 Email will include:</strong>
+                    <ul className="mt-2 space-y-1 ml-4">
+                      <li>✓ Clinic name & details</li>
+                      <li>✓ Doctor information</li>
+                      <li>✓ Prescription details</li>
+                      <li>✓ Medications list</li>
+                    </ul>
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t-2 border-green-200">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowEmailModal(false)}
+                    className="flex-1 px-4 py-3 bg-slate-200 text-slate-800 rounded-lg font-bold hover:bg-slate-300 transition text-sm"
+                  >
+                    ✕ Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleSendEmail}
+                    disabled={sendingEmail}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 text-sm"
+                  >
+                    {sendingEmail ? '📤 Sending...' : '📤 Send Email'}
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };

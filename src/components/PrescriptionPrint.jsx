@@ -81,11 +81,19 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
       return [];
     }
 
-    // Split by newline and filter empty lines
-    const medications = content.split('\n').filter(line => line.trim());
+    // Try to parse as JSON first
+    try {
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    } catch (e) {
+      // Not JSON, try splitting by newline
+      const medications = content.split('\n').filter(line => line.trim());
+      return medications.length > 0 ? medications : [];
+    }
     
-    // If still empty, return empty array
-    return medications.length > 0 ? medications : [];
+    return [];
   };
 
   const medications = getMedications();
