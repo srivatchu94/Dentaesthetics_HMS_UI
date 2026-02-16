@@ -129,10 +129,19 @@ const VisitInfoModal = ({
     console.log('🔄 PROP CHANGED (notes):', notes ? `"${notes}"` : '(empty)');
   }, [notes]);
 
-  // Reset form when modal opens or appointment changes
+  // Load existing visit data - Reload every time modal opens
   useEffect(() => {
-    if (show && selectedAppointment?.appointmentId) {
-      console.log('🔄 RESET FORM - Modal opened or appointment changed:', selectedAppointment.appointmentId);
+    // Only run when modal is shown
+    if (!show) {
+      return;
+    }
+
+    const appointmentId = selectedAppointment?.appointmentId;
+    const existingData = selectedAppointment?.existingVisitData;
+    
+    if (!appointmentId) {
+      console.log('📝 No appointment ID, initializing empty form');
+      setIsExistingVisit(false);
       setVisitForm({
         visitDate: new Date().toISOString().split('T')[0],
         chiefComplaint: '',
@@ -143,32 +152,33 @@ const VisitInfoModal = ({
         notes: ''
       });
       setLocalInlineMedications([]);
-      // Clear the ref to allow existing visit data check to run again
-      loadedAppointmentRef.current = null;
-    }
-  }, [show, selectedAppointment?.appointmentId]);
-
-  // Load existing visit data - ONLY ONCE per appointment
-  useEffect(() => {
-    const appointmentId = selectedAppointment?.appointmentId;
-    
-    if (loadedAppointmentRef.current === appointmentId) {
       return;
     }
-    
-    if (!appointmentId || !selectedAppointment?.existingVisitData) {
-      console.log('📝 No existing data, initializing empty form');
+
+    if (!existingData) {
+      console.log('📝 No existing data yet for appointment', appointmentId, '- initializing empty form');
       setIsExistingVisit(false);
+      setVisitForm({
+        visitDate: new Date().toISOString().split('T')[0],
+        chiefComplaint: '',
+        diagnosis: '',
+        treatmentProvided: '',
+        prescriptions: '',
+        followUpDate: '',
+        notes: ''
+      });
+      setLocalInlineMedications([]);
       return;
     }
 
-    loadedAppointmentRef.current = appointmentId;
-    const existingData = selectedAppointment.existingVisitData;
     console.log('📥 Loading existing visit data - Appointment:', appointmentId);
+    console.log('📦 Existing data:', existingData);
     
     const hasExistingData = existingData.visitDate || existingData.diagnosis || existingData.reasonForVisit;
     if (hasExistingData) {
       setIsExistingVisit(true);
+    } else {
+      setIsExistingVisit(false);
     }
     
     setVisitForm({
@@ -182,15 +192,21 @@ const VisitInfoModal = ({
     });
     
     if (existingData.prescriptions && Array.isArray(existingData.prescriptions)) {
-      setLocalInlineMedications(existingData.prescriptions.map(med => ({
+      console.log('💊 Loading existing prescriptions into medications grid:', existingData.prescriptions);
+      const mappedMeds = existingData.prescriptions.map(med => ({
         name: med.medicineName || med.name || '',
         dosage: med.dosage || '',
         frequency: med.frequency || '',
         duration: med.duration || '',
-        instructions: med.instructions || ''
-      })));
+        instructions: med.specialInstructions || med.instructions || ''
+      }));
+      console.log('💊 Mapped medications for grid:', mappedMeds);
+      setLocalInlineMedications(mappedMeds);
+    } else {
+      console.log('💊 No existing prescriptions to load');
+      setLocalInlineMedications([]);
     }
-  }, [selectedAppointment?.appointmentId, show]);
+  }, [show, selectedAppointment?.appointmentId, selectedAppointment?.existingVisitData]);
 
   // Track visitForm state changes
   useEffect(() => {
@@ -580,6 +596,17 @@ const VisitInfoModal = ({
       });
       const emailHTML = emailTemplate.getHTML();
 
+      console.log('📧 PRESCRIPTION EMAIL DEBUG:', {
+        patientEmail,
+        subject: `Prescription from Dr. ${doctorInfo.doctorName} - ${clinicInfo.clinicName}`,
+        htmlLength: emailHTML?.length,
+        medicationCount: inlineMedications.length,
+        hasPatientEmail: !!patientEmail
+      });
+
+      // Show user which email will receive the prescription
+      alert(`📧 Sending prescription to:\n${patientEmail}`);
+
       // Send email
       const response = await sendEmail({
         Email: patientEmail,
@@ -587,15 +614,17 @@ const VisitInfoModal = ({
         HtmlBody: emailHTML
       });
 
+      console.log('📧 EMAIL SEND RESPONSE:', response);
+
       if (response.success) {
         alert('✅ Prescription email sent successfully!');
         setShowEmailModal(false);
       } else {
-        alert('❌ Failed to send email');
+        alert(`❌ Failed to send email: ${response.message || 'Unknown error'}`);
       }
     } catch (error) {
-      console.error('Error sending email:', error);
-      alert('❌ Error sending email. Please try again.');
+      console.error('❌ Error sending email:', error);
+      alert(`❌ Error sending email: ${error.message || 'Please try again.'}`);
     } finally {
       setSendingEmail(false);
     }

@@ -742,6 +742,7 @@ export default function Doctors() {
     instructions: ''
   });
   const [editingMedicationIndex, setEditingMedicationIndex] = useState(null);
+  const [savingPrescription, setSavingPrescription] = useState(false);
   const [inventoryMeds, setInventoryMeds] = useState([]);
   const [loadingMeds, setLoadingMeds] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
@@ -1268,6 +1269,13 @@ export default function Doctors() {
     }
   }, [selectedAppointmentDetails?.appointmentId]);
 
+  // Clear visit fetch ref when modal closes so data reloads on next open
+  useEffect(() => {
+    if (!showVisitInfoModal) {
+      visitFetchRef.current = { appointmentId: null, inFlight: false };
+    }
+  }, [showVisitInfoModal]);
+
   useEffect(() => {
     if (!showVisitInfoModal || !selectedAppointmentDetails?.appointmentId) return;
     const appointmentId = selectedAppointmentDetails.appointmentId;
@@ -1291,17 +1299,7 @@ export default function Doctors() {
           const visitNotes = existingVisitData.notes || existingVisitData.additionalNotes || '';
           const visitReasonForVisit = existingVisitData.reasonForVisit || existingVisitData.chiefComplaint || '';
           
-          // Extract medicine names from prescriptions array if available
-          let prescriptionMedicines = '';
-          if (Array.isArray(existingVisitData.prescriptions) && existingVisitData.prescriptions.length > 0) {
-            prescriptionMedicines = existingVisitData.prescriptions
-              .map(p => `${p.medicineName || 'Unknown'} - ${p.dosage || 'N/A'} (${p.frequency || 'N/A'})`)
-              .join('\n• ');
-            prescriptionMedicines = '\n\n📋 Prescribed Medicines:\n• ' + prescriptionMedicines;
-          }
-          
-          // Append prescriptions to treatment provided
-          const treatmentWithMedicines = visitTreatment + prescriptionMedicines;
+          // NOTE: Prescriptions are loaded separately into the medications grid, not appended to treatment
           
           console.log('📋 STEP 1 - EXTRACTED FROM VISIT DATA:');
           console.log('   ✅ diagnosis:', visitDiagnosis);
@@ -1310,7 +1308,6 @@ export default function Doctors() {
           console.log('   ✅ notes:', visitNotes);
           console.log('   ✅ reasonForVisit:', visitReasonForVisit);
           console.log('   ✅ prescriptions:', existingVisitData.prescriptions);
-          console.log('   ✅ treatmentWithMedicines:', treatmentWithMedicines);
           console.log('═══════════════════════════════════════════════════════');
           
           // Merge visit data into medical summary - IMPORTANT: Always set the values!
@@ -1323,7 +1320,7 @@ export default function Doctors() {
                 chronicDiseases: prevState.chronicDiseases,  // PRESERVE from previous state
                 allergies: prevState.allergies,  // PRESERVE from previous state
                 diagnosis: visitDiagnosis || prevState.diagnosis,  // Use visit data first
-                treatment: treatmentWithMedicines || prevState.treatment,  // Use visit data with medicines
+                treatment: visitTreatment || prevState.treatment,  // Use visit data (no prescriptions appended)
                 medications: visitMedications || prevState.medications,  // Use visit data first
                 notes: visitNotes || prevState.notes,  // Use visit data first
                 reasonForVisit: visitReasonForVisit || prevState.reasonForVisit  // Use visit data first
@@ -2914,23 +2911,30 @@ export default function Doctors() {
     // Load existing visit data if available - ONLY ONCE per appointment
     useEffect(() => {
       const appointmentId = selectedAppointmentForVisit?.appointmentId;
+      const existingData = selectedAppointmentForVisit?.existingVisitData;
       
       // If we've already loaded this appointment's data, skip
-      if (loadedAppointmentRef.current === appointmentId) {
+      if (loadedAppointmentRef.current === appointmentId && existingData) {
         return;
       }
       
-      if (!appointmentId || !selectedAppointmentForVisit?.existingVisitData) {
-        console.log('📝 No existing data, initializing empty form');
+      if (!appointmentId) {
+        console.log('📝 No appointment ID, initializing empty form');
         setIsExistingVisit(false);
+        setLocalInlineMedications([]);
+        return;
+      }
+
+      if (!existingData) {
+        console.log('📝 No existing data yet for appointment', appointmentId);
         return;
       }
 
       // Mark this appointment as loaded
       loadedAppointmentRef.current = appointmentId;
       
-      const existingData = selectedAppointmentForVisit.existingVisitData;
       console.log('📥 Loading existing visit data into form - Appointment:', appointmentId);
+      console.log('📦 Existing data:', existingData);
       
       // Check if this is an existing visit
       const hasExistingData = existingData.visitDate || existingData.diagnosis || existingData.reasonForVisit;
@@ -2951,22 +2955,40 @@ export default function Doctors() {
       
       // Load medications if they exist
       if (existingData.prescriptions && Array.isArray(existingData.prescriptions)) {
-        setLocalInlineMedications(existingData.prescriptions.map(med => ({
+        console.log('💊 Loading existing prescriptions into medications grid:', existingData.prescriptions);
+        const mappedMeds = existingData.prescriptions.map(med => ({
           name: med.medicineName || med.name || '',
           dosage: med.dosage || '',
           frequency: med.frequency || '',
           duration: med.duration || '',
-          instructions: med.instructions || ''
-        })));
+          instructions: med.specialInstructions || med.instructions || ''
+        }));
+        console.log('💊 Mapped medications for grid:', mappedMeds);
+        setLocalInlineMedications(mappedMeds);
+      } else {
+        console.log('💊 No existing prescriptions to load');
+        setLocalInlineMedications([]);
       }
-    }, [selectedAppointmentForVisit?.appointmentId]);
+    }, [selectedAppointmentForVisit?.appointmentId, selectedAppointmentForVisit?.existingVisitData]);
     
     // Reset the ref when modal closes to allow fresh loads next time
     useEffect(() => {
       if (!showVisitInfoModal) {
+        console.log('🔄 Modal closed - resetting loaded appointment ref and clearing medications');
         loadedAppointmentRef.current = null;
+        setLocalInlineMedications([]);
+        setLocalCurrentMedication({ name: '', dosage: '', frequency: '', duration: '', instructions: '' });
+        setLocalEditingMedicationIndex(null);
       }
     }, [showVisitInfoModal]);
+
+    // Debug: Track medication changes
+    useEffect(() => {
+      console.log('💊 MEDICATIONS STATE CHANGED:');
+      console.log('   localInlineMedications.length:', localInlineMedications.length);
+      console.log('   inlineMedications.length:', inlineMedications.length);
+      console.log('   Data:', JSON.stringify(inlineMedications, null, 2));
+    }, [localInlineMedications, inlineMedications]);
     
     // Sample medical conditions - in real app this would come from API
     const chronicDiseases = ['Diabetes', 'Hypertension', 'Asthma', 'Heart Disease', 'Kidney Disease'];
@@ -3016,13 +3038,87 @@ export default function Doctors() {
       setEditingMedicationIndex(index);
     };
 
-    const handleDeleteMedication = (index) => {
+    const handleRemoveMedication = (index) => {
       setInlineMedications(inlineMedications.filter((_, i) => i !== index));
     };
 
     const handleCancelEdit = () => {
       setCurrentMedication({ name: '', dosage: '', frequency: '', duration: '', instructions: '' });
       setEditingMedicationIndex(null);
+    };
+
+    // Save prescription handler
+    const handleSavePrescriptionAPI = async () => {
+      // Validate medications
+      const validMeds = inlineMedications.filter(med => 
+        med.name && med.dosage && med.frequency && med.duration
+      );
+
+      if (validMeds.length === 0) {
+        alert('❌ Please add at least one complete medication with name, dosage, frequency, and duration.');
+        return;
+      }
+
+      setSavingPrescription(true);
+      try {
+        const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+        const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
+        
+        const enterpriseId = selectedAccess?.enterpriseId || userData?.enterpriseId || 0;
+        const clinicId = selectedAccess?.clinicId || userData?.clinicId || 0;
+        const doctorId = userData?.doctorId || 0;
+        const appointmentDetails = selectedAppointmentForVisit;
+        const patientId = appointmentDetails?.patientId || 0;
+        const visitId = 0; // Visit might not be created yet
+        const appointmentId = appointmentDetails?.appointmentId || 0;
+
+        console.log('💊 Saving prescriptions for medications:', validMeds);
+        const savedPrescriptions = [];
+
+        // Save each medication using addPrescription API
+        for (const med of validMeds) {
+          const now = new Date().toISOString();
+          const payload = {
+            medicationId: 0,
+            enterpriseId,
+            clinicId,
+            appointmentId,
+            visitId,
+            doctorId,
+            patientId,
+            medicineName: String(med.name).trim(),
+            dosage: String(med.dosage).trim(),
+            frequency: String(med.frequency).trim(),
+            duration: String(med.duration).trim(),
+            specialInstructions: String(med.instructions || '').trim(),
+            generalPrescriptionNotes: '',
+            createdAt: now,
+            createdBy: String(userData.username || 'Doctor').trim(),
+            updatedAt: now,
+            updatedBy: String(userData.username || 'Doctor').trim()
+          };
+
+          const result = await addPrescription(payload);
+          savedPrescriptions.push(result);
+        }
+
+        const successMessages = [
+          '🎉 Prescription saved successfully! Medications documented.',
+          '💊 Success! Prescriptions added to patient record.',
+          '✅ Excellent! All medications saved successfully.',
+          '🏥 Well done! Prescription saved and ready.',
+          '💉 Perfect! Medications documented successfully.'
+        ];
+        const message = successMessages[Math.floor(Math.random() * successMessages.length)];
+        
+        alert(message);
+        
+      } catch (error) {
+        console.error('Failed to save prescription:', error);
+        alert('❌ Failed to save prescription. Please try again.');
+      } finally {
+        setSavingPrescription(false);
+      }
     };
 
     // Print prescription handler
@@ -3713,8 +3809,52 @@ export default function Doctors() {
                       </div>
                     </div>
 
-                    {/* Medications List Grid */}
+                    {/* No medications message */}
+                    {inlineMedications.length === 0 && (
+                      <div className="bg-blue-50 border-2 border-dashed border-blue-300 rounded-xl p-4 text-center text-blue-700 mb-4">
+                        <p className="font-semibold">👆 Fill in the fields above and click "Add Medication" to add prescriptions</p>
+                        <p className="text-sm mt-1">Added medications will appear here as a list</p>
+                      </div>
+                    )}
+
+                    {/* Debug info - Visible during troubleshooting */}
+                    <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3 mb-4 text-xs">
+                      <p className="font-bold text-yellow-900">🐛 Debug Info:</p>
+                      <p>inlineMedications.length: <span className="font-bold">{inlineMedications.length}</span></p>
+                      <p>localInlineMedications.length: <span className="font-bold">{localInlineMedications.length}</span></p>
+                      <p>inlineMedications === localInlineMedications: <span className="font-bold">{(inlineMedications === localInlineMedications).toString()}</span></p>
+                      <p>Has existingVisitData: <span className="font-bold">{selectedAppointmentForVisit?.existingVisitData ? 'Yes' : 'No'}</span></p>
+                      <p>Prescriptions in data: <span className="font-bold">{selectedAppointmentForVisit?.existingVisitData?.prescriptions?.length || 0}</span></p>
+                      <button 
+                        onClick={() => {
+                          console.log('🔍 MANUAL STATE CHECK:');
+                          console.log('inlineMedications:', inlineMedications);
+                          console.log('localInlineMedications:', localInlineMedications);
+                          console.log('selectedAppointmentForVisit:', selectedAppointmentForVisit);
+                          alert(`Medications count: ${inlineMedications.length}\nData: ${JSON.stringify(inlineMedications)}`);
+                        }}
+                        className="mt-2 px-3 py-1 bg-yellow-600 text-white rounded font-semibold"
+                      >
+                        Check State
+                      </button>
+                      {inlineMedications.length > 0 && (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer font-semibold">View medications data</summary>
+                          <pre className="mt-2 text-xs overflow-auto">{JSON.stringify(inlineMedications, null, 2)}</pre>
+                        </details>
+                      )}
+                    </div>
+
+                    {/* Force render test - Always show if data exists */}
                     {inlineMedications.length > 0 && (
+                      <div className="bg-green-100 border-2 border-green-500 rounded-xl p-4 mb-4">
+                        <p className="font-bold text-green-900">✅ MEDICATIONS EXIST - SHOULD SHOW GRID BELOW</p>
+                        <p className="text-sm">Count: {inlineMedications.length}</p>
+                      </div>
+                    )}
+
+                    {/* Medications List Grid */}
+                    {inlineMedications.length > 0 ? (
                       <div className="space-y-3 mb-5">
                         <h4 className="font-bold text-indigo-900 flex items-center gap-2">
                           <span>📋</span> Added Medications ({inlineMedications.length})
@@ -3729,19 +3869,19 @@ export default function Doctors() {
                             >
                               <div className="flex justify-between items-start">
                                 <div className="flex-1">
-                                  <h5 className="font-bold text-stone-800 text-lg mb-2">{med.name}</h5>
+                                  <h5 className="font-bold text-stone-800 text-lg mb-2">{med.name || 'N/A'}</h5>
                                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                                     <div>
                                       <span className="font-semibold text-stone-600">Dosage:</span>
-                                      <p className="text-stone-800">{med.dosage}</p>
+                                      <p className="text-stone-800">{med.dosage || 'N/A'}</p>
                                     </div>
                                     <div>
                                       <span className="font-semibold text-stone-600">Frequency:</span>
-                                      <p className="text-stone-800">{med.frequency}</p>
+                                      <p className="text-stone-800">{med.frequency || 'N/A'}</p>
                                     </div>
                                     <div>
                                       <span className="font-semibold text-stone-600">Duration:</span>
-                                      <p className="text-stone-800">{med.duration}</p>
+                                      <p className="text-stone-800">{med.duration || 'N/A'}</p>
                                     </div>
                                     {med.instructions && (
                                       <div className="md:col-span-1">
@@ -3777,6 +3917,23 @@ export default function Doctors() {
                         </div>
 
                       </div>
+                    ) : (
+                      <div className="bg-red-100 border-2 border-red-500 rounded-xl p-4 mb-4">
+                        <p className="font-bold text-red-900">❌ NO MEDICATIONS - Grid is hidden because inlineMedications.length = 0</p>
+                      </div>
+                    )}
+
+                    {/* Save Prescription Button */}
+                    {inlineMedications.length > 0 && (
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleSavePrescriptionAPI}
+                        disabled={savingPrescription}
+                        className="w-full px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl font-bold hover:shadow-lg transition disabled:opacity-50 text-base mb-5"
+                      >
+                        {savingPrescription ? '💾 Saving Prescription...' : '💊 Save Prescription to API'}
+                      </motion.button>
                     )}
                   </div>
 
