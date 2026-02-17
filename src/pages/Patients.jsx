@@ -7,9 +7,11 @@ import { visitService } from "../services/visitService";
 import { getDoctorsByClinicID } from "../api/hmsApi";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
 import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment, getAppointmentTypes, getAppointmentStatuses } from "../services/appointmentService";
-import { sendPrescriptionEmail } from "../services/emailService";
+import { sendPrescriptionEmail, sendEmail } from "../services/emailService";
 import ViewPatients from "./ViewPatients";
 import FancyDatePicker from "../components/FancyDatePicker";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
@@ -325,6 +327,9 @@ export default function Patients() {
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
   const [selectedDiagnosis, setSelectedDiagnosis] = useState(null);
   const [loadingDiagnosis, setLoadingDiagnosis] = useState(false);
+  const [showPrintPreviewModal, setShowPrintPreviewModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
   
   // Appointment filter state
   const [appointmentFilter, setAppointmentFilter] = useState({
@@ -508,6 +513,184 @@ export default function Patients() {
       setLoadingDiagnosis(false);
     }
   };
+
+  // Generate PDF from prescription
+  const generateDiagnosisPDF = async () => {
+    try {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const prescriptionElement = document.querySelector('.patient-diagnosis-print-container');
+      if (!prescriptionElement) {
+        alert('❌ Could not find prescription template. Please try again.');
+        return;
+      }
+
+      const canvas = await html2canvas(prescriptionElement, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgWidth = 210;
+      const pageHeight = 295;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const patientName = selectedDiagnosis?.patientName || 'Patient';
+      const timestamp = new Date().toISOString().split('T')[0];
+      pdf.save(`Diagnosis_${patientName}_${timestamp}.pdf`);
+      
+      alert('✅ Diagnosis PDF downloaded successfully!');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('❌ Error generating PDF. Please try again.');
+    }
+  };
+
+  // Send diagnosis email
+  const handleSendDiagnosisEmail = async () => {
+    try {
+      setSendingEmail(true);
+      
+      const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+      const selectedAccess = JSON.parse(localStorage.getItem("selectedAccess") || "{}");
+      
+      const patientEmail = selectedDiagnosis?.email;
+      if (!patientEmail) {
+        alert('Patient email not available');
+        return;
+      }
+
+      // Build prescription content from selectedDiagnosis
+      let prescriptionContent = '';
+      try {
+        const presData = typeof selectedDiagnosis.prescriptions === 'string'
+          ? JSON.parse(selectedDiagnosis.prescriptions)
+          : selectedDiagnosis.prescriptions;
+        
+        if (Array.isArray(presData)) {
+          prescriptionContent = presData.map(m => 
+            `${m.medicineName || m.name} - ${m.dosage} - ${m.frequency} - ${m.duration}`
+          ).join('\n');
+        }
+      } catch (e) {
+        prescriptionContent = selectedDiagnosis.prescriptions || '';
+      }
+
+      const emailHTML = `
+        <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center;">
+            <h1 style="margin: 0;">Diagnosis & Prescription Report</h1>
+            <p style="margin: 5px 0 0; font-size: 14px; opacity: 0.9;">Medical Consultation Summary</p>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 30px 20px;">
+            <!-- Patient & Clinic Info -->
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+              <h3 style="color: #333; margin: 0 0 10px;">Patient Information</h3>
+              <p style="margin: 5px 0;"><strong>Name:</strong> ${selectedDiagnosis?.patientName || 'N/A'}</p>
+              <p style="margin: 5px 0;"><strong>Email:</strong> ${patientEmail}</p>
+              <p style="margin: 5px 0;"><strong>Clinic:</strong> ${userData.clinicName || selectedAccess.clinicName || 'Our Clinic'}</p>
+            </div>
+            
+            <!-- Diagnosis -->
+            ${selectedDiagnosis?.diagnoses ? `
+              <div style="margin-bottom: 20px;">
+                <h3 style="color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px;">🩺 Diagnosis</h3>
+                <p style="color: #555; line-height: 1.6; white-space: pre-wrap;">${selectedDiagnosis.diagnoses}</p>
+              </div>
+            ` : ''}
+            
+            <!-- Treatment -->
+            ${selectedDiagnosis?.treatments ? `
+              <div style="margin-bottom: 20px;">
+                <h3 style="color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px;">💉 Treatment Provided</h3>
+                <p style="color: #555; line-height: 1.6; white-space: pre-wrap;">${selectedDiagnosis.treatments}</p>
+              </div>
+            ` : ''}
+            
+            <!-- Medications -->
+            ${prescriptionContent ? `
+              <div style="margin-bottom: 20px;">
+                <h3 style="color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px;">💊 Prescribed Medications</h3>
+                <pre style="background: #f9f9f9; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea; color: #555; white-space: pre-wrap; font-family: monospace;">${prescriptionContent}</pre>
+              </div>
+            ` : ''}
+            
+            <!-- Footer -->
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px;">
+              <p>This is an automated prescription report. Please consult with your doctor for any clarifications.</p>
+              <p>© ${new Date().getFullYear()} ${userData.clinicName || selectedAccess.clinicName || 'Clinic'}. All rights reserved.</p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const response = await sendEmail({
+        Email: patientEmail,
+        Subject: `Diagnosis & Prescription Report from ${userData.clinicName || 'Clinic'}`,
+        HtmlBody: emailHTML
+      });
+
+      if (response.success) {
+        alert('✅ Diagnosis email sent successfully!');
+        setShowEmailModal(false);
+      } else {
+        alert('❌ Failed to send email');
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert('❌ Error sending email. Please try again.');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  // Send diagnosis via WhatsApp
+  const handleSendDiagnosisWhatsApp = () => {
+    const patientPhone = selectedDiagnosis?.phoneNumber || selectedDiagnosis?.phone || '';
+    if (!patientPhone) {
+      alert('Patient phone number not available');
+      return;
+    }
+
+    try {
+      const prescriptionText = `🏥 *Diagnosis & Prescription Report*\n\n` +
+        `📋 *Diagnosis:*\n${selectedDiagnosis?.diagnoses || 'N/A'}\n\n` +
+        `💉 *Treatment:*\n${selectedDiagnosis?.treatments || 'N/A'}\n\n` +
+        `💊 *Medications:*\n${selectedDiagnosis?.prescriptions || 'N/A'}\n\n` +
+        `*For queries, please contact the clinic.* ☺️`;
+      
+      const encodedText = encodeURIComponent(prescriptionText);
+      const whatsappURL = `https://api.whatsapp.com/send?phone=${patientPhone}&text=${encodedText}`;
+      window.open(whatsappURL, '_blank');
+    } catch (error) {
+      console.error('Error sending WhatsApp:', error);
+      alert('❌ Error opening WhatsApp. Please try again.');
+    }
+  };
+
 
   // Handle Visit Filtering
   const handleFilterVisits = async () => {
@@ -7196,28 +7379,62 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                             if (Array.isArray(prescriptionData) && prescriptionData.length > 0) {
                               return (
                                 <>
-                                <div className="space-y-5">
+                                  {/* Prescription Header with Action Buttons */}
+                                  <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <div className="w-12 h-12 bg-gradient-to-br from-pink-400 to-rose-500 rounded-xl flex items-center justify-center shadow-lg">
+                                          <span className="text-2xl">💊</span>
+                                        </div>
+                                        <h3 className="text-xl font-bold text-gray-900">Prescription</h3>
+                                      </div>
+                                    </div>
+
+                                    {/* Action Buttons Grid */}
+                                    <div className="grid grid-cols-3 gap-3">
+                                      <motion.button
+                                        whileHover={{ scale: 1.08 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => setShowPrintPreviewModal(true)}
+                                        className="flex flex-col items-center justify-center gap-2 px-4 py-4 bg-white border-2 border-blue-400 text-blue-700 rounded-xl font-bold hover:bg-blue-50 hover:border-blue-600 hover:shadow-md transition text-sm"
+                                      >
+                                        <span className="text-3xl">📥</span>
+                                        <span>Download PDF</span>
+                                      </motion.button>
+
+                                      <motion.button
+                                        whileHover={{ scale: 1.08 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => setShowEmailModal(true)}
+                                        className="flex flex-col items-center justify-center gap-2 px-4 py-4 bg-white border-2 border-green-400 text-green-700 rounded-xl font-bold hover:bg-green-50 hover:border-green-600 hover:shadow-md transition text-sm"
+                                      >
+                                        <span className="text-3xl">📧</span>
+                                        <span>Email</span>
+                                      </motion.button>
+
+                                      <motion.button
+                                        whileHover={{ scale: 1.08 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={handleSendDiagnosisWhatsApp}
+                                        className="flex flex-col items-center justify-center gap-2 px-4 py-4 bg-white border-2 border-green-500 text-green-700 rounded-xl font-bold hover:bg-green-50 hover:border-green-700 hover:shadow-md transition text-sm"
+                                      >
+                                        <span className="text-3xl">💬</span>
+                                        <span>WhatsApp</span>
+                                      </motion.button>
+                                    </div>
+                                  </div>
+
                                   {/* Prescription Header */}
                                   <div className="flex items-center justify-between pb-4 border-b-3 border-pink-300">
                                     <div className="flex items-center gap-3">
-                                      <div className="w-12 h-12 bg-gradient-to-br from-pink-400 to-rose-500 rounded-xl flex items-center justify-center shadow-lg">
-                                        <span className="text-2xl">💊</span>
-                                      </div>
-                                      <h3 className="text-xl font-bold text-gray-900">Prescription</h3>
+                                      <h3 className="text-lg font-bold text-gray-900">Medications</h3>
                                     </div>
-                                    <motion.button
-                                      whileHover={{ scale: 1.05 }}
-                                      whileTap={{ scale: 0.95 }}
-                                      onClick={() => window.print()}
-                                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg transition flex items-center gap-2 print:hidden"
-                                    >
-                                      <span>🖨️</span>
-                                      <span>Print Prescription</span>
-                                    </motion.button>
                                   </div>
 
-                                  {/* Medications Grid */}
-                                  <div>
+                                  {/* Printable Prescription Container */}
+                                  <div className="patient-diagnosis-print-container bg-white p-8 w-full">
+                                    {/* Medications Grid */}
+                                    <div>
                                     <h4 className="text-sm font-bold text-gray-700 uppercase mb-3 flex items-center gap-2">
                                       <span>💊</span> Prescribed Medications
                                     </h4>
@@ -7294,6 +7511,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                                   <div className="pt-4 border-t-2 border-yellow-400 text-center">
                                     <p className="text-xs text-gray-600">⚕️ This prescription is valid for 90 days from the date of issue.</p>
                                   </div>
+                                  </div>
+                                  {/* End of Printable Container */}
                                 </div>
                                 </>
                               );
@@ -7357,6 +7576,175 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                 >
                   Close
                 </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Print Preview Modal */}
+      <AnimatePresence>
+        {showPrintPreviewModal && selectedDiagnosis && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            onClick={() => setShowPrintPreviewModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border-2 border-blue-200"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 sticky top-0 flex items-center justify-between text-white">
+                <h2 className="text-2xl font-bold">📋 Diagnosis & Prescription</h2>
+                <div className="flex gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      generateDiagnosisPDF();
+                    }}
+                    className="px-4 py-2 bg-white text-blue-600 rounded-lg font-bold hover:bg-blue-50 transition text-sm"
+                  >
+                    📥 Download PDF
+                  </motion.button>
+                  <button
+                    onClick={() => setShowPrintPreviewModal(false)}
+                    className="text-2xl hover:bg-white/20 p-2 rounded-full transition"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Preview Content */}
+              <div className="p-8 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 80px)' }}>
+                <div className="patient-diagnosis-print-container bg-white">
+                  <div className="mb-8 pb-6 border-b-4 border-stone-800">
+                    <h1 className="text-4xl font-bold text-stone-900">Diagnosis & Prescription Report</h1>
+                    <p className="text-sm text-stone-600 mt-1">Medical Consultation Record</p>
+                  </div>
+
+                  {/* Patient Info */}
+                  <div className="bg-stone-50 rounded-lg p-4 mb-8 border border-stone-300">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold">Patient Name</p>
+                        <p className="text-sm font-bold text-stone-900 mt-1">{selectedDiagnosis?.patientName || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold">Patient ID</p>
+                        <p className="text-sm font-bold text-stone-900 mt-1">{selectedDiagnosis?.patientId || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold">Visit Date</p>
+                        <p className="text-sm font-bold text-stone-900 mt-1">
+                          {selectedDiagnosis?.visitDate ? new Date(selectedDiagnosis.visitDate).toLocaleDateString('en-IN') : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Diagnosis */}
+                  {selectedDiagnosis?.diagnoses && (
+                    <div className="mb-6 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                      <p className="text-xs uppercase tracking-wider text-blue-600 font-semibold mb-2">🩺 Diagnosis</p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedDiagnosis.diagnoses}</p>
+                    </div>
+                  )}
+
+                  {/* Treatment */}
+                  {selectedDiagnosis?.treatments && (
+                    <div className="mb-6 p-4 bg-green-50 rounded-lg border-l-4 border-green-400">
+                      <p className="text-xs uppercase tracking-wider text-green-600 font-semibold mb-2">💉 Treatments</p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedDiagnosis.treatments}</p>
+                    </div>
+                  )}
+
+                  {/* Prescriptions */}
+                  {selectedDiagnosis?.prescriptions && (
+                    <div className="mb-6 p-4 bg-pink-50 rounded-lg border-l-4 border-pink-400">
+                      <p className="text-xs uppercase tracking-wider text-pink-600 font-semibold mb-2">💊 Prescriptions</p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap">{selectedDiagnosis.prescriptions}</p>
+                    </div>
+                  )}
+
+                  <div className="mt-8 pt-4 border-t border-stone-300 text-center text-xs text-stone-600">
+                    <p>⚕️ This document is valid as per the prescription validity period.</p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Email Modal */}
+      <AnimatePresence>
+        {showEmailModal && selectedDiagnosis && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            onClick={() => setShowEmailModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full border-2 border-green-200 overflow-hidden"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-green-600 to-green-700 p-6 text-white">
+                <h2 className="text-2xl font-bold">📧 Send Diagnosis via Email</h2>
+              </div>
+
+              {/* Content */}
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Patient Email</label>
+                  <input
+                    type="email"
+                    value={selectedDiagnosis?.email || ''}
+                    readOnly
+                    className="w-full px-4 py-2 border-2 border-green-200 rounded-lg bg-gray-50 text-gray-800"
+                  />
+                </div>
+
+                <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
+                  <p>The diagnosis report, treatment details, and prescribed medications will be sent to the patient's email.</p>
+                </div>
+
+                <div className="flex gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleSendDiagnosisEmail}
+                    disabled={sendingEmail}
+                    className={`flex-1 px-4 py-3 rounded-lg font-bold text-white transition ${
+                      sendingEmail
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
+                    }`}
+                  >
+                    {sendingEmail ? '📤 Sending...' : '📤 Send Email'}
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setShowEmailModal(false)}
+                    className="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold transition"
+                  >
+                    Cancel
+                  </motion.button>
+                </div>
               </div>
             </motion.div>
           </motion.div>
