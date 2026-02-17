@@ -329,7 +329,6 @@ export default function Patients() {
   const [loadingDiagnosis, setLoadingDiagnosis] = useState(false);
   const [showPrintPreviewModal, setShowPrintPreviewModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
-  const [sendingEmail, setSendingEmail] = useState(false);
   
   // Appointment filter state
   const [appointmentFilter, setAppointmentFilter] = useState({
@@ -7511,9 +7510,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                                   <div className="pt-4 border-t-2 border-yellow-400 text-center">
                                     <p className="text-xs text-gray-600">⚕️ This prescription is valid for 90 days from the date of issue.</p>
                                   </div>
-                                  </div>
-                                  {/* End of Printable Container */}
                                 </div>
+                                {/* End of Printable Container */}
                                 </>
                               );
                             }
