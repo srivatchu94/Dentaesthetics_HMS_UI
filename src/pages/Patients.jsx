@@ -503,7 +503,18 @@ export default function Patients() {
       console.log('📋 Loading diagnosis for appointment ID:', appointmentId);
       const diagnosisData = await getPatientVisit(appointmentId);
       console.log('✅ Diagnosis data received:', diagnosisData);
-      setSelectedDiagnosis(diagnosisData);
+      
+      // Transform diagnosis data to ensure patient name and gender are populated
+      const transformedData = {
+        ...diagnosisData,
+        // Construct patient name from components if not present
+        patientName: diagnosisData.patientName || `${diagnosisData.patientFirstName || ''} ${diagnosisData.patientLastName || ''}`.trim() || 'N/A',
+        // Ensure gender is populated
+        patientGender: diagnosisData.patientGender || diagnosisData.gender || 'N/A'
+      };
+      
+      console.log('✅ Transformed diagnosis data:', transformedData);
+      setSelectedDiagnosis(transformedData);
     } catch (error) {
       console.error("❌ Error loading diagnosis:", error);
       alert('❌ Could not load diagnosis details. Please try again! 🩺');
@@ -516,43 +527,139 @@ export default function Patients() {
   // Generate PDF from prescription
   const generateDiagnosisPDF = async () => {
     try {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      const prescriptionElement = document.querySelector('.patient-diagnosis-print-container');
-      if (!prescriptionElement) {
-        alert('❌ Could not find prescription template. Please try again.');
-        return;
-      }
-
-      const canvas = await html2canvas(prescriptionElement, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff'
-      });
-
-      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       });
 
-      const imgWidth = 210;
-      const pageHeight = 295;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      let yPosition = 20;
 
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      // Header
+      pdf.setFillColor(102, 126, 234);
+      pdf.rect(0, 0, pageWidth, 40, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(24);
+      pdf.text('Diagnosis & Prescription Report', pageWidth / 2, 20, { align: 'center' });
+      pdf.setFontSize(10);
+      pdf.text('Medical Consultation Summary', pageWidth / 2, 30, { align: 'center' });
 
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+      // Reset text color
+      pdf.setTextColor(50, 50, 50);
+      yPosition = 50;
+
+      // Patient Info
+      pdf.setFontSize(12);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Patient Information', 20, yPosition);
+      yPosition += 8;
+
+      pdf.setFontSize(10);
+      pdf.setFont(undefined, 'normal');
+      pdf.text(`Name: ${selectedDiagnosis?.patientName || 'N/A'}`, 20, yPosition);
+      yPosition += 6;
+      pdf.text(`ID: ${selectedDiagnosis?.patientId || 'N/A'}`, 20, yPosition);
+      yPosition += 6;
+      pdf.text(`Gender: ${selectedDiagnosis?.patientGender || 'N/A'}`, 20, yPosition);
+      yPosition += 6;
+      pdf.text(`Doctor: ${selectedDiagnosis?.attendingPhysician || 'N/A'}`, 20, yPosition);
+      yPosition += 6;
+      pdf.text(`Visit Date: ${selectedDiagnosis?.visitDate ? new Date(selectedDiagnosis.visitDate).toLocaleDateString() : 'N/A'}`, 20, yPosition);
+      yPosition += 12;
+
+      // Reason for Visit
+      if (selectedDiagnosis?.reasonForVisit) {
+        pdf.setFontSize(12);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Reason for Visit', 20, yPosition);
+        yPosition += 8;
+
+        pdf.setFontSize(10);
+        pdf.setFont(undefined, 'normal');
+        const reasonLines = pdf.splitTextToSize(selectedDiagnosis.reasonForVisit, pageWidth - 40);
+        pdf.text(reasonLines, 20, yPosition);
+        yPosition += reasonLines.length * 6 + 6;
       }
+
+      // Diagnosis
+      if (selectedDiagnosis?.diagnoses) {
+        pdf.setFontSize(12);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Diagnosis', 20, yPosition);
+        yPosition += 8;
+
+        pdf.setFontSize(10);
+        pdf.setFont(undefined, 'normal');
+        const diagnosisLines = pdf.splitTextToSize(selectedDiagnosis.diagnoses, pageWidth - 40);
+        pdf.text(diagnosisLines, 20, yPosition);
+        yPosition += diagnosisLines.length * 6 + 6;
+      }
+
+      // Treatments
+      if (selectedDiagnosis?.treatments) {
+        pdf.setFontSize(12);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Treatments', 20, yPosition);
+        yPosition += 8;
+
+        pdf.setFontSize(10);
+        pdf.setFont(undefined, 'normal');
+        const treatmentLines = pdf.splitTextToSize(selectedDiagnosis.treatments, pageWidth - 40);
+        pdf.text(treatmentLines, 20, yPosition);
+        yPosition += treatmentLines.length * 6 + 6;
+      }
+
+      // Medications
+      pdf.setFontSize(12);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Medications', 20, yPosition);
+      yPosition += 8;
+
+      try {
+        const presData = typeof selectedDiagnosis?.prescriptions === 'string'
+          ? JSON.parse(selectedDiagnosis.prescriptions)
+          : selectedDiagnosis?.prescriptions;
+        
+        const medications = (Array.isArray(presData) ? presData : [presData]).filter(m => m);
+
+        pdf.setFontSize(9);
+        pdf.setFont(undefined, 'normal');
+        medications.forEach((med) => {
+          const medText = `• ${med.medicineName || med.name || 'N/A'} - Dosage: ${med.dosage || 'N/A'} - Frequency: ${med.frequency || 'N/A'} - Duration: ${med.duration || 'N/A'}`;
+          const medLines = pdf.splitTextToSize(medText, pageWidth - 40);
+          
+          if (yPosition + medLines.length * 5 > pageHeight - 20) {
+            pdf.addPage();
+            yPosition = 20;
+          }
+          
+          pdf.text(medLines, 20, yPosition);
+          yPosition += medLines.length * 5 + 2;
+          
+          if (med.specialInstructions) {
+            const instructionsText = `Special Instructions: ${med.specialInstructions}`;
+            const instructionsLines = pdf.splitTextToSize(instructionsText, pageWidth - 40);
+            if (yPosition + instructionsLines.length * 5 > pageHeight - 20) {
+              pdf.addPage();
+              yPosition = 20;
+            }
+            pdf.setFont(undefined, 'italic');
+            pdf.text(instructionsLines, 20, yPosition);
+            pdf.setFont(undefined, 'normal');
+            yPosition += instructionsLines.length * 5 + 2;
+          }
+        });
+      } catch (e) {
+        pdf.text('No medications recorded', 20, yPosition);
+        yPosition += 8;
+      }
+
+      // Footer
+      pdf.setFontSize(8);
+      pdf.setTextColor(150, 150, 150);
+      pdf.text('This is an automated diagnosis and prescription report from the clinic management system.', pageWidth / 2, pageHeight - 10, { align: 'center' });
 
       const patientName = selectedDiagnosis?.patientName || 'Patient';
       const timestamp = new Date().toISOString().split('T')[0];
@@ -573,31 +680,44 @@ export default function Patients() {
       const userData = JSON.parse(localStorage.getItem("userData") || "{}");
       const selectedAccess = JSON.parse(localStorage.getItem("selectedAccess") || "{}");
       
-      const patientEmail = selectedDiagnosis?.email;
+      // Get patient email from selectedDiagnosis - try multiple field names
+      const patientEmail = selectedDiagnosis?.email || selectedDiagnosis?.patientEmail || selectedDiagnosis?.emailAddress;
       if (!patientEmail) {
-        alert('Patient email not available');
+        alert('❌ Patient email not available. Cannot send email.');
+        console.error('Patient email fields:', {email: selectedDiagnosis?.email, patientEmail: selectedDiagnosis?.patientEmail, emailAddress: selectedDiagnosis?.emailAddress});
         return;
       }
 
       // Build prescription content from selectedDiagnosis
       let prescriptionContent = '';
+      let prescriptionHTML = '<ul style="margin: 10px 0; padding-left: 20px;">';
+      
       try {
         const presData = typeof selectedDiagnosis.prescriptions === 'string'
           ? JSON.parse(selectedDiagnosis.prescriptions)
           : selectedDiagnosis.prescriptions;
         
-        if (Array.isArray(presData)) {
+        if (Array.isArray(presData) && presData.length > 0) {
           prescriptionContent = presData.map(m => 
             `${m.medicineName || m.name} - ${m.dosage} - ${m.frequency} - ${m.duration}`
           ).join('\n');
+          prescriptionHTML = presData.map(m => 
+            `<li style="margin: 5px 0;">${m.medicineName || m.name} - Dosage: ${m.dosage || 'N/A'} - Frequency: ${m.frequency || 'N/A'} - Duration: ${m.duration || 'N/A'}</li>`
+          ).join('');
+        } else if (typeof presData === 'object' && presData !== null) {
+          prescriptionContent = JSON.stringify(presData, null, 2);
+          prescriptionHTML = `<li>${JSON.stringify(presData)}</li>`;
         }
       } catch (e) {
-        prescriptionContent = selectedDiagnosis.prescriptions || '';
+        prescriptionContent = typeof selectedDiagnosis.prescriptions === 'string' ? selectedDiagnosis.prescriptions : JSON.stringify(selectedDiagnosis.prescriptions);
+        prescriptionHTML = `<li>${prescriptionContent}</li>`;
       }
+      prescriptionHTML += '</ul>';
 
       const emailHTML = `
         <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
-          <!-- Header -->
+          <!-- Header
+             -->
           <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center;">
             <h1 style="margin: 0;">Diagnosis & Prescription Report</h1>
             <p style="margin: 5px 0 0; font-size: 14px; opacity: 0.9;">Medical Consultation Summary</p>
@@ -609,6 +729,7 @@ export default function Patients() {
             <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
               <h3 style="color: #333; margin: 0 0 10px;">Patient Information</h3>
               <p style="margin: 5px 0;"><strong>Name:</strong> ${selectedDiagnosis?.patientName || 'N/A'}</p>
+            <p style="margin: 5px 0;"><strong>Gender:</strong> ${selectedDiagnosis?.patientGender || 'N/A'}</p>
               <p style="margin: 5px 0;"><strong>Email:</strong> ${patientEmail}</p>
               <p style="margin: 5px 0;"><strong>Clinic:</strong> ${userData.clinicName || selectedAccess.clinicName || 'Our Clinic'}</p>
             </div>
@@ -675,13 +796,34 @@ export default function Patients() {
     }
 
     try {
-      const prescriptionText = `🏥 *Diagnosis & Prescription Report*\n\n` +
+      // Format prescription for WhatsApp
+      let prescriptionText = '';
+      try {
+        const presData = typeof selectedDiagnosis?.prescriptions === 'string'
+          ? JSON.parse(selectedDiagnosis.prescriptions)
+          : selectedDiagnosis?.prescriptions;
+        
+        if (Array.isArray(presData) && presData.length > 0) {
+          prescriptionText = presData.map(m => 
+            `• ${m.medicineName || m.name} - ${m.dosage || 'N/A'} - ${m.frequency || 'N/A'} - ${m.duration || 'N/A'}`
+          ).join('\n');
+        } else if (typeof presData === 'object' && presData !== null) {
+          prescriptionText = JSON.stringify(presData, null, 2);
+        } else {
+          prescriptionText = selectedDiagnosis?.prescriptions || 'N/A';
+        }
+      } catch (e) {
+        prescriptionText = typeof selectedDiagnosis?.prescriptions === 'string' ? selectedDiagnosis.prescriptions : 'Prescription data';
+      }
+      
+      const messageText = `🏥 *Diagnosis & Prescription Report*\n\n` +
+        `👤 *Patient:* ${selectedDiagnosis?.patientName || 'N/A'}\n\n` +
         `📋 *Diagnosis:*\n${selectedDiagnosis?.diagnoses || 'N/A'}\n\n` +
         `💉 *Treatment:*\n${selectedDiagnosis?.treatments || 'N/A'}\n\n` +
-        `💊 *Medications:*\n${selectedDiagnosis?.prescriptions || 'N/A'}\n\n` +
+        `💊 *Medications:*\n${prescriptionText}\n\n` +
         `*For queries, please contact the clinic.* ☺️`;
       
-      const encodedText = encodeURIComponent(prescriptionText);
+      const encodedText = encodeURIComponent(messageText);
       const whatsappURL = `https://api.whatsapp.com/send?phone=${patientPhone}&text=${encodedText}`;
       window.open(whatsappURL, '_blank');
     } catch (error) {
@@ -3815,40 +3957,289 @@ export default function Patients() {
                 <div className="bg-white border rounded-xl p-4 shadow-sm">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-gray-500">Prescription</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const patientFallback = {
-                          patientId: selectedVisitDetail.patientId,
-                          patientFirstName: selectedVisitDetail.patientFirstName || 'Patient',
-                          patientLastName: selectedVisitDetail.patientLastName || `#${selectedVisitDetail.patientId}`,
-                          clinicId: selectedVisitDetail.clinicId || '',
-                          patientEmail: selectedVisitDetail.patientEmail || '',
-                          patientPhone: selectedVisitDetail.patientPhone || ''
-                        };
-                        setSelectedPatientForVisit((prev) => prev || patientFallback);
-                        setNewVisit({
-                          ...newVisit,
-                          visitDate: selectedVisitDetail.visitDate?.split('T')[0] || newVisit.visitDate,
-                          reasonForVisit: selectedVisitDetail.reasonForVisit || newVisit.reasonForVisit,
-                          diagnoses: selectedVisitDetail.diagnoses || newVisit.diagnoses,
-                          treatments: selectedVisitDetail.treatments || newVisit.treatments,
-                          prescriptions: selectedVisitDetail.prescriptions || ""
-                        });
-                        setPrescriptionText(selectedVisitDetail.prescriptions || "");
-                        setMedications([]);
-                        setMedicationForm(emptyMedicationForm);
-                        setEditingMedicationIndex(null);
-                        setShowVisitDetailModal(false);
-                        setShowPrescriptionModal(true);
-                      }}
-                      className="text-xs font-semibold px-3 py-1 rounded-lg bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow"
-                    >
-                      Edit / Print Prescription
-                    </button>
+                    <div className="flex gap-2">
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={async () => {
+                          try {
+                            const pdf = new jsPDF({
+                              orientation: 'portrait',
+                              unit: 'mm',
+                              format: 'a4'
+                            });
+
+                            const pageWidth = pdf.internal.pageSize.getWidth();
+                            const pageHeight = pdf.internal.pageSize.getHeight();
+                            let yPosition = 20;
+
+                            // Header
+                            pdf.setFillColor(102, 126, 234);
+                            pdf.rect(0, 0, pageWidth, 40, 'F');
+                            pdf.setTextColor(255, 255, 255);
+                            pdf.setFontSize(24);
+                            pdf.text('Prescription Report', pageWidth / 2, 20, { align: 'center' });
+                            pdf.setFontSize(10);
+                            pdf.text('Medical Consultation Summary', pageWidth / 2, 30, { align: 'center' });
+
+                            // Reset text color
+                            pdf.setTextColor(50, 50, 50);
+                            yPosition = 50;
+
+                            // Patient Info
+                            pdf.setFontSize(12);
+                            pdf.setFont(undefined, 'bold');
+                            pdf.text('Patient Information', 20, yPosition);
+                            yPosition += 8;
+
+                            pdf.setFontSize(10);
+                            pdf.setFont(undefined, 'normal');
+                            pdf.text(`Name: ${selectedVisitDetail?.patientFirstName} ${selectedVisitDetail?.patientLastName}`, 20, yPosition);
+                            yPosition += 6;
+                            pdf.text(`Phone: ${selectedVisitDetail?.patientPhone || 'N/A'}`, 20, yPosition);
+                            yPosition += 6;
+                            pdf.text(`Email: ${selectedVisitDetail?.patientEmail || 'N/A'}`, 20, yPosition);
+                            yPosition += 6;
+                            pdf.text(`Visit Date: ${selectedVisitDetail?.visitDate ? new Date(selectedVisitDetail.visitDate).toLocaleDateString() : 'N/A'}`, 20, yPosition);
+                            yPosition += 12;
+
+                            // Diagnosis
+                            if (selectedVisitDetail?.diagnoses) {
+                              pdf.setFontSize(12);
+                              pdf.setFont(undefined, 'bold');
+                              pdf.text('Diagnosis', 20, yPosition);
+                              yPosition += 8;
+
+                              pdf.setFontSize(10);
+                              pdf.setFont(undefined, 'normal');
+                              const diagnosisLines = pdf.splitTextToSize(selectedVisitDetail.diagnoses, pageWidth - 40);
+                              pdf.text(diagnosisLines, 20, yPosition);
+                              yPosition += diagnosisLines.length * 6 + 6;
+                            }
+
+                            // Medications
+                            pdf.setFontSize(12);
+                            pdf.setFont(undefined, 'bold');
+                            pdf.text('Medications', 20, yPosition);
+                            yPosition += 8;
+
+                            try {
+                              const presData = typeof selectedVisitDetail?.prescriptions === 'string'
+                                ? JSON.parse(selectedVisitDetail.prescriptions)
+                                : selectedVisitDetail?.prescriptions;
+                              
+                              const medications = (Array.isArray(presData) ? presData : [presData]).filter(m => m);
+
+                              pdf.setFontSize(9);
+                              pdf.setFont(undefined, 'normal');
+                              medications.forEach((med) => {
+                                const medText = `• ${med.medicineName || med.name || 'N/A'} - ${med.dosage || 'N/A'} - ${med.frequency || 'N/A'} - ${med.duration || 'N/A'}`;
+                                const medLines = pdf.splitTextToSize(medText, pageWidth - 40);
+                                if (yPosition + medLines.length * 5 > pageHeight - 20) {
+                                  pdf.addPage();
+                                  yPosition = 20;
+                                }
+                                pdf.text(medLines, 20, yPosition);
+                                yPosition += medLines.length * 5 + 2;
+                              });
+                            } catch (e) {
+                              pdf.text('No medications recorded', 20, yPosition);
+                              yPosition += 8;
+                            }
+
+                            // Footer
+                            pdf.setFontSize(8);
+                            pdf.setTextColor(150, 150, 150);
+                            pdf.text('This is an automated prescription report from the clinic management system.', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+                            const patientName = selectedVisitDetail?.patientFirstName || 'Patient';
+                            const timestamp = new Date().toISOString().split('T')[0];
+                            pdf.save(`Prescription_${patientName}_${timestamp}.pdf`);
+                            
+                            alert('✅ Prescription PDF downloaded successfully!');
+                          } catch (error) {
+                            console.error('Error generating PDF:', error);
+                            alert('❌ Error generating PDF. Please try again.');
+                          }
+                        }}
+                        className="text-xs font-semibold px-3 py-1 rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow hover:shadow-md"
+                        title="Download as PDF"
+                      >
+                        📥 PDF
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={async () => {
+                          try {
+                            setSendingEmail(true);
+                            const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+                            
+                            const patientEmail = selectedVisitDetail?.patientEmail;
+                            if (!patientEmail) {
+                              alert('❌ Patient email not available');
+                              setSendingEmail(false);
+                              return;
+                            }
+
+                            let prescriptionContent = '';
+                            try {
+                              const presData = typeof selectedVisitDetail.prescriptions === 'string'
+                                ? JSON.parse(selectedVisitDetail.prescriptions)
+                                : selectedVisitDetail.prescriptions;
+                              
+                              if (Array.isArray(presData) && presData.length > 0) {
+                                prescriptionContent = presData.map(m => 
+                                  `${m.medicineName || m.name} - ${m.dosage} - ${m.frequency} - ${m.duration}`
+                                ).join('\n');
+                              } else if (typeof presData === 'object' && presData !== null) {
+                                prescriptionContent = JSON.stringify(presData, null, 2);
+                              } else {
+                                prescriptionContent = selectedVisitDetail.prescriptions || '';
+                              }
+                            } catch (e) {
+                              prescriptionContent = typeof selectedVisitDetail.prescriptions === 'string' ? selectedVisitDetail.prescriptions : 'Prescription data';
+                            }
+
+                            const emailHTML = `
+                              <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center;">
+                                  <h1 style="margin: 0;">Prescription Report</h1>
+                                  <p style="margin: 5px 0 0; font-size: 14px; opacity: 0.9;">Medical Consultation Summary</p>
+                                </div>
+                                
+                                <div style="padding: 30px 20px;">
+                                  <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                                    <h3 style="color: #333; margin: 0 0 10px;">Patient Information</h3>
+                                    <p style="margin: 5px 0;"><strong>Name:</strong> ${selectedVisitDetail?.patientFirstName} ${selectedVisitDetail?.patientLastName}</p>
+                                    <p style="margin: 5px 0;"><strong>Email:</strong> ${patientEmail}</p>
+                                    <p style="margin: 5px 0;"><strong>Visit Date:</strong> ${selectedVisitDetail?.visitDate ? new Date(selectedVisitDetail.visitDate).toLocaleDateString() : 'N/A'}</p>
+                                  </div>
+                                  
+                                  <div style="margin-bottom: 20px;">
+                                    <h3 style="color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px;">💊 Prescription</h3>
+                                    <pre style="background: #f9f9f9; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea; color: #555; white-space: pre-wrap; font-family: monospace; font-size: 12px;">${prescriptionContent}</pre>
+                                  </div>
+                                  
+                                  <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px;">
+                                    <p>This is an automated prescription report. Please consult with your doctor for any clarifications.</p>
+                                  </div>
+                                </div>
+                              </div>
+                            `;
+
+                            const response = await sendEmail({
+                              Email: patientEmail,
+                              Subject: `Prescription Report from ${userData.clinicName || 'Clinic'}`,
+                              HtmlBody: emailHTML
+                            });
+
+                            if (response.success) {
+                              alert('✅ Email sent successfully!');
+                            } else {
+                              alert('❌ Failed to send email');
+                            }
+                            setSendingEmail(false);
+                          } catch (error) {
+                            console.error('Error sending email:', error);
+                            alert('❌ Error sending email. Please try again.');
+                            setSendingEmail(false);
+                          }
+                        }}
+                        className="text-xs font-semibold px-3 py-1 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow hover:shadow-md"
+                        title="Send via Email"
+                      >
+                        📧 Email
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          const patientPhone = selectedVisitDetail?.patientPhone;
+                          if (!patientPhone) {
+                            alert('❌ Patient phone number not available');
+                            return;
+                          }
+
+                          let prescriptionText = '';
+                          try {
+                            const presData = typeof selectedVisitDetail?.prescriptions === 'string'
+                              ? JSON.parse(selectedVisitDetail.prescriptions)
+                              : selectedVisitDetail?.prescriptions;
+                            
+                            if (Array.isArray(presData) && presData.length > 0) {
+                              prescriptionText = presData.map(m => 
+                                `• ${m.medicineName || m.name} - ${m.dosage || 'N/A'} - ${m.frequency || 'N/A'}`
+                              ).join('\n');
+                            } else if (typeof presData === 'object' && presData !== null) {
+                              prescriptionText = JSON.stringify(presData, null, 2);
+                            } else {
+                              prescriptionText = selectedVisitDetail?.prescriptions || 'Prescription data';
+                            }
+                          } catch (e) {
+                            prescriptionText = typeof selectedVisitDetail?.prescriptions === 'string' ? selectedVisitDetail.prescriptions : 'Prescription data';
+                          }
+                          
+                          const messageText = `🏥 *Prescription Report*\n\n` +
+                            `👤 *Patient:* ${selectedVisitDetail?.patientFirstName} ${selectedVisitDetail?.patientLastName}\n\n` +
+                            `🔬 *Diagnosis:* ${selectedVisitDetail?.diagnoses || 'N/A'}\n\n` +
+                            `💊 *Medications:*\n${prescriptionText}\n\n` +
+                            `*For queries, please contact the clinic.* ☺️`;
+                          
+                          const encodedText = encodeURIComponent(messageText);
+                          const whatsappURL = `https://api.whatsapp.com/send?phone=${patientPhone}&text=${encodedText}`;
+                          window.open(whatsappURL, '_blank');
+                        }}
+                        className="text-xs font-semibold px-3 py-1 rounded-lg bg-gradient-to-r from-green-600 to-teal-600 text-white shadow hover:shadow-md"
+                        title="Share via WhatsApp"
+                      >
+                        💬 WhatsApp
+                      </motion.button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const patientFallback = {
+                            patientId: selectedVisitDetail.patientId,
+                            patientFirstName: selectedVisitDetail.patientFirstName || 'Patient',
+                            patientLastName: selectedVisitDetail.patientLastName || `#${selectedVisitDetail.patientId}`,
+                            clinicId: selectedVisitDetail.clinicId || '',
+                            patientEmail: selectedVisitDetail.patientEmail || '',
+                            patientPhone: selectedVisitDetail.patientPhone || ''
+                          };
+                          setSelectedPatientForVisit((prev) => prev || patientFallback);
+                          setNewVisit({
+                            ...newVisit,
+                            visitDate: selectedVisitDetail.visitDate?.split('T')[0] || newVisit.visitDate,
+                            reasonForVisit: selectedVisitDetail.reasonForVisit || newVisit.reasonForVisit,
+                            diagnoses: selectedVisitDetail.diagnoses || newVisit.diagnoses,
+                            treatments: selectedVisitDetail.treatments || newVisit.treatments,
+                            prescriptions: selectedVisitDetail.prescriptions || ""
+                          });
+                          setPrescriptionText(selectedVisitDetail.prescriptions || "");
+                          setMedications([]);
+                          setMedicationForm(emptyMedicationForm);
+                          setEditingMedicationIndex(null);
+                          setShowVisitDetailModal(false);
+                          setShowPrescriptionModal(true);
+                        }}
+                        className="text-xs font-semibold px-3 py-1 rounded-lg bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow"
+                      >
+                        Edit / Print Prescription
+                      </button>
+                    </div>
                   </div>
+
                   <div className="bg-gray-50 border border-dashed rounded-lg p-3 text-sm text-gray-800 whitespace-pre-wrap">
-                    {selectedVisitDetail.prescriptions || 'No prescription recorded yet.'}
+                    {typeof selectedVisitDetail.prescriptions === 'object' && selectedVisitDetail.prescriptions !== null ? (
+                      <div className="bg-yellow-50 border border-yellow-200 p-3 rounded text-sm">
+                        <p className="text-gray-600">📋 {JSON.stringify(selectedVisitDetail.prescriptions, null, 2)}</p>
+                      </div>
+                    ) : (
+                      <p>{selectedVisitDetail.prescriptions || 'No prescription recorded yet.'}</p>
+                    )}
                   </div>
                 </div>
 
@@ -4463,42 +4854,60 @@ export default function Patients() {
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        // Download as PDF simulation (would need actual PDF library in production)
-                        const medsBlock = medications.length ? `Medications:\n${serializeMedications(medications)}\n\n` : "";
-                        const prescriptionContent = `
-MEDICAL PRESCRIPTION
-${CURRENT_DOCTOR.name}
-${CURRENT_DOCTOR.specialization}
-Reg. No: ${CURRENT_DOCTOR.registrationNumber}
-Date: ${new Date().toLocaleDateString('en-IN')}
+                      onClick={async () => {
+                        try {
+                          await new Promise(resolve => setTimeout(resolve, 100));
+                          
+                          const prescriptionElement = document.querySelector('.patient-visit-prescription-print-container');
+                          if (!prescriptionElement) {
+                            alert('❌ Could not find prescription template. Please try again.');
+                            return;
+                          }
 
-PATIENT INFORMATION
-Name: ${selectedPatientForVisit?.patientFirstName} ${selectedPatientForVisit?.patientLastName}
-Patient ID: ${selectedPatientForVisit?.patientId}
-Visit Date: ${newVisit.visitDate}
+                          const canvas = await html2canvas(prescriptionElement, {
+                            scale: 2,
+                            useCORS: true,
+                            logging: false,
+                            backgroundColor: '#ffffff'
+                          });
 
-${medsBlock}PRESCRIPTION
-${prescriptionText || 'No prescription provided'}
+                          const imgData = canvas.toDataURL('image/png');
+                          const pdf = new jsPDF({
+                            orientation: 'portrait',
+                            unit: 'mm',
+                            format: 'a4'
+                          });
 
-_______________________
-${CURRENT_DOCTOR.name}
-${CURRENT_DOCTOR.specialization}
-Reg. No: ${CURRENT_DOCTOR.registrationNumber}
-                        `;
-                        
-                        const blob = new Blob([prescriptionContent], { type: 'text/plain' });
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `Prescription_${selectedPatientForVisit?.patientFirstName}_${new Date().toISOString().split('T')[0]}.txt`;
-                        a.click();
-                        window.URL.revokeObjectURL(url);
+                          const imgWidth = 210;
+                          const pageHeight = 295;
+                          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                          let heightLeft = imgHeight;
+                          let position = 0;
+
+                          pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                          heightLeft -= pageHeight;
+
+                          while (heightLeft >= 0) {
+                            position = heightLeft - imgHeight;
+                            pdf.addPage();
+                            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                            heightLeft -= pageHeight;
+                          }
+
+                          const patientName = selectedPatientForVisit?.patientFirstName || 'Patient';
+                          const timestamp = new Date().toISOString().split('T')[0];
+                          pdf.save(`Prescription_${patientName}_${timestamp}.pdf`);
+                          
+                          alert('✅ Prescription PDF downloaded successfully!');
+                        } catch (error) {
+                          console.error('Error generating PDF:', error);
+                          alert('❌ Error generating PDF. Please try again.');
+                        }
                       }}
                       className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
                     >
                       <span className="text-xl">📥</span>
-                      <span>Download</span>
+                      <span>Download PDF</span>
                     </motion.button>
 
                     <motion.button
@@ -4655,6 +5064,76 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       <span className="text-xl">📋</span>
                       <span>Copy to Clipboard</span>
                     </motion.button>
+                  </div>
+
+                  {/* Printable Prescription Container - Hidden from view but used for PDF generation */}
+                  <div className="patient-visit-prescription-print-container hidden" style={{ background: 'white', padding: '40px' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', textAlign: 'center', marginBottom: '30px', borderBottom: '3px solid #1f2937', paddingBottom: '20px' }}>
+                      <div>MEDICAL PRESCRIPTION</div>
+                    </div>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
+                      <div style={{ borderRight: '1px solid #e5e7eb' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '20px', color: '#1f2937' }}>DOCTOR INFORMATION</div>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '8px' }}>{CURRENT_DOCTOR.name}</div>
+                        <div style={{ fontSize: '12px', color: '#4b5563', marginBottom: '4px' }}>{CURRENT_DOCTOR.specialization}</div>
+                        <div style={{ fontSize: '12px', color: '#4b5563', marginBottom: '20px' }}>Reg. No: {CURRENT_DOCTOR.registrationNumber}</div>
+                      </div>
+                      
+                      <div style={{ paddingLeft: '20px' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '20px', color: '#1f2937' }}>PATIENT INFORMATION</div>
+                        <div style={{ fontSize: '12px', marginBottom: '4px' }}><strong>Name:</strong> {selectedPatientForVisit?.patientFirstName} {selectedPatientForVisit?.patientLastName}</div>
+                        <div style={{ fontSize: '12px', marginBottom: '4px' }}><strong>Patient ID:</strong> {selectedPatientForVisit?.patientId}</div>
+                        <div style={{ fontSize: '12px', marginBottom: '4px' }}><strong>Visit Date:</strong> {newVisit.visitDate}</div>
+                        <div style={{ fontSize: '12px', marginBottom: '4px' }}><strong>Date of Issue:</strong> {new Date().toLocaleDateString('en-IN')}</div>
+                      </div>
+                    </div>
+
+                    {medications.length > 0 && (
+                      <div style={{ marginBottom: '30px' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '15px', color: '#1f2937', paddingBottom: '10px', borderBottom: '2px solid #dbeafe' }}>PRESCRIBED MEDICATIONS</div>
+                        <div style={{ borderCollapse: 'collapse', width: '100%' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 100px 100px 120px', gap: '12px', padding: '12px', backgroundColor: '#1f2937', color: 'white', fontWeight: 'bold', fontSize: '12px', marginBottom: '0' }}>
+                            <div>#</div>
+                            <div>Medication Name</div>
+                            <div>Dosage</div>
+                            <div>Frequency</div>
+                            <div>Duration</div>
+                          </div>
+                          {medications.map((med, idx) => (
+                            <div key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 100px 100px 120px', gap: '12px', padding: '12px', fontSize: '12px', backgroundColor: idx % 2 === 0 ? '#fce7f3' : 'white' }}>
+                                <div style={{ fontWeight: 'bold', color: '#be123c' }}>{idx + 1}</div>
+                                <div style={{ fontWeight: 'bold', color: '#111827' }}>{med.name || med.medicationName || 'N/A'}</div>
+                                <div style={{ color: '#374151' }}>{med.dosage || '-'}</div>
+                                <div style={{ color: '#374151' }}>{med.frequency || '-'}</div>
+                                <div style={{ color: '#374151' }}>{med.duration || '-'}</div>
+                              </div>
+                              {(med.instructions || med.specialInstructions) && (
+                                <div style={{ padding: '8px 12px', backgroundColor: '#fef3c7', borderBottom: '1px solid #fcd34d', fontSize: '11px' }}>
+                                  <span style={{ fontWeight: 'bold', color: '#92400e' }}>⚠️ Special Instructions: </span>
+                                  <span style={{ color: '#78350f' }}>{med.instructions || med.specialInstructions}</span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {prescriptionText && (
+                      <div style={{ marginBottom: '30px' }}>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '15px', color: '#1f2937', paddingBottom: '10px', borderBottom: '2px solid #dbeafe' }}>PRESCRIPTION NOTES</div>
+                        <div style={{ fontSize: '12px', color: '#4b5563', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{prescriptionText}</div>
+                      </div>
+                    )}
+
+                    <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '2px solid #1f2937', textAlign: 'right' }}>
+                      <div style={{ fontSize: '12px', marginBottom: '50px', marginRight: '20px' }}>Authorized by:</div>
+                      <div style={{ fontSize: '12px', marginBottom: '4px' }}><strong>{CURRENT_DOCTOR.name}</strong></div>
+                      <div style={{ fontSize: '11px', color: '#4b5563' }}>{CURRENT_DOCTOR.specialization}</div>
+                      <div style={{ fontSize: '11px', color: '#4b5563' }}>Reg. No: {CURRENT_DOCTOR.registrationNumber}</div>
+                    </div>
                   </div>
 
                   {/* Bottom Actions */}
@@ -7230,8 +7709,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                               <p className="text-sm font-semibold text-gray-800">{selectedDiagnosis.patientId || 'N/A'}</p>
                             </div>
                             <div>
-                              <label className="text-xs font-semibold text-blue-700 uppercase">Age/Gender</label>
-                              <p className="text-sm font-semibold text-gray-800">N/A</p>
+                              <label className="text-xs font-semibold text-blue-700 uppercase">Gender</label>
+                              <p className="text-sm font-semibold text-gray-800">{selectedDiagnosis.patientGender || 'N/A'}</p>
                             </div>
                           </div>
                         </div>
@@ -7504,6 +7983,39 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                                         <p className="text-gray-800 text-sm mt-2">{prescriptionData[0].generalPrescriptionNotes}</p>
                                       </div>
                                     )}
+
+                                    {/* Action Buttons */}
+                                    <div className="mt-6 grid grid-cols-3 gap-3">
+                                      <motion.button
+                                        whileHover={{ scale: 1.08 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => generateDiagnosisPDF()}
+                                        className="flex flex-col items-center justify-center gap-2 px-4 py-4 bg-white border-2 border-blue-400 text-blue-700 rounded-xl font-bold hover:bg-blue-50 hover:border-blue-600 hover:shadow-md transition text-sm"
+                                      >
+                                        <span className="text-3xl">📥</span>
+                                        <span>Download PDF</span>
+                                      </motion.button>
+
+                                      <motion.button
+                                        whileHover={{ scale: 1.08 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={() => setShowEmailModal(true)}
+                                        className="flex flex-col items-center justify-center gap-2 px-4 py-4 bg-white border-2 border-green-400 text-green-700 rounded-xl font-bold hover:bg-green-50 hover:border-green-600 hover:shadow-md transition text-sm"
+                                      >
+                                        <span className="text-3xl">📧</span>
+                                        <span>Email</span>
+                                      </motion.button>
+
+                                      <motion.button
+                                        whileHover={{ scale: 1.08 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        onClick={handleSendDiagnosisWhatsApp}
+                                        className="flex flex-col items-center justify-center gap-2 px-4 py-4 bg-white border-2 border-green-500 text-green-700 rounded-xl font-bold hover:bg-green-50 hover:border-green-700 hover:shadow-md transition text-sm"
+                                      >
+                                        <span className="text-3xl">💬</span>
+                                        <span>WhatsApp</span>
+                                      </motion.button>
+                                    </div>
                                   </div>
 
                                   {/* Footer Note */}
@@ -7526,9 +8038,15 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                               </div>
                               <h3 className="text-base font-bold text-pink-900">Prescription Notes</h3>
                             </div>
-                            <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap mt-3">
-                              {selectedDiagnosis.prescriptions}
-                            </p>
+                            <div className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap mt-3">
+                              {typeof selectedDiagnosis.prescriptions === 'object' && selectedDiagnosis.prescriptions !== null ? (
+                                <div className="bg-yellow-50 border border-yellow-200 p-3 rounded text-sm">
+                                  <p className="text-gray-600">📋 {JSON.stringify(selectedDiagnosis.prescriptions, null, 2)}</p>
+                                </div>
+                              ) : (
+                                <p>{selectedDiagnosis.prescriptions || 'No prescription notes'}</p>
+                              )}
+                            </div>
                             </>
                           );
                         })()}

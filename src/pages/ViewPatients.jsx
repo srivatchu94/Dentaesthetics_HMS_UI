@@ -1,9 +1,9 @@
 ﻿import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { searchPatients, getFullPatientProfile, updateFullPatientProfile } from "../api/hmsApi";
+import { searchPatients } from "../services/patientService";
+import { getFullPatientProfile, updateFullPatientProfile, listClinics } from "../api/hmsApi";
 import { getUserAccess, getSelectedAccess } from "../services/authService";
-import { listClinics } from "../api/hmsApi";
 import FancyDatePicker from "../components/FancyDatePicker";
 
 // Reusable InputField component (similar to RegisterPatient)
@@ -413,6 +413,7 @@ export default function ViewPatients() {
       setEditMedicalData(newMedicalData);
       setEditInsuranceData(newInsuranceData);
       setEditingPatientId(patientId);
+      setIsEditMode(true);
       
       // Log after state is being set - verify what will be rendered
       setTimeout(() => {
@@ -652,7 +653,6 @@ export default function ViewPatients() {
                     <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Name</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Date of Birth</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Gender</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Clinic</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Phone</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Email</th>
                     <th className="px-4 py-3 text-left text-sm font-semibold text-amber-900">Actions</th>
@@ -667,7 +667,6 @@ export default function ViewPatients() {
                       <td className="px-4 py-3 text-sm font-medium text-stone-900">{patient.patientFirstName} {patient.patientLastName}</td>
                       <td className="px-4 py-3 text-sm text-stone-700">{patient.patientDOB ? new Date(patient.patientDOB).toLocaleDateString() : "N/A"}</td>
                       <td className="px-4 py-3 text-sm text-stone-700">{patient.patientGender || "N/A"}</td>
-                      <td className="px-4 py-3 text-sm text-stone-700">{patient.clinicID}</td>
                       <td className="px-4 py-3 text-sm text-stone-700">{patient.patientPhoneNumber || patient.patientContact?.phoneNumber || "N/A"}</td>
                       <td className="px-4 py-3 text-sm text-stone-700">{patient.patientEmail || patient.patientContact?.email || "N/A"}</td>
                       <td className="px-4 py-3 text-sm">
