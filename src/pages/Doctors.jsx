@@ -19,6 +19,7 @@ import PatientHistory from "../components/PatientHistory";
 import Assets from "./Assets";
 import DoctorSchedule from "./DoctorSchedule";
 import { getPatientFullProfile, getPatientVisit, editPatientVisit, getPatientsByClinic, getPatientMedicalInfoSummary } from "../services/patientService";
+import { getAccessToken } from "../services/tokenManager";
 
 // Sample data
 const SAMPLE_CLINIC_DETAILS = {
@@ -700,12 +701,55 @@ export default function Doctors() {
       const userData = JSON.parse(localStorage.getItem("userData") || "{}");
       const selectedAccess = JSON.parse(localStorage.getItem("selectedAccess") || "{}");
       
-      // Try to get name from userData first, then from selectedAccess
-      const firstName = userData.firstName || selectedAccess.firstName || "";
-      const lastName = userData.lastName || selectedAccess.lastName || "";
+      console.log("👨‍⚕️ Loading doctor name from localStorage:");
+      console.log("   userData:", userData);
+      console.log("   selectedAccess:", selectedAccess);
       
-      if (firstName || lastName) {
-        setDoctorName(`${firstName} ${lastName}`.trim());
+      // Try to decode JWT token to get name
+      const token = getAccessToken();
+      let decodedToken = null;
+      if (token) {
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const base64Url = parts[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+              return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            decodedToken = JSON.parse(jsonPayload);
+            console.log("   Decoded token:", decodedToken);
+          }
+        } catch (err) {
+          console.error("Error decoding token:", err);
+        }
+      }
+      
+      // Try multiple sources for the doctor's name
+      const fullName = decodedToken?.fullName || decodedToken?.name || userData.fullName || selectedAccess.fullName || "";
+      const firstName = decodedToken?.firstName || decodedToken?.given_name || userData.firstName || selectedAccess.firstName || "";
+      const lastName = decodedToken?.lastName || decodedToken?.family_name || userData.lastName || selectedAccess.lastName || "";
+      const username = userData.username || "";
+      
+      // Use fullName if available, otherwise construct from first and last name
+      let name = "";
+      if (fullName) {
+        name = fullName;
+      } else if (firstName || lastName) {
+        name = `${firstName} ${lastName}`.trim();
+      } else if (username) {
+        // Extract name from email as last resort (e.g., "venkatesh.srinivasan@gmail.com" -> "Venkatesh Srinivasan")
+        const emailName = username.split('@')[0];
+        name = emailName
+          .split('.') // Split by dots
+          .map(part => part.charAt(0).toUpperCase() + part.slice(1)) // Capitalize each part
+          .join(' ');
+      }
+      
+      console.log("   Resolved doctor name:", name);
+      
+      if (name) {
+        setDoctorName(name);
       }
     } catch (error) {
       console.error("Error reading user data:", error);
@@ -1062,6 +1106,45 @@ export default function Doctors() {
       setRescheduleData({ date: "", time: "" });
     }
   };
+  
+  // Calculate real-time dashboard metrics from live data
+  const dashboardMetrics = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Calculate today's appointments count
+    const todayAppointmentsCount = realAppointments.filter(appt => {
+      const apptDate = appt.appointmentDate?.split('T')[0];
+      return apptDate === today;
+    }).length;
+    
+    // Calculate unique patients count
+    const uniquePatientIds = new Set(
+      realAppointments
+        .map(appt => appt.patientId)
+        .filter(id => id !== null && id !== undefined)
+    );
+    const activePatientsCount = uniquePatientIds.size;
+    
+    // Calculate pending payments count
+    const pendingPaymentsCount = realAppointments.filter(appt => {
+      const pendingAmount = parseFloat(appt.pendingAmount || 0);
+      return pendingAmount > 0;
+    }).length;
+    
+    // Calculate low stock inventory items
+    const lowStockCount = clinicInventory.filter(item => {
+      const available = item.quantityAvailable || item.stock || 0;
+      const reorder = item.reorderLevel || item.minStock || item.minimumStock || 0;
+      return available <= reorder;
+    }).length;
+    
+    return {
+      todayAppointments: todayAppointmentsCount,
+      activePatients: activePatientsCount,
+      pendingPayments: pendingPaymentsCount,
+      lowStockAlerts: lowStockCount
+    };
+  }, [realAppointments, clinicInventory]);
   
   // Close medicine dropdown when clicking outside
   useEffect(() => {
@@ -2344,6 +2427,25 @@ export default function Doctors() {
       loadAllAppointments();
     }
   }, [activeSection, activeTab, appointmentDate, loadAllAppointments, showEditModal]); // Include showEditModal to prevent reload during edit
+
+  // Load appointments for dashboard overview
+  useEffect(() => {
+    if (activeSection === "dashboard" && activeTab === "overview") {
+      console.log("📊 Loading all appointments for dashboard overview");
+      setLoadingAppointments(true);
+      getCalendarAppointments()
+        .then(data => {
+          console.log('📅 Loaded all appointments for dashboard:', data?.length || 0);
+          // Load ALL appointments without date filtering for dashboard metrics
+          setRealAppointments(data || []);
+        })
+        .catch(err => {
+          console.error('Failed to load appointments for dashboard:', err);
+          setRealAppointments([]);
+        })
+        .finally(() => setLoadingAppointments(false));
+    }
+  }, [activeSection, activeTab]);
 
   const loadMyAppointments = () => {
     // Get clinic ID from selected access (most reliable source)
@@ -6707,7 +6809,7 @@ export default function Doctors() {
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 bg-clip-text text-transparent">
-                      Welcome, Dr. Smith
+                      Welcome, Dr. {doctorName || 'Doctor'}
                     </h2>
                     <p className="text-stone-600 text-sm mt-1">Here's your practice overview for today</p>
                   </div>
@@ -6725,7 +6827,7 @@ export default function Doctors() {
                       <span className="text-3xl">📅</span>
                       <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">Today</span>
                     </div>
-                    <p className="text-3xl font-bold text-blue-700">{SAMPLE_CLINIC_DETAILS.todayAppointments}</p>
+                    <p className="text-3xl font-bold text-blue-700">{dashboardMetrics.todayAppointments}</p>
                     <p className="text-xs text-stone-600 mt-1 font-medium">Appointments</p>
                   </motion.div>
 
@@ -6739,7 +6841,7 @@ export default function Doctors() {
                       <span className="text-3xl">👥</span>
                       <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-full">Active</span>
                     </div>
-                    <p className="text-3xl font-bold text-emerald-700">{SAMPLE_PATIENTS.length}</p>
+                    <p className="text-3xl font-bold text-emerald-700">{dashboardMetrics.activePatients}</p>
                     <p className="text-xs text-stone-600 mt-1 font-medium">Patients</p>
                   </motion.div>
 
@@ -6753,7 +6855,7 @@ export default function Doctors() {
                       <span className="text-3xl">💰</span>
                       <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-1 rounded-full">Pending</span>
                     </div>
-                    <p className="text-3xl font-bold text-amber-700">{SAMPLE_CLINIC_DETAILS.pendingPayments}</p>
+                    <p className="text-3xl font-bold text-amber-700">{dashboardMetrics.pendingPayments}</p>
                     <p className="text-xs text-stone-600 mt-1 font-medium">Payments</p>
                   </motion.div>
 
@@ -6764,11 +6866,11 @@ export default function Doctors() {
                     className="bg-gradient-to-br from-violet-50 to-purple-100/50 rounded-xl p-5 border border-violet-200/50 shadow-md cursor-pointer"
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-3xl">🪑</span>
-                      <span className="text-xs font-semibold text-violet-600 bg-violet-100 px-2 py-1 rounded-full">Available</span>
+                      <span className="text-3xl">⚠️</span>
+                      <span className="text-xs font-semibold text-violet-600 bg-violet-100 px-2 py-1 rounded-full">Low Stock</span>
                     </div>
-                    <p className="text-3xl font-bold text-violet-700">{SAMPLE_CLINIC_DETAILS.chairsAvailable}</p>
-                    <p className="text-xs text-stone-600 mt-1 font-medium">Chairs</p>
+                    <p className="text-3xl font-bold text-violet-700">{dashboardMetrics.lowStockAlerts}</p>
+                    <p className="text-xs text-stone-600 mt-1 font-medium">Alerts</p>
                   </motion.div>
                 </div>
               </div>
@@ -6791,23 +6893,41 @@ export default function Doctors() {
                     </motion.button>
                   </div>
                   <div className="space-y-3">
-                    {SAMPLE_APPOINTMENTS.filter(a => a.status === "Confirmed").slice(0, 3).map((appt) => (
-                      <motion.div
-                        key={appt.id}
-                        whileHover={{ x: 5, scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setActiveTab("appointments")}
-                        className="flex items-center justify-between p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100 cursor-pointer transition-all hover:shadow-md"
-                      >
-                        <div>
-                          <p className="font-semibold text-stone-800 text-sm">{appt.patient}</p>
-                          <p className="text-xs text-stone-600">{appt.type} • {appt.time}</p>
-                        </div>
-                        <span className="text-xs font-semibold text-indigo-600 bg-indigo-100 px-3 py-1 rounded-full">
-                          {appt.date}
-                        </span>
-                      </motion.div>
-                    ))}
+                    {realAppointments
+                      .filter(appt => {
+                        const apptDateTime = new Date(appt.appointmentDate);
+                        const now = new Date();
+                        return apptDateTime >= now; // Show future appointments only
+                      })
+                      .sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate))
+                      .slice(0, 3)
+                      .map((appt) => {
+                        const apptDate = new Date(appt.appointmentDate);
+                        const dateStr = apptDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        const timeStr = appt.startTime || apptDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                        const patientName = `${appt.firstName || ''} ${appt.lastName || ''}`.trim() || 'Patient';
+                        
+                        return (
+                          <motion.div
+                            key={appt.appointmentId}
+                            whileHover={{ x: 5, scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setActiveTab("appointments")}
+                            className="flex items-center justify-between p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100 cursor-pointer transition-all hover:shadow-md"
+                          >
+                            <div>
+                              <p className="font-semibold text-stone-800 text-sm">{patientName}</p>
+                              <p className="text-xs text-stone-600">{appt.appointmentType || 'Checkup'} • {timeStr}</p>
+                            </div>
+                            <span className="text-xs font-semibold text-indigo-600 bg-indigo-100 px-3 py-1 rounded-full">
+                              {dateStr}
+                            </span>
+                          </motion.div>
+                        );
+                      })}
+                    {realAppointments.filter(appt => new Date(appt.appointmentDate) >= new Date()).length === 0 && (
+                      <p className="text-sm text-stone-500 text-center py-4">No upcoming appointments</p>
+                    )}
                   </div>
                 </div>
 
@@ -6827,27 +6947,48 @@ export default function Doctors() {
                     </motion.button>
                   </div>
                   <div className="space-y-3">
-                    {SAMPLE_INVENTORY.filter(i => i.status !== "In Stock").slice(0, 3).map((item) => (
-                      <motion.div
-                        key={item.id}
-                        whileHover={{ x: 5, scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setActiveTab("inventory")}
-                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md ${
-                          item.status === "Critical" ? "bg-rose-50 border-rose-200" : "bg-amber-50 border-amber-200"
-                        }`}
-                      >
-                        <div>
-                          <p className="font-semibold text-stone-800 text-sm">{item.item}</p>
-                          <p className="text-xs text-stone-600">Available: {item.available} • Reorder: {item.reorderLevel}</p>
-                        </div>
-                        <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                          item.status === "Critical" ? "bg-rose-200 text-rose-700" : "bg-amber-200 text-amber-700"
-                        }`}>
-                          {item.status}
-                        </span>
-                      </motion.div>
-                    ))}
+                    {clinicInventory
+                      .filter(item => {
+                        const available = item.quantityAvailable || item.stock || 0;
+                        const reorder = item.reorderLevel || item.minStock || item.minimumStock || 0;
+                        return available <= reorder;
+                      })
+                      .slice(0, 3)
+                      .map((item) => {
+                        const available = item.quantityAvailable || item.stock || 0;
+                        const reorder = item.reorderLevel || item.minStock || item.minimumStock || 0;
+                        const isCritical = available === 0 || available < (reorder * 0.5);
+                        const itemName = item.itemName || item.name || 'Inventory Item';
+                        
+                        return (
+                          <motion.div
+                            key={item.inventoryId || item.id}
+                            whileHover={{ x: 5, scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setActiveTab("inventory")}
+                            className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all hover:shadow-md ${
+                              isCritical ? "bg-rose-50 border-rose-200" : "bg-amber-50 border-amber-200"
+                            }`}
+                          >
+                            <div>
+                              <p className="font-semibold text-stone-800 text-sm">{itemName}</p>
+                              <p className="text-xs text-stone-600">Available: {available} • Reorder: {reorder}</p>
+                            </div>
+                            <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                              isCritical ? "bg-rose-200 text-rose-700" : "bg-amber-200 text-amber-700"
+                            }`}>
+                              {isCritical ? "Critical" : "Low Stock"}
+                            </span>
+                          </motion.div>
+                        );
+                      })}
+                    {clinicInventory.filter(item => {
+                      const available = item.quantityAvailable || item.stock || 0;
+                      const reorder = item.reorderLevel || item.minStock || item.minimumStock || 0;
+                      return available <= reorder;
+                    }).length === 0 && (
+                      <p className="text-sm text-stone-500 text-center py-4">No inventory alerts</p>
+                    )}
                   </div>
                 </div>
               </div>
