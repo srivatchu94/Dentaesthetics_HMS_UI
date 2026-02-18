@@ -4,6 +4,40 @@ import { getClinicIdFromToken, getAccessToken } from '../services/tokenManager';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
+// Helper function to transform patient data from new API format
+const transformPatientData = (data) => {
+  if (!data) return data;
+  
+  if (data.patient || data.patientContact) {
+    return {
+      patientId: data.patient?.patientId,
+      patientFirstName: data.patient?.patientFirstName,
+      patientLastName: data.patient?.patientLastName,
+      patientDOB: data.patient?.patientDOB,
+      patientGender: data.patient?.patientGender,
+      patientBloodType: data.patient?.patientBloodType,
+      clinicID: data.patient?.clinicID,
+      patientPhoneNumber: data.patientContact?.patientPhone,
+      patientEmail: data.patientContact?.patientEmail,
+      patientAddress: data.patientContact?.patientAddress,
+      patientPhone: data.patientContact?.patientPhone,
+      // Also include new format for compatibility
+      firstName: data.patient?.patientFirstName,
+      lastName: data.patient?.patientLastName,
+      dateOfBirth: data.patient?.patientDOB,
+      gender: data.patient?.patientGender,
+      bloodType: data.patient?.patientBloodType,
+      clinicId: data.patient?.clinicID,
+      phoneNumber: data.patientContact?.patientPhone,
+      email: data.patientContact?.patientEmail,
+      address: data.patientContact?.patientAddress,
+      emergencyContact: data.patientContact?.patientEmergencyContact
+    };
+  }
+  
+  return data;
+};
+
 // ============ Success Popup Component ============
 const SuccessPopup = React.memo(({ message, isVisible, onClose }) => {
   useEffect(() => {
@@ -487,7 +521,9 @@ export default function PatientHistory({ clinicId: propClinicId }) {
         if (response.ok) {
           const data = await response.json();
           console.log('✅ PatientHistory: Patients fetched:', data);
-          setPatients(Array.isArray(data) ? data : [data].filter(p => p));
+          // Transform data from new API format
+          const transformedData = Array.isArray(data) ? data.map(transformPatientData) : [transformPatientData(data)];
+          setPatients(transformedData.filter(p => p));
         } else {
           console.error('❌ PatientHistory: API returned status', response.status);
           const errorText = await response.text();
