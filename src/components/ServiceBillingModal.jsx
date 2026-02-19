@@ -311,8 +311,10 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
           doctorName: doctorName,
           billDate: new Date().toISOString(),
           modeOfPayment: modeOfPayment,
+          status: amountPaid >= totalAmount ? "Paid" : amountPaid > 0 ? "Partial" : "Pending",
           totalAmount: totalAmount,
-          netAmount: totalAmount - amountPaid
+          paidAmount: amountPaid,
+          pendingAmount: Math.max(0, totalAmount - amountPaid)
         },
         lineItems: lineItems
       };
@@ -657,6 +659,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                             <th className="text-right px-4 py-3 text-xs font-bold text-green-700 uppercase">GST (₹)</th>
                             <th className="text-right px-4 py-3 text-xs font-bold text-green-700 uppercase">Total Amount (₹)</th>
                             <th className="text-right px-4 py-3 text-xs font-bold text-green-700 uppercase">Amount Paid (₹)</th>
+                            <th className="text-right px-4 py-3 text-xs font-bold text-red-700 uppercase">Pending (₹)</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -667,7 +670,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                               <td className="px-4 py-3 text-right text-sm font-semibold text-slate-700">₹{item.serviceCost?.toFixed(2) || '0.00'}</td>
                               <td className="px-4 py-3 text-right text-sm font-semibold text-amber-600">₹{item.gst?.toFixed(2) || '0.00'}</td>
                               <td className="px-4 py-3 text-right text-sm font-bold text-blue-700">₹{item.totalAmount?.toFixed(2) || '0.00'}</td>
-                              <td className="px-4 py-3 text-right text-sm font-bold text-green-700">₹{item.amountPaid?.toFixed(2) || '0.00'}</td>
+                              <td className="px-4 py-3 text-right text-sm font-bold text-green-700">₹{item.paidAmount?.toFixed(2) || '0.00'}</td>
+                              <td className="px-4 py-3 text-right text-sm font-bold text-red-700">₹{item.pendingAmount?.toFixed(2) || '0.00'}</td>
                             </tr>
                           ))}
                         </tbody>

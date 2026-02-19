@@ -12,8 +12,10 @@ export interface ServiceInvoiceHeader {
   doctorName: string;
   billDate: string; // ISO date string
   modeOfPayment: string; // Cash, Card, UPI, Insurance
+  status: string; // Pending, Paid, Cancelled, Partial
   totalAmount: number;
-  netAmount: number;
+  paidAmount: number;
+  pendingAmount: number;
 }
 
 /**
@@ -24,10 +26,11 @@ export interface ServiceInvoiceLineItem {
   lineItemNumber: number;
   serviceDescription: string;
   serviceCost: number;
-  gst: number;
+  gst: number; // GST amount
   modeOfPayment: string;
   totalAmount: number;
-  amountPaid: number;
+  paidAmount: number;
+  pendingAmount: number;
 }
 
 /**
