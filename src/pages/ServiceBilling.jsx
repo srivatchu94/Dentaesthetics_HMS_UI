@@ -96,6 +96,7 @@ export default function ServiceBilling() {
             onClose={handleModalClose}
             appointmentId={selectedAppointment.appointmentId}
             appointmentDetails={selectedAppointment}
+            invoiceNumber={selectedAppointment.invoiceNumber}
             onSuccess={handleBillingSuccess}
           />
         )}

@@ -24,10 +24,10 @@ import html2canvas from "html2canvas";
 import { request } from "../services/apiClient";
 import { useNavigate } from "react-router-dom";
 
-export function ServiceBillingModal({ show, onClose, appointmentId, appointmentDetails, onSuccess }) {
+export function ServiceBillingModal({ show, onClose, appointmentId, appointmentDetails, invoiceNumber: passedInvoiceNumber, onSuccess }) {
   const navigate = useNavigate();
   const [patientName, setPatientName] = useState("");
-  const [invoiceNumber, setInvoiceNumber] = useState("INV-2026-001");
+  const [displayInvoiceNumber, setDisplayInvoiceNumber] = useState("INV-2026-001");
   const [consultationFee, setConsultationFee] = useState(500);
   const [consultationGST, setConsultationGST] = useState(18);
   const [otherCharges, setOtherCharges] = useState([
@@ -73,10 +73,14 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
         setPatientName(`${appointmentDetails.firstName || ""} ${appointmentDetails.lastName || ""}`.trim());
         setRecipientEmail(appointmentDetails.email || "");
       }
-      // Check for existing invoice
-      checkForExistingInvoice();
+      // Check for existing invoice - either by invoiceNumber or appointmentId
+      if (passedInvoiceNumber) {
+        checkForExistingInvoiceByNumber(passedInvoiceNumber);
+      } else {
+        checkForExistingInvoice();
+      }
     }
-  }, [show, appointmentDetails, appointmentId]);
+  }, [show, appointmentDetails, appointmentId, passedInvoiceNumber]);
 
   const loadClinicData = async (clinicId) => {
     setLoadingClinic(true);
@@ -114,7 +118,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
         console.log("✅ Found existing invoice:", response);
         setModalMode("view");
         setExistingInvoiceNumber(response.header.invoiceNumber);
-        setInvoiceNumber(response.header.invoiceNumber);
+        setDisplayInvoiceNumber(response.header.invoiceNumber);
         setModeOfPayment(response.header.modeOfPayment || "Cash");
         setAmountPaid(response.header.paidAmount || 0);
         setSavedLineItems(response.lineItems || []);
@@ -135,6 +139,49 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
       // Invoice not found - this is expected for new appointments
       // Can be 404 or other error
       console.log("No existing invoice found (expected for new appointments):", error.message);
+      setModalMode("edit");
+      setExistingInvoiceNumber(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Check for existing invoice by invoice number (when clicking View from invoice list)
+  const checkForExistingInvoiceByNumber = async (invNumber) => {
+    setLoading(true);
+    try {
+      // Call GetCompleteInvoice with invoice number
+      console.log(`📦 Fetching invoice details for: ${invNumber}`);
+      const response = await request(`/Services/GetCompleteInvoice?invoiceNumber=${invNumber}`, {
+        method: "GET"
+      });
+      
+      if (response && response.header && response.header.invoiceNumber) {
+        // Invoice exists - set view mode
+        console.log("✅ Found invoice by number:", response);
+        setModalMode("view");
+        setExistingInvoiceNumber(response.header.invoiceNumber);
+        setDisplayInvoiceNumber(response.header.invoiceNumber);
+        setModeOfPayment(response.header.modeOfPayment || "Cash");
+        setAmountPaid(response.header.paidAmount || 0);
+        setSavedLineItems(response.lineItems || []);
+        
+        // Pre-populate patient info from response
+        if (appointmentDetails) {
+          setPatientName(`${appointmentDetails.firstName || ""} ${appointmentDetails.lastName || ""}`.trim());
+          setRecipientEmail(appointmentDetails.email || "");
+        }
+        
+        toast.success("📋 Invoice loaded successfully!");
+      } else {
+        // No invoice found - stay in edit mode
+        console.warn(`Invoice ${invNumber} not found`);
+        setModalMode("edit");
+        setExistingInvoiceNumber(null);
+      }
+    } catch (error) {
+      console.error(`Failed to fetch invoice ${invNumber}:`, error);
+      toast.error(`Failed to load invoice: ${error.message}`);
       setModalMode("edit");
       setExistingInvoiceNumber(null);
     } finally {
@@ -241,7 +288,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
     <div class="header">
       <div class="clinic-name">💙 ${clinicInfo?.clinicName || "Dental Clinic"}</div>
       <div class="clinic-subtitle">Service & Consultation Billing Invoice</div>
-      <div class="invoice-no">Invoice # ${invoiceNumber}</div>
+      <div class="invoice-no">Invoice # ${displayInvoiceNumber}</div>
     </div>
 
     <div class="patient-section">
@@ -331,7 +378,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
       // Build invoice line items
       const lineItems = [
         {
-          invoiceNumber: invoiceNumber,
+          invoiceNumber: displayInvoiceNumber,
           lineItemNumber: 1,
           serviceDescription: "Consultation Fee",
           serviceCost: consultationFee,
@@ -341,7 +388,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
           amountPaid: amountPaid
         },
         ...otherCharges.map((charge, idx) => ({
-          invoiceNumber: invoiceNumber,
+          invoiceNumber: displayInvoiceNumber,
           lineItemNumber: idx + 2,
           serviceDescription: charge.name,
           serviceCost: charge.amount,
@@ -355,7 +402,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
       // Build complete invoice
       const completeInvoice = {
         header: {
-          invoiceNumber: invoiceNumber,
+          invoiceNumber: displayInvoiceNumber,
           patientId: appointmentDetails?.patientId || 0,
           appointmentId: appointmentId,
           doctorName: doctorName,
@@ -383,7 +430,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
       }
       
       // Show success modal instead of closing immediately
-      setSuccessMessage(`✅ Invoice ${invoiceNumber} created successfully!`);
+      setSuccessMessage(`✅ Invoice ${displayInvoiceNumber} created successfully!`);
       setShowSuccessModal(true);
       
       // Close modal and redirect after delay
@@ -422,7 +469,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
 
       await sendEmail({
         Email: recipientEmail,
-        Subject: `Service Bill ${invoiceNumber} from ${clinicName || "Clinic"}`,
+        Subject: `Service Bill ${displayInvoiceNumber} from ${clinicName || "Clinic"}`,
         HtmlBody: emailHTML
       });
 
@@ -471,20 +518,26 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
             {/* Header */}
             <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 z-10 shadow-lg">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-1">
                   <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">
                     {loading ? "⏳" : isViewMode ? "👁️" : "💳"}
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <h2 className="text-3xl font-bold">
-                      {loading ? "Loading Invoice..." : isViewMode ? "View Service Invoice" : "Create Service Invoice"}
+                      {loading ? "Loading Invoice..." : isViewMode ? "📋 Invoice Details" : "💳 Create Service Invoice"}
                     </h2>
-                    <p className="text-blue-100 text-sm">
-                      {loading ? "Checking for existing invoice..." : isViewMode ? `Invoice #${invoiceNumber} - Appointment #${appointmentId}` : `New Invoice for Appointment #${appointmentId}`}
+                    <p className="text-blue-100 text-sm mt-1">
+                      {loading ? "Retrieving invoice information..." : isViewMode ? `Invoice #${displayInvoiceNumber}` : `New Invoice for Appointment #${appointmentId}`}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 ml-4">
+                  {!loading && isViewMode && (
+                    <div className="flex items-center gap-2 mr-4 px-3 py-2 bg-white/20 rounded-lg border border-white/40">
+                      <div className={`w-3 h-3 rounded-full ${status === "Paid" ? "bg-green-400" : status === "Partial" ? "bg-amber-400" : "bg-red-400"}`}></div>
+                      <span className="text-sm font-semibold">{status}</span>
+                    </div>
+                  )}
                   {!loading && (
                     <>
                       <motion.button 
@@ -734,37 +787,66 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                   )}
                 </div>
 
-                {/* Saved Billing Information Grid */}
+                {/* Saved Billing Information - Single Line Grid Format */}
                 {savedLineItems && savedLineItems.length > 0 && (
                   <div className="p-8 border-t-2 border-green-100 bg-gradient-to-r from-green-50 to-emerald-50">
-                    <p className="text-xs font-bold text-green-600 uppercase tracking-widest mb-4">💾 Saved Billing Information</p>
-                    <div className="overflow-x-auto rounded-lg border-2 border-green-200">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="bg-gradient-to-r from-green-100 to-emerald-100 border-b-2 border-green-300">
-                            <th className="text-left px-4 py-3 text-xs font-bold text-green-700 uppercase">Line #</th>
-                            <th className="text-left px-4 py-3 text-xs font-bold text-green-700 uppercase">Service Description</th>
-                            <th className="text-right px-4 py-3 text-xs font-bold text-green-700 uppercase">Service Cost (₹)</th>
-                            <th className="text-right px-4 py-3 text-xs font-bold text-green-700 uppercase">GST (₹)</th>
-                            <th className="text-right px-4 py-3 text-xs font-bold text-green-700 uppercase">Total Amount (₹)</th>
-                            <th className="text-right px-4 py-3 text-xs font-bold text-green-700 uppercase">Amount Paid (₹)</th>
-                            <th className="text-right px-4 py-3 text-xs font-bold text-red-700 uppercase">Pending (₹)</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {savedLineItems.map((item, idx) => (
-                            <tr key={idx} className="border-b border-green-100 hover:bg-green-50/50 transition-colors">
-                              <td className="px-4 py-3 text-sm font-bold text-green-700">{item.lineItemNumber}</td>
-                              <td className="px-4 py-3 text-sm text-slate-800 font-medium">{item.serviceDescription}</td>
-                              <td className="px-4 py-3 text-right text-sm font-semibold text-slate-700">₹{item.serviceCost?.toFixed(2) || '0.00'}</td>
-                              <td className="px-4 py-3 text-right text-sm font-semibold text-amber-600">₹{item.gst?.toFixed(2) || '0.00'}</td>
-                              <td className="px-4 py-3 text-right text-sm font-bold text-blue-700">₹{item.totalAmount?.toFixed(2) || '0.00'}</td>
-                              <td className="px-4 py-3 text-right text-sm font-bold text-green-700">₹{item.paidAmount?.toFixed(2) || '0.00'}</td>
-                              <td className="px-4 py-3 text-right text-sm font-bold text-red-700">₹{item.pendingAmount?.toFixed(2) || '0.00'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <p className="text-xs font-bold text-green-600 uppercase tracking-widest mb-6">✅ Invoice Details</p>
+                    
+                    {/* Invoice Line Items - Single Line Grid */}
+                    <div className="space-y-2">
+                      {savedLineItems.map((item, idx) => (
+                        <motion.div
+                          key={idx}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="bg-white rounded-lg border-2 border-green-200 p-4 shadow-sm hover:shadow-md transition-all"
+                        >
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                            {/* Line Number */}
+                            <div className="md:col-span-1">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Line</p>
+                              <p className="text-lg font-bold text-green-700">#{item.lineItemNumber}</p>
+                            </div>
+                            
+                            {/* Service Description */}
+                            <div className="md:col-span-4">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Service</p>
+                              <p className="text-sm font-semibold text-slate-800">{item.serviceDescription}</p>
+                            </div>
+                            
+                            {/* Cost */}
+                            <div className="md:col-span-1 text-center">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Cost</p>
+                              <p className="text-sm font-bold text-slate-700">₹{item.serviceCost?.toFixed(2) || '0.00'}</p>
+                            </div>
+                            
+                            {/* GST */}
+                            <div className="md:col-span-1 text-center">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">GST</p>
+                              <p className="text-sm font-bold text-amber-600">₹{item.gst?.toFixed(2) || '0.00'}</p>
+                            </div>
+                            
+                            {/* Total */}
+                            <div className="md:col-span-1 text-center">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Total</p>
+                              <p className="text-sm font-bold text-blue-700">₹{item.totalAmount?.toFixed(2) || '0.00'}</p>
+                            </div>
+                            
+                            {/* Paid */}
+                            <div className="md:col-span-1 text-center">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Paid</p>
+                              <p className="text-sm font-bold text-green-700">₹{item.paidAmount?.toFixed(2) || '0.00'}</p>
+                            </div>
+                            
+                            {/* Pending */}
+                            <div className="md:col-span-1 text-center">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Pending</p>
+                              <p className="text-sm font-bold text-red-700">₹{item.pendingAmount?.toFixed(2) || '0.00'}</p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
                     </div>
                   </div>
                 )}
