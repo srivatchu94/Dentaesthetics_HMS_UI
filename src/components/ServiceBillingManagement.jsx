@@ -395,11 +395,21 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                     className="mt-6 border-t-2 border-blue-300 pt-6"
                   >
                     <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-6 border-2 border-teal-200">
-                      <h3 className="text-lg font-bold text-teal-800 mb-4 flex items-center gap-2">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-teal-800 flex items-center gap-2">
                         <span>📋</span>
                         Invoices for Appointment #{expandedAppointmentId}
                       </h3>
-
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setExpandedAppointmentId(null)}
+                        className="px-4 py-2 border-2 border-teal-300 text-teal-700 rounded-lg font-semibold hover:bg-teal-50 transition-all flex items-center gap-2 text-sm"
+                      >
+                        <ChevronDown size={18} className="rotate-180" />
+                        Collapse All
+                      </motion.button>
+                    </div>
                       {loadingInvoices[expandedAppointmentId] ? (
                         <div className="flex items-center justify-center py-8">
                           <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-300 border-t-teal-600"></div>
@@ -409,25 +419,28 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                           <p className="text-teal-700 font-medium">No invoices created yet for this appointment.</p>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          {/* Single-line Compact Invoice Cards */}
                           {invoicesByAppointment[expandedAppointmentId]?.map((invoice, idx) => (
                             <motion.div
                               key={idx}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
                               transition={{ delay: idx * 0.1 }}
-                              className="bg-white rounded-lg border-2 border-teal-200 p-4 shadow-md hover:shadow-lg transition-all"
+                              className="bg-white rounded-lg border-2 border-teal-200 p-4 shadow-sm hover:shadow-md transition-all"
                             >
-                              {/* Invoice Header Info */}
-                              <div className="grid grid-cols-2 gap-3 mb-3">
-                                <div>
-                                  <p className="text-xs font-bold text-teal-600 uppercase">Invoice #</p>
-                                  <p className="text-sm font-bold text-slate-800">{invoice.header?.invoiceNumber || 'N/A'}</p>
+                              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                                {/* Invoice Number */}
+                                <div className="md:col-span-2">
+                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Invoice #</p>
+                                  <p className="text-sm font-bold text-slate-800 break-words">{invoice.header?.invoiceNumber || 'N/A'}</p>
                                 </div>
-                                <div>
-                                  <p className="text-xs font-bold text-teal-600 uppercase">Status</p>
-                                  <motion.p
-                                    className={`text-sm font-bold rounded px-2 py-1 inline-block ${
+
+                                {/* Status Badge */}
+                                <div className="md:col-span-1">
+                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Status</p>
+                                  <motion.span
+                                    className={`text-xs font-bold rounded px-2 py-1 inline-block ${
                                       invoice.header?.status === 'Paid'
                                         ? 'bg-green-100 text-green-800'
                                         : invoice.header?.status === 'Partial'
@@ -436,74 +449,86 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                     }`}
                                   >
                                     {invoice.header?.status || 'Pending'}
-                                  </motion.p>
+                                  </motion.span>
                                 </div>
-                                <div>
-                                  <p className="text-xs font-bold text-teal-600 uppercase">Date</p>
+
+                                {/* Date */}
+                                <div className="md:col-span-2">
+                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Date</p>
                                   <p className="text-sm font-semibold text-slate-700">
                                     {new Date(invoice.header?.billDate).toLocaleDateString()}
                                   </p>
                                 </div>
-                                <div>
-                                  <p className="text-xs font-bold text-teal-600 uppercase">Total</p>
+
+                                {/* Total Amount */}
+                                <div className="md:col-span-1 text-center">
+                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Total</p>
                                   <p className="text-sm font-bold text-blue-700">₹{invoice.header?.totalAmount?.toFixed(2) || '0.00'}</p>
                                 </div>
-                              </div>
 
-                              {/* Invoice Summary */}
-                              <div className="space-y-2 mb-4 pt-3 border-t border-slate-200">
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-slate-600">Amount Paid:</span>
-                                  <span className="font-bold text-green-700">₹{invoice.header?.paidAmount?.toFixed(2) || '0.00'}</span>
+                                {/* Amount Paid */}
+                                <div className="md:col-span-1 text-center">
+                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Paid</p>
+                                  <p className="text-sm font-bold text-green-700">₹{invoice.header?.paidAmount?.toFixed(2) || '0.00'}</p>
                                 </div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-slate-600">Pending:</span>
-                                  <span className="font-bold text-red-700">₹{invoice.header?.pendingAmount?.toFixed(2) || '0.00'}</span>
-                                </div>
-                              </div>
 
-                              {/* Action Buttons */}
-                              <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
-                                <motion.button
-                                  whileHover={{ scale: 1.05 }}
-                                  whileTap={{ scale: 0.95 }}
-                                  onClick={() => onPaymentClick({ ...billingAppointments.find(a => a.appointmentId === expandedAppointmentId), invoiceNumber: invoice.header?.invoiceNumber })}
-                                  className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold text-xs transition-all"
-                                  title="View Full Invoice"
-                                >
-                                  <Eye size={16} />
-                                  View
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ scale: 1.05 }}
-                                  whileTap={{ scale: 0.95 }}
-                                  onClick={() => downloadInvoicePDF(invoice)}
-                                  className="flex items-center justify-center gap-1 px-2 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold text-xs transition-all"
-                                  title="Download PDF"
-                                >
-                                  <Download size={16} />
-                                  PDF
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ scale: 1.05 }}
-                                  whileTap={{ scale: 0.95 }}
-                                  onClick={() => window.print()}
-                                  className="flex items-center justify-center gap-1 px-2 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded font-semibold text-xs transition-all"
-                                  title="Print Invoice"
-                                >
-                                  🖨️
-                                  Print
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ scale: 1.05 }}
-                                  whileTap={{ scale: 0.95 }}
-                                  onClick={() => alert('Email functionality - integrate with your email service')}
-                                  className="flex items-center justify-center gap-1 px-2 py-2 bg-red-500 hover:bg-red-600 text-white rounded font-semibold text-xs transition-all"
-                                  title="Email Invoice"
-                                >
-                                  <Mail size={16} />
-                                  Email
-                                </motion.button>
+                                {/* Pending Amount */}
+                                <div className="md:col-span-1 text-center">
+                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Pending</p>
+                                  <p className="text-sm font-bold text-red-700">₹{invoice.header?.pendingAmount?.toFixed(2) || '0.00'}</p>
+                                </div>
+
+                                {/* Action Buttons */}
+                                <div className="md:col-span-4 flex items-center gap-2 justify-end flex-wrap">
+                                  <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => {
+                                      const appointmentData = billingAppointments.find(a => a.appointmentId === expandedAppointmentId);
+                                      if (appointmentData) {
+                                        onPaymentClick({ 
+                                          ...appointmentData, 
+                                          invoiceNumber: invoice.header?.invoiceNumber || null
+                                        });
+                                      }
+                                    }}
+                                    className="flex items-center justify-center gap-1 px-2 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
+                                    title="View Full Invoice"
+                                  >
+                                    <Eye size={14} />
+                                    View
+                                  </motion.button>
+                                  <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => downloadInvoicePDF(invoice)}
+                                    className="flex items-center justify-center gap-1 px-2 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
+                                    title="Download PDF"
+                                  >
+                                    <Download size={14} />
+                                    PDF
+                                  </motion.button>
+                                  <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => window.print()}
+                                    className="flex items-center justify-center gap-1 px-2 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
+                                    title="Print Invoice"
+                                  >
+                                    🖨️
+                                    Print
+                                  </motion.button>
+                                  <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => alert('Email functionality - integrate with your email service')}
+                                    className="flex items-center justify-center gap-1 px-2 py-2 bg-red-500 hover:bg-red-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
+                                    title="Email Invoice"
+                                  >
+                                    <Mail size={14} />
+                                    Email
+                                  </motion.button>
+                                </div>
                               </div>
                             </motion.div>
                           ))}
