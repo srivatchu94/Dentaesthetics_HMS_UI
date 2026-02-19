@@ -319,8 +319,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
 
       console.log("Submitting invoice:", completeInvoice);
 
-      // Call API to ServiceDetails controller
-      const response = await request("/ServiceDetails/create", {
+      // Call API to Services controller with correct endpoint
+      const response = await request("/Services/CreateCompleteInvoice", {
         method: "POST",
         body: JSON.stringify(completeInvoice)
       });
