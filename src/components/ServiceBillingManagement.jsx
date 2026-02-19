@@ -2,6 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAppointmentsByFilters } from '../services/appointmentService';
 import { getAccessToken, getClinicIdFromToken, getSelectedAccess } from '../services/tokenManager';
+import { request } from '../services/apiClient';
+import { Download, Mail, Eye, ChevronDown, Plus } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
@@ -12,6 +16,9 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
   const [billingAppointments, setBillingAppointments] = useState([]);
   const [loadingBilling, setLoadingBilling] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [expandedAppointmentId, setExpandedAppointmentId] = useState(null);
+  const [invoicesByAppointment, setInvoicesByAppointment] = useState({});
+  const [loadingInvoices, setLoadingInvoices] = useState({});
 
   // Load clinics from token on mount
   useEffect(() => {
@@ -85,6 +92,125 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
       loadBillingAppointments();
     }
   }, [billingClinicId, billingDate, refreshTrigger, loadBillingAppointments]);
+
+  // Load invoices for specific appointment
+  const loadInvoicesForAppointment = useCallback(async (appointmentId) => {
+    setLoadingInvoices(prev => ({ ...prev, [appointmentId]: true }));
+    try {
+      console.log(`📦 Loading invoices for appointment ${appointmentId}...`);
+      const response = await request(`/Services/GetInvoicesByAppointmentComplete?appointmentId=${appointmentId}`, {
+        method: "GET"
+      });
+      
+      if (response && Array.isArray(response)) {
+        console.log(`✅ Found ${response.length} invoices for appointment ${appointmentId}:`, response);
+        setInvoicesByAppointment(prev => ({
+          ...prev,
+          [appointmentId]: response
+        }));
+      } else {
+        console.log(`No invoices found for appointment ${appointmentId}`);
+        setInvoicesByAppointment(prev => ({
+          ...prev,
+          [appointmentId]: []
+        }));
+      }
+    } catch (error) {
+      console.error(`Failed to load invoices for appointment ${appointmentId}:`, error);
+      setInvoicesByAppointment(prev => ({
+        ...prev,
+        [appointmentId]: []
+      }));
+    } finally {
+      setLoadingInvoices(prev => ({ ...prev, [appointmentId]: false }));
+    }
+  }, []);
+
+  // Handle showing invoices for an appointment
+  const handleShowInvoices = useCallback((appointmentId) => {
+    if (expandedAppointmentId === appointmentId) {
+      setExpandedAppointmentId(null);
+    } else {
+      setExpandedAppointmentId(appointmentId);
+      // Load invoices if not already loaded
+      if (!invoicesByAppointment[appointmentId]) {
+        loadInvoicesForAppointment(appointmentId);
+      }
+    }
+  }, [expandedAppointmentId, invoicesByAppointment, loadInvoicesForAppointment]);
+
+  // Download invoice as PDF
+  const downloadInvoicePDF = (invoice) => {
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 10;
+      let yPosition = margin;
+
+      // Header
+      doc.setFillColor(30, 60, 114);
+      doc.rect(0, yPosition, pageWidth, 15, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(16);
+      doc.text('INVOICE', pageWidth / 2, yPosition + 10, { align: 'center' });
+
+      yPosition += 20;
+
+      // Invoice details
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(10);
+      doc.text(`Invoice #: ${invoice.header.invoiceNumber}`, margin, yPosition);
+      yPosition += 5;
+      doc.text(`Date: ${new Date(invoice.header.billDate).toLocaleDateString()}`, margin, yPosition);
+      yPosition += 5;
+      doc.text(`Status: ${invoice.header.status}`, margin, yPosition);
+      yPosition += 10;
+
+      // Line items table
+      const lineItems = invoice.lineItems || [];
+      const tableData = [
+        ['Service', 'Cost', 'GST', 'Total', 'Paid', 'Pending']
+      ];
+
+      lineItems.forEach(item => {
+        tableData.push([
+          item.serviceDescription || '',
+          `₹${item.serviceCost?.toFixed(2) || '0.00'}`,
+          `₹${item.gst?.toFixed(2) || '0.00'}`,
+          `₹${item.totalAmount?.toFixed(2) || '0.00'}`,
+          `₹${item.paidAmount?.toFixed(2) || '0.00'}`,
+          `₹${item.pendingAmount?.toFixed(2) || '0.00'}`
+        ]);
+      });
+
+      doc.autoTable({
+        startY: yPosition,
+        head: [tableData[0]],
+        body: tableData.slice(1),
+        margin: margin,
+        theme: 'grid',
+        styles: { fontSize: 9 }
+      });
+
+      yPosition = doc.lastAutoTable.finalY + 10;
+
+      // Totals
+      doc.setFontSize(10);
+      doc.text(`Total Amount: ₹${invoice.header.totalAmount?.toFixed(2) || '0.00'}`, margin, yPosition);
+      yPosition += 5;
+      doc.text(`Amount Paid: ₹${invoice.header.paidAmount?.toFixed(2) || '0.00'}`, margin, yPosition);
+      yPosition += 5;
+      doc.text(`Pending: ₹${invoice.header.pendingAmount?.toFixed(2) || '0.00'}`, margin, yPosition);
+
+      const fileName = `Invoice_${invoice.header.invoiceNumber}_${new Date().getTime()}.pdf`;
+      doc.save(fileName);
+      console.log('✅ Invoice PDF downloaded:', fileName);
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Failed to download PDF');
+    }
+  };
 
   return (
     <>
@@ -231,15 +357,24 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                           <span className="text-sm font-medium text-stone-700">{appt.doctorName || 'N/A'}</span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex items-center justify-center">
+                          <div className="flex items-center justify-center gap-2">
                             <motion.button
-                              whileHover={{ scale: 1.1, rotate: 5 }}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => handleShowInvoices(appt.appointmentId)}
+                              className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
+                              title="Show Invoices"
+                            >
+                              👁️ Show Invoice
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
                               onClick={() => onPaymentClick(appt)}
-                              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
-                              title="Create Invoice"
+                              className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
+                              title="Create New Invoice"
                             >
-                              💳 Payment
+                              ➕ Create Invoice
                             </motion.button>
                           </div>
                         </td>
@@ -249,7 +384,146 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                 </table>
               </div>
 
-              {/* Summary Stats */}
+              {/* Expandable Invoices Section */}
+              <AnimatePresence>
+                {expandedAppointmentId && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="mt-6 border-t-2 border-blue-300 pt-6"
+                  >
+                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-6 border-2 border-teal-200">
+                      <h3 className="text-lg font-bold text-teal-800 mb-4 flex items-center gap-2">
+                        <span>📋</span>
+                        Invoices for Appointment #{expandedAppointmentId}
+                      </h3>
+
+                      {loadingInvoices[expandedAppointmentId] ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-300 border-t-teal-600"></div>
+                        </div>
+                      ) : invoicesByAppointment[expandedAppointmentId]?.length === 0 ? (
+                        <div className="py-8 text-center">
+                          <p className="text-teal-700 font-medium">No invoices created yet for this appointment.</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {invoicesByAppointment[expandedAppointmentId]?.map((invoice, idx) => (
+                            <motion.div
+                              key={idx}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: idx * 0.1 }}
+                              className="bg-white rounded-lg border-2 border-teal-200 p-4 shadow-md hover:shadow-lg transition-all"
+                            >
+                              {/* Invoice Header Info */}
+                              <div className="grid grid-cols-2 gap-3 mb-3">
+                                <div>
+                                  <p className="text-xs font-bold text-teal-600 uppercase">Invoice #</p>
+                                  <p className="text-sm font-bold text-slate-800">{invoice.header?.invoiceNumber || 'N/A'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-teal-600 uppercase">Status</p>
+                                  <motion.p
+                                    className={`text-sm font-bold rounded px-2 py-1 inline-block ${
+                                      invoice.header?.status === 'Paid'
+                                        ? 'bg-green-100 text-green-800'
+                                        : invoice.header?.status === 'Partial'
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : 'bg-red-100 text-red-800'
+                                    }`}
+                                  >
+                                    {invoice.header?.status || 'Pending'}
+                                  </motion.p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-teal-600 uppercase">Date</p>
+                                  <p className="text-sm font-semibold text-slate-700">
+                                    {new Date(invoice.header?.billDate).toLocaleDateString()}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs font-bold text-teal-600 uppercase">Total</p>
+                                  <p className="text-sm font-bold text-blue-700">₹{invoice.header?.totalAmount?.toFixed(2) || '0.00'}</p>
+                                </div>
+                              </div>
+
+                              {/* Invoice Summary */}
+                              <div className="space-y-2 mb-4 pt-3 border-t border-slate-200">
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-slate-600">Amount Paid:</span>
+                                  <span className="font-bold text-green-700">₹{invoice.header?.paidAmount?.toFixed(2) || '0.00'}</span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                  <span className="text-slate-600">Pending:</span>
+                                  <span className="font-bold text-red-700">₹{invoice.header?.pendingAmount?.toFixed(2) || '0.00'}</span>
+                                </div>
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => onPaymentClick({ ...billingAppointments.find(a => a.appointmentId === expandedAppointmentId), invoiceNumber: invoice.header?.invoiceNumber })}
+                                  className="flex-1 flex items-center justify-center gap-1 px-2 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold text-xs transition-all"
+                                  title="View Full Invoice"
+                                >
+                                  <Eye size={16} />
+                                  View
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => downloadInvoicePDF(invoice)}
+                                  className="flex items-center justify-center gap-1 px-2 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold text-xs transition-all"
+                                  title="Download PDF"
+                                >
+                                  <Download size={16} />
+                                  PDF
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => window.print()}
+                                  className="flex items-center justify-center gap-1 px-2 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded font-semibold text-xs transition-all"
+                                  title="Print Invoice"
+                                >
+                                  🖨️
+                                  Print
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => alert('Email functionality - integrate with your email service')}
+                                  className="flex items-center justify-center gap-1 px-2 py-2 bg-red-500 hover:bg-red-600 text-white rounded font-semibold text-xs transition-all"
+                                  title="Email Invoice"
+                                >
+                                  <Mail size={16} />
+                                  Email
+                                </motion.button>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Collapse button */}
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setExpandedAppointmentId(null)}
+                        className="mt-4 w-full px-4 py-2 border-2 border-teal-300 text-teal-700 rounded-lg font-semibold hover:bg-teal-50 transition-all flex items-center justify-center gap-2"
+                      >
+                        <ChevronDown size={18} className="rotate-180" />
+                        Collapse
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t-2 border-blue-200">
                 <motion.div
                   whileHover={{ scale: 1.02, y: -2 }}

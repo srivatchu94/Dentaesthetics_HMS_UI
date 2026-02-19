@@ -45,6 +45,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   const [modalMode, setModalMode] = useState("edit"); // "edit" for new, "view" for existing
   const [loading, setLoading] = useState(true);
   const [existingInvoiceNumber, setExistingInvoiceNumber] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Get clinic ID and doctor info
   const getClinicIdAndDoctorInfo = () => {
@@ -380,16 +382,18 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
         setSavedLineItems(response.lineItems);
       }
       
-      toast.success("🎉 Invoice created successfully! Time to get paid! 💰");
+      // Show success modal instead of closing immediately
+      setSuccessMessage(`✅ Invoice ${invoiceNumber} created successfully!`);
+      setShowSuccessModal(true);
       
-      // Close modal
-      onClose();
-      
-      // Redirect to payments page after short delay
+      // Close modal and redirect after delay
       setTimeout(() => {
-        navigate("/payments", { state: { appointmentId: appointmentId } });
+        setShowSuccessModal(false);
+        onClose();
+        
+        // Call onSuccess callback to refresh appointment list
         if (onSuccess) onSuccess();
-      }, 1500);
+      }, 2000);
       
     } catch (error) {
       console.error("Error submitting invoice:", error);
@@ -960,6 +964,37 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                         {sendingEmail ? "Sending..." : "Send"}
                       </motion.button>
                     </div>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Success Modal */}
+            <AnimatePresence>
+              {showSuccessModal && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+                >
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0, y: 20 }}
+                    animate={{ scale: 1, opacity: 1, y: 0 }}
+                    exit={{ scale: 0.8, opacity: 0, y: 20 }}
+                    className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center"
+                  >
+                    <motion.div
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 0.6, repeat: Infinity }}
+                      className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center text-4xl mx-auto mb-4"
+                    >
+                      ✅
+                    </motion.div>
+                    <h3 className="text-2xl font-bold text-slate-800 mb-2">Success!</h3>
+                    <p className="text-slate-600 mb-1">{successMessage}</p>
+                    <p className="text-sm text-slate-500">Redirecting back to appointments...</p>
+                    <div className="mt-6 w-12 h-1 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full mx-auto"></div>
                   </motion.div>
                 </motion.div>
               )}
