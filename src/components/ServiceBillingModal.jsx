@@ -42,6 +42,9 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   const [submitting, setSubmitting] = useState(false);
   const [modeOfPayment, setModeOfPayment] = useState("Cash");
   const [savedLineItems, setSavedLineItems] = useState([]);
+  const [modalMode, setModalMode] = useState("edit"); // "edit" for new, "view" for existing
+  const [loading, setLoading] = useState(true);
+  const [existingInvoiceNumber, setExistingInvoiceNumber] = useState(null);
 
   // Get clinic ID and doctor info
   const getClinicIdAndDoctorInfo = () => {
@@ -68,8 +71,10 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
         setPatientName(`${appointmentDetails.firstName || ""} ${appointmentDetails.lastName || ""}`.trim());
         setRecipientEmail(appointmentDetails.email || "");
       }
+      // Check for existing invoice
+      checkForExistingInvoice();
     }
-  }, [show, appointmentDetails]);
+  }, [show, appointmentDetails, appointmentId]);
 
   const loadClinicData = async (clinicId) => {
     setLoadingClinic(true);
@@ -89,6 +94,49 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
       });
     } finally {
       setLoadingClinic(false);
+    }
+  };
+
+  // Check if invoice already exists for this appointment
+  const checkForExistingInvoice = async () => {
+    setLoading(true);
+    try {
+      // Try to find an existing invoice for this appointment
+      // The backend should search for invoices by appointmentId
+      const response = await request(`/Services/GetCompleteInvoice?appointmentId=${appointmentId}`, {
+        method: "GET"
+      });
+      
+      if (response && response.header && response.header.invoiceNumber) {
+        // Invoice exists - set view mode
+        console.log("✅ Found existing invoice:", response);
+        setModalMode("view");
+        setExistingInvoiceNumber(response.header.invoiceNumber);
+        setInvoiceNumber(response.header.invoiceNumber);
+        setModeOfPayment(response.header.modeOfPayment || "Cash");
+        setAmountPaid(response.header.paidAmount || 0);
+        setSavedLineItems(response.lineItems || []);
+        
+        // Pre-populate patient info from response
+        if (appointmentDetails) {
+          setPatientName(`${appointmentDetails.firstName || ""} ${appointmentDetails.lastName || ""}`.trim());
+          setRecipientEmail(appointmentDetails.email || "");
+        }
+        
+        toast.success("📋 Existing invoice loaded successfully!");
+      } else {
+        // No invoice found - stay in edit mode
+        setModalMode("edit");
+        setExistingInvoiceNumber(null);
+      }
+    } catch (error) {
+      // Invoice not found - this is expected for new appointments
+      // Can be 404 or other error
+      console.log("No existing invoice found (expected for new appointments):", error.message);
+      setModalMode("edit");
+      setExistingInvoiceNumber(null);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -397,6 +445,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   const statusBg = status === "Paid" ? "bg-green-50" : status === "Partial" ? "bg-amber-50" : "bg-red-50";
   const statusBorder = status === "Paid" ? "border-green-300" : status === "Partial" ? "border-amber-300" : "border-red-300";
   const statusIcon = status === "Paid" ? <CheckCircle2 size={20} /> : status === "Partial" ? <Clock size={20} /> : <AlertCircle size={20} />;
+  const isViewMode = modalMode === "view";
 
   return (
     <AnimatePresence>
@@ -420,32 +469,40 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-2xl">
-                    💳
+                    {loading ? "⏳" : isViewMode ? "👁️" : "💳"}
                   </div>
                   <div>
-                    <h2 className="text-3xl font-bold">Service Billing</h2>
-                    <p className="text-blue-100 text-sm">Professional Service Invoice for Appointment #{appointmentId}</p>
+                    <h2 className="text-3xl font-bold">
+                      {loading ? "Loading Invoice..." : isViewMode ? "View Service Invoice" : "Create Service Invoice"}
+                    </h2>
+                    <p className="text-blue-100 text-sm">
+                      {loading ? "Checking for existing invoice..." : isViewMode ? `Invoice #${invoiceNumber} - Appointment #${appointmentId}` : `New Invoice for Appointment #${appointmentId}`}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <motion.button 
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setShowEmailModal(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 border text-white rounded-lg transition-all font-medium bg-white/20 border-white/40 hover:bg-white/30"
-                  >
-                    <Mail size={18} />
-                    Email
-                  </motion.button>
-                  <motion.button 
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={handlePrint}
-                    className="flex items-center gap-2 px-4 py-2.5 border text-white rounded-lg transition-all font-medium bg-white/20 border-white/40 hover:bg-white/30"
-                  >
-                    <Printer size={18} />
-                    Print
-                  </motion.button>
+                  {!loading && (
+                    <>
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowEmailModal(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 border text-white rounded-lg transition-all font-medium bg-white/20 border-white/40 hover:bg-white/30"
+                      >
+                        <Mail size={18} />
+                        Email
+                      </motion.button>
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handlePrint}
+                        className="flex items-center gap-2 px-4 py-2.5 border text-white rounded-lg transition-all font-medium bg-white/20 border-white/40 hover:bg-white/30"
+                      >
+                        <Printer size={18} />
+                        Print
+                      </motion.button>
+                    </>
+                  )}
                   <button
                     onClick={onClose}
                     className="ml-2 p-2 hover:bg-white/20 rounded-lg transition-all"
@@ -460,6 +517,24 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
 
             {/* Main Content */}
             <div className="p-8">
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                  <p className="text-slate-600 font-semibold">Checking for existing invoice...</p>
+                </div>
+              ) : isViewMode && existingInvoiceNumber ? (
+                <>
+                  <div className="mb-6 p-4 bg-green-50 border-2 border-green-300 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={24} className="text-green-600" />
+                      <div>
+                        <p className="font-bold text-green-700">Invoice Already Exists</p>
+                        <p className="text-sm text-green-600">This appointment has been invoiced. You can view, print, or email the invoice.</p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : null}
               <div id="consultation-invoice-print" className="bg-white">
                 
                 {/* Professional Invoice Header */}
@@ -501,7 +576,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                       placeholder="Enter patient name"
                       value={patientName}
                       onChange={(e) => setPatientName(e.target.value)}
-                      className="text-2xl font-bold text-slate-800 border-b-2 border-blue-300 pb-2 w-full focus:border-blue-600 focus:outline-none transition"
+                      disabled={isViewMode}
+                      className="text-2xl font-bold text-slate-800 border-b-2 border-blue-300 pb-2 w-full focus:border-blue-600 focus:outline-none transition disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-slate-600"
                     />
                   </div>
 
@@ -547,7 +623,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                                 step="0.01"
                                 value={consultationFee}
                                 onChange={(e) => setConsultationFee(Number(e.target.value))}
-                                className="w-20 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden"
+                                disabled={isViewMode}
+                                className="w-20 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
                               />
                               <span className="hidden print:inline text-sm font-bold text-slate-800">₹{consultationFee.toFixed(2)}</span>
                             </div>
@@ -559,7 +636,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                                 step="0.01"
                                 value={consultationGST}
                                 onChange={(e) => setConsultationGST(Number(e.target.value))}
-                                className="w-16 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden"
+                                disabled={isViewMode}
+                                className="w-16 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
                               />
                               <span className="text-xs text-slate-600 print:hidden">%</span>
                               <span className="hidden print:inline text-sm font-bold text-slate-800">{consultationGST}%</span>
@@ -582,7 +660,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                                 placeholder="e.g., Additional Treatment"
                                 value={charge.name}
                                 onChange={(e) => updateCharge(charge.id, "name", e.target.value)}
-                                className="w-full text-sm py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:border-0 print:px-0 print:py-0"
+                                disabled={isViewMode}
+                                className="w-full text-sm py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:border-0 print:px-0 print:py-0 disabled:bg-gray-100 disabled:cursor-not-allowed"
                               />
                               <span className="hidden print:inline text-sm font-semibold text-slate-800">{charge.name || '—'}</span>
                             </td>
@@ -594,7 +673,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                                   step="0.01"
                                   value={charge.amount}
                                   onChange={(e) => updateCharge(charge.id, "amount", e.target.value)}
-                                  className="w-20 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden print:border-0 print:px-0 print:py-0"
+                                  disabled={isViewMode}
+                                  className="w-20 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden print:border-0 print:px-0 print:py-0 disabled:bg-gray-100 disabled:cursor-not-allowed"
                                   placeholder="0.00"
                                 />
                                 <span className="hidden print:inline text-sm font-bold text-slate-800">₹{charge.amount.toFixed(2)}</span>
@@ -607,7 +687,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                                   step="0.01"
                                   value={charge.gstPercent}
                                   onChange={(e) => updateCharge(charge.id, "gstPercent", e.target.value)}
-                                  className="w-16 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden"
+                                  disabled={isViewMode}
+                                  className="w-16 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 />
                                 <span className="text-xs text-slate-600 print:hidden">%</span>
                                 <span className="hidden print:inline text-sm font-bold text-slate-800">{charge.gstPercent}%</span>
@@ -616,14 +697,16 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                             <td className="px-3 py-4 text-right font-bold text-amber-600">₹{(charge.amount * charge.gstPercent / 100).toFixed(2)}</td>
                             <td className="px-3 py-4 text-right font-bold text-blue-700">₹{(charge.amount + charge.amount * charge.gstPercent / 100).toFixed(2)}</td>
                             <td className="px-3 py-4 text-center print:hidden">
-                              <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => deleteCharge(charge.id)}
-                                className="text-red-500 hover:text-red-700 transition-colors"
-                              >
-                                <Trash2 size={18} />
-                              </motion.button>
+                              {!isViewMode && (
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => deleteCharge(charge.id)}
+                                  className="text-red-500 hover:text-red-700 transition-colors"
+                                >
+                                  <Trash2 size={18} />
+                                </motion.button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -632,17 +715,19 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                   </div>
 
                   {/* Add Charge Button */}
-                  <div className="mt-4 print:hidden">
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={addCharge}
-                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
-                    >
-                      <Plus size={18} />
-                      Add Service
-                    </motion.button>
-                  </div>
+                  {!isViewMode && (
+                    <div className="mt-4 print:hidden">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={addCharge}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                      >
+                        <Plus size={18} />
+                        Add Service
+                      </motion.button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Saved Billing Information Grid */}
@@ -723,7 +808,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                             step="0.01"
                             value={amountPaid}
                             onChange={(e) => setAmountPaid(Number(e.target.value))}
-                            className="w-28 text-right text-lg font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden print:border-0 print:px-0 print:py-0"
+                            disabled={isViewMode}
+                            className="w-28 text-right text-lg font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden print:border-0 print:px-0 print:py-0 disabled:bg-gray-100 disabled:cursor-not-allowed"
                           />
                           <span className="hidden print:inline w-28 text-right text-lg font-bold text-slate-800">₹{amountPaid.toFixed(2)}</span>
                         </div>
@@ -750,7 +836,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                         <select
                           value={modeOfPayment}
                           onChange={(e) => setModeOfPayment(e.target.value)}
-                          className="px-3 py-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none text-sm"
+                          disabled={isViewMode}
+                          className="px-3 py-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
                         >
                           <option>Cash</option>
                           <option>Card</option>
@@ -761,16 +848,18 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                       </div>
 
                       {/* Quick Actions */}
-                      <div className="flex gap-2 pt-2 print:hidden">
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={markAsPaid}
-                          className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-all text-sm"
-                        >
-                          ✓ Mark as Paid
-                        </motion.button>
-                      </div>
+                      {!isViewMode && (
+                        <div className="flex gap-2 pt-2 print:hidden">
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={markAsPaid}
+                            className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-all text-sm"
+                          >
+                            ✓ Mark as Paid
+                          </motion.button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -787,34 +876,44 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
             </div>
 
             {/* Footer Buttons */}
-            <div className="bg-gradient-to-r from-slate-50 to-gray-50 p-6 border-t-2 border-slate-200 flex items-center justify-end gap-3 print:hidden">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={onClose}
-                className="px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-xl font-bold hover:bg-slate-100 transition-all"
-              >
-                Cancel
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {submitting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={20} />
-                    Submit & Create Invoice
-                  </>
+            <div className="bg-gradient-to-r from-slate-50 to-gray-50 p-6 border-t-2 border-slate-200 flex items-center justify-between print:hidden">
+              {isViewMode && (
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={20} className="text-green-600" />
+                  <p className="text-sm font-semibold text-green-700">Invoice already exists. Use Print or Email options above.</p>
+                </div>
+              )}
+              <div className="ml-auto flex items-center justify-end gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={onClose}
+                  className="px-6 py-3 border-2 border-slate-300 text-slate-700 rounded-xl font-bold hover:bg-slate-100 transition-all"
+                >
+                  {isViewMode ? "Close" : "Cancel"}
+                </motion.button>
+                {!isViewMode && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {submitting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={20} />
+                        Submit & Create Invoice
+                      </>
+                    )}
+                  </motion.button>
                 )}
-              </motion.button>
+              </div>
             </div>
 
             {/* Email Modal */}
