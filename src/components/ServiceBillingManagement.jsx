@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAppointmentsByFilters } from '../services/appointmentService';
-import { getAccessToken, getSelectedAccess } from '../services/tokenManager';
+import { getAccessToken, getClinicIdFromToken, getSelectedAccess } from '../services/tokenManager';
 import { ServiceBillingModal } from './ServiceBillingModal';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
@@ -20,10 +20,21 @@ export default function ServiceBillingManagement() {
   // Load clinics from token on mount
   useEffect(() => {
     const selectedAccess = getSelectedAccess();
+    console.log('📋 Loading clinics from selectedAccess:', selectedAccess);
+    
     if (selectedAccess?.clinics && Array.isArray(selectedAccess.clinics)) {
+      console.log('✅ Found clinics array:', selectedAccess.clinics);
       setClinicsList(selectedAccess.clinics);
       if (selectedAccess.clinicId) {
         setBillingClinicId(selectedAccess.clinicId.toString());
+      }
+    } else {
+      // Fallback to getting clinic ID directly from token
+      const clinicId = getClinicIdFromToken();
+      console.log('⚠️ Fallback: Getting clinicId from token:', clinicId);
+      if (clinicId) {
+        setBillingClinicId(clinicId.toString());
+        setClinicsList([{ clinicId, clinicName: `Clinic ${clinicId}` }]);
       }
     }
   }, []);
