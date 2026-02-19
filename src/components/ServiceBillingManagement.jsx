@@ -84,12 +84,12 @@ export default function ServiceBillingManagement() {
     setRefreshTrigger(prev => prev + 1);
   }, []);
 
-  // Auto-load appointments when clinic changes
+  // Auto-load appointments when clinic or date changes
   useEffect(() => {
     if (billingClinicId) {
       loadBillingAppointments();
     }
-  }, [refreshTrigger]);
+  }, [billingClinicId, billingDate, refreshTrigger, loadBillingAppointments]);
 
   return (
     <>
