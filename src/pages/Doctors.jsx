@@ -16,7 +16,6 @@ import AddToMasterInventoryModal from "../components/AddToMasterInventoryModal";
 import SuccessModal from "../components/SuccessModal";
 import ScheduleAppointmentsModal from "../components/ScheduleAppointmentsModal";
 import PatientHistory from "../components/PatientHistory";
-import { ConsultationBillingModal } from "../components/ConsultationBillingModal";
 import Assets from "./Assets";
 import DoctorSchedule from "./DoctorSchedule";
 import { getPatientFullProfile, getPatientVisit, editPatientVisit, getPatientsByClinic, getPatientMedicalInfoSummary } from "../services/patientService";
@@ -892,9 +891,6 @@ export default function Doctors() {
     appointmentStatus: 'Scheduled'
   });
   const [savingPaymentEdit, setSavingPaymentEdit] = useState(false);
-
-  // Consultation Billing states
-  const [showConsultationBillingModal, setShowConsultationBillingModal] = useState(false);
 
   // My Patients states
   const [myPatients, setMyPatients] = useState([]);
@@ -2360,7 +2356,7 @@ export default function Doctors() {
     { key: "clinic", label: "Clinic Details", icon: "🏥", gradient: "from-purple-500 to-pink-600" },
     { key: "patients", label: "My Patients", icon: "👥", gradient: "from-indigo-500 to-purple-600" },
     { key: "payments", label: "Payments", icon: "💳", gradient: "from-purple-500 to-pink-600" },
-    { key: "consultationBilling", label: "Consultation Billing", icon: "💳", gradient: "from-blue-500 to-indigo-600" },
+    { key: "serviceBilling", label: "Service Billing", icon: "💰", gradient: "from-blue-500 to-indigo-600" },
     { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-indigo-600 to-purple-600" }
   ];
 
@@ -2752,13 +2748,12 @@ export default function Doctors() {
     }
   }, [activeTab, activeSection, loadDoctorClinicsCallback]);
 
-  // Open consultation billing modal when tab is selected
+  // Navigate to Service Billing page when tab is selected
   useEffect(() => {
-    if (activeTab === 'consultationBilling' && activeSection === 'dashboard') {
-      setShowConsultationBillingModal(true);
-      setIsSidebarCollapsed(true); // Collapse sidebar to prevent overlap
+    if (activeTab === 'serviceBilling' && activeSection === 'dashboard') {
+      navigate('/service-billing');
     }
-  }, [activeTab, activeSection]);
+  }, [activeTab, activeSection, navigate]);
 
   // Load my patients function
   const loadMyPatients = async () => {
@@ -7686,50 +7681,6 @@ export default function Doctors() {
             </motion.div>
           )}
 
-          {/* Consultation Billing Tab */}
-          {activeSection === "dashboard" && activeTab === "consultationBilling" && (
-            <motion.div
-              key="consultationBilling"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-blue-100/60 overflow-hidden">
-                {/* Header */}
-                <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
-                      💳
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold bg-gradient-to-r from-blue-700 to-indigo-700 bg-clip-text text-transparent">
-                        Consultation Billing
-                      </h2>
-                      <p className="text-sm text-stone-600 mt-0.5">Create and manage patient consultation invoices</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Content Area */}
-                <div className="p-8 flex items-center justify-center min-h-96">
-                  <div className="text-center">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setShowConsultationBillingModal(true)}
-                      className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all text-lg flex items-center gap-3 mx-auto"
-                    >
-                      <span className="text-2xl">📋</span>
-                      <span>Create Consultation Bill</span>
-                    </motion.button>
-                    <p className="text-stone-600 mt-4 text-sm">Click the button to create a new consultation billing invoice</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
           {/* Appointments Tab */}
           {activeSection === "dashboard" && activeTab === "appointments" && (
             <motion.div
@@ -10586,17 +10537,6 @@ export default function Doctors() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Consultation Billing Modal */}
-      {showConsultationBillingModal && (
-        <ConsultationBillingModal
-          show={showConsultationBillingModal}
-          onClose={() => {
-            setShowConsultationBillingModal(false);
-            setActiveTab("overview");
-          }}
-        />
-      )}
     </div>
   );
 }

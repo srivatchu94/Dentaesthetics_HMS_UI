@@ -11,7 +11,9 @@ import {
   Clock,
   Download,
   X,
-  Hospital
+  Hospital,
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { sendEmail } from "../services/emailService";

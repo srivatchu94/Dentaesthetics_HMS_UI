@@ -13,6 +13,7 @@ import CreateClinic from "./pages/CreateClinic";
 import ViewClinics from "./pages/ViewClinics";
 import Patients from "./pages/Patients";
 import Payments from "./pages/Payments";
+import ServiceBilling from "./pages/ServiceBilling";
 import ViewPatients from "./pages/ViewPatients";
 import RegisterPatient from "./pages/RegisterPatient";
 import EditPatients from "./pages/EditPatients";
@@ -98,6 +99,7 @@ export default function App(){
           <Route path="/clinics/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Clinics" /></div>} />
           <Route path="/patients" element={<div className="max-w-6xl mx-auto"><Patients /></div>} />
           <Route path="/payments" element={<div className="max-w-6xl mx-auto"><Payments /></div>} />
+          <Route path="/service-billing" element={<div className="max-w-6xl mx-auto"><ServiceBilling /></div>} />
           <Route path="/patients/view" element={<ViewPatients />} />
           <Route path="/patients/register" element={<RegisterPatient />} />
           <Route path="/patients/edit" element={<div className="max-w-6xl mx-auto"><EditPatients /></div>} />
