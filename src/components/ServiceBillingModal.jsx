@@ -716,7 +716,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                   </div>
                 </div>
 
-                {/* Services Table Section */}
+                {/* Services Table Section - Only show when NOT in view mode OR when no saved line items */}
+                {(!isViewMode || !savedLineItems.length) && (
                 <div className="p-8">
                   <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-4">Service Details</p>
                   
@@ -854,6 +855,71 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                     </div>
                   )}
                 </div>
+                )}
+
+                {/* Saved Billing Information - Single Line Grid Format */}
+                {isViewMode && savedLineItems && savedLineItems.length > 0 && (
+                  <div className="p-8 border-t-2 border-green-100 bg-gradient-to-r from-green-50 to-emerald-50">
+                    <p className="text-xs font-bold text-green-600 uppercase tracking-widest mb-6">✅ Invoice Line Items</p>
+                    
+                    {/* Invoice Line Items - Single Line Grid */}
+                    <div className="space-y-2">
+                      {savedLineItems.map((item, idx) => (
+                        <motion.div
+                          key={idx}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="bg-white rounded-lg border-2 border-green-200 p-4 shadow-sm hover:shadow-md transition-all"
+                        >
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                            {/* Line Number */}
+                            <div className="md:col-span-1">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Line</p>
+                              <p className="text-lg font-bold text-green-700">#{item.lineItemNumber}</p>
+                            </div>
+                            
+                            {/* Service Description */}
+                            <div className="md:col-span-4">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Service</p>
+                              <p className="text-sm font-semibold text-slate-800">{item.serviceDescription}</p>
+                            </div>
+                            
+                            {/* Cost */}
+                            <div className="md:col-span-1 text-center">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Cost</p>
+                              <p className="text-sm font-bold text-slate-700">₹{item.serviceCost?.toFixed(2) || '0.00'}</p>
+                            </div>
+                            
+                            {/* GST */}
+                            <div className="md:col-span-1 text-center">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">GST</p>
+                              <p className="text-sm font-bold text-amber-600">₹{item.gst?.toFixed(2) || '0.00'}</p>
+                            </div>
+                            
+                            {/* Total */}
+                            <div className="md:col-span-1 text-center">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Total</p>
+                              <p className="text-sm font-bold text-blue-700">₹{item.totalAmount?.toFixed(2) || '0.00'}</p>
+                            </div>
+                            
+                            {/* Paid */}
+                            <div className="md:col-span-1 text-center">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Paid</p>
+                              <p className="text-sm font-bold text-green-700">₹{item.paidAmount?.toFixed(2) || '0.00'}</p>
+                            </div>
+                            
+                            {/* Pending */}
+                            <div className="md:col-span-1 text-center">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Pending</p>
+                              <p className="text-sm font-bold text-red-700">₹{item.pendingAmount?.toFixed(2) || '0.00'}</p>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Totals & Payment Section */}
                 <div className="grid grid-cols-2 gap-8 p-8 border-t-2 border-blue-100">
