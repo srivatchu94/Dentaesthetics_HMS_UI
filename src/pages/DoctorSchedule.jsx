@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import FancyDatePicker from '../components/FancyDatePicker';
 import DiagnosisModal from '../components/DiagnosisModal';
-import { ConsultationBillingModal } from '../components/ConsultationBillingModal';
+import { ServiceBillingModal } from '../components/ServiceBillingModal';
 import { getPatientVisit } from '../services/patientService';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
@@ -556,10 +556,17 @@ export default function DoctorSchedule() {
         }}
       />
 
-      {/* Consultation Billing Modal */}
-      <ConsultationBillingModal
+      {/* Service Billing Modal */}
+      <ServiceBillingModal
         show={showConsultationBillingModal}
         onClose={() => setShowConsultationBillingModal(false)}
+        appointmentId={selectedAppointmentId}
+        appointmentDetails={selectedAppointmentDetails}
+        onSuccess={() => {
+          // Re-fetch appointments after successful billing
+          setShowConsultationBillingModal(false);
+          setSelectedAppointmentId(null);
+        }}
       />
     </div>
   );

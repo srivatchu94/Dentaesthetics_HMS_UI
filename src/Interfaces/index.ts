@@ -43,3 +43,5 @@ export type {
 
 // Asset models
 export type { AssetModel, CreateAssetDto, UpdateAssetDto } from "./AssetModel";
+// Service Invoice models
+export type { ServiceInvoiceHeader, ServiceInvoiceLineItem, ServiceInvoiceComplete, ServiceItem } from "./ServiceInvoiceModel";
