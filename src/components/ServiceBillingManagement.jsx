@@ -1,21 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { getAppointmentsByFilters } from '../services/appointmentService';
 import { getAccessToken, getClinicIdFromToken, getSelectedAccess } from '../services/tokenManager';
-import { ServiceBillingModal } from './ServiceBillingModal';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
-export default function ServiceBillingManagement() {
+export default function ServiceBillingManagement({ onPaymentClick, refreshTrigger }) {
   const [billingDate, setBillingDate] = useState(new Date().toISOString().split('T')[0]);
   const [billingClinicId, setBillingClinicId] = useState('');
   const [clinicsList, setClinicsList] = useState([]);
   const [billingAppointments, setBillingAppointments] = useState([]);
   const [loadingBilling, setLoadingBilling] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [showBillingModal, setShowBillingModal] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Load clinics from token on mount
   useEffect(() => {
@@ -82,18 +78,6 @@ export default function ServiceBillingManagement() {
       setLoadingBilling(false);
     }
   }, [billingClinicId, billingDate]);
-
-  const handlePaymentClick = useCallback((appointment) => {
-    setSelectedAppointment(appointment);
-    setShowBillingModal(true);
-  }, []);
-
-  const handleBillingSuccess = useCallback(() => {
-    setShowBillingModal(false);
-    setSelectedAppointment(null);
-    // Refresh the appointments list
-    setRefreshTrigger(prev => prev + 1);
-  }, []);
 
   // Auto-load appointments when clinic or date changes
   useEffect(() => {
@@ -251,7 +235,7 @@ export default function ServiceBillingManagement() {
                             <motion.button
                               whileHover={{ scale: 1.1, rotate: 5 }}
                               whileTap={{ scale: 0.9 }}
-                              onClick={() => handlePaymentClick(appt)}
+                              onClick={() => onPaymentClick(appt)}
                               className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
                               title="Create Invoice"
                             >
@@ -297,22 +281,6 @@ export default function ServiceBillingManagement() {
           )}
         </div>
       </div>
-
-      {/* Service Billing Modal */}
-      <AnimatePresence>
-        {showBillingModal && selectedAppointment && (
-          <ServiceBillingModal
-            show={showBillingModal}
-            onClose={() => {
-              setShowBillingModal(false);
-              setSelectedAppointment(null);
-            }}
-            appointmentId={selectedAppointment.appointmentId}
-            appointmentDetails={selectedAppointment}
-            onSuccess={handleBillingSuccess}
-          />
-        )}
-      </AnimatePresence>
     </>
   );
 }

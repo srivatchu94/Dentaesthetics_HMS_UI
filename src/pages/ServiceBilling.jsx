@@ -1,10 +1,31 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import ServiceBillingManagement from '../components/ServiceBillingManagement';
+import { ServiceBillingModal } from '../components/ServiceBillingModal';
 
 export default function ServiceBilling() {
   const navigate = useNavigate();
+  const [showBillingModal, setShowBillingModal] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const handlePaymentClick = (appointment) => {
+    setSelectedAppointment(appointment);
+    setShowBillingModal(true);
+  };
+
+  const handleBillingSuccess = () => {
+    setShowBillingModal(false);
+    setSelectedAppointment(null);
+    // Trigger refresh in the management component
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleModalClose = () => {
+    setShowBillingModal(false);
+    setSelectedAppointment(null);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
@@ -27,7 +48,7 @@ export default function ServiceBilling() {
       </div>
 
       {/* Main Content */}
-      <div className="relative z-10 max-w-7xl mx-auto">
+      <div className="relative max-w-7xl mx-auto">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -60,9 +81,25 @@ export default function ServiceBilling() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.1 }}
         >
-          <ServiceBillingManagement />
+          <ServiceBillingManagement 
+            onPaymentClick={handlePaymentClick}
+            refreshTrigger={refreshTrigger}
+          />
         </motion.div>
       </div>
+
+      {/* Modal rendered at page level - outside constrained context */}
+      <AnimatePresence>
+        {showBillingModal && selectedAppointment && (
+          <ServiceBillingModal
+            show={showBillingModal}
+            onClose={handleModalClose}
+            appointmentId={selectedAppointment.appointmentId}
+            appointmentDetails={selectedAppointment}
+            onSuccess={handleBillingSuccess}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
