@@ -484,12 +484,30 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     onClick={() => {
-                                      const appointmentData = billingAppointments.find(a => a.appointmentId === expandedAppointmentId);
-                                      if (appointmentData) {
+                                      try {
+                                        console.log("📋 View Invoice clicked:", invoice);
+                                        const appointmentData = billingAppointments.find(a => a.appointmentId === expandedAppointmentId);
+                                        const invNumber = invoice?.header?.invoiceNumber;
+                                        console.log("✅ Invoice Number:", invNumber);
+                                        console.log("✅ Appointment Data:", appointmentData);
+                                        
+                                        if (!appointmentData) {
+                                          console.error("❌ Appointment data not found");
+                                          return;
+                                        }
+                                        
+                                        if (!invNumber) {
+                                          console.error("❌ Invoice number not found in invoice object");
+                                          console.log("Invoice object structure:", invoice);
+                                          return;
+                                        }
+                                        
                                         onPaymentClick({ 
                                           ...appointmentData, 
-                                          invoiceNumber: invoice.header?.invoiceNumber || null
+                                          invoiceNumber: invNumber
                                         });
+                                      } catch (error) {
+                                        console.error("❌ Error in View button:", error);
                                       }
                                     }}
                                     className="flex items-center justify-center gap-1 px-2 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"

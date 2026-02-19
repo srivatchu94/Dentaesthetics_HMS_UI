@@ -11,6 +11,8 @@ export default function ServiceBilling() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handlePaymentClick = (appointment) => {
+    console.log("🎯 handlePaymentClick received:", appointment);
+    console.log("✅ Invoice Number in appointment:", appointment.invoiceNumber);
     setSelectedAppointment(appointment);
     setShowBillingModal(true);
   };

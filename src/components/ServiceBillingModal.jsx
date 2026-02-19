@@ -64,6 +64,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   // Load clinic data from API
   useEffect(() => {
     if (show) {
+      console.log("🔍 Modal opened - received passedInvoiceNumber:", passedInvoiceNumber);
+      
       const { clinicId } = getClinicIdAndDoctorInfo();
       if (clinicId) {
         loadClinicData(clinicId);
@@ -73,10 +75,14 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
         setPatientName(`${appointmentDetails.firstName || ""} ${appointmentDetails.lastName || ""}`.trim());
         setRecipientEmail(appointmentDetails.email || "");
       }
-      // Check for existing invoice - either by invoiceNumber or appointmentId
+      
+      // Initialize displayInvoiceNumber from passedInvoiceNumber
       if (passedInvoiceNumber) {
+        console.log("✅ Setting displayInvoiceNumber to:", passedInvoiceNumber);
+        setDisplayInvoiceNumber(passedInvoiceNumber);
         checkForExistingInvoiceByNumber(passedInvoiceNumber);
       } else {
+        console.log("⚠️ No passedInvoiceNumber, checking for existing appointment invoice");
         checkForExistingInvoice();
       }
     }
@@ -665,7 +671,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                     </div>
                     <div className="text-right">
                       <p className="text-blue-100 text-xs font-semibold uppercase mb-1">Invoice</p>
-                      <p className="text-3xl font-bold">{invoiceNumber}</p>
+                      <p className="text-3xl font-bold">{displayInvoiceNumber}</p>
                     </div>
                   </div>
                 
