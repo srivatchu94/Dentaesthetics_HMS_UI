@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import FancyDatePicker from "../components/FancyDatePicker";
 import CampStatisticsModal from "../components/CampStatisticsModal";
+import { PharmacyBillingModal } from "../components/PharmacyBillingModal";
 import {
   createCamp,
   addCampParticipant,
@@ -132,6 +133,9 @@ export default function Services(){
   const [showEditParticipantModal, setShowEditParticipantModal] = useState(false);
   const [editingParticipant, setEditingParticipant] = useState(null);
   const [campId, setCampId] = useState(null);
+  
+  // Pharmacy Billing modal state
+  const [showPharmacyBillingModal, setShowPharmacyBillingModal] = useState(false);
   
   // View camps and participants state
   const [camps, setCamps] = useState([]);
@@ -400,6 +404,39 @@ export default function Services(){
           color: "from-pink-400 to-rose-500"
         }
       ]
+    },
+    {
+      id: 'pharmacy-billing',
+      title: "💊 Pharmacy Billing & Inventory",
+      description: "Manage medication dispensing and pharmacy sales",
+      gradient: "from-green-500 via-emerald-500 to-teal-600",
+      bgGradient: "from-green-50 to-emerald-50",
+      options: [
+        {
+          id: 'pharmacy-billing',
+          title: "💊 Pharmacy Billing",
+          description: "Generate medication bills and invoices",
+          action: "pharmacy-billing",
+          icon: "💉",
+          color: "from-green-400 to-emerald-500"
+        },
+        {
+          id: 'inventory-tracking',
+          title: "📦 Inventory Tracking",
+          description: "Monitor medication stock levels",
+          action: "inventory-tracking",
+          icon: "📊",
+          color: "from-emerald-400 to-teal-500"
+        },
+        {
+          id: 'supplier-management',
+          title: "🏪 Supplier Management",
+          description: "Manage pharmaceutical suppliers",
+          action: "supplier-management",
+          icon: "🤝",
+          color: "from-teal-400 to-blue-500"
+        }
+      ]
     }
   ];
 
@@ -422,6 +459,9 @@ export default function Services(){
         break;
       case 'camp-statistics':
         setShowCampStatisticsModal(true);
+        break;
+      case 'pharmacy-billing':
+        setShowPharmacyBillingModal(true);
         break;
       default:
         alert(`${action} - Feature coming soon! 🚀`);
@@ -3086,6 +3126,12 @@ export default function Services(){
       <CampStatisticsModal
         isOpen={showCampStatisticsModal}
         onClose={() => setShowCampStatisticsModal(false)}
+      />
+
+      {/* Pharmacy Billing Modal */}
+      <PharmacyBillingModal
+        show={showPharmacyBillingModal}
+        onClose={() => setShowPharmacyBillingModal(false)}
       />
     </div>
   );

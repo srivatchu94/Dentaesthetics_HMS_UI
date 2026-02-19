@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import FancyDatePicker from '../components/FancyDatePicker';
 import DiagnosisModal from '../components/DiagnosisModal';
+import { ConsultationBillingModal } from '../components/ConsultationBillingModal';
 import { getPatientVisit } from '../services/patientService';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
@@ -29,6 +30,9 @@ export default function DoctorSchedule() {
   // Diagnosis modal state - kept completely separate (no parent re-render)
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
   const diagnosisModalRef = useRef(null);
+
+  // Consultation Billing modal state
+  const [showConsultationBillingModal, setShowConsultationBillingModal] = useState(false);
   
   // User data
   const [doctorId, setDoctorId] = useState(null);
@@ -507,6 +511,15 @@ export default function DoctorSchedule() {
                     >
                       🏥 Diagnosis
                     </motion.button>
+
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setShowConsultationBillingModal(true)}
+                      className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-lg font-bold hover:shadow-lg transition text-sm"
+                    >
+                      💳 Billing
+                    </motion.button>
                   </div>
                 </>
               )}
@@ -541,6 +554,12 @@ export default function DoctorSchedule() {
           setDiagnosisData(diagnosisData);
           setShowDiagnosisModal(false);
         }}
+      />
+
+      {/* Consultation Billing Modal */}
+      <ConsultationBillingModal
+        show={showConsultationBillingModal}
+        onClose={() => setShowConsultationBillingModal(false)}
       />
     </div>
   );

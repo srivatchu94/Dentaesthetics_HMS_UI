@@ -108,6 +108,8 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
 export default function RegisterPatient() {
   const navigate = useNavigate();
   const [registerActiveTab, setRegisterActiveTab] = useState("patient");
+  const [registeredPatient, setRegisteredPatient] = useState(null);
+  const [showBookingOptions, setShowBookingOptions] = useState(false);
   
   // Form state
   const [patientData, setPatientData] = useState({
@@ -331,10 +333,21 @@ export default function RegisterPatient() {
       const response = await createPatient(patientDataModel);
       console.log("✅ Patient created successfully:", response);
       
-      alert(`✅ Patient registered successfully!\nPatient ID: ${response.patient.patientId}\nName: ${patientData.firstName} ${patientData.lastName}`);
+      // Store the registered patient data for booking
+      setRegisteredPatient({
+        patientId: response.patient.patientId,
+        patientName: `${patientData.firstName} ${patientData.lastName}`,
+        patientFirstName: patientData.firstName,
+        patientLastName: patientData.lastName,
+        patientPhone: contactData.phoneNumber,
+        patientEmail: contactData.email,
+        patientDOB: patientData.dateOfBirth,
+        patientGender: patientData.gender,
+        clinicId: patientData.clinicId
+      });
       
-      // Redirect to home page
-      navigate("/");
+      // Show booking options modal
+      setShowBookingOptions(true);
     } catch (error) {
       console.error("Error creating patient:", error);
       alert("❌ Error registering patient: " + error.message);
@@ -876,6 +889,85 @@ export default function RegisterPatient() {
           </div>
         </div>
       </motion.div>
+
+      {/* Booking Options Modal */}
+      <AnimatePresence>
+        {showBookingOptions && registeredPatient && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => {
+              setShowBookingOptions(false);
+              navigate("/");
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 border-2 border-teal-200"
+            >
+              <div className="text-center mb-6">
+                <motion.div
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 1 }}
+                  className="text-6xl mb-4"
+                >
+                  ✅
+                </motion.div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent mb-2">
+                  Patient Registered!
+                </h2>
+                <p className="text-gray-600 text-base mb-1">
+                  <strong>{registeredPatient.patientName}</strong> has been successfully registered.
+                </p>
+                <p className="text-gray-500 text-sm">
+                  Patient ID: {registeredPatient.patientId}
+                </p>
+              </div>
+
+              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-2xl p-4 mb-6 border border-teal-200">
+                <p className="text-gray-700 text-center text-sm">
+                  Would you like to book an appointment for this patient now?
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setShowBookingOptions(false);
+                    navigate("/");
+                  }}
+                  className="flex-1 px-4 py-3 rounded-lg font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition"
+                >
+                  ← Go Home
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setShowBookingOptions(false);
+                    // Navigate to Calendar with patient data
+                    navigate("/appointments", {
+                      state: {
+                        patientData: registeredPatient
+                      }
+                    });
+                  }}
+                  className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 transition shadow-lg"
+                >
+                  📅 Book Appointment
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

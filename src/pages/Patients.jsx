@@ -163,6 +163,9 @@ export default function Patients() {
   const [showViewAppointmentsModal, setShowViewAppointmentsModal] = useState(false);
   const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
   
+  // State for pre-populated appointment data from registration
+  const [appointmentFromRegistration, setAppointmentFromRegistration] = useState(null);
+  
   // Appointment booking form state
   const [appointmentForm, setAppointmentForm] = useState({
     // Patient details
@@ -223,6 +226,23 @@ export default function Patients() {
   const [showAppointmentUpdateSuccess, setShowAppointmentUpdateSuccess] = useState(false);
   const [showNotLoggedInModal, setShowNotLoggedInModal] = useState(false);
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(!!localStorage.getItem('accessToken'));
+
+  // Initialize appointment form with pre-populated data from registration
+  useEffect(() => {
+    if (appointmentFromRegistration && showNewAppointmentModal) {
+      setAppointmentForm(prev => ({
+        ...prev,
+        firstName: appointmentFromRegistration.firstName,
+        lastName: appointmentFromRegistration.lastName,
+        email: appointmentFromRegistration.email,
+        phoneNumber: appointmentFromRegistration.phoneNumber,
+        dateOfBirth: appointmentFromRegistration.dateOfBirth
+      }));
+      // Enable form editing when prepopulated from registration
+      setBookingWithoutRegistration(true);
+      setAppointmentFromRegistration(null); // Clear after using
+    }
+  }, [appointmentFromRegistration, showNewAppointmentModal]);
 
   useEffect(() => {
     if (!showNewAppointmentModal) return;
@@ -1258,7 +1278,8 @@ export default function Patients() {
         patientId: response.patient.patientId,
         name: `${patientData.firstName} ${patientData.lastName}`,
         email: contactData.email,
-        phone: contactData.phoneNumber
+        phone: contactData.phoneNumber,
+        dateOfBirth: patientData.dateOfBirth
       });
       setShowSuccessModal(true);
       
@@ -2332,29 +2353,55 @@ export default function Patients() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.7 }}
-                  className="flex gap-3"
+                  className="flex flex-col gap-3"
                 >
+                  <div className="grid grid-cols-2 gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setShowSuccessModal(false);
+                        setShowViewPatientsModal(true);
+                      }}
+                      className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                    >
+                      View Patients
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setShowSuccessModal(false);
+                        setActiveView("register");
+                      }}
+                      className="px-6 py-3 bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all"
+                    >
+                      Add Another
+                    </motion.button>
+                  </div>
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => {
+                      // Prepare appointment data with registered patient info
+                      const names = registeredPatient.name.split(' ');
+                      const firstName = names[0];
+                      const lastName = names.length > 1 ? names.slice(1).join(' ') : '';
+                      
+                      setAppointmentFromRegistration({
+                        firstName: firstName,
+                        lastName: lastName,
+                        email: registeredPatient.email || '',
+                        phoneNumber: registeredPatient.phone || '',
+                        dateOfBirth: registeredPatient.dateOfBirth || ''
+                      });
+                      
                       setShowSuccessModal(false);
-                      setShowViewPatientsModal(true);
+                      setShowNewAppointmentModal(true);
                     }}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+                    className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
                   >
-                    View Patients
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      setShowSuccessModal(false);
-                      setActiveView("register");
-                    }}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-slate-100 to-slate-200 text-slate-700 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all"
-                  >
-                    Add Another
+                    📅 Book Appointment
                   </motion.button>
                 </motion.div>
               </div>

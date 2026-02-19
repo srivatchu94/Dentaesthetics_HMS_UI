@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { getCalendarAppointments, updateAppointment, createAppointment } from "../services/appointmentService";
 import FancyDatePicker from "../components/FancyDatePicker";
 
@@ -15,11 +15,10 @@ const TREATMENT_TYPES = ["Cleaning", "Checkup", "Filling", "Root Canal", "Extrac
 
 export default function Calendar() {
   const navigate = useNavigate();
-  const location = window.location;
+  const location = useLocation();
   
-  // Get patient data from navigation state
-  const navigationState = window.history.state?.usr;
-  const patientFromNav = navigationState?.patientData;
+  // Get patient data from navigation state (React Router v6)
+  const patientFromNav = location.state?.patientData || window.history.state?.usr?.patientData;
   
   const [currentDate, setCurrentDate] = useState(new Date()); // Today's date
   const [selectedDate, setSelectedDate] = useState(null);
