@@ -41,6 +41,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   const [loadingClinic, setLoadingClinic] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [modeOfPayment, setModeOfPayment] = useState("Cash");
+  const [savedLineItems, setSavedLineItems] = useState([]);
 
   // Get clinic ID and doctor info
   const getClinicIdAndDoctorInfo = () => {
@@ -318,11 +319,16 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
 
       console.log("Submitting invoice:", completeInvoice);
 
-      // Call API
-      const response = await request("/invoice/complete/create", {
+      // Call API to ServiceDetails controller
+      const response = await request("/ServiceDetails/create", {
         method: "POST",
         body: JSON.stringify(completeInvoice)
       });
+      
+      // Store saved line items from response
+      if (response && response.lineItems) {
+        setSavedLineItems(response.lineItems);
+      }
       
       toast.success("🎉 Invoice created successfully! Time to get paid! 💰");
       
@@ -515,7 +521,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                     <table className="w-full">
                       <thead>
                         <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
-                          <th className="text-left px-3 py-3 text-xs font-bold text-blue-700 uppercase">#</th>
+                          <th className="text-left px-3 py-3 text-xs font-bold text-blue-700 uppercase">Line #</th>
                           <th className="text-left px-3 py-3 text-xs font-bold text-blue-700 uppercase">Service Name</th>
                           <th className="text-right px-3 py-3 text-xs font-bold text-blue-700 uppercase">Amount (₹)</th>
                           <th className="text-right px-3 py-3 text-xs font-bold text-blue-700 uppercase">GST %</th>
@@ -527,7 +533,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                       <tbody>
                         {/* Consultation Fee Row */}
                         <tr className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
-                          <td className="px-3 py-4 text-sm font-bold text-slate-600">1</td>
+                          <td className="px-3 py-4 text-sm font-bold text-blue-700">1</td>
                           <td className="px-3 py-4">
                             <p className="text-sm font-semibold text-slate-800">Consultation Fee</p>
                           </td>
@@ -567,7 +573,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                         {/* Other Charges Rows */}
                         {otherCharges.map((charge, idx) => (
                           <tr key={charge.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
-                            <td className="px-3 py-4 text-sm font-bold text-slate-600">{idx + 2}</td>
+                            <td className="px-3 py-4 text-sm font-bold text-blue-700">{idx + 2}</td>
                             <td className="px-3 py-4">
                               <input 
                                 type="text"
@@ -636,6 +642,39 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                     </motion.button>
                   </div>
                 </div>
+
+                {/* Saved Billing Information Grid */}
+                {savedLineItems && savedLineItems.length > 0 && (
+                  <div className="p-8 border-t-2 border-green-100 bg-gradient-to-r from-green-50 to-emerald-50">
+                    <p className="text-xs font-bold text-green-600 uppercase tracking-widest mb-4">💾 Saved Billing Information</p>
+                    <div className="overflow-x-auto rounded-lg border-2 border-green-200">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-green-100 to-emerald-100 border-b-2 border-green-300">
+                            <th className="text-left px-4 py-3 text-xs font-bold text-green-700 uppercase">Line #</th>
+                            <th className="text-left px-4 py-3 text-xs font-bold text-green-700 uppercase">Service Description</th>
+                            <th className="text-right px-4 py-3 text-xs font-bold text-green-700 uppercase">Service Cost (₹)</th>
+                            <th className="text-right px-4 py-3 text-xs font-bold text-green-700 uppercase">GST (₹)</th>
+                            <th className="text-right px-4 py-3 text-xs font-bold text-green-700 uppercase">Total Amount (₹)</th>
+                            <th className="text-right px-4 py-3 text-xs font-bold text-green-700 uppercase">Amount Paid (₹)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {savedLineItems.map((item, idx) => (
+                            <tr key={idx} className="border-b border-green-100 hover:bg-green-50/50 transition-colors">
+                              <td className="px-4 py-3 text-sm font-bold text-green-700">{item.lineItemNumber}</td>
+                              <td className="px-4 py-3 text-sm text-slate-800 font-medium">{item.serviceDescription}</td>
+                              <td className="px-4 py-3 text-right text-sm font-semibold text-slate-700">₹{item.serviceCost?.toFixed(2) || '0.00'}</td>
+                              <td className="px-4 py-3 text-right text-sm font-semibold text-amber-600">₹{item.gst?.toFixed(2) || '0.00'}</td>
+                              <td className="px-4 py-3 text-right text-sm font-bold text-blue-700">₹{item.totalAmount?.toFixed(2) || '0.00'}</td>
+                              <td className="px-4 py-3 text-right text-sm font-bold text-green-700">₹{item.amountPaid?.toFixed(2) || '0.00'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
                 {/* Totals & Payment Section */}
                 <div className="grid grid-cols-2 gap-8 p-8 border-t-2 border-blue-100">
