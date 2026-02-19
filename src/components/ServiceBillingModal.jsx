@@ -455,6 +455,56 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
     window.print();
   };
 
+  // Download PDF function
+  const handleDownloadPDF = async () => {
+    try {
+      const element = document.getElementById('consultation-invoice-print');
+      if (!element) {
+        toast.error('Invoice element not found');
+        return;
+      }
+
+      // Create canvas from HTML
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgWidth = 210; // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // Add image to PDF with multiple pages if needed
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= 297; // A4 height in mm
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= 297;
+      }
+
+      // Download PDF
+      pdf.save(`Invoice_${displayInvoiceNumber}_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.success('Invoice downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      toast.error('Failed to download invoice PDF');
+    }
+  };
+
   // Email function
   const handleSendEmail = async () => {
     if (!recipientEmail) {
@@ -543,8 +593,19 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                       <motion.button 
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
+                        onClick={handleDownloadPDF}
+                        className="flex items-center gap-2 px-4 py-2.5 border text-white rounded-lg transition-all font-medium bg-white/20 border-white/40 hover:bg-white/30"
+                        title="Download Invoice as PDF"
+                      >
+                        <Download size={18} />
+                        Download
+                      </motion.button>
+                      <motion.button 
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={() => setShowEmailModal(true)}
                         className="flex items-center gap-2 px-4 py-2.5 border text-white rounded-lg transition-all font-medium bg-white/20 border-white/40 hover:bg-white/30"
+                        title="Email Invoice"
                       >
                         <Mail size={18} />
                         Email
@@ -554,6 +615,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                         whileTap={{ scale: 0.95 }}
                         onClick={handlePrint}
                         className="flex items-center gap-2 px-4 py-2.5 border text-white rounded-lg transition-all font-medium bg-white/20 border-white/40 hover:bg-white/30"
+                        title="Print Invoice"
                       >
                         <Printer size={18} />
                         Print
