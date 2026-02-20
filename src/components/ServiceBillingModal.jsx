@@ -227,14 +227,15 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
       id: Date.now().toString(),
       name: "",
       amount: 0,
-      gstPercent: 0
+      gstPercent: 0,
+      paidAmount: 0
     };
     setOtherCharges([...otherCharges, newCharge]);
   };
 
   const updateCharge = (id, field, value) => {
     setOtherCharges(otherCharges.map(charge => 
-      charge.id === id ? { ...charge, [field]: field === "amount" || field === "gstPercent" ? Number(value) : value } : charge
+      charge.id === id ? { ...charge, [field]: ["amount", "gstPercent", "paidAmount"].includes(field) ? Number(value) : value } : charge
     ));
   };
 
@@ -382,29 +383,37 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
     try {
       const { doctorName } = getClinicIdAndDoctorInfo();
       
-      // Build invoice line items
-      const lineItems = [
-        {
+      // Build invoice line items - include consultation fee only if it's not null
+      const lineItems = [];
+      let lineNumber = 1;
+
+      // Add consultation fee if present
+      if (consultationFee !== null) {
+        lineItems.push({
           invoiceNumber: displayInvoiceNumber,
-          lineItemNumber: 1,
+          lineItemNumber: lineNumber,
           serviceDescription: "Consultation Fee",
           serviceCost: consultationFee,
           gst: consultationFee * consultationGST / 100,
           modeOfPayment: modeOfPayment,
           totalAmount: consultationFee + (consultationFee * consultationGST / 100),
-          amountPaid: amountPaid
-        },
-        ...otherCharges.map((charge, idx) => ({
-          invoiceNumber: displayInvoiceNumber,
-          lineItemNumber: idx + 2,
-          serviceDescription: charge.name,
-          serviceCost: charge.amount,
-          gst: charge.amount * (charge.gstPercent || 0) / 100,
-          modeOfPayment: modeOfPayment,
-          totalAmount: charge.amount + (charge.amount * (charge.gstPercent || 0) / 100),
-          amountPaid: amountPaid
-        }))
-      ];
+          paidAmount: consultationPaid
+        });
+        lineNumber++;
+      }
+
+      // Add other charges
+      const otherLineItems = otherCharges.map((charge) => ({
+        invoiceNumber: displayInvoiceNumber,
+        lineItemNumber: lineNumber++,
+        serviceDescription: charge.name,
+        serviceCost: charge.amount,
+        gst: charge.amount * (charge.gstPercent || 0) / 100,
+        modeOfPayment: modeOfPayment,
+        totalAmount: charge.amount + (charge.amount * (charge.gstPercent || 0) / 100),
+        paidAmount: charge.paidAmount || 0
+      }));
+      lineItems.push(...otherLineItems);
 
       // Build complete invoice
       const completeInvoice = {
@@ -415,10 +424,10 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
           doctorName: doctorName,
           billDate: new Date().toISOString(),
           modeOfPayment: modeOfPayment,
-          status: amountPaid >= totalAmount ? "Paid" : amountPaid > 0 ? "Partial" : "Pending",
+          status: totalPaidAmount === 0 ? "Pending" : totalPaidAmount >= totalAmount ? "Paid" : "Partial",
           totalAmount: totalAmount,
-          paidAmount: amountPaid,
-          pendingAmount: Math.max(0, totalAmount - amountPaid)
+          paidAmount: totalPaidAmount,
+          pendingAmount: Math.max(0, totalAmount - totalPaidAmount)
         },
         lineItems: lineItems
       };
@@ -732,11 +741,13 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                           <th className="text-right px-3 py-3 text-xs font-bold text-blue-700 uppercase">GST %</th>
                           <th className="text-right px-3 py-3 text-xs font-bold text-blue-700 uppercase">GST Amount (₹)</th>
                           <th className="text-right px-3 py-3 text-xs font-bold text-blue-700 uppercase">Total (₹)</th>
+                          <th className="text-right px-3 py-3 text-xs font-bold text-blue-700 uppercase">Paid (₹)</th>
                           <th className="text-center px-3 py-3 text-xs font-bold text-blue-700 uppercase">Action</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {/* Consultation Fee Row */}
+                        {/* Consultation Fee Row - Only show if consultationFee is not null */}
+                        {consultationFee !== null && (
                         <tr className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
                           <td className="px-3 py-4 text-sm font-bold text-blue-700">1</td>
                           <td className="px-3 py-4">
@@ -772,15 +783,41 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                           </td>
                           <td className="px-3 py-4 text-right font-bold text-amber-600">₹{(consultationFee * consultationGST / 100).toFixed(2)}</td>
                           <td className="px-3 py-4 text-right font-bold text-blue-700">₹{(consultationFee + consultationFee * consultationGST / 100).toFixed(2)}</td>
+                          <td className="px-3 py-4 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-xs text-slate-600 print:hidden">₹</span>
+                              <input 
+                                type="number"
+                                step="0.01"
+                                value={consultationPaid}
+                                onChange={(e) => setConsultationPaid(Number(e.target.value))}
+                                disabled={isViewMode}
+                                className="w-20 text-right text-sm font-bold py-1.5 px-2 rounded border border-green-300 focus:ring-2 focus:ring-green-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                placeholder="0.00"
+                              />
+                              <span className="hidden print:inline text-sm font-bold text-slate-800">₹{consultationPaid.toFixed(2)}</span>
+                            </div>
+                          </td>
                           <td className="px-3 py-4 text-center print:hidden">
-                            <span className="text-xs text-gray-500">Fixed</span>
+                            {!isViewMode && (
+                              <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => setConsultationFee(null)}
+                                className="text-red-500 hover:text-red-700 transition-colors"
+                                title="Remove consultation fee"
+                              >
+                                <Trash2 size={18} />
+                              </motion.button>
+                            )}
                           </td>
                         </tr>
+                        )}
 
                         {/* Other Charges Rows */}
                         {otherCharges.map((charge, idx) => (
                           <tr key={charge.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
-                            <td className="px-3 py-4 text-sm font-bold text-blue-700">{idx + 2}</td>
+                            <td className="px-3 py-4 text-sm font-bold text-blue-700">{consultationFee !== null ? idx + 2 : idx + 1}</td>
                             <td className="px-3 py-4">
                               <input 
                                 type="text"
@@ -823,6 +860,21 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                             </td>
                             <td className="px-3 py-4 text-right font-bold text-amber-600">₹{(charge.amount * charge.gstPercent / 100).toFixed(2)}</td>
                             <td className="px-3 py-4 text-right font-bold text-blue-700">₹{(charge.amount + charge.amount * charge.gstPercent / 100).toFixed(2)}</td>
+                            <td className="px-3 py-4 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <span className="text-xs text-slate-600 print:hidden">₹</span>
+                                <input 
+                                  type="number"
+                                  step="0.01"
+                                  value={charge.paidAmount || 0}
+                                  onChange={(e) => updateCharge(charge.id, "paidAmount", e.target.value)}
+                                  disabled={isViewMode}
+                                  className="w-20 text-right text-sm font-bold py-1.5 px-2 rounded border border-green-300 focus:ring-2 focus:ring-green-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                  placeholder="0.00"
+                                />
+                                <span className="hidden print:inline text-sm font-bold text-slate-800">₹{(charge.paidAmount || 0).toFixed(2)}</span>
+                              </div>
+                            </td>
                             <td className="px-3 py-4 text-center print:hidden">
                               {!isViewMode && (
                                 <motion.button
@@ -841,9 +893,20 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                     </table>
                   </div>
 
-                  {/* Add Charge Button */}
+                  {/* Add Charge Buttons */}
                   {!isViewMode && (
-                    <div className="mt-4 print:hidden">
+                    <div className="mt-4 print:hidden flex gap-3 flex-wrap">
+                      {consultationFee === null && (
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setConsultationFee(500)}
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
+                        >
+                          <Plus size={18} />
+                          Add Consultation Fee
+                        </motion.button>
+                      )}
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
@@ -955,21 +1018,10 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                         <span className="text-2xl font-bold text-blue-700">₹{totalAmount.toFixed(2)}</span>
                       </div>
 
-                      {/* Amount Paid */}
-                      <div className="flex items-center justify-between gap-4 p-3 bg-white border-2 border-blue-200 rounded-lg">
-                        <label className="text-sm font-semibold text-slate-700">Amount Paid</label>
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm text-slate-600 print:hidden">₹</span>
-                          <input 
-                            type="number"
-                            step="0.01"
-                            value={amountPaid}
-                            onChange={(e) => setAmountPaid(Number(e.target.value))}
-                            disabled={isViewMode}
-                            className="w-28 text-right text-lg font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden print:border-0 print:px-0 print:py-0 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                          />
-                          <span className="hidden print:inline w-28 text-right text-lg font-bold text-slate-800">₹{amountPaid.toFixed(2)}</span>
-                        </div>
+                      {/* Amount Paid - Calculated from per-line-item payments */}
+                      <div className="flex justify-between items-center p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                        <span className="text-sm font-semibold text-slate-700">Amount Paid (from items)</span>
+                        <span className="text-lg font-bold text-green-600">₹{totalPaidAmount.toFixed(2)}</span>
                       </div>
 
                       {/* Balance Due */}
