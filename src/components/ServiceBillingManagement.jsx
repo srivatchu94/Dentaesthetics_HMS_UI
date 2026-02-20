@@ -93,6 +93,12 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
     }
   }, [billingClinicId, billingDate, refreshTrigger, loadBillingAppointments]);
 
+  // Clear invoice cache when refreshTrigger changes (after update)
+  useEffect(() => {
+    console.log("🔄 Refresh triggered - clearing invoice cache");
+    setInvoicesByAppointment({});
+  }, [refreshTrigger]);
+
   // Load invoices for specific appointment
   const loadInvoicesForAppointment = useCallback(async (appointmentId) => {
     setLoadingInvoices(prev => ({ ...prev, [appointmentId]: true }));
