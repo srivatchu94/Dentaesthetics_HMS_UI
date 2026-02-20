@@ -427,97 +427,110 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                               initial={{ opacity: 0, x: -20 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ delay: idx * 0.1 }}
-                              className="bg-white rounded-lg border-2 border-teal-200 p-3 shadow-sm hover:shadow-md transition-all"
+                              className="bg-white rounded-lg border-2 border-teal-200 shadow-sm hover:shadow-md transition-all overflow-hidden"
                             >
-                              <div className="flex items-center justify-between gap-3 flex-wrap">
-                                {/* Invoice Number */}
-                                <div className="flex-shrink-0">
-                                  <p className="text-xs font-bold text-teal-600 uppercase">Invoice #</p>
-                                  <p className="text-sm font-bold text-slate-800">{invoice.header?.invoiceNumber || 'N/A'}</p>
+                              <div className="px-4 py-3 flex items-center justify-between gap-6">
+                                {/* Left Section: Invoice Info */}
+                                <div className="flex items-center gap-6 flex-1 min-w-0">
+                                  {/* Invoice Number */}
+                                  <div className="flex-shrink-0">
+                                    <p className="text-xs font-semibold text-teal-600 uppercase tracking-wide">Invoice #</p>
+                                    <p className="text-sm font-bold text-slate-800">{invoice.header?.invoiceNumber || 'N/A'}</p>
+                                  </div>
+
+                                  <div className="h-8 border-l border-teal-200"></div>
+
+                                  {/* Status Badge */}
+                                  <div className="flex-shrink-0">
+                                    <p className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-0.5">Status</p>
+                                    <motion.span
+                                      className={`text-xs font-bold rounded px-2.5 py-1 inline-block ${
+                                        invoice.header?.status === 'Paid'
+                                          ? 'bg-green-100 text-green-800'
+                                          : invoice.header?.status === 'Partial'
+                                          ? 'bg-amber-100 text-amber-800'
+                                          : 'bg-red-100 text-red-800'
+                                      }`}
+                                    >
+                                      {invoice.header?.status || 'Pending'}
+                                    </motion.span>
+                                  </div>
+
+                                  <div className="h-8 border-l border-teal-200"></div>
+
+                                  {/* Date */}
+                                  <div className="flex-shrink-0">
+                                    <p className="text-xs font-semibold text-teal-600 uppercase tracking-wide">Date</p>
+                                    <p className="text-sm font-semibold text-slate-700">
+                                      {new Date(invoice.header?.billDate).toLocaleDateString()}
+                                    </p>
+                                  </div>
                                 </div>
 
-                                {/* Status Badge */}
-                                <div className="flex-shrink-0">
-                                  <motion.span
-                                    className={`text-xs font-bold rounded px-2 py-1 inline-block ${
-                                      invoice.header?.status === 'Paid'
-                                        ? 'bg-green-100 text-green-800'
-                                        : invoice.header?.status === 'Partial'
-                                        ? 'bg-amber-100 text-amber-800'
-                                        : 'bg-red-100 text-red-800'
-                                    }`}
-                                  >
-                                    {invoice.header?.status || 'Pending'}
-                                  </motion.span>
-                                </div>
+                                {/* Right Section: Financial Summary & Actions */}
+                                <div className="flex items-center justify-end gap-6 flex-shrink-0">
+                                  {/* Total Amount */}
+                                  <div className="text-right">
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</p>
+                                    <p className="text-base font-bold text-blue-700">₹{invoice.header?.totalAmount?.toFixed(2) || '0.00'}</p>
+                                  </div>
 
-                                {/* Date */}
-                                <div className="flex-shrink-0">
-                                  <p className="text-xs font-bold text-teal-600 uppercase">Date</p>
-                                  <p className="text-sm font-semibold text-slate-700">
-                                    {new Date(invoice.header?.billDate).toLocaleDateString()}
-                                  </p>
-                                </div>
+                                  {/* Amount Paid */}
+                                  <div className="text-right">
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Paid</p>
+                                    <p className="text-base font-bold text-green-700">₹{invoice.header?.paidAmount?.toFixed(2) || '0.00'}</p>
+                                  </div>
 
-                                {/* Total Amount */}
-                                <div className="flex-shrink-0 text-center">
-                                  <p className="text-xs font-bold text-teal-600 uppercase">Total</p>
-                                  <p className="text-sm font-bold text-blue-700">₹{invoice.header?.totalAmount?.toFixed(2) || '0.00'}</p>
-                                </div>
+                                  {/* Pending Amount */}
+                                  <div className="text-right">
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending</p>
+                                    <p className="text-base font-bold text-red-700">₹{invoice.header?.pendingAmount?.toFixed(2) || '0.00'}</p>
+                                  </div>
 
-                                {/* Amount Paid */}
-                                <div className="flex-shrink-0 text-center">
-                                  <p className="text-xs font-bold text-teal-600 uppercase">Paid</p>
-                                  <p className="text-sm font-bold text-green-700">₹{invoice.header?.paidAmount?.toFixed(2) || '0.00'}</p>
-                                </div>
+                                  <div className="h-8 border-l border-teal-200"></div>
 
-                                {/* Pending Amount */}
-                                <div className="flex-shrink-0 text-center">
-                                  <p className="text-xs font-bold text-teal-600 uppercase">Pending</p>
-                                  <p className="text-sm font-bold text-red-700">₹{invoice.header?.pendingAmount?.toFixed(2) || '0.00'}</p>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
-                                  <motion.button
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => {
-                                      try {
-                                        console.log("📋 View Invoice clicked:", invoice);
-                                        const appointmentData = billingAppointments.find(a => a.appointmentId === expandedAppointmentId);
-                                        const invNumber = invoice?.header?.invoiceNumber;
-                                        
-                                        if (!appointmentData || !invNumber) {
-                                          console.error("❌ Missing data");
-                                          return;
+                                  {/* Action Buttons */}
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <motion.button
+                                      whileHover={{ scale: 1.05 }}
+                                      whileTap={{ scale: 0.95 }}
+                                      onClick={() => {
+                                        try {
+                                          console.log("📋 View Invoice clicked:", invoice);
+                                          const appointmentData = billingAppointments.find(a => a.appointmentId === expandedAppointmentId);
+                                          const invNumber = invoice?.header?.invoiceNumber;
+                                          
+                                          if (!appointmentData || !invNumber) {
+                                            console.error("❌ Missing data");
+                                            return;
+                                          }
+                                          
+                                          onPaymentClick({ 
+                                            ...appointmentData, 
+                                            invoiceNumber: invNumber,
+                                            mode: "view"
+                                          });
+                                        } catch (error) {
+                                          console.error("❌ Error in View button:", error);
                                         }
-                                        
-                                        onPaymentClick({ 
-                                          ...appointmentData, 
-                                          invoiceNumber: invNumber,
-                                          mode: "view"
-                                        });
-                                      } catch (error) {
-                                        console.error("❌ Error in View button:", error);
-                                      }
-                                    }}
-                                    className="flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
-                                    title="View Full Invoice"
-                                  >
-                                    <Eye size={14} />
-                                    View
-                                  </motion.button>
-                                  <motion.button
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => downloadInvoicePDF(invoice)}
-                                    className="flex items-center justify-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
-                                    title="Download PDF"
-                                  >
-                                    <Download size={14} />
-                                    PDF
-                                  </motion.button>
+                                      }}
+                                      className="flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
+                                      title="View Full Invoice"
+                                    >
+                                      <Eye size={14} />
+                                      View
+                                    </motion.button>
+                                    <motion.button
+                                      whileHover={{ scale: 1.05 }}
+                                      whileTap={{ scale: 0.95 }}
+                                      onClick={() => downloadInvoicePDF(invoice)}
+                                      className="flex items-center justify-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
+                                      title="Download PDF"
+                                    >
+                                      <Download size={14} />
+                                      PDF
+                                    </motion.button>
+                                  </div>
                                 </div>
                               </div>
                             </motion.div>
