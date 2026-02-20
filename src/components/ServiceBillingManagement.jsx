@@ -427,18 +427,17 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                               initial={{ opacity: 0, x: -20 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ delay: idx * 0.1 }}
-                              className="bg-white rounded-lg border-2 border-teal-200 p-4 shadow-sm hover:shadow-md transition-all"
+                              className="bg-white rounded-lg border-2 border-teal-200 p-3 shadow-sm hover:shadow-md transition-all"
                             >
-                              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                              <div className="flex items-center justify-between gap-3 flex-wrap">
                                 {/* Invoice Number */}
-                                <div className="md:col-span-2">
-                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Invoice #</p>
-                                  <p className="text-sm font-bold text-slate-800 break-words">{invoice.header?.invoiceNumber || 'N/A'}</p>
+                                <div className="flex-shrink-0">
+                                  <p className="text-xs font-bold text-teal-600 uppercase">Invoice #</p>
+                                  <p className="text-sm font-bold text-slate-800">{invoice.header?.invoiceNumber || 'N/A'}</p>
                                 </div>
 
                                 {/* Status Badge */}
-                                <div className="md:col-span-1">
-                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Status</p>
+                                <div className="flex-shrink-0">
                                   <motion.span
                                     className={`text-xs font-bold rounded px-2 py-1 inline-block ${
                                       invoice.header?.status === 'Paid'
@@ -453,33 +452,33 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                 </div>
 
                                 {/* Date */}
-                                <div className="md:col-span-2">
-                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Date</p>
+                                <div className="flex-shrink-0">
+                                  <p className="text-xs font-bold text-teal-600 uppercase">Date</p>
                                   <p className="text-sm font-semibold text-slate-700">
                                     {new Date(invoice.header?.billDate).toLocaleDateString()}
                                   </p>
                                 </div>
 
                                 {/* Total Amount */}
-                                <div className="md:col-span-1 text-center">
-                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Total</p>
+                                <div className="flex-shrink-0 text-center">
+                                  <p className="text-xs font-bold text-teal-600 uppercase">Total</p>
                                   <p className="text-sm font-bold text-blue-700">₹{invoice.header?.totalAmount?.toFixed(2) || '0.00'}</p>
                                 </div>
 
                                 {/* Amount Paid */}
-                                <div className="md:col-span-1 text-center">
-                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Paid</p>
+                                <div className="flex-shrink-0 text-center">
+                                  <p className="text-xs font-bold text-teal-600 uppercase">Paid</p>
                                   <p className="text-sm font-bold text-green-700">₹{invoice.header?.paidAmount?.toFixed(2) || '0.00'}</p>
                                 </div>
 
                                 {/* Pending Amount */}
-                                <div className="md:col-span-1 text-center">
-                                  <p className="text-xs font-bold text-teal-600 uppercase mb-1">Pending</p>
+                                <div className="flex-shrink-0 text-center">
+                                  <p className="text-xs font-bold text-teal-600 uppercase">Pending</p>
                                   <p className="text-sm font-bold text-red-700">₹{invoice.header?.pendingAmount?.toFixed(2) || '0.00'}</p>
                                 </div>
 
                                 {/* Action Buttons */}
-                                <div className="md:col-span-4 flex items-center gap-2 justify-end flex-wrap">
+                                <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
                                   <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
@@ -488,17 +487,9 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                         console.log("📋 View Invoice clicked:", invoice);
                                         const appointmentData = billingAppointments.find(a => a.appointmentId === expandedAppointmentId);
                                         const invNumber = invoice?.header?.invoiceNumber;
-                                        console.log("✅ Invoice Number:", invNumber);
-                                        console.log("✅ Appointment Data:", appointmentData);
                                         
-                                        if (!appointmentData) {
-                                          console.error("❌ Appointment data not found");
-                                          return;
-                                        }
-                                        
-                                        if (!invNumber) {
-                                          console.error("❌ Invoice number not found in invoice object");
-                                          console.log("Invoice object structure:", invoice);
+                                        if (!appointmentData || !invNumber) {
+                                          console.error("❌ Missing data");
                                           return;
                                         }
                                         
@@ -511,7 +502,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                         console.error("❌ Error in View button:", error);
                                       }
                                     }}
-                                    className="flex items-center justify-center gap-1 px-2 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
+                                    className="flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
                                     title="View Full Invoice"
                                   >
                                     <Eye size={14} />
@@ -520,66 +511,12 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                   <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
-                                    onClick={() => {
-                                      try {
-                                        console.log("✏️ Edit Invoice clicked:", invoice);
-                                        const appointmentData = billingAppointments.find(a => a.appointmentId === expandedAppointmentId);
-                                        const invNumber = invoice?.header?.invoiceNumber;
-                                        
-                                        if (!appointmentData) {
-                                          console.error("❌ Appointment data not found");
-                                          return;
-                                        }
-                                        
-                                        if (!invNumber) {
-                                          console.error("❌ Invoice number not found in invoice object");
-                                          return;
-                                        }
-                                        
-                                        onPaymentClick({ 
-                                          ...appointmentData, 
-                                          invoiceNumber: invNumber,
-                                          mode: "edit"
-                                        });
-                                      } catch (error) {
-                                        console.error("❌ Error in Edit button:", error);
-                                      }
-                                    }}
-                                    className="flex items-center justify-center gap-1 px-2 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
-                                    title="Edit Invoice"
-                                  >
-                                    ✏️
-                                    Edit
-                                  </motion.button>
-                                  <motion.button
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
                                     onClick={() => downloadInvoicePDF(invoice)}
-                                    className="flex items-center justify-center gap-1 px-2 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
+                                    className="flex items-center justify-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
                                     title="Download PDF"
                                   >
                                     <Download size={14} />
                                     PDF
-                                  </motion.button>
-                                  <motion.button
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => window.print()}
-                                    className="flex items-center justify-center gap-1 px-2 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
-                                    title="Print Invoice"
-                                  >
-                                    🖨️
-                                    Print
-                                  </motion.button>
-                                  <motion.button
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => alert('Email functionality - integrate with your email service')}
-                                    className="flex items-center justify-center gap-1 px-2 py-2 bg-red-500 hover:bg-red-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
-                                    title="Email Invoice"
-                                  >
-                                    <Mail size={14} />
-                                    Email
                                   </motion.button>
                                 </div>
                               </div>

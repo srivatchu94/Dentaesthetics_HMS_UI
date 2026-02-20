@@ -121,14 +121,46 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
       });
       
       if (response && response.header && response.header.invoiceNumber) {
-        // Invoice exists - set view mode
+        // Invoice exists - force view mode to prevent duplicate creation
         console.log("✅ Found existing invoice:", response);
         setModalMode("view");
         setExistingInvoiceNumber(response.header.invoiceNumber);
         setDisplayInvoiceNumber(response.header.invoiceNumber);
         setModeOfPayment(response.header.modeOfPayment || "Cash");
-        setAmountPaid(response.header.paidAmount || 0);
         setSavedLineItems(response.lineItems || []);
+        
+        // IMPORTANT: Populate form state from loaded invoice data for accurate calculations
+        if (response.lineItems && response.lineItems.length > 0) {
+          let consultationItem = null;
+          const otherItems = [];
+          
+          // Parse lineItems to separate consultation from other charges
+          response.lineItems.forEach((item) => {
+            if (item.serviceDescription === "Consultation Fee") {
+              consultationItem = item;
+            } else {
+              otherItems.push({
+                id: item.lineItemNumber.toString(),
+                name: item.serviceDescription,
+                amount: item.serviceCost,
+                gstPercent: item.serviceCost > 0 ? (item.gst / item.serviceCost * 100) : 0,
+                paidAmount: item.paidAmount || 0
+              });
+            }
+          });
+          
+          // Set consultation fee data
+          if (consultationItem) {
+            setConsultationFee(consultationItem.serviceCost);
+            setConsultationPaid(consultationItem.paidAmount || 0);
+            setConsultationGST(consultationItem.serviceCost > 0 ? (consultationItem.gst / consultationItem.serviceCost * 100) : 18);
+          }
+          
+          // Set other charges
+          if (otherItems.length > 0) {
+            setOtherCharges(otherItems);
+          }
+        }
         
         // Pre-populate patient info from response
         if (appointmentDetails) {
@@ -164,14 +196,48 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
       });
       
       if (response && response.header && response.header.invoiceNumber) {
-        // Invoice exists - set view mode
+        // Invoice exists - load data
         console.log("✅ Found invoice by number:", response);
-        setModalMode("view");
+        
+        // Set mode based on initialMode (respect the passed mode)
+        setModalMode(initialMode); // Use the passed initialMode, not forced "view"
         setExistingInvoiceNumber(response.header.invoiceNumber);
         setDisplayInvoiceNumber(response.header.invoiceNumber);
         setModeOfPayment(response.header.modeOfPayment || "Cash");
-        setAmountPaid(response.header.paidAmount || 0);
         setSavedLineItems(response.lineItems || []);
+        
+        // IMPORTANT: Populate form state from loaded invoice data
+        if (response.lineItems && response.lineItems.length > 0) {
+          let consultationItem = null;
+          const otherItems = [];
+          
+          // Parse lineItems to separate consultation from other charges
+          response.lineItems.forEach((item) => {
+            if (item.serviceDescription === "Consultation Fee") {
+              consultationItem = item;
+            } else {
+              otherItems.push({
+                id: item.lineItemNumber.toString(),
+                name: item.serviceDescription,
+                amount: item.serviceCost,
+                gstPercent: (item.gst / item.serviceCost * 100) || 0, // Calculate GST percentage
+                paidAmount: item.paidAmount || 0
+              });
+            }
+          });
+          
+          // Set consultation fee data
+          if (consultationItem) {
+            setConsultationFee(consultationItem.serviceCost);
+            setConsultationPaid(consultationItem.paidAmount || 0);
+            setConsultationGST((consultationItem.gst / consultationItem.serviceCost * 100) || 18);
+          }
+          
+          // Set other charges
+          if (otherItems.length > 0) {
+            setOtherCharges(otherItems);
+          }
+        }
         
         // Pre-populate patient info from response
         if (appointmentDetails) {
@@ -654,6 +720,18 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                         <Printer size={18} />
                         Print
                       </motion.button>
+                      {isViewMode && (
+                        <motion.button 
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setModalMode("edit-invoice")}
+                          className="flex items-center gap-2 px-4 py-2.5 border-2 border-white text-white rounded-lg transition-all font-medium bg-orange-500/80 hover:bg-orange-600"
+                          title="Edit Invoice"
+                        >
+                          ✏️
+                          Edit
+                        </motion.button>
+                      )}
                     </>
                   )}
                   <button
