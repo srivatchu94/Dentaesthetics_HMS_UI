@@ -28,10 +28,11 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   const navigate = useNavigate();
   const [patientName, setPatientName] = useState("");
   const [displayInvoiceNumber, setDisplayInvoiceNumber] = useState("INV-2026-001");
-  const [consultationFee, setConsultationFee] = useState(500);
+  const [consultationFee, setConsultationFee] = useState(null); // Optional - null means no consultation fee
   const [consultationGST, setConsultationGST] = useState(18);
+  const [consultationPaid, setConsultationPaid] = useState(0); // Per-item payment tracking
   const [otherCharges, setOtherCharges] = useState([
-    { id: "1", name: "Registration", amount: 50, gstPercent: 0 }
+    { id: "1", name: "Registration", amount: 50, gstPercent: 0, paidAmount: 0 }
   ]);
   const [amountPaid, setAmountPaid] = useState(0);
   const [sendingEmail, setSendingEmail] = useState(false);
@@ -196,7 +197,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   };
 
   const totalAmount = useMemo(() => {
-    const consultationWithGST = consultationFee + (consultationFee * consultationGST / 100);
+    const consultationWithGST = consultationFee ? consultationFee + (consultationFee * consultationGST / 100) : 0;
     const othersWithGST = otherCharges.reduce((sum, item) => {
       const gst = item.amount * (item.gstPercent || 0) / 100;
       return sum + item.amount + gst;
@@ -205,7 +206,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   }, [consultationFee, consultationGST, otherCharges]);
 
   const totalGST = useMemo(() => {
-    const consultationGSTAmount = consultationFee * consultationGST / 100;
+    const consultationGSTAmount = consultationFee ? consultationFee * consultationGST / 100 : 0;
     const othersGST = otherCharges.reduce((sum, item) => {
       const gst = item.amount * (item.gstPercent || 0) / 100;
       return sum + gst;
@@ -214,12 +215,12 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   }, [consultationFee, consultationGST, otherCharges]);
 
   const subtotalAmount = useMemo(() => {
-    return consultationFee + otherCharges.reduce((sum, item) => sum + item.amount, 0);
+    return (consultationFee || 0) + otherCharges.reduce((sum, item) => sum + item.amount, 0);
   }, [consultationFee, otherCharges]);
 
-  const pendingAmount = totalAmount - amountPaid;
-
-  const status = amountPaid === 0 ? "Pending" : amountPaid >= totalAmount ? "Paid" : "Partial";
+  const totalPaidAmount = (consultationPaid || 0) + otherCharges.reduce((sum, item) => sum + (item.paidAmount || 0), 0);
+  const pendingAmount = totalAmount - totalPaidAmount;
+  const status = totalPaidAmount === 0 ? "Pending" : totalPaidAmount >= totalAmount ? "Paid" : "Partial";
 
   const addCharge = () => {
     const newCharge = {
