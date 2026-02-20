@@ -37,6 +37,8 @@ export default function ServiceBilling() {
   const handleModalClose = () => {
     setShowBillingModal(false);
     setSelectedAppointment(null);
+    // Trigger refresh when modal closes (both success and cancel cases)
+    setRefreshTrigger(prev => prev + 1);
   };
 
   return (

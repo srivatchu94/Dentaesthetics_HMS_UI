@@ -369,9 +369,9 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                               whileTap={{ scale: 0.9 }}
                               onClick={() => handleShowInvoices(appt.appointmentId)}
                               className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
-                              title="Show Invoices"
+                              title="Expand to view invoices"
                             >
-                              👁️ Show Invoice
+                              📂 Expand Invoices
                             </motion.button>
                             <motion.button
                               whileHover={{ scale: 1.1 }}
@@ -406,15 +406,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                         <span>📋</span>
                         Invoices for Appointment #{expandedAppointmentId}
                       </h3>
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setExpandedAppointmentId(null)}
-                        className="px-4 py-2 border-2 border-teal-300 text-teal-700 rounded-lg font-semibold hover:bg-teal-50 transition-all flex items-center gap-2 text-sm"
-                      >
-                        <ChevronDown size={18} className="rotate-180" />
-                        Collapse All
-                      </motion.button>
+
                     </div>
                       {loadingInvoices[expandedAppointmentId] ? (
                         <div className="flex items-center justify-center py-8">
@@ -564,10 +556,10 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => setExpandedAppointmentId(null)}
-                        className="mt-4 w-full px-4 py-2 border-2 border-teal-300 text-teal-700 rounded-lg font-semibold hover:bg-teal-50 transition-all flex items-center justify-center gap-2"
+                        className="mt-4 w-full px-4 py-3 border-2 border-teal-400 bg-teal-50 text-teal-700 rounded-lg font-semibold hover:bg-teal-100 transition-all flex items-center justify-center gap-2"
                       >
-                        <ChevronDown size={18} className="rotate-180" />
-                        Collapse
+                        <ChevronDown size={20} className="rotate-180" />
+                        Collapse Invoices
                       </motion.button>
                     </div>
                   </motion.div>
