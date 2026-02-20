@@ -59,15 +59,6 @@ const SAMPLE_APPOINTMENTS = [
   { id: 5, patient: "Kavya Menon", date: "2025-11-18", time: "3:00 PM", type: "Crown", status: "Confirmed" }
 ];
 
-const SAMPLE_INVENTORY = [
-  { id: 1, item: "Dental Gloves (Box)", category: "Supplies", available: 120, ordered: 0, status: "In Stock", reorderLevel: 50 },
-  { id: 2, item: "Anesthetic Cartridges", category: "Medication", available: 35, ordered: 100, status: "Low Stock", reorderLevel: 40 },
-  { id: 3, item: "Composite Resin", category: "Materials", available: 8, ordered: 20, status: "Critical", reorderLevel: 10 },
-  { id: 4, item: "Surgical Masks (Box)", category: "Supplies", available: 200, ordered: 0, status: "In Stock", reorderLevel: 80 },
-  { id: 5, item: "X-Ray Film", category: "Equipment", available: 150, ordered: 0, status: "In Stock", reorderLevel: 60 },
-  { id: 6, item: "Sterile Needles", category: "Supplies", available: 25, ordered: 50, status: "Low Stock", reorderLevel: 30 }
-];
-
 // Memoized AppointmentCard component - TASK 1: Fix Re-rendering in Appointments
 const AppointmentCard = React.memo(({ appointment, onViewDetails, getStatusColor, index }) => {
   const handleCardClick = useCallback(async () => {
@@ -961,13 +952,48 @@ export default function Doctors() {
   });
   
   // Inventory management states
-  const [inventoryItems, setInventoryItems] = useState(SAMPLE_INVENTORY);
+  const [inventoryItems, setInventoryItems] = useState([]);
   const [newItems, setNewItems] = useState([]);
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderItem, setOrderItem] = useState(null);
   const [orderQuantity, setOrderQuantity] = useState("");
   const [selectedVendor, setSelectedVendor] = useState("");
   const [successModalOpen, setSuccessModalOpen] = useState(false);
+
+  const mapClinicInventoryToDashboardItems = (items = []) => {
+    return (Array.isArray(items) ? items : []).map((item, index) => {
+      const available = Number(item?.quantityAvailable ?? item?.stock ?? 0) || 0;
+      const reorderLevel = Number(item?.reorderLevel ?? item?.minimumStock ?? item?.minStock ?? 0) || 0;
+      const backendStatus = String(item?.status || "").trim();
+
+      let status = "In Stock";
+      if (available <= 0) {
+        status = "Critical";
+      } else if (available <= reorderLevel) {
+        status = "Low Stock";
+      }
+
+      if (backendStatus.toLowerCase() === "critical" || backendStatus.toLowerCase() === "out of stock") {
+        status = "Critical";
+      } else if (backendStatus.toLowerCase() === "low stock") {
+        status = "Low Stock";
+      } else if (backendStatus.toLowerCase() === "in stock" || backendStatus.toLowerCase() === "available") {
+        status = "In Stock";
+      }
+
+      return {
+        id: item?.inventoryId ?? item?.id ?? index + 1,
+        inventoryId: item?.inventoryId ?? item?.id ?? 0,
+        itemId: item?.itemId ?? item?.ItemId ?? 0,
+        item: item?.itemName ?? item?.name ?? "N/A",
+        category: item?.category ?? item?.categoryName ?? "General",
+        available,
+        ordered: Number(item?.ordered ?? item?.onOrder ?? 0) || 0,
+        reorderLevel,
+        status
+      };
+    });
+  };
   
   const vendors = [
     "MedSupply Co.",
@@ -1240,7 +1266,7 @@ export default function Doctors() {
   };
   
   const handleAddNewItem = () => {
-    setNewItems([...newItems, { tempId: Date.now(), item: "", category: "", available: "", reorderLevel: "" }]);
+    navigate('/clinics', { state: { openAddInventoryModal: true, source: 'doctors' } });
   };
   
   const handleNewItemChange = (tempId, field, value) => {
@@ -1593,6 +1619,13 @@ export default function Doctors() {
     loadInventoryData();
   }, []);
 
+  // Refresh inventory when dashboard inventory tab is opened
+  useEffect(() => {
+    if (activeSection === "dashboard" && activeTab === "inventory") {
+      loadInventoryData();
+    }
+  }, [activeSection, activeTab]);
+
   // 🔥 Debug: Log when about to pass props to VisitInfoModal
   useEffect(() => {
     if (showVisitInfoModal) {
@@ -1684,9 +1717,11 @@ export default function Doctors() {
       const data = await getClinicInventoryByClinicId(clinicId);
       console.log('✅ [INVENTORY] Data loaded successfully:', data);
       setClinicInventory(data || []);
+      setInventoryItems(mapClinicInventoryToDashboardItems(data || []));
     } catch (error) {
       console.error('❌ [INVENTORY] Failed to load inventory data:', error);
       setClinicInventory([]);
+      setInventoryItems([]);
     } finally {
       setLoadingInventory(false);
     }
@@ -1785,6 +1820,8 @@ export default function Doctors() {
         category: row.category,
         subCategory: row.subCategory,
         unit: row.unit,
+        cgst: Number(row.cgst) || 0,
+        sgst: Number(row.sgst) || 0,
         description: row.description || '',
       }));
       
@@ -2091,6 +2128,8 @@ export default function Doctors() {
                         <div className="text-xs text-stone-500 flex gap-3 flex-wrap">
                           {m.category && <span>Category: {m.category}</span>}
                           {m.unit && <span>Unit: {m.unit}</span>}
+                          <span>CGST: {Number(m.cgst) || 0}%</span>
+                          <span>SGST: {Number(m.sgst) || 0}%</span>
                         </div>
                       </button>
                     ))}
@@ -3753,6 +3792,8 @@ export default function Doctors() {
                                         <div className="text-xs text-stone-500 flex gap-3 flex-wrap">
                                           {m.category && <span>Category: {m.category}</span>}
                                           {m.unit && <span>Unit: {m.unit}</span>}
+                                          <span>CGST: {Number(m.cgst) || 0}%</span>
+                                          <span>SGST: {Number(m.sgst) || 0}%</span>
                                         </div>
                                       </button>
                                     ))}
@@ -7931,7 +7972,15 @@ export default function Doctors() {
                 <div className="p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* Existing Inventory Items */}
-                    {inventoryItems.map((item, idx) => (
+                    {loadingInventory ? (
+                      <div className="col-span-full text-center py-10">
+                        <p className="text-stone-600">Loading inventory...</p>
+                      </div>
+                    ) : inventoryItems.length === 0 ? (
+                      <div className="col-span-full text-center py-10">
+                        <p className="text-stone-600">No inventory items found for this clinic.</p>
+                      </div>
+                    ) : inventoryItems.map((item, idx) => (
                       <motion.div
                         key={item.id}
                         initial={{ opacity: 0, scale: 0.95 }}

@@ -17,7 +17,14 @@ import { listEnterprises } from '../services/enterpriseService';
 import { listClinics, getClinicsByEnterpriseId } from '../services/clinicService';
 import type { ClinicInventory, InventoryMaster, EnterpriseModel, ClinicModel, InventoryAddRow, MasterInventoryAddRow } from '../Interfaces';
 
+const getTodayDateString = () => {
+  const now = new Date();
+  const offsetMs = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - offsetMs).toISOString().split('T')[0];
+};
+
 export default function ClinicInventory() {
+  const todayDate = getTodayDateString();
   const [inventoryItems, setInventoryItems] = useState<(ClinicInventory & { itemName?: string })[]>([]);
   const [masterItems, setMasterItems] = useState<InventoryMaster[]>([]);
   const [enterprises, setEnterprises] = useState<EnterpriseModel[]>([]);
@@ -45,6 +52,9 @@ export default function ClinicInventory() {
     quantityAvailable: 0,
     reorderLevel: 0,
     minimumStock: 0,
+    batchNo: '',
+    expiryDate: '',
+    amount: undefined,
     storageLocation: '',
     unit: '',
     description: '',
@@ -58,13 +68,14 @@ export default function ClinicInventory() {
     category: '',
     subCategory: '',
     unit: '',
+    cgst: undefined,
+    sgst: undefined,
     isActive: true
   }]);
 
   const [editingInventory, setEditingInventory] = useState<Partial<ClinicInventory>>({});
 
   const inventoryStatuses = ['Available', 'LowStock', 'OutOfStock', 'Damaged', 'Expired'];
-  const unitOptions = ['Box', 'Tablet', 'Piece', 'Bottle', 'Tube', 'Pack', 'Grams', 'Liters', 'ml', 'Units'];
   const categoryOptions = ['Consumables', 'Equipment', 'Instruments', 'Medicines', 'Supplies', 'Other'];
   const subCategoryOptions = ['Dental Materials', 'Cleaning Supplies', 'PPE', 'Sterilization', 'Office Supplies', 'Medications'];
 
@@ -134,6 +145,8 @@ export default function ClinicInventory() {
 
       const enrichedInventory = (inventoryList || []).map(inv => ({
         ...inv,
+        expiry: inv.expiry ?? inv.expiryDate,
+        expiryDate: inv.expiryDate ?? inv.expiry,
         itemName: masterItems.find(m => m.itemId === inv.itemId)?.itemName || 'Unknown Item',
         status: inv.status || 'Available'
       }));
@@ -156,8 +169,26 @@ export default function ClinicInventory() {
     }
 
     // Validate all rows
+    const hasPastExpiry = inventoryRows.some(row => {
+      const expiryDate = String(row.expiryDate || '').trim();
+      return expiryDate && expiryDate < todayDate;
+    });
+
+    if (hasPastExpiry) {
+      showError('Expiry date cannot be in the past');
+      return;
+    }
+
     const validRows = inventoryRows.filter(row => {
-      return row.itemId > 0 && row.quantityAvailable > 0 && row.storageLocation.trim();
+      return (
+        row.itemId > 0 &&
+        row.quantityAvailable > 0 &&
+        row.storageLocation.trim() &&
+        String(row.batchNo || '').trim() &&
+        String(row.expiryDate || '').trim() &&
+        String(row.expiryDate || '').trim() >= todayDate &&
+        Number(row.amount) > 0
+      );
     });
 
     if (validRows.length === 0) {
@@ -176,6 +207,10 @@ export default function ClinicInventory() {
         quantityAvailable: row.quantityAvailable,
         reorderLevel: row.reorderLevel,
         minimumStock: row.minimumStock,
+        batchNo: row.batchNo,
+        expiry: row.expiryDate,
+        expiryDate: row.expiryDate,
+        amount: Number(row.amount) || 0,
         storageLocation: row.storageLocation,
         status: row.status,
         createdAt: new Date().toISOString(),
@@ -195,6 +230,9 @@ export default function ClinicInventory() {
         quantityAvailable: 0,
         reorderLevel: 0,
         minimumStock: 0,
+        batchNo: '',
+        expiryDate: '',
+        amount: undefined,
         storageLocation: '',
         unit: '',
         description: '',
@@ -225,6 +263,10 @@ export default function ClinicInventory() {
         quantityAvailable: editingInventory.quantityAvailable || selectedItem.quantityAvailable,
         reorderLevel: editingInventory.reorderLevel || selectedItem.reorderLevel,
         minimumStock: editingInventory.minimumStock || selectedItem.minimumStock,
+        batchNo: editingInventory.batchNo || selectedItem.batchNo || '',
+        expiry: editingInventory.expiry || editingInventory.expiryDate || selectedItem.expiry || selectedItem.expiryDate || '',
+        expiryDate: editingInventory.expiryDate || editingInventory.expiry || selectedItem.expiryDate || selectedItem.expiry || '',
+        amount: Number(editingInventory.amount ?? selectedItem.amount) || 0,
         storageLocation: editingInventory.storageLocation || selectedItem.storageLocation,
         status: editingInventory.status || selectedItem.status,
         createdAt: selectedItem.createdAt,
@@ -271,6 +313,9 @@ export default function ClinicInventory() {
       quantityAvailable: 0,
       reorderLevel: 0,
       minimumStock: 0,
+      batchNo: '',
+      expiryDate: '',
+      amount: undefined,
       storageLocation: '',
       unit: '',
       description: '',
@@ -315,6 +360,8 @@ export default function ClinicInventory() {
       category: '',
       subCategory: '',
       unit: '',
+      cgst: undefined,
+      sgst: undefined,
       isActive: true
     }]);
   };
@@ -354,6 +401,8 @@ export default function ClinicInventory() {
         category: '',
         subCategory: '',
         unit: '',
+        cgst: undefined,
+        sgst: undefined,
         isActive: true
       }]);
 
@@ -387,6 +436,8 @@ export default function ClinicInventory() {
 
       const enrichedResults = results.map(inv => ({
         ...inv,
+        expiry: inv.expiry ?? inv.expiryDate,
+        expiryDate: inv.expiryDate ?? inv.expiry,
         itemName: masterItems.find(m => m.itemId === inv.itemId)?.itemName || 'Unknown Item'
       }));
 
@@ -405,6 +456,10 @@ export default function ClinicInventory() {
       quantityAvailable: item.quantityAvailable,
       reorderLevel: item.reorderLevel,
       minimumStock: item.minimumStock,
+      batchNo: item.batchNo,
+      expiry: item.expiry || item.expiryDate,
+      expiryDate: item.expiryDate || item.expiry,
+      amount: item.amount,
       storageLocation: item.storageLocation,
       status: item.status
     });
@@ -745,6 +800,9 @@ export default function ClinicInventory() {
                           <th className="text-left p-3 font-semibold text-gray-700">Quantity *</th>
                           <th className="text-left p-3 font-semibold text-gray-700">Reorder Level</th>
                           <th className="text-left p-3 font-semibold text-gray-700">Min Stock</th>
+                          <th className="text-left p-3 font-semibold text-gray-700">Batch No *</th>
+                          <th className="text-left p-3 font-semibold text-gray-700">Expiry Date *</th>
+                          <th className="text-left p-3 font-semibold text-gray-700">Amount *</th>
                           <th className="text-left p-3 font-semibold text-gray-700">Location *</th>
                           <th className="text-left p-3 font-semibold text-gray-700">Status</th>
                           <th className="text-center p-3 font-semibold text-gray-700">Action</th>
@@ -772,6 +830,7 @@ export default function ClinicInventory() {
                                   setAutocompleteNewItemName(itemData.itemName);
                                   setShowAddMasterFromAutocomplete(true);
                                 }}
+                                showTaxInfo={false}
                                 className="w-full"
                               />
                             </td>
@@ -807,6 +866,35 @@ export default function ClinicInventory() {
                                 min="0"
                                 value={row.minimumStock}
                                 onChange={(e) => updateInventoryRow(index, 'minimumStock', parseInt(e.target.value))}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-green-500"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="text"
+                                placeholder="e.g., BATCH-001"
+                                value={row.batchNo || ''}
+                                onChange={(e) => updateInventoryRow(index, 'batchNo', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-green-500"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="date"
+                                min={todayDate}
+                                value={row.expiryDate || ''}
+                                onChange={(e) => updateInventoryRow(index, 'expiryDate', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-green-500"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={row.amount ?? ''}
+                                onChange={(e) => updateInventoryRow(index, 'amount', e.target.value === '' ? undefined : Number(e.target.value))}
                                 className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-green-500"
                               />
                             </td>
@@ -918,6 +1006,8 @@ export default function ClinicInventory() {
                           <th className="text-left p-3 font-semibold text-gray-700">Category *</th>
                           <th className="text-left p-3 font-semibold text-gray-700">Sub Category</th>
                           <th className="text-left p-3 font-semibold text-gray-700">Unit *</th>
+                          <th className="text-left p-3 font-semibold text-gray-700">CGST (%) *</th>
+                          <th className="text-left p-3 font-semibold text-gray-700">SGST (%) *</th>
                           <th className="text-center p-3 font-semibold text-gray-700">Active</th>
                           <th className="text-center p-3 font-semibold text-gray-700">Action</th>
                         </tr>
@@ -968,16 +1058,33 @@ export default function ClinicInventory() {
                               </select>
                             </td>
                             <td className="p-3">
-                              <select
+                              <input
+                                type="text"
                                 value={row.unit}
                                 onChange={(e) => updateMasterRow(index, 'unit', e.target.value)}
+                                placeholder="e.g., Box, 10, 250ml"
                                 className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-purple-500"
-                              >
-                                <option value="">Select</option>
-                                {unitOptions.map(unit => (
-                                  <option key={unit} value={unit}>{unit}</option>
-                                ))}
-                              </select>
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={row.cgst ?? ''}
+                                onChange={(e) => updateMasterRow(index, 'cgst', e.target.value === '' ? undefined : Number(e.target.value))}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-purple-500"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={row.sgst ?? ''}
+                                onChange={(e) => updateMasterRow(index, 'sgst', e.target.value === '' ? undefined : Number(e.target.value))}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-purple-500"
+                              />
                             </td>
                             <td className="p-3 text-center">
                               <input

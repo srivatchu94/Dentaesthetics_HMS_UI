@@ -9,6 +9,7 @@ export default function InventoryAutoComplete({
   placeholder = "Search and select item...",
   onAddNewItem,
   disabled = false,
+  showTaxInfo = true,
   className = ""
 }) {
   const [inputValue, setInputValue] = useState(value?.itemName || '');
@@ -173,6 +174,7 @@ export default function InventoryAutoComplete({
                     <p className="font-semibold">{item.itemName}</p>
                     <p className="text-xs text-gray-500">
                       Code: {item.itemCode} • Category: {item.category} • Unit: {item.unit}
+                      {showTaxInfo ? ` • CGST: ${Number(item.cgst) || 0}% • SGST: ${Number(item.sgst) || 0}%` : ''}
                     </p>
                   </div>
                   <span className="text-lg">📦</span>

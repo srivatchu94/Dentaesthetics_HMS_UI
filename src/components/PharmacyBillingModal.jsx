@@ -51,13 +51,14 @@ export function PharmacyBillingModal({ show, onClose, mode = "billing" }) {
   const [savingInvoice, setSavingInvoice] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showViewInvoiceModal, setShowViewInvoiceModal] = useState(false);
-  const [viewSearchType, setViewSearchType] = useState("patient");
   const [viewPatientName, setViewPatientName] = useState("");
   const [viewPatientResults, setViewPatientResults] = useState([]);
   const [showViewPatientDropdown, setShowViewPatientDropdown] = useState(false);
   const [loadingViewPatients, setLoadingViewPatients] = useState(false);
   const [selectedViewPatient, setSelectedViewPatient] = useState(null);
   const [viewAppointmentId, setViewAppointmentId] = useState("");
+  const [viewFromDate, setViewFromDate] = useState("");
+  const [viewToDate, setViewToDate] = useState("");
   const [loadingViewInvoices, setLoadingViewInvoices] = useState(false);
   const [viewInvoices, setViewInvoices] = useState([]);
   const [selectedViewInvoice, setSelectedViewInvoice] = useState(null);
@@ -160,13 +161,14 @@ export function PharmacyBillingModal({ show, onClose, mode = "billing" }) {
     setShowDropdown(false);
     setShowPatientDropdown(false);
     setShowViewInvoiceModal(mode === "view-invoice");
-    setViewSearchType("patient");
     setViewPatientName("");
     setViewPatientResults([]);
     setShowViewPatientDropdown(false);
     setLoadingViewPatients(false);
     setSelectedViewPatient(null);
     setViewAppointmentId("");
+    setViewFromDate("");
+    setViewToDate("");
     setLoadingViewInvoices(false);
     setViewInvoices([]);
     setSelectedViewInvoice(null);
@@ -192,7 +194,7 @@ export function PharmacyBillingModal({ show, onClose, mode = "billing" }) {
   }, [show, patientName]);
 
   useEffect(() => {
-    if (!showViewInvoiceModal || viewSearchType !== "patient") return;
+    if (!showViewInvoiceModal) return;
 
     const keyword = (viewPatientName || "").trim();
     if (keyword.length < 2) {
@@ -203,11 +205,11 @@ export function PharmacyBillingModal({ show, onClose, mode = "billing" }) {
 
     const { clinicId } = getClinicIdAndDoctorInfo();
     const debounceTimer = setTimeout(() => {
-      searchPatientsForView(clinicId, keyword);
+      searchPatientsForViewName(clinicId, keyword);
     }, 300);
 
     return () => clearTimeout(debounceTimer);
-  }, [showViewInvoiceModal, viewSearchType, viewPatientName]);
+  }, [showViewInvoiceModal, viewPatientName]);
 
   const normalizeViewInvoiceItem = (item, index) => {
     const toNumber = (value) => {
@@ -250,6 +252,28 @@ export function PharmacyBillingModal({ show, onClose, mode = "billing" }) {
       return Number.isFinite(parsed) ? parsed : 0;
     };
 
+    const nestedPatient = invoice?.patient || invoice?.Patient || invoice?.patientDetails || invoice?.PatientDetails || {};
+
+    const candidatePatientNames = [
+      invoice?.patientName,
+      invoice?.PatientName,
+      invoice?.patientFullName,
+      invoice?.PatientFullName,
+      nestedPatient?.patientName,
+      nestedPatient?.PatientName,
+      nestedPatient?.name,
+      nestedPatient?.Name,
+      `${nestedPatient?.patientFirstName || nestedPatient?.PatientFirstName || nestedPatient?.firstName || nestedPatient?.FirstName || ""} ${nestedPatient?.patientLastName || nestedPatient?.PatientLastName || nestedPatient?.lastName || nestedPatient?.LastName || ""}`,
+      `${invoice?.patientFirstName || invoice?.PatientFirstName || invoice?.firstName || invoice?.FirstName || ""} ${invoice?.patientLastName || invoice?.PatientLastName || invoice?.lastName || invoice?.LastName || ""}`
+    ]
+      .map((value) => String(value || "").trim())
+      .filter((value) => value.length > 0);
+
+    const derivedPatientName =
+      candidatePatientNames.find((value) => !/^(patient|p\s*patient)$/i.test(value)) ||
+      candidatePatientNames[0] ||
+      "Patient";
+
     return {
       id: invoice?.invoiceId || invoice?.InvoiceId || `inv-${index + 1}`,
       patientId: invoice?.patientId || invoice?.PatientId || invoice?.patientID || invoice?.PatientID || null,
@@ -262,12 +286,14 @@ export function PharmacyBillingModal({ show, onClose, mode = "billing" }) {
         "N/A"
       ),
       invoiceDate: invoice?.invoiceDate || invoice?.InvoiceDate || invoice?.createdAt || invoice?.CreatedAt || new Date().toISOString(),
-      patientName:
-        invoice?.patientName ||
-        invoice?.PatientName ||
-        `${invoice?.patientFirstName || ""} ${invoice?.patientLastName || ""}`.trim() ||
-        "Patient",
+      patientName: derivedPatientName,
       appointmentId: invoice?.appointmentId || invoice?.AppointmentId || "N/A",
+      appointmentType:
+        invoice?.appointmentType ||
+        invoice?.AppointmentType ||
+        invoice?.visitType ||
+        invoice?.VisitType ||
+        "Consultation",
       doctorName: invoice?.doctorName || invoice?.DoctorName || invoice?.attendingPhysician || invoice?.AttendingPhysician || "N/A",
       clinicName: invoice?.clinicName || invoice?.ClinicName || getResolvedClinicName(),
       items: normalizedItems,
@@ -281,85 +307,144 @@ export function PharmacyBillingModal({ show, onClose, mode = "billing" }) {
     };
   };
 
-  const searchPatientsForView = async (clinicId, keyword) => {
-    if (!keyword?.trim()) {
-      setViewPatientResults([]);
-      return;
-    }
-
-    setLoadingViewPatients(true);
-    try {
-      const words = keyword.trim().split(/\s+/);
-      const firstName = words[0] || "";
-      const lastName = words.slice(1).join(" ");
-
-      const queryParams = new URLSearchParams();
-      if (clinicId) queryParams.append("clinicId", String(clinicId));
-      if (firstName) queryParams.append("firstName", firstName);
-      if (lastName) queryParams.append("lastName", lastName);
-
-      const data = await request(`/Patient/Patientsearch?${queryParams.toString()}`, { method: "GET" });
-      const resultArray = Array.isArray(data) ? data : data ? [data] : [];
-
-      const normalized = resultArray.map((item, index) => {
-        const patient = item?.patient || item?.patientDetails || item;
-        const first = patient?.patientFirstName || patient?.firstName || "";
-        const last = patient?.patientLastName || patient?.lastName || "";
-        return {
-          id: patient?.patientId || patient?.patientID || patient?.id || null,
-          key: patient?.patientId || patient?.patientID || patient?.id || `view-p-${index}`,
-          name: `${first} ${last}`.trim() || patient?.patientName || patient?.name || "Unknown Patient"
-        };
-      }).filter(patient => patient.id);
-
-      setViewPatientResults(normalized);
-    } catch (error) {
-      console.error("Failed to search patients for view invoice:", error);
-      setViewPatientResults([]);
-    } finally {
-      setLoadingViewPatients(false);
-    }
-  };
-
   const handleSearchInvoices = async () => {
     setLoadingViewInvoices(true);
     setViewInvoices([]);
     setSelectedViewInvoice(null);
 
     try {
-      let data = [];
+      const patientNameInput = String(viewPatientName || "").trim();
+      const appointmentId = Number(viewAppointmentId);
+      const hasPatientName = patientNameInput.length > 0;
+      const hasAppointmentId = String(viewAppointmentId || "").trim().length > 0;
+      const hasFromDate = String(viewFromDate || "").trim().length > 0;
+      const hasToDate = String(viewToDate || "").trim().length > 0;
+      const hasDateFilter = hasFromDate || hasToDate;
 
-      if (viewSearchType === "patient") {
-        const patientId = Number(selectedViewPatient?.id);
-        if (!Number.isFinite(patientId) || patientId <= 0) {
-          toast.error("Please select a patient from the list.");
-          setLoadingViewInvoices(false);
-          return;
-        }
-
-        data = await request(`/PharmacyInvoice/GetInvoicesByPatient?patientId=${patientId}`, {
-          method: "GET"
-        });
-      } else {
-        const appointmentId = Number(viewAppointmentId);
-        if (!Number.isFinite(appointmentId) || appointmentId <= 0) {
-          toast.error("Please enter a valid appointment ID.");
-          setLoadingViewInvoices(false);
-          return;
-        }
-
-        data = await request(`/PharmacyInvoice/GetInvoicesByAppointment?appointmentId=${appointmentId}`, {
-          method: "GET"
-        });
+      if (!hasPatientName && !hasAppointmentId && !hasDateFilter) {
+        toast.error("Enter Patient Name, Appointment ID, or Date range to search.");
+        setLoadingViewInvoices(false);
+        return;
       }
 
-      const invoiceArray = Array.isArray(data) ? data : data ? [data] : [];
-      const normalizedInvoices = invoiceArray.map((invoice, index) => normalizeViewedInvoice(invoice, index));
+      if (hasAppointmentId && (!Number.isFinite(appointmentId) || appointmentId <= 0)) {
+        toast.error("Please enter a valid Appointment ID.");
+        setLoadingViewInvoices(false);
+        return;
+      }
 
-      setViewInvoices(normalizedInvoices);
-      if (normalizedInvoices.length > 0) {
-        setSelectedViewInvoice(normalizedInvoices[0]);
-      } else {
+      const { clinicId } = getClinicIdAndDoctorInfo();
+      let resolvedPatientId = null;
+
+      if (hasPatientName) {
+        const selectedMatchesInput =
+          selectedViewPatient &&
+          String(selectedViewPatient.name || "").trim().toLowerCase() === patientNameInput.toLowerCase();
+
+        if (selectedMatchesInput) {
+          const selectedId = Number(selectedViewPatient.id);
+          if (Number.isFinite(selectedId) && selectedId > 0) {
+            resolvedPatientId = selectedId;
+          }
+        }
+
+        if (!resolvedPatientId) {
+          const candidates = await searchPatientsForViewName(clinicId, patientNameInput, true);
+          if (candidates.length === 1) {
+            const candidateId = Number(candidates[0].id);
+            if (Number.isFinite(candidateId) && candidateId > 0) {
+              resolvedPatientId = candidateId;
+              setSelectedViewPatient(candidates[0]);
+              setViewPatientName(candidates[0].name);
+            }
+          } else if (candidates.length > 1) {
+            toast.error("Multiple patients found. Please select the patient from dropdown.");
+            setShowViewPatientDropdown(true);
+            setLoadingViewInvoices(false);
+            return;
+          } else {
+            toast.error("No patient found for this name.");
+            setLoadingViewInvoices(false);
+            return;
+          }
+        }
+      }
+
+      const requests = [];
+
+      if (resolvedPatientId) {
+        requests.push(
+          request(`/PharmacyInvoice/GetInvoicesByPatient?patientId=${resolvedPatientId}`, {
+            method: "GET"
+          })
+        );
+      }
+
+      if (hasAppointmentId) {
+        requests.push(
+          request(`/PharmacyInvoice/GetInvoicesByAppointment?appointmentId=${appointmentId}`, {
+            method: "GET"
+          })
+        );
+      }
+
+      if (hasDateFilter) {
+        if (!clinicId) {
+          toast.error("Clinic ID not found for date range search.");
+          setLoadingViewInvoices(false);
+          return;
+        }
+
+        const fromDateValue = hasFromDate ? viewFromDate : viewToDate;
+        const toDateValue = hasToDate ? viewToDate : viewFromDate;
+        const queryParams = new URLSearchParams({
+          clinicId: String(clinicId),
+          fromDate: fromDateValue,
+          toDate: toDateValue
+        });
+
+        requests.push(
+          request(`/PharmacyInvoice/GetInvoicesByDateRange?${queryParams.toString()}`, {
+            method: "GET"
+          })
+        );
+      }
+
+      const responses = await Promise.all(requests);
+      const mergedInvoices = responses.flatMap((data) => (Array.isArray(data) ? data : data ? [data] : []));
+      const normalizedInvoices = mergedInvoices.map((invoice, index) => normalizeViewedInvoice(invoice, index));
+      const uniqueInvoices = normalizedInvoices.filter((invoice, index, arr) => {
+        const identity = [
+          String(invoice.invoiceNumber || "").trim(),
+          String(invoice.appointmentId || "").trim(),
+          String(invoice.patientId || "").trim(),
+          String(invoice.invoiceDate || "").trim()
+        ].join("|");
+
+        return (
+          arr.findIndex((it) => {
+            const itIdentity = [
+              String(it.invoiceNumber || "").trim(),
+              String(it.appointmentId || "").trim(),
+              String(it.patientId || "").trim(),
+              String(it.invoiceDate || "").trim()
+            ].join("|");
+            return itIdentity === identity;
+          }) === index
+        );
+      });
+
+      const selectedPatientNameFallback = String(selectedViewPatient?.name || patientNameInput || "").trim();
+      const finalizedInvoices = uniqueInvoices.map((invoice) => {
+        const currentName = String(invoice.patientName || "").trim();
+        if (/^(patient|p\s*patient)$/i.test(currentName) && selectedPatientNameFallback) {
+          return { ...invoice, patientName: selectedPatientNameFallback };
+        }
+        return invoice;
+      });
+
+      setViewInvoices(finalizedInvoices);
+      if (finalizedInvoices.length === 0) {
         toast.error("No invoices found.");
       }
     } catch (error) {
@@ -374,13 +459,69 @@ export function PharmacyBillingModal({ show, onClose, mode = "billing" }) {
     setShowViewInvoiceModal(true);
   };
 
+  const searchPatientsForViewName = async (clinicId, keyword, returnOnly = false) => {
+    if (!keyword?.trim()) {
+      if (!returnOnly) {
+        setViewPatientResults([]);
+      }
+      return [];
+    }
+
+    if (!returnOnly) {
+      setLoadingViewPatients(true);
+    }
+
+    try {
+      const words = keyword.trim().split(/\s+/);
+      const firstName = words[0] || "";
+      const lastName = words.slice(1).join(" ");
+
+      const queryParams = new URLSearchParams();
+      if (clinicId) queryParams.append("clinicId", String(clinicId));
+      if (firstName) queryParams.append("firstName", firstName);
+      if (lastName) queryParams.append("lastName", lastName);
+
+      const data = await request(`/Patient/Patientsearch?${queryParams.toString()}`, { method: "GET" });
+      const resultArray = Array.isArray(data) ? data : data ? [data] : [];
+
+      const normalized = resultArray
+        .map((item, index) => {
+          const patient = item?.patient || item?.patientDetails || item;
+          const first = patient?.patientFirstName || patient?.firstName || "";
+          const last = patient?.patientLastName || patient?.lastName || "";
+          return {
+            id: patient?.patientId || patient?.patientID || patient?.id || null,
+            key: patient?.patientId || patient?.patientID || patient?.id || `view-p-${index}`,
+            name: `${first} ${last}`.trim() || patient?.patientName || patient?.name || "Unknown Patient"
+          };
+        })
+        .filter((patient) => patient.id);
+
+      if (!returnOnly) {
+        setViewPatientResults(normalized);
+      }
+      return normalized;
+    } catch (error) {
+      console.error("Failed to search patients for view invoice:", error);
+      if (!returnOnly) {
+        setViewPatientResults([]);
+      }
+      return [];
+    } finally {
+      if (!returnOnly) {
+        setLoadingViewPatients(false);
+      }
+    }
+  };
+
   const resetViewInvoiceState = () => {
-    setViewSearchType("patient");
     setViewPatientName("");
     setViewPatientResults([]);
     setShowViewPatientDropdown(false);
     setSelectedViewPatient(null);
     setViewAppointmentId("");
+    setViewFromDate("");
+    setViewToDate("");
     setViewInvoices([]);
     setSelectedViewInvoice(null);
   };
@@ -417,9 +558,15 @@ export function PharmacyBillingModal({ show, onClose, mode = "billing" }) {
     const appointmentIdText = String(invoice.appointmentId || "N/A");
     const invoicePatientEmail = String(invoice.patientEmail || "").trim();
     const invoicePatientId = Number(invoice.patientId);
+    const invoicePatientName = String(invoice.patientName || "").trim();
+    const fallbackPatientName = String(selectedViewPatient?.name || "").trim();
+    const resolvedPatientName =
+      invoicePatientName && invoicePatientName.toLowerCase() !== "patient"
+        ? invoicePatientName
+        : fallbackPatientName || "Patient";
 
     setInvoiceNumber(String(invoice.invoiceNumber || "INV-2026-001"));
-    setPatientName(String(invoice.patientName || ""));
+    setPatientName(resolvedPatientName);
     setSelectedPatientId(Number.isFinite(invoicePatientId) && invoicePatientId > 0 ? String(invoicePatientId) : null);
     setSelectedPatientMeta((prev) => ({ ...(prev || {}), email: invoicePatientEmail }));
     setSelectedPatientEmail(invoicePatientEmail);
@@ -1887,7 +2034,7 @@ export function PharmacyBillingModal({ show, onClose, mode = "billing" }) {
                   <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
                     <div>
                       <h3 className="text-xl font-bold">View Pharmacy Invoices</h3>
-                      <p className="text-emerald-100 text-sm">Search by patient or appointment ID</p>
+                      <p className="text-emerald-100 text-sm">Search by Patient Name, Appointment ID, and Date Range</p>
                     </div>
                     <button
                       onClick={handleCloseViewInvoiceModal}
@@ -1898,215 +2045,146 @@ export function PharmacyBillingModal({ show, onClose, mode = "billing" }) {
                   </div>
 
                   <div className="p-5 border-b border-slate-200 bg-slate-50 space-y-3">
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                      <div className="relative">
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Patient Name</label>
                         <input
-                          type="radio"
-                          name="viewInvoiceSearchType"
-                          checked={viewSearchType === "patient"}
-                          onChange={() => {
-                            setViewSearchType("patient");
-                            setViewAppointmentId("");
-                            setViewInvoices([]);
-                            setSelectedViewInvoice(null);
-                          }}
-                        />
-                        Patient Name
-                      </label>
-                      <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                        <input
-                          type="radio"
-                          name="viewInvoiceSearchType"
-                          checked={viewSearchType === "appointment"}
-                          onChange={() => {
-                            setViewSearchType("appointment");
-                            setViewPatientName("");
-                            setViewPatientResults([]);
+                          type="text"
+                          value={viewPatientName}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setViewPatientName(value);
                             setSelectedViewPatient(null);
-                            setShowViewPatientDropdown(false);
-                            setViewInvoices([]);
-                            setSelectedViewInvoice(null);
+                            setShowViewPatientDropdown(true);
                           }}
+                          onFocus={() => setShowViewPatientDropdown(true)}
+                          placeholder="Patient Name"
+                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-400 outline-none"
                         />
-                        Appointment ID
-                      </label>
-                    </div>
-
-                    <div className="flex flex-col md:flex-row gap-3">
-                      {viewSearchType === "patient" ? (
-                        <div className="relative flex-1">
-                          <input
-                            type="text"
-                            value={viewPatientName}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              setViewPatientName(value);
-                              setSelectedViewPatient(null);
-                              setShowViewPatientDropdown(true);
-                            }}
-                            onFocus={() => setShowViewPatientDropdown(true)}
-                            placeholder="Search patient by name"
-                            className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-400 outline-none"
-                          />
-                          <AnimatePresence>
-                            {showViewPatientDropdown && (viewPatientResults.length > 0 || loadingViewPatients) && (
-                              <motion.div
-                                initial={{ opacity: 0, y: -8 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -8 }}
-                                className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto"
-                              >
-                                {loadingViewPatients ? (
-                                  <div className="p-3 text-sm text-slate-500">Searching patients...</div>
-                                ) : (
-                                  viewPatientResults.map((patient) => (
-                                    <button
-                                      key={patient.key}
-                                      onClick={() => {
-                                        setSelectedViewPatient(patient);
-                                        setViewPatientName(patient.name);
-                                        setShowViewPatientDropdown(false);
-                                      }}
-                                      className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 border-b border-slate-100 last:border-b-0"
-                                    >
-                                      <p className="font-medium text-slate-800">{patient.name}</p>
-                                      <p className="text-xs text-slate-500">Patient ID: {patient.id}</p>
-                                    </button>
-                                  ))
-                                )}
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      ) : (
+                        <AnimatePresence>
+                          {showViewPatientDropdown && (viewPatientResults.length > 0 || loadingViewPatients) && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -8 }}
+                              className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto"
+                            >
+                              {loadingViewPatients ? (
+                                <div className="p-3 text-sm text-slate-500">Searching patients...</div>
+                              ) : (
+                                viewPatientResults.map((patient) => (
+                                  <button
+                                    key={patient.key}
+                                    onClick={() => {
+                                      setSelectedViewPatient(patient);
+                                      setViewPatientName(patient.name);
+                                      setShowViewPatientDropdown(false);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 border-b border-slate-100 last:border-b-0"
+                                  >
+                                    <p className="font-medium text-slate-800">{patient.name}</p>
+                                    <p className="text-xs text-slate-500">Patient ID: {patient.id}</p>
+                                  </button>
+                                ))
+                              )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Appointment ID</label>
                         <input
                           type="number"
                           value={viewAppointmentId}
                           onChange={(e) => setViewAppointmentId(e.target.value)}
-                          placeholder="Enter appointment ID"
-                          className="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-400 outline-none"
+                          placeholder="Appointment ID"
+                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-400 outline-none"
                         />
-                      )}
-
-                      <button
-                        onClick={handleSearchInvoices}
-                        disabled={loadingViewInvoices}
-                        className="px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all font-medium disabled:opacity-50"
-                      >
-                        {loadingViewInvoices ? "Searching..." : "Search Invoices"}
-                      </button>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">From Date</label>
+                        <input
+                          type="date"
+                          value={viewFromDate}
+                          onChange={(e) => setViewFromDate(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-400 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">To Date</label>
+                        <input
+                          type="date"
+                          value={viewToDate}
+                          onChange={(e) => setViewToDate(e.target.value)}
+                          className="w-full px-4 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-400 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-transparent mb-1">Search</label>
+                        <button
+                          onClick={handleSearchInvoices}
+                          disabled={loadingViewInvoices}
+                          className="w-full px-5 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all font-medium disabled:opacity-50"
+                        >
+                          {loadingViewInvoices ? "Searching..." : "Search Invoices"}
+                        </button>
+                      </div>
                     </div>
+
+                    <p className="text-xs text-slate-500">
+                      If only one date is selected, the same date is used for both From and To.
+                    </p>
                   </div>
 
-                  <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-3">
-                    <div className="border-r border-slate-200 overflow-y-auto">
+                  <div className="flex-1 overflow-y-auto bg-slate-50 p-5 space-y-4">
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
                       <div className="p-4 border-b border-slate-100 bg-slate-50">
                         <h4 className="font-semibold text-slate-800">Invoice Results</h4>
-                        <p className="text-xs text-slate-500">Select an invoice to preview</p>
+                        <p className="text-xs text-slate-500">Select action to open a specific invoice</p>
                       </div>
                       {viewInvoices.length === 0 ? (
                         <div className="p-4 text-sm text-slate-500">No invoice selected yet.</div>
                       ) : (
-                        <div className="p-2 space-y-2">
-                          {viewInvoices.map((invoice) => (
-                            <div
-                              key={invoice.id}
-                              className={`w-full text-left rounded-lg p-3 border transition-all ${
-                                selectedViewInvoice?.id === invoice.id
-                                  ? "border-emerald-400 bg-emerald-50"
-                                  : "border-slate-200 hover:bg-slate-50"
-                              }`}
-                            >
-                              <button
-                                onClick={() => setSelectedViewInvoice(invoice)}
-                                className="w-full text-left"
-                              >
-                                <p className="font-semibold text-slate-800">{invoice.invoiceNumber}</p>
-                                <p className="text-xs text-slate-600">Patient: {invoice.patientName}</p>
-                                <p className="text-xs text-slate-500">Appointment: {invoice.appointmentId}</p>
-                                <p className="text-xs text-slate-500">Total: ₹{invoice.totalAmount.toFixed(2)}</p>
-                              </button>
-                              <button
-                                onClick={() => handleOpenInvoiceInMainView(invoice)}
-                                className="mt-2 text-xs px-3 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-all"
-                              >
-                                View Invoice
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="lg:col-span-2 overflow-y-auto bg-slate-50 p-5">
-                      {!selectedViewInvoice ? (
-                        <div className="h-full flex items-center justify-center text-sm text-slate-500">
-                          Select an invoice from the list to preview details.
-                        </div>
-                      ) : (
-                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                          <div className="px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
-                            <h4 className="text-lg font-bold">{selectedViewInvoice.clinicName}</h4>
-                            <p className="text-sm text-emerald-100">Pharmacy Invoice Preview</p>
+                        <div className="max-h-80 overflow-y-auto">
+                          <div className="grid grid-cols-6 gap-3 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 border-b border-slate-100 bg-white sticky top-0 z-10">
+                            <span>ID</span>
+                            <span>Patient</span>
+                            <span>Date</span>
+                            <span>Type</span>
+                            <span>Doctor</span>
+                            <span>Action</span>
                           </div>
 
-                          <div className="p-5 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                              <p><span className="font-semibold text-slate-700">Invoice:</span> {selectedViewInvoice.invoiceNumber}</p>
-                              <p><span className="font-semibold text-slate-700">Date:</span> {new Date(selectedViewInvoice.invoiceDate).toLocaleDateString()}</p>
-                              <p><span className="font-semibold text-slate-700">Patient:</span> {selectedViewInvoice.patientName}</p>
-                              <p><span className="font-semibold text-slate-700">Appointment ID:</span> {selectedViewInvoice.appointmentId}</p>
-                              <p><span className="font-semibold text-slate-700">Doctor:</span> {selectedViewInvoice.doctorName}</p>
-                              <p><span className="font-semibold text-slate-700">Payment:</span> {selectedViewInvoice.modeOfPayment}</p>
-                            </div>
+                          <div className="divide-y divide-slate-100">
+                            {viewInvoices.map((invoice) => {
+                              const parsedDate = new Date(invoice.invoiceDate);
+                              const validDate = !Number.isNaN(parsedDate.getTime());
+                              const patientNameText = String(invoice.patientName || "Patient").trim();
+                              const dateText = validDate
+                                ? parsedDate.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })
+                                : "N/A";
 
-                            <div className="overflow-x-auto rounded-lg border border-slate-200">
-                              <table className="w-full text-sm">
-                                <thead className="bg-slate-100 text-slate-700">
-                                  <tr>
-                                    <th className="px-3 py-2 text-left">Item</th>
-                                    <th className="px-3 py-2 text-center">Qty</th>
-                                    <th className="px-3 py-2 text-right">MRP</th>
-                                    <th className="px-3 py-2 text-right">Amount</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {selectedViewInvoice.items.length === 0 ? (
-                                    <tr>
-                                      <td className="px-3 py-3 text-slate-500" colSpan={4}>No items found.</td>
-                                    </tr>
-                                  ) : (
-                                    selectedViewInvoice.items.map((item, index) => (
-                                      <tr key={`${item.itemId}-${index}`} className="border-t border-slate-100">
-                                        <td className="px-3 py-2">{item.itemName}</td>
-                                        <td className="px-3 py-2 text-center">{item.qty}</td>
-                                        <td className="px-3 py-2 text-right">₹{item.mrp.toFixed(2)}</td>
-                                        <td className="px-3 py-2 text-right">₹{item.amount.toFixed(2)}</td>
-                                      </tr>
-                                    ))
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
-
-                            <div className="ml-auto w-full max-w-sm space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-slate-600">Subtotal</span>
-                                <span className="font-semibold">₹{selectedViewInvoice.subtotal.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-600">CGST</span>
-                                <span className="font-semibold">₹{selectedViewInvoice.totalCGST.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-600">SGST</span>
-                                <span className="font-semibold">₹{selectedViewInvoice.totalSGST.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between text-base border-t border-slate-200 pt-2">
-                                <span className="font-bold text-slate-800">Total</span>
-                                <span className="font-bold text-emerald-700">₹{selectedViewInvoice.totalAmount.toFixed(2)}</span>
-                              </div>
-                            </div>
+                              return (
+                                <div
+                                  key={invoice.id}
+                                  className="grid grid-cols-6 gap-3 px-4 py-3 items-center text-sm hover:bg-slate-50"
+                                >
+                                  <div className="font-medium text-slate-700">#{invoice.appointmentId || invoice.invoiceNumber}</div>
+                                  <div className="min-w-0 font-medium text-slate-800 truncate">{patientNameText}</div>
+                                  <div className="text-slate-700">{dateText}</div>
+                                  <div className="text-slate-700">{invoice.appointmentType || "Consultation"}</div>
+                                  <div className="text-slate-700">{invoice.doctorName || "N/A"}</div>
+                                  <div>
+                                    <button
+                                      onClick={() => handleOpenInvoiceInMainView(invoice)}
+                                      className="text-xs px-2.5 py-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-all"
+                                    >
+                                      👁️ Show Invoice
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}

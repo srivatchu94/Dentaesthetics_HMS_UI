@@ -12,6 +12,8 @@ export default function AddMasterInventory() {
       category: '',
       subCategory: '',
       unit: '',
+      cgst: '',
+      sgst: '',
       isActive: true
     }
   ]);
@@ -56,6 +58,8 @@ export default function AddMasterInventory() {
       category: '',
       subCategory: '',
       unit: '',
+      cgst: '',
+      sgst: '',
       isActive: true
     }]);
   };
@@ -96,10 +100,14 @@ export default function AddMasterInventory() {
     setLoading(true);
     try {
       const endpoint = items.length === 1 
-        ? '/Inventory/AddInventoryMasterItem' 
-        : '/Inventory/AddInventoryMasterItemsBulk';
-      
-      const payload = items.length === 1 ? items[0] : items;
+        ? '/Inventory/AddMasterItem' 
+        : '/Inventory/AddMasterItemsBulk';
+
+      const sanitizedItems = items.map((item) => ({
+        ...item,
+        unit: String(item.unit ?? '').trim()
+      }));
+      const payload = items.length === 1 ? sanitizedItems[0] : sanitizedItems;
 
       await request(endpoint, {
         method: 'POST',
@@ -161,6 +169,8 @@ export default function AddMasterInventory() {
                 <th className="px-6 py-4 text-left font-bold">Category</th>
                 <th className="px-6 py-4 text-left font-bold">Sub Category</th>
                 <th className="px-6 py-4 text-left font-bold">Unit</th>
+                <th className="px-6 py-4 text-left font-bold">CGST (%)</th>
+                <th className="px-6 py-4 text-left font-bold">SGST (%)</th>
                 <th className="px-6 py-4 text-center font-bold">Active</th>
                 <th className="px-6 py-4 text-center font-bold">Action</th>
               </tr>
@@ -261,6 +271,30 @@ export default function AddMasterInventory() {
                       )}
                     </td>
 
+                    {/* CGST */}
+                    <td className="px-6 py-4">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.cgst ?? ''}
+                        onChange={(e) => handleItemChange(index, 'cgst', e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full px-3 py-2 text-sm bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none transition"
+                      />
+                    </td>
+
+                    {/* SGST */}
+                    <td className="px-6 py-4">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.sgst ?? ''}
+                        onChange={(e) => handleItemChange(index, 'sgst', e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full px-3 py-2 text-sm bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-violet-500 focus:border-transparent outline-none transition"
+                      />
+                    </td>
+
                     {/* Active Checkbox */}
                     <td className="px-6 py-4 text-center">
                       <label className="flex items-center justify-center cursor-pointer">
@@ -316,6 +350,7 @@ export default function AddMasterInventory() {
           <li>✓ You can add multiple items at once - use "Add Another Row" button</li>
           <li>✓ Select a category to enable sub-category dropdown</li>
           <li>✓ Check the Active checkbox to mark items as active</li>
+          <li>✓ Enter CGST and SGST percentages for tax-ready billing</li>
           <li>✓ All fields except Sub-Category are required</li>
         </ul>
       </motion.div>

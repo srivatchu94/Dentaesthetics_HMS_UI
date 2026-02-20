@@ -3,6 +3,30 @@
 
 export const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
+type ApiDebugEntry = {
+  time: string;
+  level: "error" | "warn";
+  message: string;
+  detail?: any;
+};
+
+function recordBrowserApiLog(level: "error" | "warn", message: string, detail?: any) {
+  const entry: ApiDebugEntry = {
+    time: new Date().toISOString(),
+    level,
+    message,
+    detail
+  };
+
+  if (typeof window !== "undefined") {
+    const debugWindow = window as any;
+    const existing: ApiDebugEntry[] = Array.isArray(debugWindow.__hmsApiLogs) ? debugWindow.__hmsApiLogs : [];
+    debugWindow.__hmsApiLogs = [...existing.slice(-99), entry];
+    debugWindow.__hmsLastApiError = entry;
+    window.dispatchEvent(new CustomEvent("hms:api-log", { detail: entry }));
+  }
+}
+
 // Import token management
 import { getAuthToken, getSelectedAccess } from './authService';
 
@@ -148,6 +172,11 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     console.log(`✅ API RESPONSE: ${res.status} ${res.statusText} for ${path}`);
   } catch (fetchError) {
     console.error(`❌ API FAILED: Network error for ${path} - ${fetchError}`);
+    recordBrowserApiLog("error", `Network error for ${path}`, {
+      method: options.method || "GET",
+      url: fullUrl,
+      error: String(fetchError)
+    });
     throw fetchError;
   }
   
@@ -156,6 +185,19 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     const text = await res.text();
     const snippet = text.slice(0, 300);
     console.error(`❌ API ERROR: ${options.method || 'GET'} ${path} -> ${res.status} ${res.statusText} | ct=${contentType} | body: ${snippet}`);
+    recordBrowserApiLog("error", `HTTP ${res.status} ${res.statusText} for ${path}`, {
+      method: options.method || "GET",
+      url: fullUrl,
+      status: res.status,
+      statusText: res.statusText,
+      contentType,
+      bodySnippet: snippet,
+      requestHeaders: {
+        "Content-Type": headers["Content-Type"],
+        "X-Enterprise-Id": headers["X-Enterprise-Id"] || "[missing]",
+        "X-Clinic-Id": headers["X-Clinic-Id"] || "[missing]"
+      }
+    });
     
     const error: any = new Error(`HTTP ${res.status} ${res.statusText} - ct=${contentType} body=${snippet}`);
     error.status = res.status;
@@ -222,6 +264,13 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
       return data;
     } catch (parseError) {
       console.error('❌ JSON parse error:', parseError);
+      recordBrowserApiLog("warn", `JSON parse error for ${path}`, {
+        method: options.method || "GET",
+        url: fullUrl,
+        parseError: String(parseError),
+        contentType,
+        bodySnippet: rawText.slice(0, 300)
+      });
       return undefined as T;
     }
   }

@@ -7,6 +7,8 @@ export interface InventoryMaster {
   category: string;
   subCategory: string;
   unit: string; // e.g., "Box", "Tablet", "Piece"
+  cgst?: number;
+  sgst?: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -15,11 +17,16 @@ export interface InventoryMaster {
 export interface ClinicInventory {
   inventoryId: number;
   itemId: number; // FK → InventoryMaster
+  itemName?: string;
   enterpriseId: number; // FK → Enterprise
   clinicId: number; // FK → Clinic
   quantityAvailable: number;
   reorderLevel: number; // Threshold
   minimumStock: number;
+  batchNo?: string;
+  expiry?: string;
+  expiryDate?: string;
+  amount?: number;
   storageLocation: string;
   status: string; // Available, LowStock, OutOfStock
   createdAt: string;
@@ -55,6 +62,8 @@ export interface CreateInventoryMasterDto {
   category: string;
   subCategory: string;
   unit: string;
+  cgst?: number;
+  sgst?: number;
   isActive: boolean;
 }
 
@@ -67,6 +76,10 @@ export interface CreateClinicInventoryDto {
   quantityAvailable: number;
   reorderLevel: number;
   minimumStock: number;
+  batchNo?: string;
+  expiry?: string;
+  expiryDate?: string;
+  amount?: number;
   storageLocation: string;
   status: string;
 }
@@ -92,6 +105,9 @@ export interface InventoryAddRow {
   quantityAvailable: number;
   reorderLevel: number;
   minimumStock: number;
+  batchNo?: string;
+  expiryDate?: string;
+  amount?: number;
   storageLocation: string;
   unit?: string;
   description?: string;
@@ -104,6 +120,8 @@ export interface MasterInventoryAddRow {
   category: string;
   subCategory: string;
   unit: string;
+  cgst?: number;
+  sgst?: number;
   isActive: boolean;
 }
 

@@ -7,8 +7,18 @@ export function listDoctorProfiles(): Promise<DoctorProfileModel[]> {
   console.log('📞 Fetching all doctors from /DoctorProfile/GetAllDoctors');
   return request<DoctorProfileModel[]>("/DoctorProfile/GetAllDoctors")
     .catch((err) => {
+      if (err?.status === 405 || err?.status === 404) {
+        console.warn('⚠️ Doctor list endpoint unavailable (405/404). Returning empty list to prevent noisy fallback errors.', err);
+        return [];
+      }
       console.error('❌ GetAllDoctors failed, trying fallback /StaffDetail/GetAllStaffDetails:', err);
-      return request<DoctorProfileModel[]>("/StaffDetail/GetAllStaffDetails");
+      return request<DoctorProfileModel[]>('/StaffDetail/GetAllStaffDetails').catch((fallbackErr) => {
+        if (fallbackErr?.status === 404 || fallbackErr?.status === 405) {
+          console.warn('⚠️ Fallback staff list endpoint unavailable (404/405). Returning empty list.', fallbackErr);
+          return [];
+        }
+        throw fallbackErr;
+      });
     });
 }
 

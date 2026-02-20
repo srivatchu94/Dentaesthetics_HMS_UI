@@ -24,6 +24,8 @@ export default function InventoryMaster() {
     category: '',
     subCategory: '',
     unit: '',
+    cgst: '',
+    sgst: '',
     isActive: true
   });
   const [newItem, setNewItem] = useState({
@@ -32,6 +34,8 @@ export default function InventoryMaster() {
     category: '',
     subCategory: '',
     unit: '',
+    cgst: '',
+    sgst: '',
     isActive: true
   });
 
@@ -85,6 +89,8 @@ export default function InventoryMaster() {
         category: newItem.category,
         subCategory: newItem.subCategory,
         unit: newItem.unit,
+        cgst: Number(newItem.cgst) || 0,
+        sgst: Number(newItem.sgst) || 0,
         isActive: newItem.isActive
       });
 
@@ -96,6 +102,8 @@ export default function InventoryMaster() {
         category: '',
         subCategory: '',
         unit: '',
+        cgst: '',
+        sgst: '',
         isActive: true
       });
       loadInventory();
@@ -119,6 +127,8 @@ export default function InventoryMaster() {
         category: editingItem.category,
         subCategory: editingItem.subCategory,
         unit: editingItem.unit,
+        cgst: Number(editingItem.cgst) || 0,
+        sgst: Number(editingItem.sgst) || 0,
         isActive: editingItem.isActive
       });
 
@@ -158,6 +168,8 @@ export default function InventoryMaster() {
       category: item.category,
       subCategory: item.subCategory,
       unit: item.unit,
+      cgst: item.cgst ?? '',
+      sgst: item.sgst ?? '',
       isActive: item.isActive
     });
     setShowEditModal(true);
@@ -252,12 +264,14 @@ export default function InventoryMaster() {
           <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-stone-200">
             {/* Table Header */}
             <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 px-6 py-4">
-              <div className="grid grid-cols-12 gap-4 text-white font-bold text-sm">
+              <div className="grid grid-cols-14 gap-4 text-white font-bold text-sm">
                 <div className="col-span-3">ITEM NAME</div>
                 <div className="col-span-2">CODE</div>
                 <div className="col-span-2">CATEGORY</div>
                 <div className="col-span-2">SUB-CATEGORY</div>
                 <div className="col-span-1">UNIT</div>
+                <div className="col-span-1">CGST</div>
+                <div className="col-span-1">SGST</div>
                 <div className="col-span-1 text-center">STATUS</div>
                 <div className="col-span-1 text-center">ACTIONS</div>
               </div>
@@ -271,7 +285,7 @@ export default function InventoryMaster() {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.02 }}
-                  className="grid grid-cols-12 gap-4 px-6 py-4 hover:bg-gradient-to-r hover:from-violet-50 hover:via-purple-50 hover:to-indigo-50 transition-all duration-200 group"
+                  className="grid grid-cols-14 gap-4 px-6 py-4 hover:bg-gradient-to-r hover:from-violet-50 hover:via-purple-50 hover:to-indigo-50 transition-all duration-200 group"
                 >
                   {/* Item Name */}
                   <div className="col-span-3 flex items-center gap-3">
@@ -314,6 +328,18 @@ export default function InventoryMaster() {
                   <div className="col-span-1 flex items-center">
                     <span className="px-2 py-1 bg-stone-100 text-stone-700 rounded font-semibold text-xs">
                       {item.unit}
+                    </span>
+                  </div>
+
+                  <div className="col-span-1 flex items-center">
+                    <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded font-semibold text-xs">
+                      {Number(item.cgst) || 0}%
+                    </span>
+                  </div>
+
+                  <div className="col-span-1 flex items-center">
+                    <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded font-semibold text-xs">
+                      {Number(item.sgst) || 0}%
                     </span>
                   </div>
 
@@ -459,6 +485,32 @@ export default function InventoryMaster() {
                       </select>
                     </div>
 
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">CGST (%) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        required
+                        value={newItem.cgst}
+                        onChange={(e) => setNewItem({ ...newItem, cgst: e.target.value === '' ? '' : Number(e.target.value) })}
+                        className="w-full px-4 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">SGST (%) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        required
+                        value={newItem.sgst}
+                        onChange={(e) => setNewItem({ ...newItem, sgst: e.target.value === '' ? '' : Number(e.target.value) })}
+                        className="w-full px-4 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
                     <div className="flex items-center gap-2 pt-6">
                       <input
                         type="checkbox"
@@ -587,6 +639,32 @@ export default function InventoryMaster() {
                           <option key={unit} value={unit}>{unit}</option>
                         ))}
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">CGST (%) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        required
+                        value={editingItem.cgst ?? ''}
+                        onChange={(e) => setEditingItem({ ...editingItem, cgst: e.target.value === '' ? '' : Number(e.target.value) })}
+                        className="w-full px-4 py-2 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">SGST (%) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        required
+                        value={editingItem.sgst ?? ''}
+                        onChange={(e) => setEditingItem({ ...editingItem, sgst: e.target.value === '' ? '' : Number(e.target.value) })}
+                        className="w-full px-4 py-2 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500"
+                      />
                     </div>
 
                     <div className="flex items-center gap-2 pt-6">

@@ -1,17 +1,25 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import FancyDatePicker from "../components/FancyDatePicker";
 import { createDoctor } from "../services/doctorService";
 import { getSelectedAccess } from "../services/authService";
 import { getClinicIdFromToken, getEnterpriseIdFromToken } from "../services/tokenManager";
 import { useModal } from "../context/ModalContext";
+import { API_BASE_URL as CONFIG_API_BASE_URL } from "../config/apiConfig";
 
-const API_BASE_URL = (import.meta)?.env?.VITE_API_BASE_URL || 'https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api';
+const API_BASE_URL = CONFIG_API_BASE_URL;
+const getTodayDateString = () => {
+  const now = new Date();
+  const offsetMs = now.getTimezoneOffset() * 60000;
+  return new Date(now.getTime() - offsetMs).toISOString().split('T')[0];
+};
 
 export default function Clinics(){
+  const todayDate = getTodayDateString();
   const [log, setLog] = useState([]);
   const navigate = useNavigate();
+  const location = useLocation();
   const { openOnboardStaffModal } = useModal();
   const [hoveredCard, setHoveredCard] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -197,6 +205,8 @@ export default function Clinics(){
       category: "",
       subCategory: "",
       unit: "",
+      cgst: "",
+      sgst: "",
       isActive: true
     }
   ]);
@@ -213,6 +223,9 @@ export default function Clinics(){
         quantityAvailable: 0,
         reorderLevel: 0,
         minimumStock: 0,
+        batchNo: "",
+        expiryDate: "",
+        amount: "",
         storageLocation: "",
         status: "Available"
       }
@@ -227,6 +240,37 @@ export default function Clinics(){
   const [editingItemIndex, setEditingItemIndex] = useState(null);
   const [showMasterSuccess, setShowMasterSuccess] = useState(false);
   const [masterSuccessMessage, setMasterSuccessMessage] = useState("");
+
+  useEffect(() => {
+    if (location?.state?.openAddInventoryModal) {
+      setShowAddInventoryModal(true);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
+
+  const getMasterItemId = (item) =>
+    Number(
+      item?.itemId ??
+      item?.ItemId ??
+      item?.inventoryMasterId ??
+      item?.InventoryMasterId ??
+      item?.masterItemId ??
+      item?.MasterItemId ??
+      item?.id ??
+      item?.Id
+    ) || 0;
+
+  const getMasterItemName = (item) =>
+    String(item?.itemName ?? item?.ItemName ?? item?.name ?? item?.Name ?? "").trim();
+
+  const normalizeMasterItems = (raw) => {
+    const source = Array.isArray(raw) ? raw : raw?.data || [];
+    return source.map((item) => ({
+      ...item,
+      itemId: getMasterItemId(item),
+      itemName: getMasterItemName(item)
+    }));
+  };
   
   // Funny success messages for inventory
   const funnyInventoryMessages = [
@@ -262,21 +306,34 @@ export default function Clinics(){
     const loadEnterprisesOnMount = async () => {
       try {
         setLoadingEnterprises(true);
-        const response = await fetch(`${API_BASE_URL}/Enterprise`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-          }
-        });
+        const endpoints = [
+          `${API_BASE_URL}/Enterprise/GetAllEnterprises`,
+          `${API_BASE_URL}/Enterprise/GetEnterprises`,
+          `${API_BASE_URL}/Enterprise`
+        ];
 
-        if (response.ok) {
-          const data = await response.json();
+        let data = [];
+        for (const endpoint of endpoints) {
+          const response = await fetch(endpoint, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+            }
+          });
+
+          if (!response.ok) continue;
+          const body = await response.json();
+          data = Array.isArray(body) ? body : body.data || [];
+          break;
+        }
+
+        if (data.length > 0) {
           console.log("📋 Enterprises loaded on mount:", data);
-          setAllEnterprises(Array.isArray(data) ? data : data.data || []);
-          setDoctorEnterprises(Array.isArray(data) ? data : data.data || []);
+          setAllEnterprises(data);
+          setDoctorEnterprises(data);
         } else {
-          console.warn("Failed to load enterprises on mount", response.status, "using login enterprise");
+          console.warn("Failed to load enterprises on mount, using login enterprise");
           // Fallback: Use enterprise from login
           const selectedAccess = getSelectedAccess();
           if (selectedAccess?.enterpriseId) {
@@ -329,20 +386,39 @@ export default function Clinics(){
       
       const loadMasterItems = async () => {
         try {
-          const response = await fetch(`${API_BASE_URL}/inventory/GetAllInventoryMasterItems`, {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-            }
-          });
+          const endpoints = [
+            `${API_BASE_URL}/Inventory/GetAllInventoryMasterItems`,
+            `${API_BASE_URL}/inventory/GetAllInventoryMasterItems`,
+            `${API_BASE_URL}/Inventory/GetAllMasterItems`
+          ];
 
-          if (response.ok) {
+          let loaded = false;
+          for (const endpoint of endpoints) {
+            const response = await fetch(endpoint, {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+              }
+            });
+
+            if (!response.ok) {
+              console.warn(`Master inventory load failed at ${endpoint}:`, response.status);
+              continue;
+            }
+
             const data = await response.json();
             console.log("📦 Master inventory items loaded:", data);
-            setMasterInventoryItems(Array.isArray(data) ? data : data.data || []);
-          } else {
-            console.error("Failed to load master inventory items", response.status);
+            const normalized = normalizeMasterItems(data);
+            const validCount = normalized.filter((item) => getMasterItemId(item) > 0).length;
+            console.log("📦 Master items with valid IDs:", validCount, "of", normalized.length);
+            setMasterInventoryItems(normalized);
+            loaded = true;
+            break;
+          }
+
+          if (!loaded) {
+            console.error("Failed to load master inventory items from all known endpoints");
             setMasterInventoryItems([]);
           }
         } catch (error) {
@@ -476,21 +552,32 @@ export default function Clinics(){
     const loadEnterprises = async () => {
       try {
         setLoadingEnterprises(true);
-        const response = await fetch(`${API_BASE_URL}/Enterprise`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
+        const endpoints = [
+          `${API_BASE_URL}/Enterprise/GetAllEnterprises`,
+          `${API_BASE_URL}/Enterprise/GetEnterprises`,
+          `${API_BASE_URL}/Enterprise`
+        ];
+
+        let data = [];
+        for (const endpoint of endpoints) {
+          const response = await fetch(endpoint, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+            }
+          });
+
+          if (!response.ok) continue;
+          const body = await response.json();
+          data = Array.isArray(body) ? body : body.data || [];
+          break;
+        }
+
+        if (data.length > 0) {
           console.log("📋 Enterprises loaded:", data);
-          setAllEnterprises(Array.isArray(data) ? data : data.data || []);
-          
-          // Also set for doctor onboarding
-          setDoctorEnterprises(Array.isArray(data) ? data : data.data || []);
+          setAllEnterprises(data);
+          setDoctorEnterprises(data);
         } else {
           console.warn("Failed to load enterprises from API, using login enterprise");
           // Fallback: Use enterprise from login
@@ -1087,6 +1174,9 @@ export default function Clinics(){
           quantityAvailable: 0,
           reorderLevel: 0,
           minimumStock: 0,
+          batchNo: "",
+          expiryDate: "",
+          amount: "",
           storageLocation: "",
           status: "Available"
         }
@@ -1131,6 +1221,13 @@ export default function Clinics(){
 
     // Validate all items
     for (let item of inventoryFormData.items) {
+      const selectedMaster = masterInventoryItems.find(
+        (master) => getMasterItemId(master) === Number(item.itemId)
+      );
+      if (!selectedMaster || !(getMasterItemId(selectedMaster) > 0)) {
+        setInventoryError("Please select a valid Item from Master Inventory for all rows");
+        return;
+      }
       if (!item.itemName?.trim()) {
         setInventoryError("Please fill in all item names");
         return;
@@ -1139,53 +1236,180 @@ export default function Clinics(){
         setInventoryError("Please enter valid quantities");
         return;
       }
+      if (!String(item.batchNo || '').trim()) {
+        setInventoryError("Please enter Batch No for all items");
+        return;
+      }
+      if (!String(item.expiryDate || '').trim()) {
+        setInventoryError("Please select Expiry Date for all items");
+        return;
+      }
+      if (String(item.expiryDate || '').trim() < todayDate) {
+        setInventoryError("Expiry date cannot be in the past");
+        return;
+      }
+      if (!(Number(item.amount) > 0)) {
+        setInventoryError("Please enter valid Amount for all items");
+        return;
+      }
     }
 
     setInventoryLoading(true);
     try {
       // Format items as ClinicInventory objects (matching backend model)
-      const items = inventoryFormData.items.map((item) => ({
+      const items = inventoryFormData.items.map((item) => {
+        const selectedMaster = masterInventoryItems.find(
+          (master) => getMasterItemId(master) === Number(item.itemId)
+        );
+        const resolvedItemId = getMasterItemId(selectedMaster);
+        const resolvedItemName = getMasterItemName(selectedMaster) || String(item.itemName ?? "").trim();
+
+        return {
         inventoryId: item.inventoryId || 0,
-        itemId: item.itemId,
-        itemName: item.itemName,
+        itemId: resolvedItemId,
+        itemName: resolvedItemName,
         enterpriseId: parseInt(inventoryFormData.enterpriseId),
         clinicId: parseInt(inventoryFormData.clinicId),
         quantityAvailable: parseInt(item.quantityAvailable) || 0,
         reorderLevel: parseInt(item.reorderLevel) || 0,
         minimumStock: parseInt(item.minimumStock) || 0,
+        batchNo: item.batchNo || '',
+        expiry: item.expiryDate || item.expiry || '',
+        expiryDate: item.expiryDate || item.expiry || '',
+        amount: Number(item.amount) || 0,
+        Amount: Number(item.amount) || 0,
         storageLocation: item.storageLocation || '',
         status: item.status || 'Available'
-      }));
-
-      const payload = {
-        enterpriseId: parseInt(inventoryFormData.enterpriseId),
-        clinicId: parseInt(inventoryFormData.clinicId),
-        items: items
       };
-
-      console.log("📦 Adding inventory:", payload);
-
-      // Use the correct API endpoint for adding clinic inventory
-      const response = await fetch(`${API_BASE_URL}/inventory/SaveClinicInventoryBatch?enterpriseId=${payload.enterpriseId}&clinicId=${payload.clinicId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-        },
-        body: JSON.stringify(items)
       });
 
-      console.log("📥 Response status:", response.status);
+      const nowIso = new Date().toISOString();
+      const itemsWithTimestamps = items.map((item) => ({
+        ...item,
+        createdAt: item.createdAt || nowIso,
+        updatedAt: nowIso
+      }));
 
-      if (response.ok) {
-        const responseData = await response.json().catch(() => ({}));
-        console.log("✅ Success response:", responseData);
-        
+      console.log("📦 Adding inventory (per-item create):", {
+        enterpriseId: parseInt(inventoryFormData.enterpriseId),
+        clinicId: parseInt(inventoryFormData.clinicId),
+        count: itemsWithTimestamps.length
+      });
+      console.log(
+        "📦 AddClinicInventory preflight rows:",
+        itemsWithTimestamps.map((item) => ({
+          itemName: item.itemName,
+          itemId: Number(item.itemId ?? item.ItemId ?? item.inventoryMasterId ?? item.InventoryMasterId) || 0,
+          amount: Number(item.Amount ?? item.amount) || 0,
+          batchNo: item.batchNo,
+          expiry: item.expiry || item.expiryDate || ""
+        }))
+      );
+
+      const singleEndpoints = [
+        `${API_BASE_URL}/Inventory/AddClinicInventory`,
+        `${API_BASE_URL}/inventory/AddClinicInventory`
+      ];
+
+      const failedItems = [];
+
+      for (const item of itemsWithTimestamps) {
+        const finalItemId = Number(item.itemId ?? item.ItemId ?? item.inventoryMasterId ?? item.InventoryMasterId) || 0;
+        if (!(finalItemId > 0)) {
+          failedItems.push(`${item.itemName || "Unknown"}: Invalid ItemId from selected master list`);
+          continue;
+        }
+
+        const expiryValue = item.expiry || item.expiryDate || "";
+        const expiryIso = expiryValue ? new Date(expiryValue).toISOString() : "";
+
+        const singlePayload = {
+          inventoryId: item.inventoryId || 0,
+          itemId: finalItemId,
+          itemName: item.itemName,
+          enterpriseId: item.enterpriseId,
+          clinicId: item.clinicId,
+          quantityAvailable: item.quantityAvailable,
+          reorderLevel: item.reorderLevel,
+          minimumStock: item.minimumStock,
+          storageLocation: item.storageLocation,
+          status: item.status,
+          batchNo: item.batchNo,
+          expiry: expiryIso,
+          amount: Number(item.Amount ?? item.amount) || 0,
+          createdAt: item.createdAt,
+          updatedAt: item.updatedAt
+        };
+
+        console.log("📤 AddClinicInventory swagger payload row:", {
+          endpointCandidates: singleEndpoints,
+          itemName: singlePayload.itemName,
+          itemId: singlePayload.itemId,
+          amount: singlePayload.amount,
+          enterpriseId: singlePayload.enterpriseId,
+          clinicId: singlePayload.clinicId
+        });
+
+        let created = false;
+        let itemError = "Failed to add item";
+
+        for (const endpoint of singleEndpoints) {
+          const singleResponse = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+            },
+            body: JSON.stringify(singlePayload)
+          });
+
+          if (singleResponse.ok) {
+            created = true;
+            break;
+          }
+
+          const singleText = await singleResponse.text().catch(() => "");
+          try {
+            const parsed = JSON.parse(singleText);
+            itemError = parsed?.error || parsed?.message || parsed?.title || singleText || itemError;
+          } catch {
+            itemError = singleText || itemError;
+          }
+
+          const requestId =
+            singleResponse.headers.get("x-request-id") ||
+            singleResponse.headers.get("x-ms-request-id") ||
+            singleResponse.headers.get("request-id") ||
+            singleResponse.headers.get("traceparent") ||
+            "n/a";
+
+          console.error("❌ AddClinicInventory request failed", {
+            endpoint,
+            status: singleResponse.status,
+            requestId,
+            responseBody: singleText,
+            payloadSent: singlePayload
+          });
+
+          if (created) {
+            break;
+          }
+
+          if (singleResponse.status !== 404) {
+            break;
+          }
+        }
+
+        if (!created) {
+          failedItems.push(`${item.itemName || item.itemId}: ${itemError}`);
+        }
+      }
+
+      if (failedItems.length === 0) {
         const randomMessage = funnyInventoryMessages[Math.floor(Math.random() * funnyInventoryMessages.length)];
         setInventorySuccessMessage(randomMessage);
         setShowInventorySuccess(true);
-        
-        // Reset form
+
         setInventoryFormData({
           enterpriseId: 0,
           clinicId: 0,
@@ -1197,6 +1421,9 @@ export default function Clinics(){
               quantityAvailable: 0,
               reorderLevel: 0,
               minimumStock: 0,
+              batchNo: "",
+              expiryDate: "",
+              amount: "",
               storageLocation: "",
               status: "Available"
             }
@@ -1208,16 +1435,7 @@ export default function Clinics(){
           setShowInventorySuccess(false);
         }, 2000);
       } else {
-        console.error("❌ Error response status:", response.status);
-        const errorText = await response.text();
-        console.error("❌ Error response body:", errorText);
-        
-        try {
-          const errorData = JSON.parse(errorText);
-          setInventoryError(errorData.message || `Failed to add inventory (${response.status})`);
-        } catch (e) {
-          setInventoryError(`Failed to add inventory. Server responded with status ${response.status}`);
-        }
+        setInventoryError(`Failed to add some items: ${failedItems.join(" | ")}`);
       }
     } catch (error) {
       console.error("Error adding inventory:", error);
@@ -1235,6 +1453,8 @@ export default function Clinics(){
       category: "",
       subCategory: "",
       unit: "",
+      cgst: "",
+      sgst: "",
       isActive: true
     }]);
   };
@@ -1267,35 +1487,45 @@ export default function Clinics(){
 
     setMasterItemLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/inventory/AddInventoryMasterItemsBulk`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-        },
-        body: JSON.stringify(validRows)
-      });
+      const extractApiMessage = (responseText, fallbackMessage = "Failed to add master inventory items") => {
+        if (!responseText) return fallbackMessage;
+        try {
+          const parsed = JSON.parse(responseText);
+          return parsed?.message || parsed?.error || parsed?.title || responseText;
+        } catch {
+          return responseText;
+        }
+      };
 
-      if (response.ok) {
+      const reloadMasterItems = async () => {
+        const reloadEndpoints = [
+          `${API_BASE_URL}/Inventory/GetAllInventoryMasterItems`,
+          `${API_BASE_URL}/inventory/GetAllInventoryMasterItems`,
+          `${API_BASE_URL}/Inventory/GetAllMasterItems`
+        ];
+
+        for (const endpoint of reloadEndpoints) {
+          const reloadResponse = await fetch(endpoint, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+            }
+          });
+
+          if (!reloadResponse.ok) continue;
+          const data = await reloadResponse.json();
+          setMasterInventoryItems(normalizeMasterItems(data));
+          return;
+        }
+      };
+
+      const onMasterAddSuccess = async () => {
         const randomMessage = funnyMasterMessages[Math.floor(Math.random() * funnyMasterMessages.length)];
         setMasterSuccessMessage(randomMessage);
         setShowMasterSuccess(true);
-        
-        // Reload master items
-        const reloadResponse = await fetch(`${API_BASE_URL}/inventory/GetAllInventoryMasterItems`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
-          }
-        });
+        await reloadMasterItems();
 
-        if (reloadResponse.ok) {
-          const data = await reloadResponse.json();
-          setMasterInventoryItems(Array.isArray(data) ? data : data.data || []);
-        }
-
-        // Reset form after delay
         setTimeout(() => {
           setMasterItemRows([{
             itemName: "",
@@ -1303,18 +1533,115 @@ export default function Clinics(){
             category: "",
             subCategory: "",
             unit: "",
+            cgst: "",
+            sgst: "",
             isActive: true
           }]);
           setMasterItemErrors({});
           setShowAddToMasterModal(false);
           setShowMasterSuccess(false);
         }, 2000);
+      };
+
+      const payload = validRows.map((row) => ({
+        ...row,
+        unit: String(row.unit ?? "").trim(),
+        cgst: Number(row.cgst) || 0,
+        sgst: Number(row.sgst) || 0
+      }));
+
+      const postEndpoints = [
+        `${API_BASE_URL}/Inventory/AddMasterItemsBulk`,
+        `${API_BASE_URL}/Inventory/AddInventoryMasterItemsBulk`,
+        `${API_BASE_URL}/inventory/AddInventoryMasterItemsBulk`
+      ];
+
+      let response = null;
+      for (const endpoint of postEndpoints) {
+        const attempt = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (attempt.ok) {
+          response = attempt;
+          break;
+        }
+
+        console.warn(`AddMasterItemsBulk failed at ${endpoint}:`, attempt.status);
+        response = attempt;
+      }
+
+      if (response?.ok) {
+        await onMasterAddSuccess();
       } else {
-        alert("Failed to add master inventory items");
+        const responseText = await response?.text().catch(() => "");
+        let apiMessage = extractApiMessage(responseText);
+
+        const singleEndpoints = [
+          `${API_BASE_URL}/Inventory/AddMasterItem`,
+          `${API_BASE_URL}/Inventory/AddInventoryMasterItem`
+        ];
+
+        let allSingleCreated = true;
+        const failedItems = [];
+
+        for (const item of payload) {
+          let itemCreated = false;
+          let itemFailureMessage = "Failed to add item";
+
+          for (const endpoint of singleEndpoints) {
+            const singleResponse = await fetch(endpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+              },
+              body: JSON.stringify(item)
+            });
+
+            if (singleResponse.ok) {
+              itemCreated = true;
+              break;
+            }
+
+            const singleText = await singleResponse.text().catch(() => "");
+            itemFailureMessage = extractApiMessage(singleText, itemFailureMessage);
+            console.warn(`AddMasterItem failed at ${endpoint}:`, singleResponse.status, itemFailureMessage);
+          }
+
+          if (!itemCreated) {
+            allSingleCreated = false;
+            failedItems.push(`${item.itemCode || item.itemName}: ${itemFailureMessage}`);
+          }
+        }
+
+        if (allSingleCreated) {
+          await onMasterAddSuccess();
+          return;
+        }
+
+        if (failedItems.length > 0) {
+          apiMessage = `${apiMessage} | Item errors: ${failedItems.join(' | ')}`;
+        }
+
+        console.error("❌ AddMasterItemsBulk failed", {
+          status: response.status,
+          statusText: response.statusText,
+          message: apiMessage,
+          payload
+        });
+
+        alert(`Failed to add master inventory items: ${apiMessage}`);
       }
     } catch (error) {
       console.error("Error adding master items:", error);
-      alert("Error adding master items: " + error.message);
+      const message = error?.response?.data || error?.message || "Unknown error";
+      alert("Error adding master items: " + message);
     } finally {
       setMasterItemLoading(false);
     }
@@ -1333,9 +1660,9 @@ export default function Clinics(){
 
     setInventoryLoading(true);
     try {
-      // Use the correct API endpoint: GetClinicInventoryByClinicId with enterpriseId parameter
+      // Use current API endpoint: GetByClinic/{clinicId}
       const response = await fetch(
-        `${API_BASE_URL}/Inventory/GetClinicInventoryByClinicId?enterpriseId=${inventoryFormData.enterpriseId}&clinicId=${inventoryFormData.clinicId}`,
+        `${API_BASE_URL}/Inventory/GetByClinic/${inventoryFormData.clinicId}`,
         {
           method: "GET",
           headers: {
@@ -1348,7 +1675,12 @@ export default function Clinics(){
       if (response.ok) {
         const data = await response.json();
         console.log("📦 Inventory items loaded:", data);
-        setInventoryResults(Array.isArray(data) ? data : data.data || []);
+        const normalizedInventory = (Array.isArray(data) ? data : data.data || []).map((item) => ({
+          ...item,
+          expiry: item.expiry || item.expiryDate || "",
+          expiryDate: item.expiryDate || item.expiry || ""
+        }));
+        setInventoryResults(normalizedInventory);
         setInventoryError("");
       } else {
         setInventoryError("No inventory items found for this clinic");
@@ -1365,6 +1697,14 @@ export default function Clinics(){
 
   // Handle Save All Inventory Changes
   const handleSaveInventoryChanges = async () => {
+    for (let item of inventoryResults) {
+      const expiryDate = String(item.expiryDate || item.expiry || "").trim();
+      if (expiryDate && expiryDate < todayDate) {
+        setInventoryError("Expiry date cannot be in the past");
+        return;
+      }
+    }
+
     setInventoryLoading(true);
     try {
       const payload = {
@@ -1379,6 +1719,10 @@ export default function Clinics(){
           quantityAvailable: parseInt(item.quantityAvailable) || 0,
           reorderLevel: parseInt(item.reorderLevel) || 0,
           minimumStock: parseInt(item.minimumStock) || 0,
+          batchNo: item.batchNo || "",
+          expiry: item.expiryDate || item.expiry || "",
+          expiryDate: item.expiryDate || item.expiry || "",
+          amount: Number(item.amount) || 0,
           storageLocation: item.storageLocation || "",
           status: item.status || "Available"
         }))
@@ -1386,7 +1730,7 @@ export default function Clinics(){
 
       console.log("💾 Saving inventory changes:", payload);
 
-      const response = await fetch(`${API_BASE_URL}/inventory/SaveClinicInventoryBatch?enterpriseId=${inventoryFormData.enterpriseId}&clinicId=${inventoryFormData.clinicId}`, {
+      const response = await fetch(`${API_BASE_URL}/Inventory/SaveBatch?enterpriseId=${inventoryFormData.enterpriseId}&clinicId=${inventoryFormData.clinicId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1500,11 +1844,17 @@ export default function Clinics(){
           clinicId: 0,
           items: [
             {
-              inventoryItemId: 0,
+              inventoryId: 0,
+              itemId: 0,
               itemName: "",
-              quantity: 0,
-              unit: "pcs",
-              description: ""
+              quantityAvailable: 0,
+              reorderLevel: 0,
+              minimumStock: 0,
+              batchNo: "",
+              expiryDate: "",
+              amount: "",
+              storageLocation: "",
+              status: "Available"
             }
           ]
         });
@@ -5733,18 +6083,20 @@ export default function Clinics(){
                                   value={item.itemId || ''}
                                   onChange={(e) => {
                                     const itemId = parseInt(e.target.value);
-                                    const selectedMaster = masterInventoryItems.find(m => m.itemId === itemId);
+                                    const selectedMaster = masterInventoryItems.find(
+                                      (m) => getMasterItemId(m) === itemId
+                                    );
                                     if (selectedMaster) {
-                                      handleInventoryItemChange(index, "itemId", itemId);
-                                      handleInventoryItemChange(index, "itemName", selectedMaster.itemName);
+                                      handleInventoryItemChange(index, "itemId", getMasterItemId(selectedMaster));
+                                      handleInventoryItemChange(index, "itemName", getMasterItemName(selectedMaster));
                                     }
                                   }}
                                   className="w-full px-3 py-2 border-2 border-emerald-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none bg-white"
                                 >
                                   <option value="">Select from Master</option>
                                   {masterInventoryItems.map(item => (
-                                    <option key={item.itemId} value={item.itemId}>
-                                      {item.itemName}
+                                    <option key={getMasterItemId(item) || getMasterItemName(item)} value={getMasterItemId(item)}>
+                                      {getMasterItemName(item)}
                                     </option>
                                   ))}
                                 </select>
@@ -5797,6 +6149,44 @@ export default function Clinics(){
                                   value={item.storageLocation}
                                   onChange={(e) => handleInventoryItemChange(index, "storageLocation", e.target.value)}
                                   placeholder="e.g., Shelf A-1"
+                                  className="w-full px-3 py-2 border-2 border-emerald-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Batch No */}
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">Batch No *</label>
+                                <input
+                                  type="text"
+                                  value={item.batchNo || ''}
+                                  onChange={(e) => handleInventoryItemChange(index, "batchNo", e.target.value)}
+                                  placeholder="e.g., BATCH-001"
+                                  className="w-full px-3 py-2 border-2 border-emerald-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Expiry Date */}
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">Expiry Date *</label>
+                                <input
+                                  type="date"
+                                  min={todayDate}
+                                  value={item.expiryDate || ''}
+                                  onChange={(e) => handleInventoryItemChange(index, "expiryDate", e.target.value)}
+                                  className="w-full px-3 py-2 border-2 border-emerald-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Amount */}
+                              <div>
+                                <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">Amount *</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={item.amount ?? ''}
+                                  onChange={(e) => handleInventoryItemChange(index, "amount", e.target.value)}
+                                  placeholder="0.00"
                                   className="w-full px-3 py-2 border-2 border-emerald-200 rounded-lg focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none"
                                 />
                               </div>
@@ -6328,22 +6718,13 @@ export default function Clinics(){
                         {/* Unit */}
                         <div>
                           <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">Unit *</label>
-                          <select
+                          <input
+                            type="text"
                             value={row.unit}
                             onChange={(e) => handleMasterItemChange(index, "unit", e.target.value)}
-                            className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none bg-white"
-                          >
-                            <option value="">Select Unit</option>
-                            <option value="pcs">pcs</option>
-                            <option value="box">box</option>
-                            <option value="dozen">dozen</option>
-                            <option value="kg">kg</option>
-                            <option value="liter">liter</option>
-                            <option value="ml">ml</option>
-                            <option value="tube">tube</option>
-                            <option value="bottle">bottle</option>
-                            <option value="pack">pack</option>
-                          </select>
+                            placeholder="e.g., pack, 10, 250ml"
+                            className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                          />
                         </div>
 
                         {/* Active Status */}
@@ -6357,6 +6738,32 @@ export default function Clinics(){
                             />
                             <span className="font-semibold text-slate-700">Mark as Active</span>
                           </label>
+                        </div>
+
+                        {/* CGST */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">CGST (%) *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={row.cgst ?? ""}
+                            onChange={(e) => handleMasterItemChange(index, "cgst", e.target.value === "" ? "" : Number(e.target.value))}
+                            className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                          />
+                        </div>
+
+                        {/* SGST */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-2 uppercase tracking-wide">SGST (%) *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={row.sgst ?? ""}
+                            onChange={(e) => handleMasterItemChange(index, "sgst", e.target.value === "" ? "" : Number(e.target.value))}
+                            className="w-full px-4 py-2 border-2 border-purple-200 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none"
+                          />
                         </div>
                       </div>
                     </motion.div>

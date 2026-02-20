@@ -12,28 +12,53 @@ import type {
   UpdateSupplierDto
 } from '../Interfaces';
 
+const normalizeClinicInventoryFromApi = (item: any): ClinicInventory => ({
+  ...item,
+  expiry: item?.expiry ?? item?.expiryDate,
+  expiryDate: item?.expiryDate ?? item?.expiry
+});
+
+const normalizeClinicInventoryForApi = (item: ClinicInventory): ClinicInventory => ({
+  ...item,
+  expiry: item?.expiry ?? item?.expiryDate,
+  expiryDate: item?.expiryDate ?? item?.expiry
+});
+
+const unwrapCollection = <T>(payload: any): T[] => {
+  if (Array.isArray(payload)) return payload as T[];
+  if (Array.isArray(payload?.data)) return payload.data as T[];
+  return [];
+};
+
+const unwrapItem = <T>(payload: any): T => {
+  if (payload && typeof payload === 'object' && payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) {
+    return payload.data as T;
+  }
+  return payload as T;
+};
+
 // ============= INVENTORY MASTER OPERATIONS =============
 
 export function listInventoryMasters(): Promise<InventoryMaster[]> {
-  return request<InventoryMaster[]>("/Inventory/GetAllInventoryMasterItems");
+  return request<any>("/Inventory/GetAllMasterItems").then(data => unwrapCollection<InventoryMaster>(data));
 }
 
 export function getInventoryMaster(itemId: number): Promise<InventoryMaster> {
-  return request<InventoryMaster>(`/Inventory/GetInventoryMasterItemByID?id=${itemId}`);
+  return request<any>(`/Inventory/GetMasterItem/${itemId}`).then(data => unwrapItem<InventoryMaster>(data));
 }
 
 export function createInventoryMaster(payload: CreateInventoryMasterDto): Promise<InventoryMaster> {
-  return request<InventoryMaster>("/Inventory/AddInventoryMasterItem", {
+  return request<any>("/Inventory/AddMasterItem", {
     method: "POST",
     body: JSON.stringify(payload)
-  });
+  }).then(data => unwrapItem<InventoryMaster>(data));
 }
 
 export function updateInventoryMaster(itemId: number, payload: UpdateInventoryMasterDto): Promise<InventoryMaster> {
-  return request<InventoryMaster>(`/InventoryMaster/Update?id=${itemId}`, {
+  return request<any>(`/Inventory/UpdateMasterItem`, {
     method: "PUT",
-    body: JSON.stringify(payload)
-  });
+    body: JSON.stringify({ itemId, ...payload })
+  }).then(data => unwrapItem<InventoryMaster>(data));
 }
 
 export function deleteInventoryMaster(itemId: number): Promise<void> {
@@ -43,48 +68,65 @@ export function deleteInventoryMaster(itemId: number): Promise<void> {
 }
 
 export function addInventoryMasterItemsBulk(items: InventoryMaster[]): Promise<InventoryMaster[]> {
-  return request<InventoryMaster[]>("/inventory/AddInventoryMasterItemsBulk", {
+  const normalizedItems = (items || []).map((item) => ({
+    ...item,
+    unit: String(item?.unit ?? '').trim()
+  }));
+
+  return request<any>("/Inventory/AddMasterItemsBulk", {
     method: "POST",
-    body: JSON.stringify(items)
-  });
+    body: JSON.stringify(normalizedItems)
+  }).then(data => unwrapCollection<InventoryMaster>(data));
 }
 
 export function getAllInventoryMasterItems(): Promise<InventoryMaster[]> {
-  return request<InventoryMaster[]>("/inventory/GetAllInventoryMasterItems");
+  return request<any>("/Inventory/GetAllMasterItems").then(data => unwrapCollection<InventoryMaster>(data));
 }
 
 // ============= CLINIC INVENTORY OPERATIONS =============
 
 export function listClinicInventories(enterpriseId?: number, clinicId?: number): Promise<ClinicInventory[]> {
-  let url = "/Inventory/GetAll";
-  const params = [];
-  
-  if (enterpriseId) params.push(`enterpriseId=${enterpriseId}`);
-  if (clinicId) params.push(`clinicId=${clinicId}`);
-  
-  if (params.length > 0) {
-    url += "?" + params.join("&");
+  let url = "";
+  if (clinicId) {
+    url = `/Inventory/GetByClinic/${clinicId}`;
+  } else if (enterpriseId) {
+    url = `/Inventory/GetByEnterprise/${enterpriseId}`;
+  } else {
+    return Promise.resolve([]);
   }
-  
-  return request<ClinicInventory[]>(url);
+
+  return request<any>(url)
+    .then(data => unwrapCollection<ClinicInventory>(data))
+    .then(items => (items || []).map(normalizeClinicInventoryFromApi));
 }
 
 export function getClinicInventory(inventoryId: number): Promise<ClinicInventory> {
-  return request<ClinicInventory>(`/Inventory/GetByID?id=${inventoryId}`);
+  return request<any>(`/Inventory/GetClinicInventory/${inventoryId}`)
+    .then(data => unwrapItem<ClinicInventory>(data))
+    .then(normalizeClinicInventoryFromApi);
 }
 
 export function getClinicInventoriesByClinic(clinicId: number, enterpriseId: number): Promise<ClinicInventory[]> {
-  return request<ClinicInventory[]>(`/Inventory/GetByClinic?enterpriseId=${enterpriseId}&clinicId=${clinicId}`);
+  return request<any>(`/Inventory/GetByClinic/${clinicId}`)
+    .then(data => unwrapCollection<ClinicInventory>(data))
+    .then(items => (items || []).map(normalizeClinicInventoryFromApi));
 }
 
 export function createClinicInventory(payload: CreateClinicInventoryDto): Promise<ClinicInventory> {
   console.log('📞 API CALL: AddClinicInventory', payload);
+  const normalizedPayload = {
+    ...payload,
+    expiry: payload.expiry ?? payload.expiryDate,
+    expiryDate: payload.expiryDate ?? payload.expiry
+  };
+
   return request<ClinicInventory>("/Inventory/AddClinicInventory", {
     method: "POST",
-    body: JSON.stringify(payload)
+    body: JSON.stringify(normalizedPayload)
   }).then(data => {
-    console.log('✅ Inventory item created:', data);
-    return data;
+    const normalized = normalizeClinicInventoryFromApi(data);
+    console.log('✅ Inventory item created:', normalized);
+    return normalized;
   }).catch(error => {
     console.error('❌ Failed to create inventory:', error);
     throw error;
@@ -93,12 +135,19 @@ export function createClinicInventory(payload: CreateClinicInventoryDto): Promis
 
 export function updateClinicInventory(inventoryId: number, payload: UpdateClinicInventoryDto): Promise<ClinicInventory> {
   console.log('📝 API CALL: UpdateClinicInventory', { inventoryId, payload });
+  const normalizedPayload = {
+    ...payload,
+    expiry: payload.expiry ?? payload.expiryDate,
+    expiryDate: payload.expiryDate ?? payload.expiry
+  };
+
   return request<ClinicInventory>("/Inventory/UpdateClinicInventory", {
     method: "PUT",
-    body: JSON.stringify(payload)
+    body: JSON.stringify(normalizedPayload)
   }).then(data => {
-    console.log('✅ Inventory item updated:', data);
-    return data;
+    const normalized = normalizeClinicInventoryFromApi(data);
+    console.log('✅ Inventory item updated:', normalized);
+    return normalized;
   }).catch(error => {
     console.error('❌ Failed to update inventory:', error);
     throw error;
@@ -107,7 +156,7 @@ export function updateClinicInventory(inventoryId: number, payload: UpdateClinic
 
 export function deleteClinicInventory(enterpriseId: number, clinicId: number, inventoryId: number): Promise<void> {
   console.log('🗑️ API CALL: DeleteClinicInventory', { enterpriseId, clinicId, inventoryId });
-  return request<void>(`/Inventory/DeleteClinicInventory?EnterpriseID=${enterpriseId}&ClinicID=${clinicId}&InventoryID=${inventoryId}`, {
+  return request<void>(`/Inventory/DeleteClinicInventory?enterpriseId=${enterpriseId}&clinicId=${clinicId}&inventoryId=${inventoryId}`, {
     method: "DELETE"
   }).then(() => {
     console.log('✅ Inventory item deleted successfully');
@@ -118,18 +167,23 @@ export function deleteClinicInventory(enterpriseId: number, clinicId: number, in
 }
 
 export function saveClinicInventoryBatch(enterpriseId: number, clinicId: number, items: ClinicInventory[]): Promise<ClinicInventory[]> {
-  return request<ClinicInventory[]>(`/inventory/SaveClinicInventoryBatch?enterpriseId=${enterpriseId}&clinicId=${clinicId}`, {
+  const normalizedItems = (items || []).map(normalizeClinicInventoryForApi);
+  return request<any>(`/Inventory/SaveBatch?enterpriseId=${enterpriseId}&clinicId=${clinicId}`, {
     method: "POST",
-    body: JSON.stringify(items)
+    body: JSON.stringify(normalizedItems)
+  }).then(data => {
+    const savedItems = unwrapCollection<ClinicInventory>(data);
+    return (savedItems || []).map(normalizeClinicInventoryFromApi);
   });
 }
 
 export function getClinicInventoryByClinicId(clinicId: number): Promise<ClinicInventory[]> {
   console.log('📞 API CALL: GetClinicInventoryByClinicId', { clinicId });
-  return request<ClinicInventory[]>(`/Inventory/GetClinicInventoryByClinicId?clinicId=${clinicId}`)
+  return request<any>(`/Inventory/GetByClinic/${clinicId}`)
     .then(data => {
-      console.log('✅ Clinic inventory fetched:', data);
-      return data;
+      const normalized = unwrapCollection<ClinicInventory>(data).map(normalizeClinicInventoryFromApi);
+      console.log('✅ Clinic inventory fetched:', normalized);
+      return normalized;
     })
     .catch(error => {
       console.error('❌ Failed to fetch clinic inventory:', error);
@@ -138,18 +192,25 @@ export function getClinicInventoryByClinicId(clinicId: number): Promise<ClinicIn
 }
 
 export function updateClinicInventoryIndividual(item: ClinicInventory): Promise<ClinicInventory> {
-  return request<ClinicInventory>("/inventory/UpdateClinicInventory", {
+  const normalizedItem = normalizeClinicInventoryForApi(item);
+  return request<any>("/Inventory/UpdateClinicInventory", {
     method: "PUT",
-    body: JSON.stringify(item)
-  });
+    body: JSON.stringify(normalizedItem)
+  }).then(data => unwrapItem<ClinicInventory>(data)).then(normalizeClinicInventoryFromApi);
 }
 
 
 export function bulkUpdateClinicInventories(updates: UpdateClinicInventoryDto[]): Promise<ClinicInventory[]> {
+  const normalizedUpdates = (updates || []).map((update) => ({
+    ...update,
+    expiry: update.expiry ?? update.expiryDate,
+    expiryDate: update.expiryDate ?? update.expiry
+  }));
+
   return request<ClinicInventory[]>("/Inventory/BulkUpdate", {
     method: "POST",
-    body: JSON.stringify(updates)
-  });
+    body: JSON.stringify(normalizedUpdates)
+  }).then(items => (items || []).map(normalizeClinicInventoryFromApi));
 }
 
 // ============= SUPPLIER OPERATIONS =============
@@ -219,7 +280,7 @@ export function searchClinicInventories(params: SearchClinicInventoryParams): Pr
   if (params.status) queryParams.append('status', params.status);
   
   const url = `/Inventory/Search?${queryParams.toString()}`;
-  return request<ClinicInventory[]>(url);
+  return request<ClinicInventory[]>(url).then(items => (items || []).map(normalizeClinicInventoryFromApi));
 }
 
 // ============= DASHBOARD STATISTICS =============
