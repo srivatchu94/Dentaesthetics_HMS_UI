@@ -24,10 +24,11 @@ import html2canvas from "html2canvas";
 import { request } from "../services/apiClient";
 import { useNavigate } from "react-router-dom";
 
-export function ServiceBillingModal({ show, onClose, appointmentId, appointmentDetails, invoiceNumber: passedInvoiceNumber, onSuccess }) {
+export function ServiceBillingModal({ show, onClose, appointmentId, appointmentDetails, invoiceNumber: passedInvoiceNumber, onSuccess, initialMode = "edit" }) {
   const navigate = useNavigate();
   const [patientName, setPatientName] = useState("");
   const [displayInvoiceNumber, setDisplayInvoiceNumber] = useState("INV-2026-001");
+  const [modalMode, setModalMode] = useState(initialMode); // "edit" for create new, "view" for viewing, "edit-invoice" for editing existing
   const [consultationFee, setConsultationFee] = useState(null); // Optional - null means no consultation fee
   const [consultationGST, setConsultationGST] = useState(18);
   const [consultationPaid, setConsultationPaid] = useState(0); // Per-item payment tracking
@@ -43,7 +44,6 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   const [submitting, setSubmitting] = useState(false);
   const [modeOfPayment, setModeOfPayment] = useState("Cash");
   const [savedLineItems, setSavedLineItems] = useState([]);
-  const [modalMode, setModalMode] = useState("edit"); // "edit" for new, "view" for existing
   const [loading, setLoading] = useState(true);
   const [existingInvoiceNumber, setExistingInvoiceNumber] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -433,20 +433,37 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
       };
 
       console.log("Submitting invoice:", completeInvoice);
+      console.log("📝 Modal mode:", modalMode);
 
-      // Call API to Services controller with correct endpoint
-      const response = await request("/Services/CreateCompleteInvoice", {
-        method: "POST",
-        body: JSON.stringify(completeInvoice)
-      });
+      // Determine which API endpoint to use based on modal mode
+      let response;
+      let successMsg;
+
+      if (modalMode === "edit-invoice") {
+        // Update existing invoice
+        console.log("🔄 Updating existing invoice...");
+        response = await request(`/Services/UpdateCompleteInvoice?appointmentId=${appointmentId}`, {
+          method: "PUT",
+          body: JSON.stringify(completeInvoice)
+        });
+        successMsg = `✅ Invoice ${displayInvoiceNumber} updated successfully!`;
+      } else {
+        // Create new invoice
+        console.log("✨ Creating new invoice...");
+        response = await request("/Services/CreateCompleteInvoice", {
+          method: "POST",
+          body: JSON.stringify(completeInvoice)
+        });
+        successMsg = `✅ Invoice ${displayInvoiceNumber} created successfully!`;
+      }
       
       // Store saved line items from response
       if (response && response.lineItems) {
         setSavedLineItems(response.lineItems);
       }
       
-      // Show success modal instead of closing immediately
-      setSuccessMessage(`✅ Invoice ${displayInvoiceNumber} created successfully!`);
+      // Show success modal
+      setSuccessMessage(successMsg);
       setShowSuccessModal(true);
       
       // Close modal and redirect after delay
@@ -562,7 +579,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   const statusBg = status === "Paid" ? "bg-green-50" : status === "Partial" ? "bg-amber-50" : "bg-red-50";
   const statusBorder = status === "Paid" ? "border-green-300" : status === "Partial" ? "border-amber-300" : "border-red-300";
   const statusIcon = status === "Paid" ? <CheckCircle2 size={20} /> : status === "Partial" ? <Clock size={20} /> : <AlertCircle size={20} />;
-  const isViewMode = modalMode === "view";
+  const isViewMode = modalMode === "view"; // Only view mode hides all editables
+  const isEditInvoiceMode = modalMode === "edit-invoice"; // Edit mode for existing invoices
 
   return (
     <AnimatePresence>
@@ -590,10 +608,10 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                   </div>
                   <div className="flex-1">
                     <h2 className="text-3xl font-bold">
-                      {loading ? "Loading Invoice..." : isViewMode ? "📋 Invoice Details" : "💳 Create Service Invoice"}
+                      {loading ? "Loading Invoice..." : isViewMode ? "📋 Invoice Details" : isEditInvoiceMode ? "✏️ Edit Invoice" : "💳 Create Service Invoice"}
                     </h2>
                     <p className="text-blue-100 text-sm mt-1">
-                      {loading ? "Retrieving invoice information..." : isViewMode ? `Invoice #${displayInvoiceNumber}` : `New Invoice for Appointment #${appointmentId}`}
+                      {loading ? "Retrieving invoice information..." : isViewMode ? `Invoice #${displayInvoiceNumber}` : isEditInvoiceMode ? `Editing Invoice #${displayInvoiceNumber}` : `New Invoice for Appointment #${appointmentId}`}
                     </p>
                   </div>
                 </div>
@@ -1112,12 +1130,12 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                     {submitting ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Submitting...
+                        {isEditInvoiceMode ? "Updating..." : "Submitting..."}
                       </>
                     ) : (
                       <>
                         <CheckCircle2 size={20} />
-                        Submit & Create Invoice
+                        {isEditInvoiceMode ? "💾 Update Invoice" : "✅ Submit & Create Invoice"}
                       </>
                     )}
                   </motion.button>

@@ -5,8 +5,8 @@ import { createPatient } from "../services/patientService";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
 import { getSelectedAccess } from "../services/tokenManager";
 
-// Reusable InputField component
-const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => (
+// Reusable InputField component with validation
+const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false, error = "", onBlur = null }) => (
   <div className="mb-2">
     {type === "date" ? (
       <>
@@ -21,14 +21,17 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
           name={name}
           value={value}
           onChange={onChange}
+          onBlur={onBlur}
           required={required}
           disabled={disabled}
           className={`w-full px-3 py-2 text-sm border rounded-lg transition ${
+            error ? "border-red-500 focus:ring-2 focus:ring-red-400" :
             disabled 
               ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
               : "border-stone-300 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
           }`}
         />
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </>
     ) : options ? (
       <>
@@ -42,9 +45,11 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
           name={name}
           value={value}
           onChange={onChange}
+          onBlur={onBlur}
           required={required}
           disabled={disabled}
           className={`w-full px-3 py-1.5 text-sm border rounded-lg transition ${
+            error ? "border-red-500 focus:ring-1 focus:ring-red-400" :
             disabled 
               ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
               : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
@@ -55,6 +60,7 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
             <option key={opt} value={opt}>{opt}</option>
           ))}
         </select>
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </>
     ) : type === "textarea" ? (
       <>
@@ -68,15 +74,18 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
           name={name}
           value={value}
           onChange={onChange}
+          onBlur={onBlur}
           placeholder={placeholder}
           rows={3}
           disabled={disabled}
           className={`w-full px-3 py-1.5 text-sm border rounded-lg transition resize-none ${
+            error ? "border-red-500 focus:ring-1 focus:ring-red-400" :
             disabled 
               ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
               : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
           }`}
         />
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </>
     ) : (
       <>
@@ -91,15 +100,18 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
           name={name}
           value={value}
           onChange={onChange}
+          onBlur={onBlur}
           required={required}
           placeholder={placeholder}
           disabled={disabled}
           className={`w-full px-3 py-1.5 text-sm border rounded-lg transition ${
+            error ? "border-red-500 focus:ring-1 focus:ring-red-400" :
             disabled 
               ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
               : "border-stone-300 focus:ring-1 focus:ring-amber-400 focus:border-transparent"
           }`}
         />
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </>
     )}
   </div>
@@ -172,6 +184,65 @@ export default function RegisterPatient() {
   const [allEnterprises, setAllEnterprises] = useState([]);
   const [clinicList, setClinicList] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+
+  // Validation errors state
+  const [errors, setErrors] = useState({
+    dateOfBirth: "",
+    email: "",
+    phoneNumber: "",
+    alternatePhoneNumber: "",
+    postalCode: "",
+    emergencyContactPhone: ""
+  });
+
+  // Validation functions
+  const validateDateOfBirth = (dob) => {
+    if (!dob) return "";
+    const dobDate = new Date(dob);
+    const today = new Date();
+    if (dobDate > today) {
+      return "❌ Date of birth cannot be in the future";
+    }
+    return "";
+  };
+
+  const validateEmail = (email) => {
+    if (!email) return "";
+    // Email regex pattern
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return "❌ Please enter a valid email address (e.g., user@example.com)";
+    }
+    return "";
+  };
+
+  const validatePhoneNumber = (phone, isAlternate = false) => {
+    if (!phone) return "";
+    // Remove all non-digit characters
+    const digitsOnly = phone.replace(/\D/g, "");
+    if (digitsOnly.length > 10) {
+      return `❌ Mobile number cannot be more than 10 digits (you entered ${digitsOnly.length})`;
+    }
+    if (digitsOnly.length > 0 && digitsOnly.length < 10) {
+      return `❌ Mobile number should have 10 digits (you entered ${digitsOnly.length})`;
+    }
+    return "";
+  };
+
+  const validatePostalCode = (postalCode) => {
+    if (!postalCode) return "";
+    const digitsOnly = postalCode.replace(/\D/g, "");
+    if (digitsOnly.length !== 6) {
+      return `❌ Postal code must be exactly 6 digits (you entered ${digitsOnly.length})`;
+    }
+    return "";
+  };
+
+  // Handle field blur validation
+  const handleFieldBlur = (field, value, validationFunc) => {
+    const error = validationFunc(value);
+    setErrors(prev => ({ ...prev, [field]: error }));
+  };
 
   // Tab validation with debugging
   const isPatientTabValid = () => {
@@ -277,6 +348,33 @@ export default function RegisterPatient() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Check for validation errors
+    const dobError = validateDateOfBirth(patientData.dateOfBirth);
+    const emailError = validateEmail(contactData.email);
+    const phoneError = validatePhoneNumber(contactData.phoneNumber, false);
+    const alternatePhoneError = validatePhoneNumber(contactData.alternatePhoneNumber, true);
+    const postalCodeError = validatePostalCode(contactData.postalCode);
+    const emergencyPhoneError = validatePhoneNumber(contactData.emergencyContactPhone, false);
+
+    // Update errors state
+    const newErrors = {
+      dateOfBirth: dobError,
+      email: emailError,
+      phoneNumber: phoneError,
+      alternatePhoneNumber: alternatePhoneError,
+      postalCode: postalCodeError,
+      emergencyContactPhone: emergencyPhoneError
+    };
+    setErrors(newErrors);
+
+    // Check if there are any validation errors
+    const hasValidationErrors = Object.values(newErrors).some(error => error !== "");
+    
+    if (hasValidationErrors) {
+      alert("⚠️ Please fix the validation errors before submitting!");
+      return;
+    }
     
     if (!isAllTabsValid()) {
       alert("⚠️ Please fill all required fields in Patient Info and Contact tabs!");
@@ -467,7 +565,9 @@ export default function RegisterPatient() {
                         type="date"
                         value={patientData.dateOfBirth}
                         onChange={(e) => setPatientData({ ...patientData, dateOfBirth: e.target.value })}
+                        onBlur={(e) => handleFieldBlur("dateOfBirth", e.target.value, validateDateOfBirth)}
                         required
+                        error={errors.dateOfBirth}
                       />
                       <InputField
                         label="Gender"
@@ -533,8 +633,10 @@ export default function RegisterPatient() {
                         type="tel"
                         value={contactData.phoneNumber}
                         onChange={(e) => setContactData({ ...contactData, phoneNumber: e.target.value })}
+                        onBlur={(e) => handleFieldBlur("phoneNumber", e.target.value, (val) => validatePhoneNumber(val, false))}
                         required
-                        placeholder="+1 (555) 123-4567"
+                        placeholder="10-digit mobile number"
+                        error={errors.phoneNumber}
                       />
                       <InputField
                         label="Alternate Phone"
@@ -542,7 +644,9 @@ export default function RegisterPatient() {
                         type="tel"
                         value={contactData.alternatePhoneNumber}
                         onChange={(e) => setContactData({ ...contactData, alternatePhoneNumber: e.target.value })}
-                        placeholder="+1 (555) 987-6543"
+                        onBlur={(e) => handleFieldBlur("alternatePhoneNumber", e.target.value, (val) => validatePhoneNumber(val, true))}
+                        placeholder="10-digit mobile number"
+                        error={errors.alternatePhoneNumber}
                       />
                       <InputField
                         label="Email"
@@ -550,7 +654,9 @@ export default function RegisterPatient() {
                         type="email"
                         value={contactData.email}
                         onChange={(e) => setContactData({ ...contactData, email: e.target.value })}
+                        onBlur={(e) => handleFieldBlur("email", e.target.value, validateEmail)}
                         placeholder="patient@example.com"
+                        error={errors.email}
                       />
                       <InputField
                         label="Address Line 1"
@@ -588,8 +694,10 @@ export default function RegisterPatient() {
                         name="postalCode"
                         value={contactData.postalCode}
                         onChange={(e) => setContactData({ ...contactData, postalCode: e.target.value })}
+                        onBlur={(e) => handleFieldBlur("postalCode", e.target.value, validatePostalCode)}
                         required
-                        placeholder="12345"
+                        placeholder="6-digit postal code"
+                        error={errors.postalCode}
                       />
                       <InputField
                         label="Country"
@@ -612,7 +720,9 @@ export default function RegisterPatient() {
                         type="tel"
                         value={contactData.emergencyContactPhone}
                         onChange={(e) => setContactData({ ...contactData, emergencyContactPhone: e.target.value })}
-                        placeholder="+1 (555) 000-0000"
+                        onBlur={(e) => handleFieldBlur("emergencyContactPhone", e.target.value, (val) => validatePhoneNumber(val, false))}
+                        placeholder="10-digit mobile number"
+                        error={errors.emergencyContactPhone}
                       />
                       <InputField
                         label="Emergency Contact Relation"

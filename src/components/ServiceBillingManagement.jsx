@@ -504,7 +504,8 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                         
                                         onPaymentClick({ 
                                           ...appointmentData, 
-                                          invoiceNumber: invNumber
+                                          invoiceNumber: invNumber,
+                                          mode: "view"
                                         });
                                       } catch (error) {
                                         console.error("❌ Error in View button:", error);
@@ -515,6 +516,40 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                   >
                                     <Eye size={14} />
                                     View
+                                  </motion.button>
+                                  <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => {
+                                      try {
+                                        console.log("✏️ Edit Invoice clicked:", invoice);
+                                        const appointmentData = billingAppointments.find(a => a.appointmentId === expandedAppointmentId);
+                                        const invNumber = invoice?.header?.invoiceNumber;
+                                        
+                                        if (!appointmentData) {
+                                          console.error("❌ Appointment data not found");
+                                          return;
+                                        }
+                                        
+                                        if (!invNumber) {
+                                          console.error("❌ Invoice number not found in invoice object");
+                                          return;
+                                        }
+                                        
+                                        onPaymentClick({ 
+                                          ...appointmentData, 
+                                          invoiceNumber: invNumber,
+                                          mode: "edit"
+                                        });
+                                      } catch (error) {
+                                        console.error("❌ Error in Edit button:", error);
+                                      }
+                                    }}
+                                    className="flex items-center justify-center gap-1 px-2 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded font-semibold text-xs transition-all whitespace-nowrap"
+                                    title="Edit Invoice"
+                                  >
+                                    ✏️
+                                    Edit
                                   </motion.button>
                                   <motion.button
                                     whileHover={{ scale: 1.05 }}

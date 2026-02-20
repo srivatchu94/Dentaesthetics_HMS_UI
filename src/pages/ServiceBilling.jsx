@@ -8,12 +8,22 @@ export default function ServiceBilling() {
   const navigate = useNavigate();
   const [showBillingModal, setShowBillingModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [modalMode, setModalMode] = useState("edit"); // "edit" for create, "view" for view, "edit-invoice" for editing existing
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const handlePaymentClick = (appointment) => {
     console.log("🎯 handlePaymentClick received:", appointment);
     console.log("✅ Invoice Number in appointment:", appointment.invoiceNumber);
+    console.log("📝 Mode:", appointment.mode);
     setSelectedAppointment(appointment);
+    // Set mode based on appointment.mode parameter
+    if (appointment.mode === "view") {
+      setModalMode("view");
+    } else if (appointment.mode === "edit") {
+      setModalMode("edit-invoice");
+    } else {
+      setModalMode("edit");
+    }
     setShowBillingModal(true);
   };
 
@@ -100,6 +110,7 @@ export default function ServiceBilling() {
             appointmentDetails={selectedAppointment}
             invoiceNumber={selectedAppointment.invoiceNumber}
             onSuccess={handleBillingSuccess}
+            initialMode={modalMode}
           />
         )}
       </AnimatePresence>
