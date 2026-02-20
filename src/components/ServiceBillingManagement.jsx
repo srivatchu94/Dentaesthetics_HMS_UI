@@ -427,67 +427,82 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                               initial={{ opacity: 0, x: -20 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ delay: idx * 0.1 }}
-                              className="bg-white rounded-lg border-2 border-teal-200 shadow-sm hover:shadow-md transition-all overflow-hidden"
+                              className={`rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 ${
+                                invoice.header?.status === 'Paid'
+                                  ? 'border-l-green-500 bg-gradient-to-r from-green-50/40 to-white'
+                                  : invoice.header?.status === 'Partial'
+                                  ? 'border-l-amber-500 bg-gradient-to-r from-amber-50/40 to-white'
+                                  : 'border-l-red-500 bg-gradient-to-r from-red-50/40 to-white'
+                              } border border-slate-100`}
                             >
-                              <div className="px-4 py-3 flex items-center justify-between gap-6">
-                                {/* Left Section: Invoice Info */}
-                                <div className="flex items-center gap-6 flex-1 min-w-0">
-                                  {/* Invoice Number */}
+                              <div className="px-5 py-3.5 flex items-center justify-between gap-5">
+                                {/* Left Section: Invoice Identity */}
+                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                  {/* Invoice # & Date as main identity */}
                                   <div className="flex-shrink-0">
-                                    <p className="text-xs font-semibold text-teal-600 uppercase tracking-wide">Invoice #</p>
-                                    <p className="text-sm font-bold text-slate-800">{invoice.header?.invoiceNumber || 'N/A'}</p>
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">INV</p>
+                                    <p className="text-base font-black text-slate-900">{invoice.header?.invoiceNumber || 'N/A'}</p>
                                   </div>
 
-                                  <div className="h-8 border-l border-teal-200"></div>
+                                  {/* Divider */}
+                                  <div className="h-10 border-r border-slate-200"></div>
 
-                                  {/* Status Badge */}
+                                  {/* Date with icon feel */}
                                   <div className="flex-shrink-0">
-                                    <p className="text-xs font-semibold text-teal-600 uppercase tracking-wide mb-0.5">Status</p>
+                                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Bill Date</p>
+                                    <p className="text-sm font-semibold text-slate-800">
+                                      {new Date(invoice.header?.billDate).toLocaleDateString('en-IN', { month: 'short', day: '2-digit' })}
+                                    </p>
+                                  </div>
+
+                                  {/* Status Badge with enhanced styling */}
+                                  <div className="flex-shrink-0">
                                     <motion.span
-                                      className={`text-xs font-bold rounded px-2.5 py-1 inline-block ${
+                                      whileHover={{ scale: 1.05 }}
+                                      className={`text-xs font-bold rounded-full px-3.5 py-1.5 inline-block border-2 transition-all ${
                                         invoice.header?.status === 'Paid'
-                                          ? 'bg-green-100 text-green-800'
+                                          ? 'bg-green-500 text-white border-green-600 shadow-sm'
                                           : invoice.header?.status === 'Partial'
-                                          ? 'bg-amber-100 text-amber-800'
-                                          : 'bg-red-100 text-red-800'
+                                          ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                                          : 'bg-red-500 text-white border-red-600 shadow-sm'
                                       }`}
                                     >
                                       {invoice.header?.status || 'Pending'}
                                     </motion.span>
                                   </div>
-
-                                  <div className="h-8 border-l border-teal-200"></div>
-
-                                  {/* Date */}
-                                  <div className="flex-shrink-0">
-                                    <p className="text-xs font-semibold text-teal-600 uppercase tracking-wide">Date</p>
-                                    <p className="text-sm font-semibold text-slate-700">
-                                      {new Date(invoice.header?.billDate).toLocaleDateString()}
-                                    </p>
-                                  </div>
                                 </div>
 
-                                {/* Right Section: Financial Summary & Actions */}
-                                <div className="flex items-center justify-end gap-6 flex-shrink-0">
-                                  {/* Total Amount */}
-                                  <div className="text-right">
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</p>
-                                    <p className="text-base font-bold text-blue-700">₹{invoice.header?.totalAmount?.toFixed(2) || '0.00'}</p>
+                                {/* Middle Section: Financial Summary (Compact Balanced Layout) */}
+                                <div className="flex items-center gap-5 flex-shrink-0">
+                                  {/* Financial Summary as key metrics */}
+                                  <div className="flex items-center gap-4 px-3 py-2 bg-white/60 rounded-lg backdrop-blur-sm border border-slate-100">
+                                    {/* Total */}
+                                    <div className="text-center min-w-fit">
+                                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Total</p>
+                                      <p className="text-sm font-black text-blue-700">₹{(invoice.header?.totalAmount || 0).toFixed(0)}</p>
+                                    </div>
+                                    
+                                    {/* Divider */}
+                                    <div className="h-9 border-r border-slate-200"></div>
+                                    
+                                    {/* Paid */}
+                                    <div className="text-center min-w-fit">
+                                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Paid</p>
+                                      <p className="text-sm font-black text-green-600">₹{(invoice.header?.paidAmount || 0).toFixed(0)}</p>
+                                    </div>
+                                    
+                                    {/* Divider */}
+                                    <div className="h-9 border-r border-slate-200"></div>
+                                    
+                                    {/* Pending */}
+                                    <div className="text-center min-w-fit">
+                                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Due</p>
+                                      <p className="text-sm font-black text-red-600">₹{Math.max(0, (invoice.header?.pendingAmount || 0)).toFixed(0)}</p>
+                                    </div>
                                   </div>
 
-                                  {/* Amount Paid */}
-                                  <div className="text-right">
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Paid</p>
-                                    <p className="text-base font-bold text-green-700">₹{invoice.header?.paidAmount?.toFixed(2) || '0.00'}</p>
-                                  </div>
-
-                                  {/* Pending Amount */}
-                                  <div className="text-right">
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending</p>
-                                    <p className="text-base font-bold text-red-700">₹{invoice.header?.pendingAmount?.toFixed(2) || '0.00'}</p>
-                                  </div>
-
-                                  <div className="h-8 border-l border-teal-200"></div>
+                                  {/* Divider */}
+                                  <div className="h-12 border-r border-slate-200"></div>
 
                                   {/* Action Buttons */}
                                   <div className="flex items-center gap-2 flex-shrink-0">
