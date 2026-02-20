@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAppointmentsByFilters, updateAppointment } from '../services/appointmentService';
 import { getAccessToken, getClinicIdFromToken, getSelectedAccess } from '../services/tokenManager';
+import { request } from '../services/apiClient';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
@@ -77,8 +78,48 @@ export default function PaymentManagement() {
         setErrorMessage('No appointments booked for the selected day.');
         setPaymentAppointments([]);
       } else {
-        // Ensure pendingAmount is calculated correctly if not provided
-        data = data.map(appt => {
+        // Fetch invoices for each appointment to get actual paid amounts
+        const appointmentsWithInvoices = await Promise.all(data.map(async (appt) => {
+          try {
+            // Fetch invoices for this appointment
+            const invoiceResponse = await request(`/Services/GetInvoicesByAppointmentComplete?appointmentId=${appt.appointmentId}`);
+            
+            if (invoiceResponse && Array.isArray(invoiceResponse)) {
+              console.log(`📦 Found ${invoiceResponse.length} invoices for appointment ${appt.appointmentId}`);
+              
+              // If invoices exist, calculate paid/pending from invoices
+              if (invoiceResponse.length > 0) {
+                let totalInvoiceAmount = 0;
+                let totalPaidAmount = 0;
+                let hasPartialPayment = false;
+                
+                invoiceResponse.forEach(invoice => {
+                  totalInvoiceAmount += invoice.header?.totalAmount || 0;
+                  totalPaidAmount += invoice.header?.paidAmount || 0;
+                  if (invoice.header?.status === 'Partial') {
+                    hasPartialPayment = true;
+                  }
+                });
+                
+                const pendingAmount = Math.max(totalInvoiceAmount - totalPaidAmount, 0);
+                const paymentStatus = totalPaidAmount === 0 ? 'Pending' : totalPaidAmount >= totalInvoiceAmount ? 'Paid' : 'Partial';
+                
+                console.log(`💰 Appointment ${appt.appointmentId}: Total=${totalInvoiceAmount}, Paid=${totalPaidAmount}, Pending=${pendingAmount}, Status=${paymentStatus}`);
+                
+                return {
+                  ...appt,
+                  billableAmount: totalInvoiceAmount,
+                  paidAmount: totalPaidAmount,
+                  pendingAmount: pendingAmount,
+                  paymentStatus: paymentStatus
+                };
+              }
+            }
+          } catch (invoiceError) {
+            console.log(`⚠️ No invoices found for appointment ${appt.appointmentId}, using appointment data`);
+          }
+          
+          // Fallback: use appointment data if no invoices found
           const billable = parseFloat(appt.billableAmount) || 0;
           const paid = parseFloat(appt.paidAmount) || 0;
           const pending = billable - paid;
@@ -90,8 +131,9 @@ export default function PaymentManagement() {
             pendingAmount: Math.max(pending, 0),
             paymentStatus: appt.paymentStatus || 'Pending'
           };
-        });
-        setPaymentAppointments(data);
+        }));
+        
+        setPaymentAppointments(appointmentsWithInvoices);
         setErrorMessage('');
       }
     } catch (error) {
