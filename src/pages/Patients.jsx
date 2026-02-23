@@ -1502,7 +1502,8 @@ export default function Patients() {
                   setShowNewAppointmentModal(true);
                 }
               } },
-              { id: 'view-appointments', title: '📋 View Appointments', description: 'Browse appointments', icon: '📋', color: 'from-purple-400 to-pink-400', action: () => setShowViewAppointmentsModal(true) }
+              { id: 'view-appointments', title: '📋 View Appointments', description: 'Browse appointments', icon: '📋', color: 'from-purple-400 to-pink-400', action: () => setShowViewAppointmentsModal(true) },
+              { id: 'calendar', title: '📆 Appointments Calendar', description: 'View clinic calendar', icon: '📆', color: 'from-orange-400 to-red-400', action: () => navigate('/calendar') }
             ].map((tile, index) => (
               <motion.div
                 key={tile.id}

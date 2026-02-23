@@ -70,7 +70,15 @@ export default function Home() {
       link: "/patients"
     },
     { 
-      icon: "📊", 
+      icon: "�", 
+      title: "Appointments Calendar", 
+      description: "Schedule and manage clinic appointments by date and doctor",
+      color: "from-teal-400/20 to-cyan-400/20",
+      textColor: "text-teal-700",
+      link: "/calendar"
+    },
+    { 
+      icon: "�📊", 
       title: "Reports & Analytics", 
       description: "Comprehensive insights, revenue tracking, and report generation",
       color: "from-indigo-400/20 to-purple-400/20",
