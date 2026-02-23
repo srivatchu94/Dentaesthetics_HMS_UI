@@ -23,6 +23,13 @@ export interface UserAccess {
   roleIds: number[];
 }
 
+// Access Summary from backend
+export interface AccessSummaryDto {
+  enterpriseId: number;
+  clinicId: number;
+  roleIds: number[];
+}
+
 // Actual backend login response structure (with refresh token)
 export interface LoginResponse {
   accessToken: string;
@@ -34,6 +41,24 @@ export interface LoginResponse {
   refreshTokenExpiresAt: string;
   inactivityTimeoutMinutes: number;
   maxSessionDurationHours: number;
+}
+
+// OTP Login Response from backend (PascalCase)
+export interface OtpLoginResponseFull {
+  success: boolean;
+  message: string;
+  accessToken: string;
+  refreshToken: string;
+  userId: string;
+  username: string;
+  email: string;
+  userType: string;
+  access: AccessSummaryDto[];
+  accessTokenExpiresAt: string;
+  refreshTokenExpiresAt: string;
+  inactivityTimeoutMinutes: number;
+  maxSessionDurationHours: number;
+  loginMethod: string;
 }
 
 // Refresh token request

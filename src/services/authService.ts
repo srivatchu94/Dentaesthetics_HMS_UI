@@ -1,5 +1,5 @@
 import { request } from './apiClient';
-import { RegisterRequest, LoginRequest, AuthResponse, LoginResponse, UserAccess, RefreshTokenRequest, RefreshTokenResponse } from '../Interfaces/AuthModels';
+import { RegisterRequest, LoginRequest, AuthResponse, LoginResponse, UserAccess, RefreshTokenRequest, RefreshTokenResponse, OtpLoginResponseFull } from '../Interfaces/AuthModels';
 import {
   saveAccessToken,
   getAccessToken,
@@ -41,6 +41,24 @@ let lastActivityTime: number = Date.now();
 // ============================================
 // 💾 TOKEN STORAGE (Session-based)
 // ============================================
+
+/**
+ * Convert OTP login response to standard LoginResponse format
+ * Handles conversion from PascalCase backend response to camelCase frontend format
+ */
+export const convertOtpResponseToLoginResponse = (otpResponse: OtpLoginResponseFull): LoginResponse => {
+  return {
+    accessToken: otpResponse.accessToken,
+    refreshToken: otpResponse.refreshToken,
+    username: otpResponse.username,
+    userId: parseInt(otpResponse.userId) || 0,
+    access: otpResponse.access || [],
+    accessTokenExpiresAt: otpResponse.accessTokenExpiresAt,
+    refreshTokenExpiresAt: otpResponse.refreshTokenExpiresAt,
+    inactivityTimeoutMinutes: otpResponse.inactivityTimeoutMinutes || 30,
+    maxSessionDurationHours: otpResponse.maxSessionDurationHours || 8
+  };
+};
 
 /**
  * Save authentication tokens and user data using HYBRID storage

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { loginUser, saveAuthToken } from '../services/authService';
+import { loginUser, saveAuthToken, convertOtpResponseToLoginResponse } from '../services/authService';
 import { request } from '../services/apiClient';
 import ForgotPasswordModal from './ForgotPasswordModal';
 
@@ -206,13 +206,15 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
     setLoading(true);
     try {
-      await request(`${OTP_BASE_URL}/SendOtp`, {
+      console.log('📧 Requesting OTP for email:', otpState.email, 'User Type:', userType);
+      const response = await request(`${OTP_BASE_URL}/SendOtp`, {
         method: 'POST',
         body: JSON.stringify({
           email: otpState.email,
           userType: userType === 'doctor' ? 'Doctor' : 'Admin'
         })
       });
+      console.log('✅ OTP request successful:', response);
 
       const now = Date.now();
       setOtpState(prev => ({
@@ -227,6 +229,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
       setSuccessMessage(`✅ OTP sent to ${otpState.email}`);
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
+      console.error('❌ OTP request failed:', err);
       setError(err.message || 'Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
@@ -242,6 +245,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
     setLoading(true);
     try {
+      console.log('🔐 Verifying OTP for email:', otpState.email, 'OTP:', otpState.otp.replace(/./g, '*'));
       const response = await request(`${OTP_BASE_URL}/VerifyOtp`, {
         method: 'POST',
         body: JSON.stringify({
@@ -250,8 +254,23 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
           userType: userType === 'doctor' ? 'Doctor' : 'Administrator'
         })
       });
+      console.log('✅ OTP verification successful:', {
+        success: response.success,
+        username: response.username,
+        email: response.email,
+        accessCount: response.access?.length || 0,
+        loginMethod: response.loginMethod
+      });
 
-      saveAuthToken(response);
+      // Convert OTP response (with PascalCase) to standard LoginResponse format (camelCase)
+      const convertedResponse = convertOtpResponseToLoginResponse(response);
+      console.log('📝 Converted response:', {
+        username: convertedResponse.username,
+        userId: convertedResponse.userId,
+        accessCount: convertedResponse.access?.length || 0
+      });
+      
+      saveAuthToken(convertedResponse);
       localStorage.setItem('userType', userType);
       localStorage.setItem('email', otpState.email);
 
@@ -260,6 +279,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
       onClose();
       if (onLoginSuccess) onLoginSuccess();
     } catch (err) {
+      console.error('❌ OTP verification failed:', err);
       setError(err.message || 'Invalid OTP. Please try again.');
     } finally {
       setLoading(false);
