@@ -233,26 +233,26 @@ export default function Home() {
               ))}
             </motion.div>
 
-            {/* CTA Buttons */}
+            {/* CTA Buttons - Quick Access to Key Features */}
             <div className="flex gap-4 justify-center items-center flex-wrap mb-6">
-              <Link to="/doctors">
+              <Link to="/patients/register">
                 <motion.button
                   whileHover={{ scale: 1.08, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   className="px-8 py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white rounded-xl font-bold shadow-2xl hover:shadow-purple-500/50 transition-all flex items-center gap-2 text-lg border border-purple-300/50"
                 >
-                  <span className="text-2xl">👨‍⚕️</span>
-                  <span>Doctor's Portal</span>
+                  <span className="text-2xl">📝</span>
+                  <span>Register Patient</span>
                 </motion.button>
               </Link>
-              <Link to="/login">
+              <Link to="/calendar">
                 <motion.button
                   whileHover={{ scale: 1.08, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   className="px-8 py-4 bg-white/20 backdrop-blur-md border-2 border-white/40 text-white rounded-xl font-bold shadow-lg hover:bg-white/30 transition-all flex items-center gap-2 text-lg"
                 >
-                  <span className="text-2xl">🔐</span>
-                  <span>Admin Login</span>
+                  <span className="text-2xl">📆</span>
+                  <span>Appointments Calendar</span>
                 </motion.button>
               </Link>
             </div>
@@ -363,7 +363,7 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* Quick Access - Compact */}
+        {/* Quick Access - Essential Actions */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -371,13 +371,12 @@ export default function Home() {
           className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-purple-200/50"
         >
           <h3 className="text-lg font-bold text-slate-800 mb-4 text-center">Quick Access</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: "Clinics", icon: "🏥", path: "/clinics", color: "from-indigo-500 to-purple-600" },
-              { label: "Patients", icon: "👥", path: "/patients", color: "from-purple-500 to-pink-600" },
-              { label: "Doctors", icon: "👨‍⚕️", path: "/doctors", color: "from-indigo-500 to-purple-600" },
-              { label: "Services", icon: "🛠️", path: "/services", color: "from-purple-500 to-pink-600" },
-              { label: "Staff", icon: "👔", path: "/staff", color: "from-indigo-500 to-purple-600" },
+              { label: "Register Patient", icon: "📝", path: "/patients/register", color: "from-indigo-500 to-purple-600" },
+              { label: "View Patients", icon: "👥", path: "/patients/view", color: "from-purple-500 to-pink-600" },
+              { label: "Appointments", icon: "📆", path: "/calendar", color: "from-teal-500 to-cyan-600" },
+              { label: "Clinic Management", icon: "🏥", path: "/clinics", color: "from-indigo-500 to-purple-600" },
             ].map((link, idx) => (
               <Link
                 key={idx}

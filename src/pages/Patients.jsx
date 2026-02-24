@@ -1490,7 +1490,7 @@ export default function Patients() {
             <span className="text-2xl">📅</span>
             Appointments Management
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-3">
             {[
               { id: 'new-appointment', title: '📅 New Appointment', description: 'Book patient appointment', icon: '📅', color: 'from-cyan-400 to-blue-400', action: () => {
                 // Real-time token check - using correct sessionStorage key

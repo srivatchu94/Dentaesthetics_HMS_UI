@@ -13,14 +13,8 @@ const Login = () => {
   };
 
   const handleLoginSuccess = () => {
-    // Get return location from state or sessionStorage
-    const returnTo = location.state?.returnTo || sessionStorage.getItem('tokenExpiryLocation') || '/';
-    
-    // Clear the stored location
-    sessionStorage.removeItem('tokenExpiryLocation');
-    
-    // Navigate to the return location
-    navigate(returnTo);
+    // Always redirect to home page after login
+    navigate('/');
   };
 
   return (
