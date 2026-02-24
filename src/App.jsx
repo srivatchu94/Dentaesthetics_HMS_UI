@@ -4,6 +4,7 @@ import Header from "./components/Header";
 import ErrorPage from "./components/ErrorPage";
 import ErrorBoundary from "./components/ErrorBoundary";
 import TokenExpiryModal from "./components/TokenExpiryModal";
+import ProtectedRoute from "./components/ProtectedRoute";
 import UnauthorizedPage from "./pages/UnauthorizedPage";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
@@ -97,14 +98,14 @@ export default function App(){
           <Route path="/clinics/create" element={<div className="max-w-6xl mx-auto"><CreateClinic /></div>} />
           <Route path="/clinics/view" element={<div className="max-w-6xl mx-auto"><ViewClinics /></div>} />
           <Route path="/clinics/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Clinics" /></div>} />
-          <Route path="/patients" element={<div className="max-w-6xl mx-auto"><Patients /></div>} />
-          <Route path="/payments" element={<div className="max-w-6xl mx-auto"><Payments /></div>} />
-          <Route path="/service-billing" element={<div className="max-w-6xl mx-auto"><ServiceBilling /></div>} />
-          <Route path="/patients/view" element={<ViewPatients />} />
-          <Route path="/patients/register" element={<RegisterPatient />} />
-          <Route path="/patients/edit" element={<div className="max-w-6xl mx-auto"><EditPatients /></div>} />
-          <Route path="/patients/delete" element={<div className="max-w-6xl mx-auto"><DeletePatients /></div>} />
-          <Route path="/patients/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resourceType="patients" /></div>} />
+          <Route path="/patients" element={<ProtectedRoute><div className="max-w-6xl mx-auto"><Patients /></div></ProtectedRoute>} />
+          <Route path="/payments" element={<ProtectedRoute><div className="max-w-6xl mx-auto"><Payments /></div></ProtectedRoute>} />
+          <Route path="/service-billing" element={<ProtectedRoute><div className="max-w-6xl mx-auto"><ServiceBilling /></div></ProtectedRoute>} />
+          <Route path="/patients/view" element={<ProtectedRoute><ViewPatients /></ProtectedRoute>} />
+          <Route path="/patients/register" element={<ProtectedRoute><RegisterPatient /></ProtectedRoute>} />
+          <Route path="/patients/edit" element={<ProtectedRoute><div className="max-w-6xl mx-auto"><EditPatients /></div></ProtectedRoute>} />
+          <Route path="/patients/delete" element={<ProtectedRoute><div className="max-w-6xl mx-auto"><DeletePatients /></div></ProtectedRoute>} />
+          <Route path="/patients/:operation" element={<ProtectedRoute><div className="max-w-6xl mx-auto"><CrudPage resourceType="patients" /></div></ProtectedRoute>} />
           <Route path="/services" element={<div className="max-w-6xl mx-auto"><Services /></div>} />
           <Route path="/services/:operation" element={<div className="max-w-6xl mx-auto"><CrudPage resource="Services" /></div>} />
           <Route path="/team-hub" element={<TeamHub />} />
@@ -118,8 +119,8 @@ export default function App(){
           <Route path="/staff/onboard" element={<ReceptionistOnboarding />} />
           <Route path="/staff/details" element={<ViewStaffDetails />} />
           <Route path="/superadmin" element={<div className="max-w-6xl mx-auto"><SuperAdmin /></div>} />
-          <Route path="/calendar" element={<Calendar />} />
-          <Route path="/visits" element={<VisitInformation />} />
+          <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+          <Route path="/visits" element={<ProtectedRoute><VisitInformation /></ProtectedRoute>} />
           <Route path="/clinics/analytics" element={<ClinicAnalytics />} />
           <Route path="/reports" element={<ReportsAnalytics />} />
           <Route path="/salary" element={<SalaryManagement />} />
