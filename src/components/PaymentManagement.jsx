@@ -661,19 +661,19 @@ export default function PaymentManagement() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full"
+              className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden"
             >
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 sticky top-0 flex justify-between items-center text-white">
-                <h2 className="text-2xl font-bold">✏️ Edit Payment Details</h2>
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 sticky top-0 flex justify-between items-center text-white flex-shrink-0 z-10">
+                <h2 className="text-xl md:text-2xl font-bold">✏️ Edit Payment Details</h2>
                 <button
                   onClick={() => setShowEditPaymentModal(false)}
-                  className="text-2xl hover:bg-white/20 p-2 rounded-full transition"
+                  className="text-2xl hover:bg-white/20 p-2 rounded-full transition flex-shrink-0"
                 >
                   ✕
                 </button>
               </div>
 
-              <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div className="p-4 md:p-6 space-y-4 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-blue-100">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Billable Amount</label>
                   <input
@@ -754,18 +754,18 @@ export default function PaymentManagement() {
                 </div>
               </div>
 
-              <div className="bg-slate-50 p-6 flex gap-3 border-t border-slate-200">
+              <div className="bg-slate-50 p-4 md:p-6 flex gap-3 border-t border-slate-200 flex-shrink-0 sticky bottom-0 z-10">
                 <button
                   onClick={() => setShowEditPaymentModal(false)}
                   disabled={savingPaymentEdit}
-                  className="flex-1 px-6 py-3 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-100 transition disabled:opacity-50"
+                  className="flex-1 px-4 md:px-6 py-2 md:py-3 rounded-lg border border-slate-300 text-slate-700 font-semibold hover:bg-slate-100 transition disabled:opacity-50 text-sm md:text-base"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSavePaymentEdit}
                   disabled={savingPaymentEdit}
-                  className="flex-1 px-6 py-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:shadow-lg transition disabled:opacity-50"
+                  className="flex-1 px-4 md:px-6 py-2 md:py-3 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:shadow-lg transition disabled:opacity-50 text-sm md:text-base"
                 >
                   {savingPaymentEdit ? '💾 Saving...' : '💾 Save Changes'}
                 </button>
