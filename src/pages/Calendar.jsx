@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getCalendarAppointments, updateAppointment, createAppointment } from "../services/appointmentService";
 import FancyDatePicker from "../components/FancyDatePicker";
+import PaymentEditModal from "../components/PaymentEditModal";
 
 // Time slots for booking
 const TIME_SLOTS = [
@@ -53,6 +54,15 @@ export default function Calendar() {
     reasonForVisit: ""
   });
   const [updatingAppointment, setUpdatingAppointment] = useState(false);
+  const [showPaymentEditModal, setShowPaymentEditModal] = useState(false);
+  const [editPaymentForm, setEditPaymentForm] = useState({
+    billableAmount: 0,
+    paidAmount: 0,
+    pendingAmount: 0,
+    paymentStatus: "Pending",
+    appointmentStatus: "Scheduled"
+  });
+  const [savingPaymentEdit, setSavingPaymentEdit] = useState(false);
   
   // Booking form state - pre-fill with patient data if available
   const [bookingForm, setBookingForm] = useState({
@@ -1236,33 +1246,52 @@ export default function Calendar() {
                         <option value="Invoice">📄 Invoice</option>
                       </select>
                     ) : (
-                      <div className="flex gap-2 flex-wrap">
-                        {['Pending', 'Paid', 'Partial', 'Invoice'].map((status) => {
-                          const statusColors = {
-                            'Pending': 'bg-yellow-500 text-white',
-                            'Paid': 'bg-green-500 text-white',
-                            'Partial': 'bg-blue-500 text-white',
-                            'Invoice': 'bg-purple-500 text-white'
-                          };
-                          const statusEmojis = {
-                            'Pending': '⏳',
-                            'Paid': '✅',
-                            'Partial': '💸',
-                            'Invoice': '📄'
-                          };
-                          return (
-                            <span
-                              key={status}
-                              className={`px-3 py-2 rounded-lg text-xs font-bold ${
-                                editFormData.paymentStatus === status
-                                  ? statusColors[status]
-                                  : 'bg-gray-100 text-gray-600'
-                              }`}
-                            >
-                              {statusEmojis[status]} {status}
-                            </span>
-                          );
-                        })}
+                      <div className="flex gap-2 flex-wrap items-center justify-between">
+                        <div className="flex gap-2 flex-wrap">
+                          {['Pending', 'Paid', 'Partial', 'Invoice'].map((status) => {
+                            const statusColors = {
+                              'Pending': 'bg-yellow-500 text-white',
+                              'Paid': 'bg-green-500 text-white',
+                              'Partial': 'bg-blue-500 text-white',
+                              'Invoice': 'bg-purple-500 text-white'
+                            };
+                            const statusEmojis = {
+                              'Pending': '⏳',
+                              'Paid': '✅',
+                              'Partial': '💸',
+                              'Invoice': '📄'
+                            };
+                            return (
+                              <span
+                                key={status}
+                                className={`px-3 py-2 rounded-lg text-xs font-bold ${
+                                  editFormData.paymentStatus === status
+                                    ? statusColors[status]
+                                    : 'bg-gray-100 text-gray-600'
+                                }`}
+                              >
+                                {statusEmojis[status]} {status}
+                              </span>
+                            );
+                          })}
+                        </div>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => {
+                            setEditPaymentForm({
+                              billableAmount: editFormData.billableAmount,
+                              paidAmount: editFormData.paidAmount,
+                              pendingAmount: editFormData.pendingAmount,
+                              paymentStatus: editFormData.paymentStatus,
+                              appointmentStatus: editFormData.status
+                            });
+                            setShowPaymentEditModal(true);
+                          }}
+                          className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg text-xs font-bold hover:shadow-lg transition-all whitespace-nowrap"
+                        >
+                          💰 Update Payment
+                        </motion.button>
                       </div>
                     )}
                   </div>
@@ -1563,6 +1592,66 @@ export default function Calendar() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Payment Edit Modal */}
+        <PaymentEditModal
+          isOpen={showPaymentEditModal}
+          onClose={() => setShowPaymentEditModal(false)}
+          editPaymentForm={editPaymentForm}
+          setEditPaymentForm={setEditPaymentForm}
+          isSaving={savingPaymentEdit}
+          onSave={async () => {
+            if (!selectedAppointment) return;
+            setSavingPaymentEdit(true);
+            try {
+              const billable = parseFloat(editPaymentForm.billableAmount) || 0;
+              const paid = parseFloat(editPaymentForm.paidAmount) || 0;
+              const pending = Math.max(billable - paid, 0);
+
+              const updatedAppointment = {
+                ...selectedAppointment,
+                billableAmount: billable,
+                paidAmount: Math.min(paid, billable),
+                pendingAmount: pending,
+                paymentStatus: editPaymentForm.paymentStatus,
+                status: editPaymentForm.appointmentStatus
+              };
+
+              await updateAppointment(updatedAppointment);
+              
+              // Update appointments list
+              setAppointments(appointments.map(appt => 
+                appt.appointmentId === selectedAppointment.appointmentId 
+                  ? updatedAppointment
+                  : appt
+              ));
+
+              // Update selected appointment
+              setSelectedAppointment(updatedAppointment);
+              setEditFormData(prev => ({
+                ...prev,
+                billableAmount: billable,
+                paidAmount: paid,
+                pendingAmount: pending,
+                paymentStatus: editPaymentForm.paymentStatus,
+                status: editPaymentForm.appointmentStatus
+              }));
+
+              // Show success
+              setSuccessMessage("💳 Payment details updated successfully!");
+              setShowSuccessModal(true);
+              setTimeout(() => {
+                setShowSuccessModal(false);
+                setShowPaymentEditModal(false);
+              }, 2000);
+            } catch (error) {
+              console.error('Failed to save payment:', error);
+              alert('Failed to save payment details. Please try again.');
+            } finally {
+              setSavingPaymentEdit(false);
+            }
+          }}
+        />
       </div>
     </div>
   );
