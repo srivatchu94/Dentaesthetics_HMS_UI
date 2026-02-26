@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getCalendarAppointments, updateAppointment, createAppointment } from "../services/appointmentService";
 import FancyDatePicker from "../components/FancyDatePicker";
+import PaymentDetailsModal from "../components/PaymentDetailsModal";
 
 // Time slots for booking
 const TIME_SLOTS = [
@@ -53,6 +54,8 @@ export default function Calendar() {
     reasonForVisit: ""
   });
   const [updatingAppointment, setUpdatingAppointment] = useState(false);
+  const [showPaymentDetailsModal, setShowPaymentDetailsModal] = useState(false);
+  const [paymentModalAppointment, setPaymentModalAppointment] = useState(null);
   
   // Booking form state - pre-fill with patient data if available
   const [bookingForm, setBookingForm] = useState({
@@ -95,7 +98,10 @@ export default function Calendar() {
         // Transform backend data to match frontend format
         const transformedAppointments = data.map((apt) => ({
           id: apt.appointmentId,
+          appointmentId: apt.appointmentId,
           patient: `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
+          firstName: apt.firstName || '',
+          lastName: apt.lastName || '',
           patientPhone: apt.phoneNumber || '',
           patientEmail: apt.email || '',
           date: apt.appointmentDate ? apt.appointmentDate.split('T')[0] : '',
@@ -114,6 +120,7 @@ export default function Calendar() {
           doctorId: apt.doctorId,
           enterpriseId: apt.enterpriseId,
           reasonForVisit: apt.reasonForVisit || '',
+          invoiceNumber: apt.invoiceNumber || null,
           color: 'emerald'
         }));
         
@@ -1239,7 +1246,10 @@ export default function Calendar() {
                         <motion.button
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
-                          onClick={() => navigate('/payments', { state: { appointmentData: selectedAppointment, returnTo: 'calendar' } })}
+                          onClick={() => {
+                            setPaymentModalAppointment(selectedAppointment);
+                            setShowPaymentDetailsModal(true);
+                          }}
                           className="w-full px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-lg text-sm font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2"
                         >
                           💰 Update Payment Details
@@ -1573,6 +1583,13 @@ export default function Calendar() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Payment Details Modal */}
+        <PaymentDetailsModal 
+          isOpen={showPaymentDetailsModal}
+          onClose={() => setShowPaymentDetailsModal(false)}
+          appointmentData={paymentModalAppointment}
+        />
       </div>
     </div>
   );
