@@ -1,10 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import PaymentManagement from '../components/PaymentManagement';
 
 export default function Payments() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const appointmentData = location.state?.appointmentData;
+  const returnTo = location.state?.returnTo;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 py-8">
@@ -55,9 +58,9 @@ export default function Payments() {
                     transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
                     className="text-6xl"
                   >
-                    💳
+                    {appointmentData ? '🔄' : '💳'}
                   </motion.span>
-                  Payment Management
+                  {appointmentData ? 'Update Payment Details' : 'Payment Management'}
                 </motion.h1>
                 <motion.p
                   initial={{ opacity: 0, x: -20 }}
@@ -65,7 +68,9 @@ export default function Payments() {
                   transition={{ delay: 0.3 }}
                   className="text-xl text-cyan-50"
                 >
-                  Track, manage and process patient payments efficiently
+                  {appointmentData 
+                    ? `Update payment for appointment #${appointmentData.appointmentId}` 
+                    : 'Track, manage and process patient payments efficiently'}
                 </motion.p>
               </div>
               <motion.button
@@ -91,7 +96,7 @@ export default function Payments() {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
         >
-          <PaymentManagement />
+          <PaymentManagement appointmentData={appointmentData} returnTo={returnTo} />
         </motion.div>
       </div>
     </div>

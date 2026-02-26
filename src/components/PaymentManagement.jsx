@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { getAppointmentsByFilters, updateAppointment } from '../services/appointmentService';
 import { getAccessToken, getClinicIdFromToken, getSelectedAccess } from '../services/tokenManager';
 import { request } from '../services/apiClient';
 
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
-export default function PaymentManagement() {
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+export default function PaymentManagement({ appointmentData, returnTo }) {
+  const navigate = useNavigate();
+  const [paymentDate, setPaymentDate] = useState(appointmentData?.appointmentDate?.split('T')[0] || new Date().toISOString().split('T')[0]);
   const [paymentClinicId, setPaymentClinicId] = useState('');
   const [clinicsList, setClinicsList] = useState([]);
   const [paymentAppointments, setPaymentAppointments] = useState([]);
@@ -45,6 +47,21 @@ export default function PaymentManagement() {
       }
     }
   }, []);
+
+  // Handle appointment data from Calendar redirect
+  useEffect(() => {
+    if (appointmentData) {
+      setEditingPaymentAppointment(appointmentData);
+      setEditPaymentForm({
+        billableAmount: appointmentData.billableAmount || 0,
+        paidAmount: appointmentData.paidAmount || 0,
+        pendingAmount: appointmentData.pendingAmount || 0,
+        paymentStatus: appointmentData.paymentStatus || 'Pending',
+        appointmentStatus: appointmentData.status || 'Scheduled'
+      });
+      setShowEditPaymentModal(true);
+    }
+  }, [appointmentData]);
 
   // Load payment appointments
   const loadPaymentAppointments = useCallback(async () => {
@@ -261,7 +278,19 @@ export default function PaymentManagement() {
           : appt
       ));
 
-      // Show funny success popup
+      // If coming from Calendar, redirect back with success
+      if (appointmentData && returnTo === 'calendar') {
+        // Redirect back to calendar
+        navigate('/calendar', { 
+          state: { 
+            successMessage: '✅ Payment updated successfully!',
+            updatedAppointment: updatedAppointment
+          }
+        });
+        return;
+      }
+
+      // Show funny success popup for regular payment management
       const funnyMessages = [
         "💰 Cha-ching! Money talk is all sorted! The accountant is doing a happy dance!",
         "🎉 Payment updated! Even your calculator is impressed with those numbers!",
@@ -293,7 +322,7 @@ export default function PaymentManagement() {
     } finally {
       setSavingPaymentEdit(false);
     }
-  }, [editingPaymentAppointment, editPaymentForm, paymentAppointments]);
+  }, [editingPaymentAppointment, editPaymentForm, paymentAppointments, appointmentData, returnTo, navigate]);
 
   return (
     <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-emerald-100/60 overflow-hidden">
