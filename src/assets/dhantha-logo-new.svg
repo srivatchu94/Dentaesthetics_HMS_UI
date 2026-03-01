@@ -1,20 +1,19 @@
 <svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <!-- Gradients -->
-    <linearGradient id="trunkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0d9488;stop-opacity:1" />
-      <stop offset="50%" style="stop-color:#0f766e;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#134e4a;stop-opacity:1" />
-    </linearGradient>
-    
-    <linearGradient id="teethGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#f5f5f5;stop-opacity:1" />
-    </linearGradient>
-
-    <linearGradient id="shieldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#0891b2;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="secondaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d9488;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#134e4a;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1" />
     </linearGradient>
 
     <!-- Drop Shadow Filter -->
@@ -24,7 +23,7 @@
 
     <!-- Glow Filter -->
     <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
       <feMerge>
         <feMergeNode in="coloredBlur"/>
         <feMergeNode in="SourceGraphic"/>
@@ -35,80 +34,86 @@
   <!-- Dark Background Circle -->
   <circle cx="150" cy="150" r="145" fill="#1a1f2e" stroke="#0d9488" stroke-width="3" filter="url(#dropShadow)"/>
 
-  <!-- Protective Shield Outline (Trust & Protection) -->
-  <path d="M 150 85 L 175 105 L 175 155 Q 150 190 150 190 Q 150 190 125 155 L 125 105 Z" 
-        fill="none" stroke="url(#shieldGradient)" stroke-width="2.5" opacity="0.8" stroke-linecap="round" stroke-linejoin="round"/>
-
-  <!-- Elephant Trunk (curved, protective - DARK TEAL) -->
-  <path d="M 130 140 Q 105 125, 85 140 Q 75 150, 85 170 Q 105 180, 125 170" 
-        fill="none" stroke="url(#trunkGradient)" stroke-width="14" stroke-linecap="round" 
-        filter="url(#dropShadow)" stroke-linejoin="round"/>
-
-  <!-- Trunk Highlight -->
-  <path d="M 130 138 Q 108 124, 88 138" 
-        fill="none" stroke="#2dd4bf" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
-
-  <!-- Trunk Eye (represents wisdom) - BRIGHT CYAN -->
-  <circle cx="100" cy="135" r="4" fill="#00d4ff" filter="url(#dropShadow)"/>
-  <circle cx="101" cy="134" r="1.5" fill="#ffffff" opacity="0.8"/>
-
-  <!-- Main Tooth (Center - Larger, represents strength & trust) -->
+  <!-- Central Medical Cross - Large (represents healthcare) -->
   <g filter="url(#dropShadow)">
-    <ellipse cx="150" cy="135" rx="20" ry="38" fill="url(#teethGradient)" stroke="#d1fae5" stroke-width="2"/>
-    <!-- Tooth shine - bright -->
-    <ellipse cx="144" cy="115" rx="8" ry="15" fill="#ffffff" opacity="0.8"/>
-    <!-- Tooth centerline -->
-    <line x1="150" y1="158" x2="150" y2="173" stroke="#a7f3d0" stroke-width="1.5" opacity="0.6"/>
+    <!-- Horizontal bar -->
+    <rect x="110" y="135" width="80" height="30" fill="url(#primaryGradient)" rx="4"/>
+    <!-- Vertical bar -->
+    <rect x="135" y="110" width="30" height="80" fill="url(#primaryGradient)" rx="4"/>
   </g>
 
-  <!-- Left Tooth (represents care) -->
+  <!-- Inner Heart (compassion & care) -->
+  <g transform="translate(150, 150)" filter="url(#glow)">
+    <path d="M 0,-5 C -4,-8 -9,-8 -9,-3 C -9,0 -5,4 0,6 C 5,4 9,0 9,-3 C 9,-8 4,-8 0,-5 Z" 
+          fill="#00d4ff" opacity="0.8"/>
+  </g>
+
+  <!-- Connected Nodes (representing multiple units/clinics) -->
+  <!-- Node 1 - Top Left -->
   <g filter="url(#dropShadow)">
-    <ellipse cx="110" cy="152" rx="15" ry="30" fill="url(#teethGradient)" stroke="#d1fae5" stroke-width="1.5" transform="rotate(-25 110 152)"/>
-    <!-- Tooth shine -->
-    <ellipse cx="106" cy="132" rx="6" ry="12" fill="#ffffff" opacity="0.7" transform="rotate(-25 106 132)"/>
+    <circle cx="95" cy="95" r="8" fill="url(#accentGradient)" opacity="0.9"/>
+    <circle cx="95" cy="95" r="5" fill="#ffffff" opacity="0.3"/>
   </g>
 
-  <!-- Right Tooth (represents accessibility) -->
+  <!-- Node 2 - Top Right -->
   <g filter="url(#dropShadow)">
-    <ellipse cx="190" cy="152" rx="15" ry="30" fill="url(#teethGradient)" stroke="#d1fae5" stroke-width="1.5" transform="rotate(25 190 152)"/>
-    <!-- Tooth shine -->
-    <ellipse cx="194" cy="132" rx="6" ry="12" fill="#ffffff" opacity="0.7" transform="rotate(25 194 132)"/>
+    <circle cx="205" cy="95" r="8" fill="url(#accentGradient)" opacity="0.9"/>
+    <circle cx="205" cy="95" r="5" fill="#ffffff" opacity="0.3"/>
   </g>
 
-  <!-- Protective Arc (Ethics symbol) - BRIGHT CYAN -->
-  <path d="M 95 200 Q 150 235, 205 200" 
-        fill="none" stroke="#06b6d4" stroke-width="3" 
-        stroke-linecap="round" opacity="0.9" filter="url(#dropShadow)"/>
-
-  <!-- Heart inside (Core value - Care and compassion) - ACCENT COLOR -->
-  <g transform="translate(150, 195)" filter="url(#dropShadow)">
-    <path d="M 0,-7 C -5,-12 -12,-12 -12,-5 C -12,0 -7,5 0,8 C 7,5 12,0 12,-5 C 12,-12 5,-12 0,-7 Z" 
-          fill="#06b6d4" opacity="0.9"/>
-  </g>
-
-  <!-- Ethical Growth Branch Left - BRIGHT ACCENT -->
-  <g opacity="0.8">
-    <path d="M 60 245 Q 75 220, 90 205" stroke="#06b6d4" stroke-width="2" fill="none" stroke-linecap="round" filter="url(#dropShadow)"/>
-    <circle cx="65" cy="240" r="2.5" fill="#00d4ff"/>
-    <circle cx="85" cy="208" r="2.5" fill="#00d4ff"/>
-  </g>
-
-  <!-- Ethical Growth Branch Right - BRIGHT ACCENT -->
-  <g opacity="0.8">
-    <path d="M 240 245 Q 225 220, 210 205" stroke="#06b6d4" stroke-width="2" fill="none" stroke-linecap="round" filter="url(#dropShadow)"/>
-    <circle cx="235" cy="240" r="2.5" fill="#00d4ff"/>
-    <circle cx="215" cy="208" r="2.5" fill="#00d4ff"/>
-  </g>
-
-  <!-- Trust Dots (representing transparency) - BRIGHT CYAN -->
+  <!-- Node 3 - Bottom Left -->
   <g filter="url(#dropShadow)">
-    <circle cx="125" cy="95" r="3" fill="#00d4ff" opacity="0.9"/>
-    <circle cx="175" cy="95" r="3" fill="#00d4ff" opacity="0.9"/>
-    <circle cx="150" cy="75" r="3" fill="#06b6d4" opacity="0.9"/>
+    <circle cx="95" cy="205" r="8" fill="url(#accentGradient)" opacity="0.9"/>
+    <circle cx="95" cy="205" r="5" fill="#ffffff" opacity="0.3"/>
   </g>
 
-  <!-- Border accent - DOUBLE BORDER -->
-  <circle cx="150" cy="150" r="148" fill="none" stroke="#0d9488" stroke-width="1" opacity="0.5"/>
-  <circle cx="150" cy="150" r="142" fill="none" stroke="#06b6d4" stroke-width="1" opacity="0.4"/>
+  <!-- Node 4 - Bottom Right -->
+  <g filter="url(#dropShadow)">
+    <circle cx="205" cy="205" r="8" fill="url(#accentGradient)" opacity="0.9"/>
+    <circle cx="205" cy="205" r="5" fill="#ffffff" opacity="0.3"/>
+  </g>
+
+  <!-- Connection Lines (network connectivity) -->
+  <!-- Center to Top Left -->
+  <line x1="130" y1="125" x2="103" y2="103" stroke="#06b6d4" stroke-width="2" opacity="0.6" stroke-linecap="round"/>
+
+  <!-- Center to Top Right -->
+  <line x1="170" y1="125" x2="197" y2="103" stroke="#06b6d4" stroke-width="2" opacity="0.6" stroke-linecap="round"/>
+
+  <!-- Center to Bottom Left -->
+  <line x1="130" y1="175" x2="103" y2="197" stroke="#06b6d4" stroke-width="2" opacity="0.6" stroke-linecap="round"/>
+
+  <!-- Center to Bottom Right -->
+  <line x1="170" y1="175" x2="197" y2="197" stroke="#06b6d4" stroke-width="2" opacity="0.6" stroke-linecap="round"/>
+
+  <!-- Data Pulse Lines (representing healthcare data/information flow) -->
+  <g opacity="0.4">
+    <!-- Top arc -->
+    <path d="M 110 100 Q 150 60, 190 100" fill="none" stroke="url(#accentGradient)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,3"/>
+    
+    <!-- Bottom arc -->
+    <path d="M 110 200 Q 150 240, 190 200" fill="none" stroke="url(#accentGradient)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,3"/>
+  </g>
+
+  <!-- Shield overlay (trust & security) -->
+  <path d="M 150 80 L 180 95 L 180 135 Q 150 160 150 160 Q 150 160 120 135 L 120 95 Z" 
+        fill="none" stroke="url(#secondaryGradient)" stroke-width="1.5" opacity="0.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Data dots (information) -->
+  <g opacity="0.7" filter="url(#dropShadow)">
+    <!-- Top dots -->
+    <circle cx="140" cy="70" r="2.5" fill="#00d4ff"/>
+    <circle cx="160" cy="70" r="2.5" fill="#06b6d4"/>
+    
+    <!-- Bottom dots -->
+    <circle cx="140" cy="230" r="2.5" fill="#00d4ff"/>
+    <circle cx="160" cy="230" r="2.5" fill="#06b6d4"/>
+  </g>
+
+  <!-- Connecting ring (unity) -->
+  <circle cx="150" cy="150" r="110" fill="none" stroke="url(#accentGradient)" stroke-width="1" opacity="0.3" stroke-dasharray="10,5"/>
+
+  <!-- Outer border accent -->
+  <circle cx="150" cy="150" r="148" fill="none" stroke="url(#primaryGradient)" stroke-width="0.5" opacity="0.3"/>
 
 </svg>
