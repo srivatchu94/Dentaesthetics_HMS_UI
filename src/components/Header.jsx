@@ -382,11 +382,69 @@ export default function Header(){
                 </Link>
 
             {/* Title - Center */}
-                <div className="text-center">
-                  <h1 className="text-lg md:text-xl font-bold text-cyan-300 drop-shadow-lg">
-                    Dhantha - The Dental Company
-                  </h1>
-                  <p className="text-xs text-cyan-400/80">Nature of Elegance</p>
+                <div className="text-center flex flex-col items-center gap-0.5">
+                  {/* Main Brand Name */}
+                  <div className="relative">
+                    <motion.h1 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-5xl md:text-6xl font-black tracking-tighter"
+                      style={{
+                        background: 'linear-gradient(135deg, #00d4ff 0%, #2dd4bf 25%, #14b8a6 50%, #0d9488 75%, #1e7c74 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        filter: 'drop-shadow(0 4px 8px rgba(0, 212, 255, 0.3))',
+                        textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                      }}
+                    >
+                      DHANTHA
+                    </motion.h1>
+                    {/* Gradient underline */}
+                    <motion.div 
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: 1 }}
+                      transition={{ delay: 0.3, duration: 0.8 }}
+                      className="h-1.5 rounded-full origin-center"
+                      style={{
+                        background: 'linear-gradient(90deg, #2dd4bf, #00d4ff, #06b6d4)',
+                        boxShadow: '0 0 20px rgba(0, 212, 255, 0.6)'
+                      }}
+                    />
+                  </div>
+
+                  {/* Subtitle 1 */}
+                  <motion.p 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.4 }}
+                    className="text-sm md:text-base font-bold tracking-widest mt-1"
+                    style={{
+                      background: 'linear-gradient(90deg, #06b6d4, #2dd4bf)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text'
+                    }}
+                  >
+                    THE DENTAL COMPANY
+                  </motion.p>
+
+                  {/* Subtitle 2 - Tagline */}
+                  <motion.p 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                    className="text-xs font-semibold tracking-wider mt-0.5"
+                    style={{
+                      background: 'linear-gradient(90deg, #22d3ee, #2dd4bf)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                      opacity: 0.85
+                    }}
+                  >
+                    ✨ Nature of Elegance ✨
+                  </motion.p>
                 </div>
 
             {/* Notifications, Login/Doctor's Space Buttons - Right */}

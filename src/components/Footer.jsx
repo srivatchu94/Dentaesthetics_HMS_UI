@@ -25,13 +25,30 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Brand Section */}
           <div className="space-y-4">
-            <h3 className="text-2xl font-bold flex items-center gap-2">
-              <img src={dhanthaLogo} alt="Dhantha Logo" className="w-8 h-8" />
-              Dhantha - The Dental Company
-            </h3>
-            <p className="text-slate-300">Your trusted dental clinic with excellence in care and aesthetics</p>
-            <p className="text-xs text-cyan-400">Nature of Elegance</p>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3 mb-2">
+              <img src={dhanthaLogo} alt="Dhantha Logo" className="w-10 h-10 drop-shadow-lg" />
+              <div>
+                <h3 className="text-xl font-black tracking-tight" style={{
+                  background: 'linear-gradient(135deg, #2dd4bf 0%, #00d4ff 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>
+                  DHANTHA
+                </h3>
+                <p className="text-xs font-bold tracking-wide" style={{
+                  background: 'linear-gradient(90deg, #06b6d4, #2dd4bf)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>
+                  The Dental Company
+                </p>
+              </div>
+            </div>
+            <p className="text-slate-300 text-sm leading-relaxed">Your trusted dental clinic with excellence in care and aesthetics</p>
+            <p className="text-xs font-semibold bg-gradient-to-r from-cyan-400 to-teal-400 bg-clip-text text-transparent">✨ Nature of Elegance ✨</p>
+            <div className="flex gap-3 pt-2">
               <a
                 href="https://facebook.com/Dhantha"
                 target="_blank"
