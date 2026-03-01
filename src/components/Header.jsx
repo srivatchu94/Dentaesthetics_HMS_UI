@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, getUserAccess, setSelectedAccess, getSelectedAccess, getAuthToken, checkTokenExpired } from "../services/authService";
 import { listDoctorProfiles } from "../services/doctorService";
 import LoginModal from "./LoginModal";
-import dhanthaLogo from "../assets/dhantha-logo.svg";
+import dhanthaLogo from "../assets/dhantha-logo-new.svg";
 
 const TABS = [
   { key: "home", path: "/", label: "Home", icon: "🏠" },

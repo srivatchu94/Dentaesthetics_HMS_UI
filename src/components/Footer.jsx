@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import dhanthaLogo from "../assets/dhantha-logo.svg";
+import dhanthaLogo from "../assets/dhantha-logo-new.svg";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
