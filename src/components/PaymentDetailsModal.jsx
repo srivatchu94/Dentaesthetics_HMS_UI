@@ -24,6 +24,8 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
   // Edit payment modal states
   const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
   const [editingPaymentAppointment, setEditingPaymentAppointment] = useState(null);
+  const [editingInvoice, setEditingInvoice] = useState(null);
+  const [editInvoiceLineItems, setEditInvoiceLineItems] = useState([]);
   const [editPaymentForm, setEditPaymentForm] = useState({
     billableAmount: 0,
     paidAmount: 0,
@@ -198,28 +200,46 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
   const downloadInvoicePDF = (invoice) => {
     try {
       const docElement = document.createElement('div');
+      docElement.style.position = 'absolute';
+      docElement.style.left = '-9999px';
+      docElement.style.top = '-9999px';
       docElement.innerHTML = generateInvoiceHTML(invoice);
+      document.body.appendChild(docElement);
       
-      const canvas = html2canvas(docElement, {
+      html2canvas(docElement, {
         scale: 2,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        allowTaint: true,
+        useCORS: true
       }).then(canvas => {
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4'
-        });
-        
-        const imgData = canvas.toDataURL('image/png');
-        const imgWidth = 210;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-        pdf.save(`Invoice-${invoice.header?.invoiceNumber}.pdf`);
+        try {
+          const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 210;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+          pdf.save(`Invoice-${invoice.header?.invoiceNumber}.pdf`);
+          
+          document.body.removeChild(docElement);
+        } catch (err) {
+          console.error('Error in PDF generation:', err);
+          document.body.removeChild(docElement);
+          alert('Failed to generate PDF');
+        }
+      }).catch(err => {
+        console.error('Error in html2canvas:', err);
+        document.body.removeChild(docElement);
+        alert('Failed to generate PDF: ' + err.message);
       });
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      alert('Failed to download PDF');
+      alert('Failed to download PDF: ' + error.message);
     }
   };
 
@@ -287,6 +307,31 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
       const paid = parseFloat(editPaymentForm.paidAmount) || 0;
       const pending = Math.max(billable - paid, 0);
 
+      // Update invoice line items if they were edited
+      if (editingInvoice && editInvoiceLineItems.length > 0) {
+        console.log('💾 Updating invoice line items...');
+        try {
+          // Update each line item
+          const updatePromises = editInvoiceLineItems.map(item =>
+            request('/Services/UpdateInvoiceLineItem', {
+              method: 'PUT',
+              body: JSON.stringify({
+                invoiceLineItemId: item.invoiceLineItemId,
+                serviceDescription: item.serviceDescription,
+                serviceCost: parseFloat(item.serviceCost) || 0,
+                gst: parseFloat(item.gst) || 0
+              })
+            })
+          );
+          
+          await Promise.all(updatePromises);
+          console.log('✅ Invoice line items updated successfully');
+        } catch (lineItemError) {
+          console.error('❌ Error updating line items:', lineItemError);
+          // Continue anyway - appointment still needs to be updated
+        }
+      }
+
       const updatedAppointment = {
         ...editingPaymentAppointment,
         billableAmount: billable,
@@ -297,6 +342,21 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
       };
 
       await updateAppointment(updatedAppointment);
+      
+      // Refresh the invoices for this appointment to show updated data
+      if (editingPaymentAppointment.appointmentId) {
+        try {
+          const updatedInvoices = await request(
+            `/Services/GetInvoicesByAppointmentComplete?appointmentId=${editingPaymentAppointment.appointmentId}`
+          );
+          setInvoicesByAppointment(prev => ({
+            ...prev,
+            [editingPaymentAppointment.appointmentId]: updatedInvoices || []
+          }));
+        } catch (invoiceRefreshError) {
+          console.error('Error refreshing invoices:', invoiceRefreshError);
+        }
+      }
       
       setPaymentAppointments(paymentAppointments.map(appt => 
         appt.appointmentId === editingPaymentAppointment.appointmentId 
@@ -315,6 +375,8 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
       
       setShowEditPaymentModal(false);
       setEditingPaymentAppointment(null);
+      setEditingInvoice(null);
+      setEditInvoiceLineItems([]);
     } catch (error) {
       console.error('Failed to save payment edit:', error);
       setPaymentSuccessMessage('😵 Error saving payment details!');
@@ -323,7 +385,7 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
     } finally {
       setSavingPaymentEdit(false);
     }
-  }, [editingPaymentAppointment, editPaymentForm, paymentAppointments]);
+  }, [editingPaymentAppointment, editPaymentForm, editingInvoice, editInvoiceLineItems, paymentAppointments]);
 
   if (!isOpen) return null;
 
@@ -631,6 +693,12 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
                                                   whileTap={{ scale: 0.95 }}
                                                   onClick={() => {
                                                     setEditingPaymentAppointment({...appt, invoiceNumber: invoice.header?.invoiceNumber});
+                                                    setEditingInvoice(invoice);
+                                                    setEditInvoiceLineItems((invoice.lineItems || []).map(item => ({
+                                                      ...item,
+                                                      originalServiceCost: item.serviceCost,
+                                                      originalGst: item.gst
+                                                    })));
                                                     setEditPaymentForm({
                                                       billableAmount: invTotal,
                                                       paidAmount: invPaid,
@@ -721,6 +789,79 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
                   </div>
 
                   <div className="p-4 md:p-6 space-y-4 overflow-y-auto flex-1">
+                    {/* Line Items Editing Section */}
+                    {editingInvoice && editInvoiceLineItems.length > 0 && (
+                      <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-4">
+                        <h3 className="text-lg font-bold text-blue-900 mb-3">📋 Edit Line Items</h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-gradient-to-r from-blue-200 to-indigo-200">
+                                <th className="px-3 py-2 text-left font-bold text-blue-900">#</th>
+                                <th className="px-3 py-2 text-left font-bold text-blue-900">Service</th>
+                                <th className="px-3 py-2 text-right font-bold text-blue-900">Amount</th>
+                                <th className="px-3 py-2 text-right font-bold text-blue-900">GST %</th>
+                                <th className="px-3 py-2 text-right font-bold text-blue-900">GST Amount</th>
+                                <th className="px-3 py-2 text-right font-bold text-blue-900">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {editInvoiceLineItems.map((item, idx) => {
+                                const amount = parseFloat(item.serviceCost) || 0;
+                                const gstRate = (parseFloat(item.gst) / amount * 100) || 0;
+                                const gstAmount = parseFloat(item.gst) || 0;
+                                return (
+                                  <tr key={idx} className="border-b hover:bg-blue-100">
+                                    <td className="px-3 py-2 text-slate-700 font-medium">{idx + 1}</td>
+                                    <td className="px-3 py-2 text-slate-800">
+                                      <input
+                                        type="text"
+                                        value={item.serviceDescription}
+                                        onChange={(e) => {
+                                          const updated = [...editInvoiceLineItems];
+                                          updated[idx].serviceDescription = e.target.value;
+                                          setEditInvoiceLineItems(updated);
+                                        }}
+                                        className="w-full p-1 border border-slate-300 rounded text-xs"
+                                      />
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        value={amount}
+                                        onChange={(e) => {
+                                          const newAmount = parseFloat(e.target.value) || 0;
+                                          const updated = [...editInvoiceLineItems];
+                                          updated[idx].serviceCost = newAmount;
+                                          updated[idx].gst = (newAmount * gstRate / 100);
+                                          setEditInvoiceLineItems(updated);
+                                          
+                                          const newTotal = editInvoiceLineItems.reduce((sum, it, i) => {
+                                            if (i === idx) return sum + newAmount + (newAmount * gstRate / 100);
+                                            return sum + (parseFloat(it.serviceCost) || 0) + (parseFloat(it.gst) || 0);
+                                          }, 0);
+                                          setEditPaymentForm(prev => ({
+                                            ...prev,
+                                            billableAmount: newTotal,
+                                            pendingAmount: Math.max(newTotal - (parseFloat(prev.paidAmount) || 0), 0)
+                                          }));
+                                        }}
+                                        className="w-full p-1 border border-slate-300 rounded text-xs"
+                                      />
+                                    </td>
+                                    <td className="px-3 py-2 text-right text-slate-700 text-xs">{gstRate.toFixed(2)}%</td>
+                                    <td className="px-3 py-2 text-right text-slate-700 text-xs">₹{gstAmount.toFixed(2)}</td>
+                                    <td className="px-3 py-2 text-right font-bold text-blue-700">₹{(amount + gstAmount).toFixed(2)}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-sm font-semibold text-slate-700 mb-2">Billable Amount</label>
                       <input

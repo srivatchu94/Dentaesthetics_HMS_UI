@@ -335,7 +335,9 @@ export interface ClinicInventoryModel {
 
 export function getClinicInventoryByClinicId(clinicId: number): Promise<ClinicInventoryModel[]> {
   console.log('📞 API CALL: getClinicInventoryByClinicId with clinicId:', clinicId);
-  return request<ClinicInventoryModel[]>(`/Inventory/GetClinicInventoryByClinicId?clinicId=${clinicId}`);
+  return request<any>(`/Inventory/GetByClinic/${clinicId}`).then((data) =>
+    Array.isArray(data) ? data : data?.data || []
+  );
 }
 
 // Staff Profile by Clinic

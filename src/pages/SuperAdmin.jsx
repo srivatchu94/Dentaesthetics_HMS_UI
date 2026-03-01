@@ -521,10 +521,10 @@ export default function SuperAdmin() {
 
   const INVENTORY_ENDPOINTS = {
     master: {
-      list: `${API_BASE_URL}/Inventory/GetAllInventoryMasterItems`,
-      create: `${API_BASE_URL}/Inventory/AddInventoryMasterItem`,
-      createBulk: `${API_BASE_URL}/Inventory/AddInventoryMasterItemsBulk`,
-      update: (id) => `${API_BASE_URL}/Inventory/UpdateInventoryMasterItem`,
+      list: `${API_BASE_URL}/Inventory/GetAllMasterItems`,
+      create: `${API_BASE_URL}/Inventory/AddMasterItem`,
+      createBulk: `${API_BASE_URL}/Inventory/AddMasterItemsBulk`,
+      update: (id) => `${API_BASE_URL}/Inventory/UpdateMasterItem`,
       delete: (id) => `${API_BASE_URL}/InventoryMaster/Delete/${id}`
     },
     clinic: {

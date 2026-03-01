@@ -14,12 +14,13 @@ export default function AddToMasterInventoryModal({
     category: 'Consumables',
     subCategory: 'Dental Materials',
     unit: 'Box',
+    cgst: '',
+    sgst: '',
     isActive: true
   }]);
 
   const categoryOptions = ['Consumables', 'Equipment', 'Instruments', 'Medicines', 'Supplies', 'Other'];
   const subCategoryOptions = ['Dental Materials', 'Cleaning Supplies', 'PPE', 'Sterilization', 'Office Supplies', 'Medications'];
-  const unitOptions = ['Box', 'Tablet', 'Piece', 'Bottle', 'Tube', 'Pack', 'Grams', 'Liters', 'ml', 'Units'];
 
   const updateRow = (index, field, value) => {
     const newRows = [...rows];
@@ -34,6 +35,8 @@ export default function AddToMasterInventoryModal({
       category: 'Consumables',
       subCategory: 'Dental Materials',
       unit: 'Box',
+      cgst: '',
+      sgst: '',
       isActive: true
     }]);
   };
@@ -67,6 +70,8 @@ export default function AddToMasterInventoryModal({
       category: 'Consumables',
       subCategory: 'Dental Materials',
       unit: 'Box',
+      cgst: '',
+      sgst: '',
       isActive: true
     }]);
   };
@@ -134,6 +139,8 @@ export default function AddToMasterInventoryModal({
                       <th className="text-left p-3 font-semibold text-gray-700">Category *</th>
                       <th className="text-left p-3 font-semibold text-gray-700">Sub Category</th>
                       <th className="text-left p-3 font-semibold text-gray-700">Unit *</th>
+                      <th className="text-left p-3 font-semibold text-gray-700">CGST (%) *</th>
+                      <th className="text-left p-3 font-semibold text-gray-700">SGST (%) *</th>
                       <th className="text-left p-3 font-semibold text-gray-700">Active</th>
                       <th className="text-center p-3 font-semibold text-gray-700">Action</th>
                     </tr>
@@ -191,15 +198,39 @@ export default function AddToMasterInventoryModal({
 
                         {/* Unit */}
                         <td className="p-3">
-                          <select
+                          <input
+                            type="text"
                             value={row.unit}
                             onChange={(e) => updateRow(index, 'unit', e.target.value)}
+                            placeholder="e.g., Box, 10, 250ml"
                             className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
-                          >
-                            {unitOptions.map(unit => (
-                              <option key={unit} value={unit}>{unit}</option>
-                            ))}
-                          </select>
+                          />
+                        </td>
+
+                        {/* CGST */}
+                        <td className="p-3">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={row.cgst ?? ''}
+                            onChange={(e) => updateRow(index, 'cgst', e.target.value === '' ? '' : Number(e.target.value))}
+                            placeholder="e.g., 6"
+                            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                          />
+                        </td>
+
+                        {/* SGST */}
+                        <td className="p-3">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={row.sgst ?? ''}
+                            onChange={(e) => updateRow(index, 'sgst', e.target.value === '' ? '' : Number(e.target.value))}
+                            placeholder="e.g., 6"
+                            className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
+                          />
                         </td>
 
                         {/* Is Active */}

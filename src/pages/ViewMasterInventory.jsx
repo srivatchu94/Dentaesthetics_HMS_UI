@@ -95,8 +95,8 @@ export default function ViewMasterInventory() {
   const loadInventory = async () => {
     setLoading(true);
     try {
-      const data = await request('/inventory/GetAllInventoryMasterItems');
-      setItems(data || []);
+      const data = await request('/Inventory/GetAllMasterItems');
+      setItems(Array.isArray(data) ? data : data?.data || []);
     } catch (error) {
       console.error('Error loading inventory:', error);
       alert(`Error: ${error?.message || 'Failed to load inventory'}`);
@@ -146,8 +146,8 @@ export default function ViewMasterInventory() {
         isActive: editFormData?.isActive
       };
 
-      await request('/inventory/UpdateInventoryMasterItem', {
-        method: 'POST',
+      await request('/Inventory/UpdateMasterItem', {
+        method: 'PUT',
         body: JSON.stringify(inventoryMasterModel)
       });
       

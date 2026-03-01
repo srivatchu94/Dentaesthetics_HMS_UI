@@ -136,6 +136,7 @@ export default function Services(){
   
   // Pharmacy Billing modal state
   const [showPharmacyBillingModal, setShowPharmacyBillingModal] = useState(false);
+  const [pharmacyBillingMode, setPharmacyBillingMode] = useState('billing');
   
   // View camps and participants state
   const [camps, setCamps] = useState([]);
@@ -421,6 +422,14 @@ export default function Services(){
           color: "from-green-400 to-emerald-500"
         },
         {
+          id: 'view-invoice',
+          title: "🧾 View Invoice",
+          description: "Search and view previously generated invoices",
+          action: "view-invoice",
+          icon: "📄",
+          color: "from-emerald-400 to-cyan-500"
+        },
+        {
           id: 'inventory-tracking',
           title: "📦 Inventory Tracking",
           description: "Monitor medication stock levels",
@@ -461,6 +470,11 @@ export default function Services(){
         setShowCampStatisticsModal(true);
         break;
       case 'pharmacy-billing':
+        setPharmacyBillingMode('billing');
+        setShowPharmacyBillingModal(true);
+        break;
+      case 'view-invoice':
+        setPharmacyBillingMode('view-invoice');
         setShowPharmacyBillingModal(true);
         break;
       default:
@@ -3131,7 +3145,11 @@ export default function Services(){
       {/* Pharmacy Billing Modal */}
       <PharmacyBillingModal
         show={showPharmacyBillingModal}
-        onClose={() => setShowPharmacyBillingModal(false)}
+        mode={pharmacyBillingMode}
+        onClose={() => {
+          setShowPharmacyBillingModal(false);
+          setPharmacyBillingMode('billing');
+        }}
       />
     </div>
   );

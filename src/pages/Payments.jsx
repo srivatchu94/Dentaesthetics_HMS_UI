@@ -210,28 +210,46 @@ export default function Payments() {
   const downloadInvoicePDF = (invoice) => {
     try {
       const docElement = document.createElement('div');
+      docElement.style.position = 'absolute';
+      docElement.style.left = '-9999px';
+      docElement.style.top = '-9999px';
       docElement.innerHTML = generateInvoiceHTML(invoice);
+      document.body.appendChild(docElement);
       
-      const canvas = html2canvas(docElement, {
+      html2canvas(docElement, {
         scale: 2,
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        allowTaint: true,
+        useCORS: true
       }).then(canvas => {
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'mm',
-          format: 'a4'
-        });
-        
-        const imgData = canvas.toDataURL('image/png');
-        const imgWidth = 210;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-        pdf.save(`Invoice-${invoice.header?.invoiceNumber}.pdf`);
+        try {
+          const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 210;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+          pdf.save(`Invoice-${invoice.header?.invoiceNumber}.pdf`);
+          
+          document.body.removeChild(docElement);
+        } catch (err) {
+          console.error('Error in PDF generation:', err);
+          document.body.removeChild(docElement);
+          alert('Failed to generate PDF');
+        }
+      }).catch(err => {
+        console.error('Error in html2canvas:', err);
+        document.body.removeChild(docElement);
+        alert('Failed to generate PDF: ' + err.message);
       });
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      alert('Failed to download PDF');
+      alert('Failed to download PDF: ' + error.message);
     }
   };
 
