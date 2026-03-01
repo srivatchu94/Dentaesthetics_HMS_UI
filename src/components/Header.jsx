@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, getUserAccess, setSelectedAccess, getSelectedAccess, getAuthToken, checkTokenExpired } from "../services/authService";
 import { listDoctorProfiles } from "../services/doctorService";
 import LoginModal from "./LoginModal";
+import dhanthaLogo from "../assets/dhantha-logo.svg";
 
 const TABS = [
   { key: "home", path: "/", label: "Home", icon: "🏠" },
@@ -371,20 +372,21 @@ export default function Header(){
             <div className="w-full px-6 md:px-12 py-4">
               <div className="grid grid-cols-3 items-center gap-4">
             {/* Logo - Left */}
-                <Link to="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
-                  <motion.div 
+                <Link to="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
+                  <motion.img 
                     whileHover={{ scale: 1.1, rotate: 5 }}
-                    className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-xl shadow-lg flex items-center justify-center cursor-pointer"
-                  >
-                    <span className="text-2xl">🦷</span>
-                  </motion.div>
+                    src={dhanthaLogo}
+                    alt="Dhantha Logo"
+                    className="w-12 h-12 cursor-pointer drop-shadow-lg"
+                  />
                 </Link>
 
             {/* Title - Center */}
                 <div className="text-center">
-                  <h1 className="text-xl md:text-2xl font-bold text-cyan-300 drop-shadow-lg">
-                    Dentaesthetics VitalsVille
+                  <h1 className="text-lg md:text-xl font-bold text-cyan-300 drop-shadow-lg">
+                    Dhantha - The Dental Company
                   </h1>
+                  <p className="text-xs text-cyan-400/80">Nature of Elegance</p>
                 </div>
 
             {/* Notifications, Login/Doctor's Space Buttons - Right */}

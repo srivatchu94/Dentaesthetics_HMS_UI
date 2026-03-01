@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import dhanthaLogo from "../assets/dhantha-logo.svg";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -25,13 +26,14 @@ export default function Footer() {
           {/* Brand Section */}
           <div className="space-y-4">
             <h3 className="text-2xl font-bold flex items-center gap-2">
-              <span className="text-3xl">🏥</span>
-              Dentaesthetics HMS
+              <img src={dhanthaLogo} alt="Dhantha Logo" className="w-8 h-8" />
+              Dhantha - The Dental Company
             </h3>
-            <p className="text-slate-300">Your trusted dental hospital management system</p>
+            <p className="text-slate-300">Your trusted dental clinic with excellence in care and aesthetics</p>
+            <p className="text-xs text-cyan-400">Nature of Elegance</p>
             <div className="flex gap-3">
               <a
-                href="https://facebook.com/DentaestheticsHMS"
+                href="https://facebook.com/Dhantha"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 bg-indigo-600 hover:bg-indigo-700 rounded-full flex items-center justify-center transition-all hover:scale-110"
@@ -40,7 +42,7 @@ export default function Footer() {
                 f
               </a>
               <a
-                href="https://twitter.com/DentaHMS"
+                href="https://twitter.com/DhanthaClinic"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 bg-blue-400 hover:bg-blue-500 rounded-full flex items-center justify-center transition-all hover:scale-110"
@@ -49,7 +51,7 @@ export default function Footer() {
                 𝕏
               </a>
               <a
-                href="https://instagram.com/dentaesthetics_hms"
+                href="https://instagram.com/dhantha_clinic"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 bg-pink-600 hover:bg-pink-700 rounded-full flex items-center justify-center transition-all hover:scale-110"
@@ -58,7 +60,7 @@ export default function Footer() {
                 📸
               </a>
               <a
-                href="https://linkedin.com/company/dentaesthetics-hms"
+                href="https://linkedin.com/company/dhantha-dental"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-10 h-10 bg-blue-700 hover:bg-blue-800 rounded-full flex items-center justify-center transition-all hover:scale-110"
@@ -96,8 +98,8 @@ export default function Footer() {
           <div className="space-y-4">
             <h4 className="text-lg font-bold">Support</h4>
             <ul className="space-y-2 text-slate-300">
-              <li className="hover:text-white transition-all cursor-pointer">📞 +1 (800) DENT-HMS</li>
-              <li className="hover:text-white transition-all cursor-pointer">✉️ support@dentaesthetics.com</li>
+              <li className="hover:text-white transition-all cursor-pointer">📞 +1 (800) DHANTHA</li>
+              <li className="hover:text-white transition-all cursor-pointer">✉️ support@dhantha.com</li>
               <li className="hover:text-white transition-all cursor-pointer">💬 24/7 Live Chat</li>
             </ul>
           </div>
@@ -121,7 +123,7 @@ export default function Footer() {
         <div className="border-t border-slate-700 py-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-slate-400">
-              © {currentYear} Dentaesthetics HMS. All rights reserved.
+              © {currentYear} Dhantha - The Dental Company. All rights reserved.
             </p>
             <p className="text-slate-400">
               Made with <span className="text-red-500">❤️</span> for better dental care
