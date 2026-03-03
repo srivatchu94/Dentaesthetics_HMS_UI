@@ -6,7 +6,7 @@ import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatien
 import { visitService } from "../services/visitService";
 import { getDoctorsByClinicID } from "../api/hmsApi";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
-import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment, getAppointmentTypes, getAppointmentStatuses } from "../services/appointmentService";
+import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment, getAppointmentTypes, getAppointmentStatuses, getDoctorAppointmentsWithCount } from "../services/appointmentService";
 import { sendPrescriptionEmail, sendEmail } from "../services/emailService";
 import ViewPatients from "./ViewPatients";
 import FancyDatePicker from "../components/FancyDatePicker";
@@ -208,6 +208,10 @@ export default function Patients() {
   const [loadingClinicPatients, setLoadingClinicPatients] = useState(false);
   const [showAppointmentSuccessModal, setShowAppointmentSuccessModal] = useState(false);
   const [createdAppointment, setCreatedAppointment] = useState(null);
+  const [showBookingConflictMessage, setShowBookingConflictMessage] = useState(false);
+  const [bookingConflictCount, setBookingConflictCount] = useState(0);
+  const [allowConflictBooking, setAllowConflictBooking] = useState(false);
+  const appointmentBookingFormRef = useRef(null);
   const [appointmentDoctors, setAppointmentDoctors] = useState([]);
   const [appointmentDoctorsLoading, setAppointmentDoctorsLoading] = useState(false);
   const [appointmentsList, setAppointmentsList] = useState([]);
@@ -218,6 +222,13 @@ export default function Patients() {
   const [showAppointmentUpdateSuccess, setShowAppointmentUpdateSuccess] = useState(false);
   const [showNotLoggedInModal, setShowNotLoggedInModal] = useState(false);
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(!!localStorage.getItem('accessToken'));
+
+  const normalizePhoneNumber = (value) => value.replace(/\D/g, '').slice(0, 10);
+  const isYearLengthValid = (dateValue) => {
+    if (!dateValue) return true;
+    const [year] = String(dateValue).split('-');
+    return !year || year.length <= 4;
+  };
 
   // Initialize appointment form with pre-populated data from registration
   useEffect(() => {
@@ -333,6 +344,14 @@ export default function Patients() {
     };
 
     fetchDoctors();
+  }, [showNewAppointmentModal]);
+
+  useEffect(() => {
+    if (!showNewAppointmentModal) {
+      setShowBookingConflictMessage(false);
+      setBookingConflictCount(0);
+      setAllowConflictBooking(false);
+    }
   }, [showNewAppointmentModal]);
   
   // Diagnosis modal states
@@ -3312,7 +3331,10 @@ export default function Patients() {
 
               {/* Modal Content */}
               <div className="flex-1 overflow-y-auto p-6">
-                <form onSubmit={async (e) => {
+                <form
+                  ref={appointmentBookingFormRef}
+                  id="patients-book-appointment-form"
+                  onSubmit={async (e) => {
                   e.preventDefault();
                   
                   if (!selectedPatientForVisit) {
@@ -5563,7 +5585,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                   </motion.div>
                 )}
 
-                <form onSubmit={async (e) => {
+                <form ref={appointmentBookingFormRef} onSubmit={async (e) => {
                   e.preventDefault();
                   
                   try {
@@ -5583,6 +5605,44 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     // Convert time format from HH:mm to HH:mm:ss for TimeSpan
                     const startTimeSpan = appointmentForm.startTime ? `${appointmentForm.startTime}:00` : null;
                     const endTimeSpan = appointmentForm.endTime ? `${appointmentForm.endTime}:00` : null;
+
+                    if (appointmentForm.startTime && appointmentForm.endTime && appointmentForm.startTime === appointmentForm.endTime) {
+                      alert('❌ Start Time and End Time cannot be the same. Please choose a different time.');
+                      return;
+                    }
+
+                    if (!appointmentForm.doctorId) {
+                      alert('❌ Please select a doctor before booking appointment.');
+                      return;
+                    }
+
+                    const conflictCheckResponse = await getDoctorAppointmentsWithCount({
+                      clinicId,
+                      doctorId: String(appointmentForm.doctorId),
+                      appointmentDate: appointmentForm.date,
+                      startTime: startTimeSpan,
+                      endTime: endTimeSpan
+                    });
+
+                    const appointmentCount = Number(
+                      conflictCheckResponse?.appointmentsCount ??
+                      conflictCheckResponse?.appointmentCount ??
+                      conflictCheckResponse?.count ??
+                      conflictCheckResponse?.data?.appointmentsCount ??
+                      conflictCheckResponse?.data?.appointmentCount ??
+                      conflictCheckResponse?.data?.count ??
+                      (typeof conflictCheckResponse === 'number' ? conflictCheckResponse : 0)
+                    );
+
+                    if (appointmentCount > 0 && !allowConflictBooking) {
+                      setBookingConflictCount(appointmentCount);
+                      setShowBookingConflictMessage(true);
+                      return;
+                    }
+
+                    setShowBookingConflictMessage(false);
+                    setBookingConflictCount(0);
+                    setAllowConflictBooking(false);
                     
                     // Calculate duration in minutes if both times are provided and not manually entered
                     let durationMinutes = appointmentForm.durationMinutes || null;
@@ -5659,6 +5719,9 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     setSearchedPatient(null);
                     setPatientNotFound(false);
                     setBookingWithoutRegistration(false);
+                    setShowBookingConflictMessage(false);
+                    setBookingConflictCount(0);
+                    setAllowConflictBooking(false);
                   } catch (error) {
                     console.error('Failed to create appointment:', error);
                     alert('❌ Failed to book appointment. Please try again.');
@@ -5711,6 +5774,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                           value={appointmentForm.dateOfBirth}
                           onChange={(e) => {
                             const dob = e.target.value;
+                            if (!isYearLengthValid(dob)) return;
                             setAppointmentForm({ ...appointmentForm, dateOfBirth: dob });
                             // Calculate age
                             if (dob) {
@@ -5755,7 +5819,10 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         required
                         disabled={!searchedPatient && !bookingWithoutRegistration}
                         value={appointmentForm.phoneNumber}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, phoneNumber: e.target.value })}
+                        onChange={(e) => setAppointmentForm({ ...appointmentForm, phoneNumber: normalizePhoneNumber(e.target.value) })}
+                        inputMode="numeric"
+                        pattern="[0-9]{10}"
+                        maxLength={10}
                         className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
                         placeholder="555-0123"
                       />
@@ -5787,7 +5854,11 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         disabled={!searchedPatient && !bookingWithoutRegistration}
                         min={new Date().toISOString().split('T')[0]}
                         value={appointmentForm.date}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, date: e.target.value })}
+                        onChange={(e) => {
+                          const appointmentDate = e.target.value;
+                          if (!isYearLengthValid(appointmentDate)) return;
+                          setAppointmentForm({ ...appointmentForm, date: appointmentDate });
+                        }}
                         className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
                       />
                     </div>
@@ -5801,6 +5872,9 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         value={appointmentForm.startTime}
                         onChange={(e) => {
                           const newStartTime = e.target.value;
+                          if (newStartTime && appointmentForm.endTime && newStartTime === appointmentForm.endTime) {
+                            return;
+                          }
                           let calculatedDuration = appointmentForm.durationMinutes;
                           
                           // Auto-calculate duration if end time is set
@@ -5816,7 +5890,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       >
                         <option value="">Select time</option>
                         {["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00"].map(time => (
-                          <option key={time} value={time}>{time}</option>
+                          <option key={time} value={time} disabled={appointmentForm.endTime === time}>{time}</option>
                         ))}
                       </select>
                     </div>
@@ -5830,6 +5904,9 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         value={appointmentForm.endTime}
                         onChange={(e) => {
                           const newEndTime = e.target.value;
+                          if (appointmentForm.startTime && newEndTime && appointmentForm.startTime === newEndTime) {
+                            return;
+                          }
                           let calculatedDuration = appointmentForm.durationMinutes;
                           
                           // Auto-calculate duration if start time is set
@@ -5845,7 +5922,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       >
                         <option value="">Select time</option>
                         {["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00"].map(time => (
-                          <option key={time} value={time}>{time}</option>
+                          <option key={time} value={time} disabled={appointmentForm.startTime === time}>{time}</option>
                         ))}
                       </select>
                     </div>
@@ -6008,6 +6085,63 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </motion.button>
                   </div>
                 </form>
+
+                <AnimatePresence>
+                  {showBookingConflictMessage && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[130] flex items-center justify-center p-4"
+                    >
+                      <motion.div
+                        initial={{ scale: 0.95, y: 10, opacity: 0 }}
+                        animate={{ scale: 1, y: 0, opacity: 1 }}
+                        exit={{ scale: 0.95, y: 10, opacity: 0 }}
+                        className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-amber-200 p-6"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xl">⚠️</div>
+                          <div>
+                            <h4 className="text-lg font-bold text-slate-800">Booking Conflict</h4>
+                            <p className="text-sm text-slate-600 mt-1">already there is booking for this time, do you want to continue booking</p>
+                            <p className="text-sm text-amber-700 mt-2">Found {bookingConflictCount} existing appointment(s) for this doctor in the selected time range.</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 flex gap-3">
+                          <motion.button
+                            type="button"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              setAllowConflictBooking(true);
+                              setShowBookingConflictMessage(false);
+                              setTimeout(() => {
+                                appointmentBookingFormRef.current?.requestSubmit();
+                              }, 0);
+                            }}
+                            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-semibold"
+                          >
+                            Yes, Continue Booking
+                          </motion.button>
+                          <motion.button
+                            type="button"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              setAllowConflictBooking(false);
+                              setShowBookingConflictMessage(false);
+                            }}
+                            className="flex-1 px-4 py-2.5 bg-slate-200 text-slate-700 rounded-lg font-semibold"
+                          >
+                            No, Change Time
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
           </motion.div>
