@@ -385,7 +385,7 @@ export default function RegisterPatient() {
     
     const patientDataModel = {
       patient: {
-        patientId: 0,
+        patientId:0,
         patientEntityID: "",
         patientFirstName: patientData.firstName,
         patientLastName: patientData.lastName,
@@ -396,7 +396,7 @@ export default function RegisterPatient() {
         clinicID: patientData.clinicId || ""
       },
       patientContact: {
-        patientId: 0,
+        patientId:0,
         patientAddress: `${contactData.addressLine1}${contactData.addressLine2 ? ', ' + contactData.addressLine2 : ''}`,
         patientCity: contactData.city,
         patientPhone: contactData.phoneNumber,
@@ -406,19 +406,33 @@ export default function RegisterPatient() {
           : ""
       },
       patientMedicalInfo: {
-        patientId: 0,
+        patientId:0,
         patientMedicalHistory: medicalData.familyMedicalHistory || "",
         patientAllergies: medicalData.allergies || "",
         patientCurrentMedications: medicalData.currentMedications || "",
         patientPrimaryPhysician: "",
-        no_of_visits: 0,
+        no_of_visits:0,
         lastVisitedDate: medicalData.lastDentalVisit || new Date().toISOString(),
         chronicDiseases: medicalData.chronicConditions || "",
         medicalHistory: `Past Surgeries: ${medicalData.pastSurgeries || 'None'}; Smoking: ${medicalData.smokingStatus || 'Unknown'}; Alcohol: ${medicalData.alcoholConsumption || 'Unknown'}; Exercise: ${medicalData.exerciseFrequency || 'Unknown'}; Diet: ${medicalData.dietaryRestrictions || 'None'}; Notes: ${medicalData.notes || 'None'}`
       },
       patientInsurance: {
-        patientId: 0,
-        patientInsuranceProvider: insuranceData.insuranceProvider || ""
+        patientId:0,
+        patientInsuranceProvider: insuranceData.insuranceProvider || "",
+        policyNumber: insuranceData.policyNumber || "",
+        groupNumber: insuranceData.groupNumber || "",
+        policyHolderName: insuranceData.policyHolderName || "",
+        relationshipToPolicyHolder: insuranceData.policyHolderRelation || insuranceData.relationshipToPolicyHolder || "",
+        insurancePhone: insuranceData.insurancePhone || "",
+        providerEmail: insuranceData.providerEmail || "",
+        providerAddress: insuranceData.providerAddress || "",
+        coverageStartDate: insuranceData.coverageStartDate || "",
+        coverageEndDate: insuranceData.coverageEndDate || "",
+        copayAmount: insuranceData.copayAmount || "",
+        deductibleAmount: insuranceData.deductibleAmount || "",
+        coveragePercentage: insuranceData.coveragePercentage || "",
+        isPrimary: !!insuranceData.isPrimaryInsurance,
+        isActive: insuranceData.isActive !== undefined ? insuranceData.isActive : true
       }
     };
     
@@ -974,6 +988,38 @@ export default function RegisterPatient() {
                           <span className="text-sm font-medium text-stone-700">Primary Insurance</span>
                         </label>
                       </div>
+                      {/* New fields required by backend */}
+                      <InputField
+                        label="Insurance Phone"
+                        name="insurancePhone"
+                        type="tel"
+                        value={insuranceData.insurancePhone}
+                        onChange={(e) => setInsuranceData({ ...insuranceData, insurancePhone: e.target.value })}
+                        placeholder="Provider phone number"
+                      />
+                      <InputField
+                        label="Provider Email"
+                        name="providerEmail"
+                        type="email"
+                        value={insuranceData.providerEmail || ""}
+                        onChange={(e) => setInsuranceData({ ...insuranceData, providerEmail: e.target.value })}
+                        placeholder="provider@example.com"
+                      />
+                      <InputField
+                        label="Provider Address"
+                        name="providerAddress"
+                        type="textarea"
+                        value={insuranceData.providerAddress || ""}
+                        onChange={(e) => setInsuranceData({ ...insuranceData, providerAddress: e.target.value })}
+                        placeholder="Provider address"
+                      />
+                      <InputField
+                        label="Relationship to Policy Holder"
+                        name="policyHolderRelation"
+                        value={insuranceData.policyHolderRelation}
+                        onChange={(e) => setInsuranceData({ ...insuranceData, policyHolderRelation: e.target.value })}
+                        options={["Self", "Spouse", "Child", "Parent", "Other"]}
+                      />
                     </div>
                   </motion.div>
                 )}
