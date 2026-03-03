@@ -280,6 +280,25 @@ export function getAppointmentsByDoctorID(clinicId: number, doctorId: string, ap
   return request<AppointmentsModel[]>(`/Appointments/GetAppointmentsByDoctorID?${queryParams.toString()}`);
 }
 
+export interface DoctorAppointmentsWithCountParams {
+  clinicId: number;
+  doctorId: string;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
+}
+
+export function getDoctorAppointmentsWithCount(params: DoctorAppointmentsWithCountParams): Promise<any> {
+  const queryParams = new URLSearchParams();
+  queryParams.append('clinicId', String(params.clinicId));
+  queryParams.append('doctorId', String(params.doctorId));
+  queryParams.append('appointmentDate', params.appointmentDate);
+  queryParams.append('startTime', params.startTime);
+  queryParams.append('endTime', params.endTime);
+
+  return request<any>(`/Appointments/GetDoctorAppointmentsWithCount?${queryParams.toString()}`);
+}
+
 // ============= PRESCRIPTION OPERATIONS =============
 
 export interface PrescriptionDto {
