@@ -5880,8 +5880,17 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </label>
                     <select
                       disabled={!searchedPatient && !bookingWithoutRegistration}
-                      value={appointmentForm.attendingPhysician}
-                      onChange={(e) => setAppointmentForm({ ...appointmentForm, attendingPhysician: e.target.value })}
+                      value={appointmentForm.doctorId || ""}
+                      onChange={(e) => {
+                        const selectedDocId = e.target.value;
+                        const selectedDoc = appointmentDoctors.find(doc => (doc.doctorId || doc.id || "").toString() === selectedDocId);
+                        const physicianName = selectedDoc ? (selectedDoc.name || `${selectedDoc.firstName || ""} ${selectedDoc.lastName || ""}`.trim()) : "";
+                        setAppointmentForm({ 
+                          ...appointmentForm, 
+                          doctorId: selectedDocId,
+                          attendingPhysician: physicianName
+                        });
+                      }}
                       className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
                     >
                       <option value="">
