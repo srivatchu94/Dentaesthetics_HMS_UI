@@ -13,6 +13,7 @@ const TIME_SLOTS = [
 ];
 
 const TREATMENT_TYPES = ["Cleaning", "Checkup", "Filling", "Root Canal", "Extraction", "Crown", "Braces Adjustment", "Whitening", "X-Ray", "Consultation"];
+const APPOINTMENT_COLORS = ["emerald", "blue", "violet", "rose", "amber", "indigo"];
 
 export default function Calendar() {
   const navigate = useNavigate();
@@ -158,11 +159,36 @@ export default function Calendar() {
   };
 
   // Process appointments with normalized times
-  const processedAppointments = appointments.map(apt => ({
-    ...apt,
-    startTime: normalizeTime(apt.startTime),
-    endTime: normalizeTime(apt.endTime) || normalizeTime(apt.startTime)
-  }));
+  // For same date + same start time slots, assign different colors to distinguish cards.
+  const processedAppointments = React.useMemo(() => {
+    const normalizedAppointments = appointments.map((apt) => ({
+      ...apt,
+      startTime: normalizeTime(apt.startTime),
+      endTime: normalizeTime(apt.endTime) || normalizeTime(apt.startTime)
+    }));
+
+    const slotTotals = new Map();
+    const slotUsage = new Map();
+
+    normalizedAppointments.forEach((apt) => {
+      const key = `${apt.date}-${apt.startTime}`;
+      slotTotals.set(key, (slotTotals.get(key) || 0) + 1);
+    });
+
+    return normalizedAppointments.map((apt) => {
+      const key = `${apt.date}-${apt.startTime}`;
+      const slotIndex = slotUsage.get(key) || 0;
+      slotUsage.set(key, slotIndex + 1);
+
+      const hasCollisionsInSlot = (slotTotals.get(key) || 0) > 1;
+      return {
+        ...apt,
+        color: hasCollisionsInSlot
+          ? APPOINTMENT_COLORS[slotIndex % APPOINTMENT_COLORS.length]
+          : (apt.color || "emerald")
+      };
+    });
+  }, [appointments]);
 
   // Handle updating appointment details
   const handleUpdateAppointment = async () => {
@@ -499,6 +525,10 @@ export default function Calendar() {
     });
   };
 
+  const getAppointmentsStartingAtSlot = (dateStr, time) => {
+    return processedAppointments.filter((apt) => apt.date === dateStr && apt.startTime === time);
+  };
+
   const calculateSlotHeight = (startTime, endTime) => {
     const startIdx = TIME_SLOTS.indexOf(startTime);
     const endIdx = TIME_SLOTS.indexOf(endTime);
@@ -703,63 +733,77 @@ export default function Calendar() {
             <div className="space-y-1 max-h-[600px] overflow-y-auto">
               {TIME_SLOTS.map((time) => {
                 const appointment = getAppointmentAtSlot(selectedDate, time);
+                const startingAppointments = getAppointmentsStartingAtSlot(selectedDate, time);
                 const isBlocked = isSlotBlocked(selectedDate, time);
-                const isStartOfAppointment = appointment && appointment.startTime === time;
+                const isStartOfAppointment = startingAppointments.length > 0;
 
                 return (
                   <div key={time} className="relative">
                     {isStartOfAppointment ? (
-                      <motion.div
-                        drag="y"
-                        dragConstraints={{ top: 0, bottom: 0 }}
-                        dragElastic={0.1}
-                        onDragEnd={(e, info) => {
-                          const dragDistance = info.offset.y;
-                          const slotsMoved = Math.round(dragDistance / 60);
-                          if (slotsMoved !== 0) {
-                            const currentIdx = TIME_SLOTS.indexOf(time);
-                            const newIdx = Math.max(0, Math.min(TIME_SLOTS.length - 1, currentIdx + slotsMoved));
-                            handleAppointmentDrag(appointment.id, TIME_SLOTS[newIdx]);
-                          }
-                        }}
-                        whileHover={{ scale: 1.02, zIndex: 10 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedAppointment(appointment);
-                          setEditFormData({
-                            patient: appointment.patient || "",
-                            patientPhone: appointment.patientPhone || "",
-                            patientEmail: appointment.patientEmail || "",
-                            date: appointment.date || "",
-                            startTime: appointment.startTime || "",
-                            endTime: appointment.endTime || "",
-                            type: appointment.type || "",
-                            doctor: appointment.doctor || "",
-                            notes: appointment.notes || "",
-                            billableAmount: appointment.billableAmount || 0,
-                            paidAmount: appointment.paidAmount || 0,
-                            pendingAmount: appointment.pendingAmount || 0,
-                            status: appointment.status || "",
-                            paymentStatus: appointment.paymentStatus || "",
-                            reasonForVisit: appointment.reasonForVisit || ""
-                          });
-                          setIsEditingAppointment(false);
-                          setShowAppointmentModal(true);
-                        }}
-                        className={`absolute w-full z-10 cursor-move`}
-                        style={{ height: calculateSlotHeight(appointment.startTime, appointment.endTime) }}
-                      >
-                        <div className={`h-full bg-gradient-to-r from-${appointment.color}-400 to-${appointment.color}-500 rounded-lg p-3 shadow-lg border-2 border-${appointment.color}-600 hover:shadow-xl transition-all`}>
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="font-bold text-white text-sm">{appointment.patient}</p>
-                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                            </svg>
-                          </div>
-                          <p className="text-xs text-white opacity-90">{appointment.type}</p>
-                          <p className="text-xs text-white opacity-90">{appointment.startTime} - {appointment.endTime}</p>
-                        </div>
-                      </motion.div>
+                      <>
+                        {startingAppointments.map((currentAppointment, index) => {
+                          const cardWidth = 100 / startingAppointments.length;
+
+                          return (
+                            <motion.div
+                              key={currentAppointment.id}
+                              drag="y"
+                              dragConstraints={{ top: 0, bottom: 0 }}
+                              dragElastic={0.1}
+                              onDragEnd={(e, info) => {
+                                const dragDistance = info.offset.y;
+                                const slotsMoved = Math.round(dragDistance / 60);
+                                if (slotsMoved !== 0) {
+                                  const currentIdx = TIME_SLOTS.indexOf(time);
+                                  const newIdx = Math.max(0, Math.min(TIME_SLOTS.length - 1, currentIdx + slotsMoved));
+                                  handleAppointmentDrag(currentAppointment.id, TIME_SLOTS[newIdx]);
+                                }
+                              }}
+                              whileHover={{ scale: 1.02, zIndex: 10 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedAppointment(currentAppointment);
+                                setEditFormData({
+                                  patient: currentAppointment.patient || "",
+                                  patientPhone: currentAppointment.patientPhone || "",
+                                  patientEmail: currentAppointment.patientEmail || "",
+                                  date: currentAppointment.date || "",
+                                  startTime: currentAppointment.startTime || "",
+                                  endTime: currentAppointment.endTime || "",
+                                  type: currentAppointment.type || "",
+                                  doctor: currentAppointment.doctor || "",
+                                  notes: currentAppointment.notes || "",
+                                  billableAmount: currentAppointment.billableAmount || 0,
+                                  paidAmount: currentAppointment.paidAmount || 0,
+                                  pendingAmount: currentAppointment.pendingAmount || 0,
+                                  status: currentAppointment.status || "",
+                                  paymentStatus: currentAppointment.paymentStatus || "",
+                                  reasonForVisit: currentAppointment.reasonForVisit || ""
+                                });
+                                setIsEditingAppointment(false);
+                                setShowAppointmentModal(true);
+                              }}
+                              className="absolute z-10 cursor-move"
+                              style={{
+                                height: calculateSlotHeight(currentAppointment.startTime, currentAppointment.endTime),
+                                width: `calc(${cardWidth}% - 4px)`,
+                                left: `calc(${index * cardWidth}% + 2px)`
+                              }}
+                            >
+                              <div className={`h-full bg-gradient-to-r from-${currentAppointment.color}-400 to-${currentAppointment.color}-500 rounded-lg p-3 shadow-lg border-2 border-${currentAppointment.color}-600 hover:shadow-xl transition-all`}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="font-bold text-white text-sm truncate">{currentAppointment.patient}</p>
+                                  <svg className="w-4 h-4 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                                  </svg>
+                                </div>
+                                <p className="text-xs text-white opacity-90 truncate">{currentAppointment.type}</p>
+                                <p className="text-xs text-white opacity-90 truncate">{currentAppointment.startTime} - {currentAppointment.endTime}</p>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </>
                     ) : !isBlocked && (
                       <motion.button
                         whileHover={{ backgroundColor: "#f3e8ff", scale: 1.01 }}
