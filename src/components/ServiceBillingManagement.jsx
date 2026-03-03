@@ -10,6 +10,7 @@ import html2canvas from 'html2canvas';
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
 export default function ServiceBillingManagement({ onPaymentClick, refreshTrigger }) {
+  // Existing states
   const [billingDate, setBillingDate] = useState(new Date().toISOString().split('T')[0]);
   const [billingClinicId, setBillingClinicId] = useState('');
   const [clinicsList, setClinicsList] = useState([]);
@@ -19,6 +20,16 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
   const [expandedAppointmentId, setExpandedAppointmentId] = useState(null);
   const [invoicesByAppointment, setInvoicesByAppointment] = useState({});
   const [loadingInvoices, setLoadingInvoices] = useState({});
+
+  // New states for patient search tab
+  const [activeTab, setActiveTab] = useState('appointments'); // 'appointments' or 'patient'
+  const [patientSearchId, setPatientSearchId] = useState('');
+  const [patientSearchPhone, setPatientSearchPhone] = useState('');
+  const [searchedPatient, setSearchedPatient] = useState(null);
+  const [patientAppointments, setPatientAppointments] = useState([]);
+  const [loadingPatientSearch, setLoadingPatientSearch] = useState(false);
+  const [patientSearchError, setPatientSearchError] = useState('');
+  const [selectedPatientAppointmentId, setSelectedPatientAppointmentId] = useState(null);
 
   // Load clinics from token on mount
   useEffect(() => {
@@ -98,6 +109,68 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
     console.log("🔄 Refresh triggered - clearing invoice cache");
     setInvoicesByAppointment({});
   }, [refreshTrigger]);
+
+  // Search patient by ID or phone number
+  const searchPatient = useCallback(async () => {
+    if (!patientSearchId && !patientSearchPhone) {
+      setPatientSearchError('Please enter Patient ID or Phone Number');
+      return;
+    }
+
+    setLoadingPatientSearch(true);
+    setPatientSearchError('');
+    setSearchedPatient(null);
+    setPatientAppointments([]);
+
+    try {
+      // Search patient by ID or phone
+      const searchQuery = patientSearchId 
+        ? `searchByPatientId=${patientSearchId}`
+        : `searchByPhone=${patientSearchPhone}`;
+
+      const response = await fetch(
+        `${API_BASE_URL}/Patient/Search?${searchQuery}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${getAccessToken()}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.ok) {
+        const patient = await response.json();
+        console.log('✅ Patient found:', patient);
+        setSearchedPatient(patient);
+
+        // Load appointments for this patient
+        if (patient.patientId) {
+          const appointmentsResponse = await fetch(
+            `${API_BASE_URL}/Appointment/GetByPatientId?patientId=${patient.patientId}`,
+            {
+              headers: {
+                'Authorization': `Bearer ${getAccessToken()}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+
+          if (appointmentsResponse.ok) {
+            const appointments = await appointmentsResponse.json();
+            console.log('✅ Patient appointments:', appointments);
+            setPatientAppointments(Array.isArray(appointments) ? appointments : []);
+          }
+        }
+      } else {
+        setPatientSearchError('Patient not found. Please check the ID or phone number.');
+      }
+    } catch (error) {
+      console.error('Error searching patient:', error);
+      setPatientSearchError('Failed to search patient. Please try again.');
+    } finally {
+      setLoadingPatientSearch(false);
+    }
+  }, [patientSearchId, patientSearchPhone]);
 
   // Load invoices for specific appointment
   const loadInvoicesForAppointment = useCallback(async (appointmentId) => {
@@ -221,9 +294,9 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
   return (
     <>
       <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-emerald-100/60 overflow-hidden">
-        {/* Header */}
+        {/* Header with Tabs */}
         <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-2xl shadow-md">
               💰
             </div>
@@ -234,69 +307,100 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
               <p className="text-sm text-slate-600 mt-0.5">Create invoices for patient services</p>
             </div>
           </div>
-        </div>
 
-        {/* Filters */}
-        <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-            <div>
-              <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Clinic:</label>
-              <select
-                value={billingClinicId}
-                onChange={(e) => setBillingClinicId(e.target.value)}
-                className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
-              >
-                <option value="">-- Choose a clinic --</option>
-                {clinicsList.map((clinic) => (
-                  <option key={clinic.clinicId} value={clinic.clinicId}>
-                    {clinic.clinicName || `Clinic ${clinic.clinicId}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Date:</label>
-              <input
-                type="date"
-                value={billingDate}
-                onChange={(e) => setBillingDate(e.target.value)}
-                className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
-              />
-            </div>
-            <div>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={loadBillingAppointments}
-                disabled={loadingBilling || !billingClinicId}
-                className="w-full px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>🔍</span>
-                <span>{loadingBilling ? 'Loading...' : 'Search Appointments'}</span>
-              </motion.button>
-            </div>
+          {/* Tabs */}
+          <div className="flex gap-2 border-b-2 border-blue-200">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setActiveTab('appointments')}
+              className={`px-4 py-3 font-semibold rounded-t-lg transition-all ${
+                activeTab === 'appointments'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              📅 By Appointment
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setActiveTab('patient')}
+              className={`px-4 py-3 font-semibold rounded-t-lg transition-all ${
+                activeTab === 'patient'
+                  ? 'bg-blue-600 text-white shadow-lg'
+                  : 'bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              👤 By Patient
+            </motion.button>
           </div>
         </div>
 
-        {/* Error Message */}
-        <AnimatePresence>
-          {errorMessage && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="px-6 py-4 bg-amber-50 border-b-2 border-amber-200"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">ℹ️</span>
-                <p className="text-amber-800 font-medium">{errorMessage}</p>
+        {/* Tab Content */}
+        {activeTab === 'appointments' ? (
+          <>
+            {/* Filters for Appointments Tab */}
+            <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Clinic:</label>
+                  <select
+                    value={billingClinicId}
+                    onChange={(e) => setBillingClinicId(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+                  >
+                    <option value="">-- Choose a clinic --</option>
+                    {clinicsList.map((clinic) => (
+                      <option key={clinic.clinicId} value={clinic.clinicId}>
+                        {clinic.clinicName || `Clinic ${clinic.clinicId}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Date:</label>
+                  <input
+                    type="date"
+                    value={billingDate}
+                    onChange={(e) => setBillingDate(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+                  />
+                </div>
+                <div>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={loadBillingAppointments}
+                    disabled={loadingBilling || !billingClinicId}
+                    className="w-full px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span>🔍</span>
+                    <span>{loadingBilling ? 'Loading...' : 'Search Appointments'}</span>
+                  </motion.button>
+                </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
 
-        {/* Appointments Grid */}
-        <div className="p-6">
+            {/* Error Message */}
+            <AnimatePresence>
+              {errorMessage && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="px-6 py-4 bg-amber-50 border-b-2 border-amber-200"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">ℹ️</span>
+                    <p className="text-amber-800 font-medium">{errorMessage}</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Appointments Grid */}
+            <div className="p-6">
           {loadingBilling ? (
             <div className="py-12 text-center">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
@@ -594,7 +698,291 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
               </div>
             </div>
           )}
-        </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Patient Search Tab */}
+            <div className="p-6">
+              {/* Search Form */}
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-200 mb-6">
+                <h3 className="text-lg font-bold text-purple-800 mb-4 flex items-center gap-2">
+                  <span>🔍</span>
+                  Search Patient
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700 mb-2 block">Patient ID:</label>
+                    <input
+                      type="text"
+                      value={patientSearchId}
+                      onChange={(e) => setPatientSearchId(e.target.value)}
+                      placeholder="Enter Patient ID"
+                      className="w-full px-3 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-semibold text-slate-700 mb-2 block">Phone Number:</label>
+                    <input
+                      type="text"
+                      value={patientSearchPhone}
+                      onChange={(e) => setPatientSearchPhone(e.target.value)}
+                      placeholder="Enter Phone Number"
+                      className="w-full px-3 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+                    />
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={searchPatient}
+                    disabled={loadingPatientSearch || (!patientSearchId && !patientSearchPhone)}
+                    className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span>🔎</span>
+                    <span>{loadingPatientSearch ? 'Searching...' : 'Search'}</span>
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Patient Search Error */}
+              <AnimatePresence>
+                {patientSearchError && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-6 px-4 py-4 bg-red-50 border-2 border-red-200 rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">⚠️</span>
+                      <p className="text-red-800 font-medium">{patientSearchError}</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Patient Details Display */}
+              {searchedPatient && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-6 border-2 border-emerald-300 mb-6"
+                >
+                  <h3 className="text-lg font-bold text-emerald-800 mb-4">👤 Patient Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-700 uppercase mb-1">Patient Name</p>
+                      <p className="text-lg font-bold text-slate-800">{searchedPatient.firstName} {searchedPatient.lastName}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-700 uppercase mb-1">Patient ID</p>
+                      <p className="text-lg font-bold text-slate-800">{searchedPatient.patientId}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-700 uppercase mb-1">Phone Number</p>
+                      <p className="text-lg font-bold text-slate-800">{searchedPatient.phoneNumber || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-700 uppercase mb-1">Email</p>
+                      <p className="text-lg font-bold text-slate-800">{searchedPatient.email || 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  {/* Invoice Creation Options */}
+                  <div className="mt-6 flex gap-3 flex-wrap">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setActiveTab('appointments')}
+                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                    >
+                      <span>📋</span>
+                      Create Invoice WITH Appointment
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => onPaymentClick({ patientId: searchedPatient.patientId, firstName: searchedPatient.firstName, lastName: searchedPatient.lastName, mode: 'without-appointment' })}
+                      className="px-6 py-3 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                    >
+                      <span>➕</span>
+                      Create Invoice WITHOUT Appointment
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Patient Appointments List (when patient found) */}
+              {searchedPatient && patientAppointments.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white rounded-xl border-2 border-blue-200 overflow-hidden"
+                >
+                  <div className="bg-gradient-to-r from-blue-100 to-indigo-100 p-4 border-b border-blue-200">
+                    <h3 className="text-lg font-bold text-blue-800 flex items-center gap-2">
+                      <span>📅</span>
+                      Appointments for {searchedPatient.firstName}
+                    </h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-gradient-to-r from-blue-100 to-indigo-100 border-b border-blue-200">
+                          <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">ID</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Date</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Time</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Type</th>
+                          <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Doctor</th>
+                          <th className="px-4 py-3 text-center text-xs font-bold text-blue-900 uppercase tracking-wider">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {patientAppointments.map((appt, idx) => (
+                          <motion.tr
+                            key={appt.appointmentId}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.03 }}
+                            className="border-b border-slate-200 hover:bg-blue-50/50 transition-colors"
+                          >
+                            <td className="px-4 py-3">
+                              <span className="font-bold text-slate-700">#{appt.appointmentId}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-sm text-slate-700">
+                                {new Date(appt.appointmentDate).toLocaleDateString('en-US', { 
+                                  month: 'short', day: 'numeric', year: 'numeric'
+                                })}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-xs text-slate-500">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-sm font-medium text-slate-700">{appt.appointmentType || 'Consultation'}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-sm font-medium text-slate-700">{appt.doctorName || 'N/A'}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-center gap-2">
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => handleShowInvoices(appt.appointmentId)}
+                                  className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
+                                  title="Expand to view invoices"
+                                >
+                                  📂 Invoices
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => onPaymentClick(appt)}
+                                  className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
+                                  title="Create New Invoice"
+                                >
+                                  ➕ Create
+                                </motion.button>
+                              </div>
+                            </td>
+                          </motion.tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Expandable Invoices for Appointments in Patient Search */}
+                  <AnimatePresence>
+                    {expandedAppointmentId && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="border-t-2 border-blue-300 p-6"
+                      >
+                        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-6 border-2 border-teal-200">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-teal-800 flex items-center gap-2">
+                              <span>📋</span>
+                              Invoices for Appointment #{expandedAppointmentId}
+                            </h3>
+                          </div>
+                          {loadingInvoices[expandedAppointmentId] ? (
+                            <div className="flex items-center justify-center py-8">
+                              <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-300 border-t-teal-600"></div>
+                            </div>
+                          ) : invoicesByAppointment[expandedAppointmentId]?.length === 0 ? (
+                            <div className="py-8 text-center">
+                              <p className="text-teal-700 font-medium">No invoices created yet for this appointment.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {invoicesByAppointment[expandedAppointmentId]?.map((invoice, idx) => (
+                                <motion.div
+                                  key={idx}
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: idx * 0.1 }}
+                                  className={`rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 ${
+                                    invoice.header?.status === 'Paid'
+                                      ? 'border-l-green-500 bg-gradient-to-r from-green-50/40 to-white'
+                                      : invoice.header?.status === 'Partial'
+                                      ? 'border-l-amber-500 bg-gradient-to-r from-amber-50/40 to-white'
+                                      : 'border-l-red-500 bg-gradient-to-r from-red-50/40 to-white'
+                                  } border border-slate-100`}
+                                >
+                                  <div className="px-5 py-3.5 flex items-center justify-between gap-5">
+                                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                                      <div className="flex-shrink-0">
+                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">INV</p>
+                                        <p className="text-base font-black text-slate-900">{invoice.header?.invoiceNumber || 'N/A'}</p>
+                                      </div>
+                                      <div className="h-10 border-r border-slate-200"></div>
+                                      <div className="flex-shrink-0">
+                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date</p>
+                                        <p className="text-sm font-bold text-slate-800">
+                                          {invoice.header?.billDate ? new Date(invoice.header.billDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex-shrink-0 text-right">
+                                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</p>
+                                      <p className="text-xl font-black text-slate-900">₹{invoice.header?.totalAmount?.toFixed(2) || '0.00'}</p>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              ))}
+                            </div>
+                          )}
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setExpandedAppointmentId(null)}
+                            className="mt-4 w-full px-4 py-3 border-2 border-teal-400 bg-teal-50 text-teal-700 rounded-lg font-semibold hover:bg-teal-100 transition-all flex items-center justify-center gap-2"
+                          >
+                            <ChevronDown size={20} className="rotate-180" />
+                            Collapse Invoices
+                          </motion.button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+
+              {searchedPatient && patientAppointments.length === 0 && (
+                <div className="py-12 text-center bg-slate-50 rounded-xl border-2 border-slate-200">
+                  <div className="text-6xl mb-4">📋</div>
+                  <h3 className="text-xl font-bold text-slate-700 mb-2">No Appointments Found</h3>
+                  <p className="text-slate-500">This patient has no appointments on record.</p>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </>
   );
