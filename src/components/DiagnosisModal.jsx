@@ -482,6 +482,9 @@ export default function DiagnosisModal({ isOpen, onClose, appointmentId, initial
         ? `${API_BASE_URL}/Diagnosis/${diagnosisData.diagnosisId}`
         : `${API_BASE_URL}/Diagnosis`;
 
+      // Get appointment date from appointmentData or patientInfo
+      const appointmentDate = appointmentData?.appointmentDate || patientInfo?.visitDate || new Date().toISOString();
+
       const response = await fetch(endpoint, {
         method,
         headers: {
@@ -490,7 +493,8 @@ export default function DiagnosisModal({ isOpen, onClose, appointmentId, initial
         },
         body: JSON.stringify({
           ...formData,
-          appointmentId
+          appointmentId,
+          visitDate: appointmentDate
         })
       });
 
@@ -504,7 +508,7 @@ export default function DiagnosisModal({ isOpen, onClose, appointmentId, initial
     } finally {
       setIsSaving(false);
     }
-  }, [diagnosisData?.diagnosisId, formData, appointmentId, onSave]);
+  }, [diagnosisData?.diagnosisId, formData, appointmentId, appointmentData, patientInfo, onSave]);
 
   const handleWhatsApp = () => {
     const patientPhone = patientInfo?.phone || patientInfo?.patientPhone || '';
