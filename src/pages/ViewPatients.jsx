@@ -117,7 +117,8 @@ export default function ViewPatients() {
     lastName: "",
     dateOfBirth: "",
     patientId: "",
-    clinicId: ""
+    clinicId: "",
+    phoneNumber: ""
   });
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -272,7 +273,8 @@ export default function ViewPatients() {
         lastName: filterData.lastName || undefined,
         dob: filterData.dateOfBirth || undefined,
         patientId: filterData.patientId ? parseInt(filterData.patientId) : undefined,
-        clinicId: filterData.clinicId ? parseInt(filterData.clinicId) : undefined
+        clinicId: filterData.clinicId ? parseInt(filterData.clinicId) : undefined,
+        phoneNumber: filterData.phoneNumber || undefined
       };
 
       // Remove undefined values
@@ -571,6 +573,7 @@ export default function ViewPatients() {
                   type="text"
                   value={filterData.firstName}
                   onChange={(e) => setFilterData({ ...filterData, firstName: e.target.value })}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
                   placeholder="Search by first name"
                   className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
                 />
@@ -581,6 +584,7 @@ export default function ViewPatients() {
                   type="text"
                   value={filterData.lastName}
                   onChange={(e) => setFilterData({ ...filterData, lastName: e.target.value })}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
                   placeholder="Search by last name"
                   className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
                 />
@@ -591,6 +595,7 @@ export default function ViewPatients() {
                   type="date"
                   value={filterData.dateOfBirth}
                   onChange={(e) => setFilterData({ ...filterData, dateOfBirth: e.target.value })}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
                   className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
                 />
               </div>
@@ -600,7 +605,19 @@ export default function ViewPatients() {
                   type="number"
                   value={filterData.patientId}
                   onChange={(e) => setFilterData({ ...filterData, patientId: e.target.value })}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
                   placeholder="Enter patient ID"
+                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-2">Phone Number</label>
+                <input
+                  type="tel"
+                  value={filterData.phoneNumber}
+                  onChange={(e) => setFilterData({ ...filterData, phoneNumber: e.target.value })}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
+                  placeholder="Search by phone number"
                   className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
                 />
               </div>

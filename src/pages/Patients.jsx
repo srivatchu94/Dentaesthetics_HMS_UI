@@ -184,21 +184,13 @@ export default function Patients() {
     appointmentType: "",
     reasonForVisit: "",
     notes: "",
-    roomNumber: "",
     telehealthLink: "",
     attendingPhysician: "",
-    // Status & billing
-    status: "Scheduled",
-    isConfirmed: false,
-    billableAmount: "",
-    paidAmount: "",
-    pendingAmount: "",
-    paymentStatus: "Pending",
     // References
     doctorId: "",
     // Walk-in flag
     isWalkIn: false
-  });
+  })
   
   // Patient search state for appointment booking
   const [patientSearchForm, setPatientSearchForm] = useState({
@@ -1105,7 +1097,6 @@ export default function Patients() {
     bloodGroup: "",
     maritalStatus: "",
     clinicId: "",
-    role: "patient", // New role field
     isActive: true
   });
 
@@ -1137,10 +1128,7 @@ export default function Patients() {
     exerciseFrequency: "",
     dietaryRestrictions: "",
     lastDentalVisit: "",
-    notes: "",
-    license: "",
-    degree: "",
-    specialization: ""
+    notes: ""
   });
 
   const [insuranceData, setInsuranceData] = useState({
@@ -1284,9 +1272,9 @@ export default function Patients() {
       setShowSuccessModal(true);
       
       // Clear form after successful submission
-      setPatientData({ firstName: "", lastName: "", dateOfBirth: "", gender: "", bloodGroup: "", maritalStatus: "", role: "patient", isActive: true });
+      setPatientData({ firstName: "", lastName: "", dateOfBirth: "", gender: "", bloodGroup: "", maritalStatus: "", clinicId: "", isActive: true });
       setContactData({ phoneNumber: "", alternatePhoneNumber: "", email: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "", emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelation: "" });
-      setMedicalData({ allergies: "", chronicConditions: "", currentMedications: "", pastSurgeries: "", familyMedicalHistory: "", smokingStatus: "", alcoholConsumption: "", exerciseFrequency: "", dietaryRestrictions: "", lastDentalVisit: "", notes: "", license: "", degree: "", specialization: "" });
+      setMedicalData({ allergies: "", chronicConditions: "", currentMedications: "", pastSurgeries: "", familyMedicalHistory: "", smokingStatus: "", alcoholConsumption: "", exerciseFrequency: "", dietaryRestrictions: "", lastDentalVisit: "", notes: "" });
       setInsuranceData({ insuranceProvider: "", policyNumber: "", groupNumber: "", policyHolderName: "", policyHolderRelation: "", coverageStartDate: "", coverageEndDate: "", isPrimaryInsurance: true, copayAmount: "", deductibleAmount: "", coveragePercentage: "", insurancePhone: "", isActive: true });
       
       // Close the registration modal
@@ -1767,18 +1755,6 @@ export default function Patients() {
                   </select>
                   <p className="text-xs text-gray-500 mt-1">Pre-populated from your login credentials</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Role * <span className="text-xs text-gray-400 ml-1">🔒</span></label>
-                  <select
-                    value={patientData.role}
-                    disabled
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-400 cursor-not-allowed"
-                  >
-                    <option value="patient">Patient</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Role is restricted to Patient for this form</p>
-                </div>
               </div>
               </motion.div>
             )}
@@ -1926,14 +1902,66 @@ export default function Patients() {
                   onChange={(e) => setMedicalData({ ...medicalData, allergies: e.target.value })}
                   placeholder="List any known allergies (medications, food, environmental)"
                 />
-                <InputField
-                  label="Chronic Conditions"
-                  name="chronicConditions"
-                  type="textarea"
-                  value={medicalData.chronicConditions}
-                  onChange={(e) => setMedicalData({ ...medicalData, chronicConditions: e.target.value })}
-                  placeholder="Diabetes, hypertension, asthma, etc."
-                />
+                {/* Chronic Conditions Multi-Select */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Chronic Conditions</label>
+                  <div className="bg-white border border-slate-300 rounded-lg p-3 space-y-2 max-h-64 overflow-y-auto">
+                    {["Diabetes", "Hypertension", "Heart Disease", "Asthma", "Arthritis", "Thyroid Disease", "Kidney Disease", "Liver Disease", "Cancer History"].map((condition) => (
+                      <label key={condition} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
+                        <input
+                          type="checkbox"
+                          checked={medicalData.chronicConditions.split(',').filter(Boolean).includes(condition)}
+                          onChange={(e) => {
+                            const current = medicalData.chronicConditions.split(',').filter(Boolean);
+                            const updated = e.target.checked
+                              ? [...current, condition]
+                              : current.filter(c => c !== condition);
+                            setMedicalData({ ...medicalData, chronicConditions: updated.join(',') });
+                          }}
+                          className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
+                        />
+                        <span className="text-sm text-slate-700">{condition}</span>
+                      </label>
+                    ))}
+                    
+                    {/* Other with Textbox */}
+                    <div className="border-t border-slate-200 pt-2">
+                      <label className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
+                        <input
+                          type="checkbox"
+                          checked={medicalData.chronicConditions.split(',').filter(Boolean).some(c => c.startsWith('Other:'))}
+                          onChange={(e) => {
+                            const current = medicalData.chronicConditions.split(',').filter(c => !c.startsWith('Other:')).filter(Boolean);
+                            if (e.target.checked) {
+                              setMedicalData({ ...medicalData, chronicConditions: [...current, 'Other:'].join(',') });
+                            } else {
+                              setMedicalData({ ...medicalData, chronicConditions: current.join(',') });
+                            }
+                          }}
+                          className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
+                        />
+                        <span className="text-sm text-slate-700">Other (please specify)</span>
+                      </label>
+                      
+                      {medicalData.chronicConditions.split(',').filter(Boolean).some(c => c.startsWith('Other:')) && (
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm mt-2"
+                          placeholder="Please specify other conditions"
+                          value={medicalData.chronicConditions.split(',').filter(Boolean).find(c => c.startsWith('Other:'))?.replace('Other:', '') || ''}
+                          onChange={(e) => {
+                            const current = medicalData.chronicConditions.split(',').filter(c => !c.startsWith('Other:')).filter(Boolean);
+                            const other = e.target.value ? `Other:${e.target.value}` : 'Other:';
+                            setMedicalData({ 
+                              ...medicalData, 
+                              chronicConditions: [...current, other].filter(v => v !== 'Other:').join(',') || other
+                            });
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
                 <InputField
                   label="Current Medications"
                   name="currentMedications"
@@ -2004,36 +2032,6 @@ export default function Patients() {
                   onChange={(e) => setMedicalData({ ...medicalData, notes: e.target.value })}
                   placeholder="Any additional medical information"
                 />
-                
-                {/* Professional Fields - Only for doctor, nurse, admin roles */}
-                {['doctor', 'nurse', 'admin'].includes(patientData.role) && (
-                  <div className="md:col-span-2 border-t-2 border-teal-300 pt-4 mt-4">
-                    <h4 className="text-sm font-bold text-teal-900 mb-3">Professional Information</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <InputField
-                        label="License Number"
-                        name="license"
-                        value={medicalData.license}
-                        onChange={(e) => setMedicalData({ ...medicalData, license: e.target.value })}
-                        placeholder="Professional license number"
-                      />
-                      <InputField
-                        label="Degree/Qualification"
-                        name="degree"
-                        value={medicalData.degree}
-                        onChange={(e) => setMedicalData({ ...medicalData, degree: e.target.value })}
-                        placeholder="e.g., MD, BNS, MBBS"
-                      />
-                      <InputField
-                        label="Specialization"
-                        name="specialization"
-                        value={medicalData.specialization}
-                        onChange={(e) => setMedicalData({ ...medicalData, specialization: e.target.value })}
-                        placeholder="Area of expertise"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
               </motion.div>
             )}
@@ -5616,15 +5614,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       appointmentType: appointmentForm.appointmentType || "Consultation",
                       reasonForVisit: appointmentForm.reasonForVisit || "",
                       notes: appointmentForm.notes || "",
-                      roomNumber: appointmentForm.roomNumber || null,
                       telehealthLink: appointmentForm.telehealthLink || null,
-                      // Status & billing
-                      status: appointmentForm.status || "Scheduled",
-                      isConfirmed: appointmentForm.isConfirmed || false,
-                      billableAmount: appointmentForm.billableAmount ? parseFloat(appointmentForm.billableAmount) : null,
-                      paidAmount: appointmentForm.paidAmount ? parseFloat(appointmentForm.paidAmount) : null,
-                      pendingAmount: appointmentForm.pendingAmount ? parseFloat(appointmentForm.pendingAmount) : null,
-                      paymentStatus: appointmentForm.paymentStatus || "Pending",
                       // Audit
                       createdBy: userId ? parseInt(userId) : null
                     };
@@ -5654,15 +5644,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       appointmentType: "",
                       reasonForVisit: "",
                       notes: "",
-                      roomNumber: "",
                       telehealthLink: "",
                       attendingPhysician: "",
-                      status: "Scheduled",
-                      isConfirmed: false,
-                      billableAmount: "",
-                      paidAmount: "",
-                      pendingAmount: "",
-                      paymentStatus: "Pending",
                       doctorId: ""
                     });
                     setPatientSearchForm({
@@ -5800,6 +5783,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         type="date"
                         required
                         disabled={!searchedPatient && !bookingWithoutRegistration}
+                        min={new Date().toISOString().split('T')[0]}
                         value={appointmentForm.date}
                         onChange={(e) => setAppointmentForm({ ...appointmentForm, date: e.target.value })}
                         className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
@@ -5889,51 +5873,36 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </div>
                   </div>
 
-                  {/* Attending Physician & Room Number */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
-                        <span>🩺</span> Attending Physician {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
-                      </label>
-                      <select
-                        disabled={!searchedPatient && !bookingWithoutRegistration}
-                        value={appointmentForm.attendingPhysician}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, attendingPhysician: e.target.value })}
-                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
-                      >
-                        <option value="">
-                          {!searchedPatient && !bookingWithoutRegistration
-                            ? "Select patient first"
-                            : appointmentDoctorsLoading
-                              ? "Loading doctors..."
-                              : appointmentDoctors.length === 0
-                                ? "No doctors available"
-                                : "Select physician"}
-                        </option>
-                        {appointmentDoctors.map((doc) => {
-                          const name = doc.name || doc.doctorName || `${doc.firstName || ""} ${doc.lastName || ""}`.trim() || `Doctor ${doc.doctorId || doc.id}`;
-                          const doctorId = doc.doctorId || doc.id || "";
-                          return (
-                            <option key={doctorId || name} value={doctorId}>
-                              {name}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
-                        <span>🚪</span> Room Number {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
-                      </label>
-                      <input
-                        type="text"
-                        disabled={!searchedPatient && !bookingWithoutRegistration}
-                        value={appointmentForm.roomNumber}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, roomNumber: e.target.value })}
-                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
-                        placeholder="Room 101"
-                      />
-                    </div>
+                  {/* Attending Physician */}
+                  <div>
+                    <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
+                      <span>🩺</span> Attending Physician {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                    </label>
+                    <select
+                      disabled={!searchedPatient && !bookingWithoutRegistration}
+                      value={appointmentForm.attendingPhysician}
+                      onChange={(e) => setAppointmentForm({ ...appointmentForm, attendingPhysician: e.target.value })}
+                      className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
+                    >
+                      <option value="">
+                        {!searchedPatient && !bookingWithoutRegistration
+                          ? "Select patient first"
+                          : appointmentDoctorsLoading
+                            ? "Loading doctors..."
+                            : appointmentDoctors.length === 0
+                              ? "No doctors available"
+                              : "Select physician"}
+                      </option>
+                      {appointmentDoctors.map((doc) => {
+                        const name = doc.name || doc.doctorName || `${doc.firstName || ""} ${doc.lastName || ""}`.trim() || `Doctor ${doc.doctorId || doc.id}`;
+                        const doctorId = doc.doctorId || doc.id || "";
+                        return (
+                          <option key={doctorId || name} value={doctorId}>
+                            {name}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
 
                   {/* Duration (Auto-calculated) */}
@@ -5967,145 +5936,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     />
                   </div>
 
-                  {/* Status & Payment - Animated Selectors */}
-                  <div className="space-y-4">
-                    <div>
-                      <label className={`block text-sm font-bold mb-3 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
-                        <span>📊</span> Appointment Status {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
-                      </label>
-                      <div className={`grid grid-cols-2 md:grid-cols-4 gap-3 ${!searchedPatient && !bookingWithoutRegistration ? 'opacity-50 pointer-events-none' : ''}`}>
-                        {[
-                          { value: 'Scheduled', icon: '📅', color: 'from-blue-400 to-blue-600', ring: 'ring-blue-300' },
-                          { value: 'Completed', icon: '✅', color: 'from-green-400 to-green-600', ring: 'ring-green-300' },
-                          { value: 'Cancelled', icon: '❌', color: 'from-red-400 to-red-600', ring: 'ring-red-300' },
-                          { value: 'NoShow', icon: '👻', color: 'from-gray-400 to-gray-600', ring: 'ring-gray-300' }
-                        ].map((statusOpt) => (
-                          <motion.button
-                            key={statusOpt.value}
-                            type="button"
-                            disabled={!searchedPatient && !bookingWithoutRegistration}
-                            whileHover={searchedPatient || bookingWithoutRegistration ? { scale: 1.05, y: -3 } : {}}
-                            whileTap={searchedPatient || bookingWithoutRegistration ? { scale: 0.95 } : {}}
-                            onClick={() => setAppointmentForm({ ...appointmentForm, status: statusOpt.value })}
-                            className={`relative p-4 rounded-xl font-bold text-white transition-all duration-300 ${
-                              appointmentForm.status === statusOpt.value
-                                ? `bg-gradient-to-br ${statusOpt.color} ring-4 ${statusOpt.ring} shadow-xl`
-                                : 'bg-gradient-to-br from-slate-200 to-slate-300 text-slate-600 hover:from-slate-300 hover:to-slate-400'
-                            }`}
-                          >
-                            {appointmentForm.status === statusOpt.value && (
-                              <motion.div
-                                layoutId="newAppointmentStatusSelector"
-                                className="absolute inset-0 bg-white/20 rounded-xl"
-                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                              />
-                            )}
-                            <div className="relative flex flex-col items-center gap-1">
-                              <motion.span 
-                                className="text-2xl"
-                                animate={appointmentForm.status === statusOpt.value ? { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] } : {}}
-                                transition={{ duration: 0.5 }}
-                              >
-                                {statusOpt.icon}
-                              </motion.span>
-                              <span className="text-xs">{statusOpt.value}</span>
-                            </div>
-                          </motion.button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-bold mb-3 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
-                        <span>💳</span> Payment Status {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
-                      </label>
-                      <div className={`grid grid-cols-2 md:grid-cols-4 gap-3 ${!searchedPatient && !bookingWithoutRegistration ? 'opacity-50 pointer-events-none' : ''}`}>
-                        {[
-                          { value: 'Pending', icon: '⏳', color: 'from-amber-400 to-orange-500', ring: 'ring-amber-300' },
-                          { value: 'Paid', icon: '💚', color: 'from-green-400 to-emerald-600', ring: 'ring-green-300' },
-                          { value: 'Partial', icon: '💛', color: 'from-yellow-400 to-amber-500', ring: 'ring-yellow-300' },
-                          { value: 'Invoice', icon: '📄', color: 'from-blue-400 to-indigo-500', ring: 'ring-blue-300' }
-                        ].map((paymentOpt) => (
-                          <motion.button
-                            key={paymentOpt.value}
-                            type="button"
-                            disabled={!searchedPatient && !bookingWithoutRegistration}
-                            whileHover={searchedPatient || bookingWithoutRegistration ? { scale: 1.05, y: -3 } : {}}
-                            whileTap={searchedPatient || bookingWithoutRegistration ? { scale: 0.95 } : {}}
-                            onClick={() => setAppointmentForm({ ...appointmentForm, paymentStatus: paymentOpt.value })}
-                            className={`relative p-4 rounded-xl font-bold text-white transition-all duration-300 ${
-                              appointmentForm.paymentStatus === paymentOpt.value
-                                ? `bg-gradient-to-br ${paymentOpt.color} ring-4 ${paymentOpt.ring} shadow-xl`
-                                : 'bg-gradient-to-br from-slate-200 to-slate-300 text-slate-600 hover:from-slate-300 hover:to-slate-400'
-                            }`}
-                          >
-                            {appointmentForm.paymentStatus === paymentOpt.value && (
-                              <motion.div
-                                layoutId="newAppointmentPaymentSelector"
-                                className="absolute inset-0 bg-white/20 rounded-xl"
-                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                              />
-                            )}
-                            <div className="relative flex flex-col items-center gap-1">
-                              <motion.span 
-                                className="text-2xl"
-                                animate={appointmentForm.paymentStatus === paymentOpt.value ? { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] } : {}}
-                                transition={{ duration: 0.5 }}
-                              >
-                                {paymentOpt.icon}
-                              </motion.span>
-                              <span className="text-xs">{paymentOpt.value}</span>
-                            </div>
-                          </motion.button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Payment Amounts */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
-                        <span>💳</span> Billable Amount (₹) {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        disabled={!searchedPatient && !bookingWithoutRegistration}
-                        value={appointmentForm.billableAmount}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, billableAmount: e.target.value })}
-                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
-                        <span>💰</span> Paid Amount (₹) {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        disabled={!searchedPatient && !bookingWithoutRegistration}
-                        value={appointmentForm.paidAmount}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, paidAmount: e.target.value })}
-                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
-                        placeholder="0.00"
-                      />
-                    </div>
-                    <div>
-                      <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
-                        <span>💵</span> Pending Amount (₹) {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        disabled={!searchedPatient && !bookingWithoutRegistration}
-                        value={appointmentForm.pendingAmount}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, pendingAmount: e.target.value })}
-                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
 
                   {/* Telehealth Link (only for Telehealth appointments) */}
                   <div>
@@ -6122,21 +5953,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     />
                   </div>
 
-                  {/* Confirmation Status */}
-                  <div>
-                    <label className={`flex items-center gap-3 cursor-pointer ${!searchedPatient && !bookingWithoutRegistration ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                      <input
-                        type="checkbox"
-                        disabled={!searchedPatient && !bookingWithoutRegistration}
-                        checked={appointmentForm.isConfirmed}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, isConfirmed: e.target.checked })}
-                        className="w-5 h-5 rounded border-2 border-cyan-300 text-cyan-600 focus:ring-4 focus:ring-cyan-100"
-                      />
-                      <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                        <span>✅</span> Mark as Confirmed
-                      </span>
-                    </label>
-                  </div>
+
 
                   {/* Notes */}
                   <div>

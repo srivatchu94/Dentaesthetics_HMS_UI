@@ -592,15 +592,6 @@ export default function RegisterPatient() {
                         options={["Single", "Married", "Divorced", "Widowed"]}
                       />
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Enterprise <span className="text-xs text-gray-500">🔒 From Login</span></label>
-                        <div className="w-full px-3 py-2 border border-gray-200 rounded-md shadow-sm bg-blue-50 text-gray-700 flex items-center gap-2">
-                          <span className="text-lg">🏢</span>
-                          <span className="font-medium">
-                            {allEnterprises.find(e => e.enterpriseId === parseInt(patientData.enterpriseId))?.enterpriseName || patientData.enterpriseId}
-                          </span>
-                        </div>
-                      </div>
-                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Clinic <span className="text-xs text-gray-500">🔒 From Login</span></label>
                         <div className="w-full px-3 py-2 border border-gray-200 rounded-md shadow-sm bg-blue-50 text-gray-700 flex items-center gap-2">
                           <span className="text-lg">🏥</span>
@@ -757,14 +748,69 @@ export default function RegisterPatient() {
                         onChange={(e) => setMedicalData({ ...medicalData, allergies: e.target.value })}
                         placeholder="List any allergies"
                       />
-                      <InputField
-                        label="Chronic Conditions"
-                        name="chronicConditions"
-                        type="textarea"
-                        value={medicalData.chronicConditions}
-                        onChange={(e) => setMedicalData({ ...medicalData, chronicConditions: e.target.value })}
-                        placeholder="Diabetes, Hypertension, etc."
-                      />
+                      {/* Chronic Conditions Multi-Select */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Chronic Conditions</label>
+                        <div className="bg-white border border-slate-300 rounded-lg p-4 space-y-3">
+                          {["Diabetes", "Hypertension", "Heart Disease", "Asthma", "Arthritis", "Thyroid Disease", "Kidney Disease", "Liver Disease", "Cancer History"].map((condition) => (
+                            <label key={condition} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
+                              <input
+                                type="checkbox"
+                                checked={medicalData.chronicConditions.split(',').filter(Boolean).includes(condition)}
+                                onChange={(e) => {
+                                  const current = medicalData.chronicConditions.split(',').filter(Boolean);
+                                  const updated = e.target.checked
+                                    ? [...current, condition]
+                                    : current.filter(c => c !== condition);
+                                  setMedicalData({ ...medicalData, chronicConditions: updated.join(',') });
+                                }}
+                                className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
+                              />
+                              <span className="text-sm text-slate-700">{condition}</span>
+                            </label>
+                          ))}
+                          
+                          {/* Other with Textbox */}
+                          <div className="border-t border-slate-200 pt-3">
+                            <label className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
+                              <input
+                                type="checkbox"
+                                checked={medicalData.chronicConditions.split(',').filter(Boolean).some(c => c.startsWith('Other:'))}
+                                onChange={(e) => {
+                                  const current = medicalData.chronicConditions.split(',').filter(c => !c.startsWith('Other:')).filter(Boolean);
+                                  if (e.target.checked) {
+                                    // Checkbox checked - add "Other:" placeholder
+                                    setMedicalData({ ...medicalData, chronicConditions: [...current, 'Other:'].join(',') });
+                                  } else {
+                                    // Checkbox unchecked - remove all "Other:*" entries
+                                    setMedicalData({ ...medicalData, chronicConditions: current.join(',') });
+                                  }
+                                }}
+                                className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
+                              />
+                              <span className="text-sm text-slate-700">Other (please specify)</span>
+                            </label>
+                            
+                            {/* Other Textbox - Show when "Other" is checked */}
+                            {medicalData.chronicConditions.split(',').filter(Boolean).some(c => c.startsWith('Other:')) && (
+                              <input
+                                type="text"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm mt-2"
+                                placeholder="Please specify other conditions (e.g., Diabetes Type 2, Migraine)"
+                                value={medicalData.chronicConditions.split(',').filter(Boolean).find(c => c.startsWith('Other:'))?.replace('Other:', '') || ''}
+                                onChange={(e) => {
+                                  const current = medicalData.chronicConditions.split(',').filter(c => !c.startsWith('Other:')).filter(Boolean);
+                                  const other = e.target.value ? `Other:${e.target.value}` : 'Other:';
+                                  setMedicalData({ 
+                                    ...medicalData, 
+                                    chronicConditions: [...current, other].filter(v => v !== 'Other:').join(',') || other
+                                  });
+                                }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
                       <InputField
                         label="Current Medications"
                         name="currentMedications"

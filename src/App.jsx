@@ -49,7 +49,7 @@ import { useTokenExpiry } from "./context/TokenExpiryContext";
 import { ModalProvider } from "./context/ModalContext";
 import { tokenExpiryEmitter } from "./services/apiClient";
 import GlobalOnboardStaffModal from "./components/GlobalOnboardStaffModal";
-import { initializeTabFocusListener, startTokenRefreshHeartbeat, getAuthToken } from "./services/authService";
+import { initializeTabFocusListener, startTokenRefreshHeartbeat, getAuthToken, initActivityListeners, updateLastActivity } from "./services/authService";
 
 export default function App(){
   const navigate = useNavigate();
@@ -70,6 +70,8 @@ export default function App(){
     if (token) {
       console.log('✅ User is logged in. Starting token refresh heartbeat...');
       startTokenRefreshHeartbeat();
+      // Initialize activity listeners in App level for reliability
+      initActivityListeners();
     }
 
     // Cleanup
@@ -78,6 +80,29 @@ export default function App(){
       removeFocusListener();
     };
   }, [setShowTokenExpiryModal]);
+
+  // Global activity tracking for React components
+  // This ensures activity is tracked even when document event listeners fail
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    // Track activity on major interactions
+    const trackClickActivity = () => updateLastActivity();
+    const trackKeyActivity = () => updateLastActivity();
+    
+    // Use React's event delegation by adding listeners to the main container
+    const mainElement = document.querySelector('main');
+    if (mainElement) {
+      mainElement.addEventListener('click', trackClickActivity);
+      mainElement.addEventListener('keydown', trackKeyActivity);
+      
+      return () => {
+        mainElement.removeEventListener('click', trackClickActivity);
+        mainElement.removeEventListener('keydown', trackKeyActivity);
+      };
+    }
+  }, []);
 
   const handleLoginRedirect = () => {
     setShowTokenExpiryModal(false);

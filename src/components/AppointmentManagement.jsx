@@ -810,8 +810,7 @@ export function CreateAppointmentModal({
   const tabs = [
     { key: "basic", label: "Basic Info", icon: "📋" },
     { key: "scheduling", label: "Scheduling", icon: "🕐" },
-    { key: "details", label: "Details", icon: "📝" },
-    { key: "billing", label: "Billing", icon: "💳" }
+    { key: "details", label: "Details", icon: "📝" }
   ];
 
   return (
@@ -1140,11 +1139,12 @@ export function CreateAppointmentModal({
             {activeTab === "scheduling" && (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Appointment Date *</label>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">Appointment Date * (Today or Future)</label>
                   <input
                     type="date"
                     value={form.appointmentDate}
                     onChange={(e) => setForm({ ...form, appointmentDate: e.target.value })}
+                    min={new Date().toISOString().split('T')[0]}
                     className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
                     required
                   />
@@ -1182,16 +1182,7 @@ export function CreateAppointmentModal({
                       placeholder="30"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Room Number</label>
-                    <input
-                      type="text"
-                      value={form.roomNumber}
-                      onChange={(e) => setForm({ ...form, roomNumber: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
-                      placeholder="e.g., Room 101"
-                    />
-                  </div>
+
                 </div>
               </div>
             )}
@@ -1213,19 +1204,7 @@ export function CreateAppointmentModal({
                       <option>Checkup</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
-                    <select
-                      value={form.status}
-                      onChange={(e) => setForm({ ...form, status: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
-                    >
-                      <option value="Scheduled">Scheduled</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Cancelled">Cancelled</option>
-                      <option value="NoShow">No Show</option>
-                    </select>
-                  </div>
+
                 </div>
 
                 <div>
@@ -1250,76 +1229,11 @@ export function CreateAppointmentModal({
                   />
                 </div>
 
-                <div>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={form.isConfirmed}
-                      onChange={(e) => setForm({ ...form, isConfirmed: e.target.checked })}
-                      className="w-4 h-4 rounded"
-                    />
-                    <span className="text-sm font-medium text-slate-700">Confirmed</span>
-                  </label>
-                </div>
+
               </div>
             )}
 
-            {/* Billing Tab */}
-            {activeTab === "billing" && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Billable Amount</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={form.billableAmount}
-                      onChange={(e) => setForm({ ...form, billableAmount: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
-                      placeholder="Total billable amount"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Payment Status</label>
-                    <select
-                      value={form.paymentStatus}
-                      onChange={(e) => setForm({ ...form, paymentStatus: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
-                    >
-                      <option value="Pending">Pending</option>
-                      <option value="Paid">Paid</option>
-                      <option value="Invoice">Invoice</option>
-                      <option value="Partial">Partial</option>
-                    </select>
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Paid Amount</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={form.paidAmount}
-                      onChange={(e) => setForm({ ...form, paidAmount: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
-                      placeholder="Amount already paid"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Pending Amount</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={form.pendingAmount}
-                      onChange={(e) => setForm({ ...form, pendingAmount: e.target.value })}
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
-                      placeholder="Amount still pending"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Payload Preview */}
             {showPayloadPreview && previewPayload && (
@@ -1424,7 +1338,7 @@ export const EditAppointmentModal = React.memo(({
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200">
-          {["basic", "scheduling", "details", "billing"].map((tab) => (
+          {["basic", "scheduling", "details"].map((tab) => (
             <button
               key={tab}
               onClick={() => handleTabClick(tab)}

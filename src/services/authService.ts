@@ -141,10 +141,10 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
     console.log('⏰ Max session duration:', maxSessionDurationHours, 'hours');
     console.log('🔐 ======================================================================');
     
-    // Start auto-refresh and inactivity monitoring
+    // Start auto-refresh and session monitoring
     startTokenRefreshTimer();
     startTokenRefreshHeartbeat(); // Start heartbeat to keep refresh timer alive
-    startInactivityTimer();
+    // DISABLED: startInactivityTimer(); // Replaced with refresh token mechanism to avoid false logouts
     startSessionExpiryTimer(refreshTokenExpiresAt);
     
   } catch (error) {
@@ -476,27 +476,55 @@ const startInactivityTimer = (): void => {
 };
 
 /**
+ * Activity tracking with debounce (avoid excessive logging)
+ */
+let lastActivityLogTime = 0;
+const ACTIVITY_LOG_INTERVAL = 30000; // Log activity max once per 30 seconds
+
+const debouncedUpdateActivity = (): void => {
+  const now = Date.now();
+  if (now - lastActivityLogTime >= ACTIVITY_LOG_INTERVAL) {
+    updateLastActivity();
+    lastActivityLogTime = now;
+  } else {
+    // Still update the timestamp, just don't log
+    const now2 = Date.now();
+    saveSessionMetadata(STORAGE_KEYS.LAST_ACTIVITY_SS, now2.toString());
+  }
+};
+
+/**
  * Initialize activity listeners to track user interaction
+ * Uses bubble phase (false) to avoid interference with React event system
  */
 export const initActivityListeners = (): void => {
-  const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+  // Use bubble phase instead of capture for better compatibility with React
+  const events = ['click', 'keypress', 'scroll', 'touchstart'];
   
-  events.forEach(event => {
-    document.addEventListener(event, updateLastActivity, true);
-  });
-  
-  console.log('👂 Activity listeners initialized');
+  // Try to attach to document with error handling
+  try {
+    events.forEach(event => {
+      document.addEventListener(event, debouncedUpdateActivity, false);
+    });
+    console.log('👂 Activity listeners initialized (bubble phase)');
+  } catch (error) {
+    console.error('❌ Failed to initialize activity listeners:', error);
+  }
 };
 
 /**
  * Remove activity listeners
  */
 export const removeActivityListeners = (): void => {
-  const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+  const events = ['click', 'keypress', 'scroll', 'touchstart'];
   
-  events.forEach(event => {
-    document.removeEventListener(event, updateLastActivity, true);
-  });
+  try {
+    events.forEach(event => {
+      document.removeEventListener(event, debouncedUpdateActivity, false);
+    });
+  } catch (error) {
+    console.error('Error removing activity listeners:', error);
+  }
   
   console.log('🔇 Activity listeners removed');
 };

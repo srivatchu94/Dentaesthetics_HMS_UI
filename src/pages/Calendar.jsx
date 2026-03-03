@@ -139,6 +139,16 @@ export default function Calendar() {
     loadAppointments();
   }, []);
 
+  // Check if appointment is in the past
+  const isAppointmentInPast = (appointmentDate) => {
+    if (!appointmentDate) return false;
+    const apptDate = new Date(appointmentDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    apptDate.setHours(0, 0, 0, 0);
+    return apptDate < today;
+  };
+
   // Normalize time to HH:mm format
   const normalizeTime = (time) => {
     if (!time) return '08:00';
@@ -834,10 +844,6 @@ export default function Calendar() {
                           <label className="block text-sm font-semibold text-slate-700 mb-2">Email</label>
                           <input type="email" value={bookingForm.patientEmail} onChange={(e) => setBookingForm({ ...bookingForm, patientEmail: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="john@example.com" />
                         </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">Room Number</label>
-                          <input type="text" value={bookingForm.roomNumber} onChange={(e) => setBookingForm({ ...bookingForm, roomNumber: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="A-101" />
-                        </div>
                       </div>
                     </div>
 
@@ -850,7 +856,7 @@ export default function Calendar() {
                       </div>
                       <div className="p-5 grid grid-cols-3 gap-4">
                         <div>
-                          <FancyDatePicker label="Date" required value={bookingForm.date} onChange={(date) => setBookingForm({ ...bookingForm, date })} />
+                          <FancyDatePicker label="Date" required value={bookingForm.date} onChange={(date) => setBookingForm({ ...bookingForm, date })} minDate={new Date().toISOString().split('T')[0]} />
                         </div>
                         <div>
                           <label className="block text-sm font-semibold text-slate-700 mb-2">Start Time *</label>
@@ -899,71 +905,16 @@ export default function Calendar() {
                       </div>
                     </div>
 
-                    {/* Section 4: Financial Information */}
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition">
-                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 px-5 py-3 border-b border-slate-200">
-                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                          <span className="text-lg">💰</span> Financial Information
-                        </h3>
-                      </div>
-                      <div className="p-5 grid grid-cols-4 gap-4">
-                        <div>
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">Billable Amount ($)</label>
-                          <input type="number" min="0" step="0.01" value={bookingForm.billableAmount} onChange={(e) => setBookingForm({ ...bookingForm, billableAmount: parseFloat(e.target.value) || 0 })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="0.00" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">Paid Amount ($)</label>
-                          <input type="number" min="0" step="0.01" value={bookingForm.paidAmount} onChange={(e) => setBookingForm({ ...bookingForm, paidAmount: parseFloat(e.target.value) || 0 })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="0.00" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">Pending Amount ($)</label>
-                          <div className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg bg-gradient-to-r from-yellow-50 to-yellow-100 font-semibold text-slate-700">
-                            ${(bookingForm.billableAmount - bookingForm.paidAmount).toFixed(2)}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">Payment Status</label>
-                          <select value={bookingForm.paymentStatus} onChange={(e) => setBookingForm({ ...bookingForm, paymentStatus: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white">
-                            <option>Pending</option>
-                            <option>Paid</option>
-                            <option>Partial</option>
-                            <option>Invoice</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Section 5: Status & Additional */}
+                    {/* Section 5: Additional Notes */}
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hover:shadow-md transition">
                       <div className="bg-gradient-to-r from-orange-50 to-red-50 px-5 py-3 border-b border-slate-200">
                         <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                          <span className="text-lg">✓</span> Status & Additional Info
+                          <span className="text-lg">📝</span> Additional Notes
                         </h3>
                       </div>
-                      <div className="p-5 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">Appointment Status</label>
-                            <select value={bookingForm.appointmentStatus} onChange={(e) => setBookingForm({ ...bookingForm, appointmentStatus: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white">
-                              <option>Scheduled</option>
-                              <option>Completed</option>
-                              <option>Cancelled</option>
-                              <option>NoShow</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-2">Telehealth Link</label>
-                            <input type="url" value={bookingForm.telehealthLink} onChange={(e) => setBookingForm({ ...bookingForm, telehealthLink: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="https://..." />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-slate-700 mb-2">Notes</label>
-                          <textarea value={bookingForm.notes} onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })} rows={2} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition resize-none" placeholder="Additional notes or special requests..." />
-                        </div>
-                        <label className="flex items-center gap-3 p-3 bg-teal-50 rounded-lg border border-teal-200 cursor-pointer hover:bg-teal-100 transition">
-                          <input type="checkbox" checked={bookingForm.isConfirmed} onChange={(e) => setBookingForm({ ...bookingForm, isConfirmed: e.target.checked })} className="w-5 h-5 text-teal-600 rounded focus:ring-2 focus:ring-teal-500" />
-                          <span className="font-semibold text-slate-700">Mark as Confirmed</span>
-                        </label>
+                      <div className="p-5">
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Notes</label>
+                        <textarea value={bookingForm.notes} onChange={(e) => setBookingForm({ ...bookingForm, notes: e.target.value })} rows={2} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition resize-none" placeholder="Additional notes or special requests..." />
                       </div>
                     </div>
 
