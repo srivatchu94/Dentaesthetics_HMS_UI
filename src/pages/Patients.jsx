@@ -5598,7 +5598,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       enterpriseId: enterpriseId,
                       clinicId: clinicId,
                       patientId: searchedPatient ? searchedPatient.patientId : null, // null for walk-in/non-registered
-                      doctorId: appointmentForm.doctorId ? parseInt(appointmentForm.doctorId) : null,
+                      doctorId: appointmentForm.doctorId && appointmentForm.doctorId !== "" ? String(appointmentForm.doctorId) : null,
                       attendingPhysician: appointmentForm.attendingPhysician || null,
                       // Patient details (stored in appointments row)
                       firstName: appointmentForm.firstName || null,
@@ -5618,6 +5618,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       // Audit
                       createdBy: userId ? parseInt(userId) : null
                     };
+                    
+                    console.log("📋 Appointment Payload:", appointmentPayload);
                     
                     // Call API
                     const result = await createAppointment(appointmentPayload);
