@@ -381,6 +381,35 @@ export default function RegisterPatient() {
       return;
     }
 
+    // If user has provided any insurance info, validate required insurance fields
+    const insuranceProvided = Boolean(
+      (insuranceData.insuranceProvider && insuranceData.insuranceProvider.trim()) ||
+      (insuranceData.policyNumber && insuranceData.policyNumber.trim()) ||
+      (insuranceData.groupNumber && insuranceData.groupNumber.trim()) ||
+      (insuranceData.policyHolderName && insuranceData.policyHolderName.trim()) ||
+      (insuranceData.policyHolderRelation && insuranceData.policyHolderRelation.trim()) ||
+      (insuranceData.insurancePhone && insuranceData.insurancePhone.trim()) ||
+      (insuranceData.providerEmail && insuranceData.providerEmail.trim()) ||
+      (insuranceData.providerAddress && insuranceData.providerAddress.trim())
+    );
+
+    if (insuranceProvided) {
+      const missingInsurance = [];
+      if (!insuranceData.policyNumber || !insuranceData.policyNumber.toString().trim()) missingInsurance.push('Policy Number');
+      if (!insuranceData.groupNumber || !insuranceData.groupNumber.toString().trim()) missingInsurance.push('Group Number');
+      if (!insuranceData.providerEmail || !insuranceData.providerEmail.toString().trim()) missingInsurance.push('Provider Email');
+      if (!insuranceData.insurancePhone || !insuranceData.insurancePhone.toString().trim()) missingInsurance.push('Insurance Phone');
+      if (!insuranceData.providerAddress || !insuranceData.providerAddress.toString().trim()) missingInsurance.push('Provider Address');
+      if (!insuranceData.policyHolderName || !insuranceData.policyHolderName.toString().trim()) missingInsurance.push('Policy Holder Name');
+      if (!insuranceData.policyHolderRelation || !insuranceData.policyHolderRelation.toString().trim()) missingInsurance.push('Relationship to Policy Holder');
+
+      if (missingInsurance.length >0) {
+        alert(`⚠️ Please provide the following insurance fields: ${missingInsurance.join(', ')}`);
+        setSubmitting(false);
+        return;
+      }
+    }
+
     setSubmitting(true);
     
     const patientDataModel = {
@@ -415,8 +444,12 @@ export default function RegisterPatient() {
         lastVisitedDate: medicalData.lastDentalVisit || new Date().toISOString(),
         chronicDiseases: medicalData.chronicConditions || "",
         medicalHistory: `Past Surgeries: ${medicalData.pastSurgeries || 'None'}; Smoking: ${medicalData.smokingStatus || 'Unknown'}; Alcohol: ${medicalData.alcoholConsumption || 'Unknown'}; Exercise: ${medicalData.exerciseFrequency || 'Unknown'}; Diet: ${medicalData.dietaryRestrictions || 'None'}; Notes: ${medicalData.notes || 'None'}`
-      },
-      patientInsurance: {
+      }
+    };
+    
+    // Only include patientInsurance when meaningful insurance details provided
+    if (insuranceProvided) {
+      patientDataModel.patientInsurance = {
         patientId:0,
         patientInsuranceProvider: insuranceData.insuranceProvider || "",
         policyNumber: insuranceData.policyNumber || "",
@@ -433,8 +466,8 @@ export default function RegisterPatient() {
         coveragePercentage: insuranceData.coveragePercentage || "",
         isPrimary: !!insuranceData.isPrimaryInsurance,
         isActive: insuranceData.isActive !== undefined ? insuranceData.isActive : true
-      }
-    };
+      };
+    }
     
     try {
       console.log("📝 Submitting patient data:");
@@ -1007,169 +1040,4 @@ export default function RegisterPatient() {
                       />
                       <InputField
                         label="Provider Address"
-                        name="providerAddress"
-                        type="textarea"
-                        value={insuranceData.providerAddress || ""}
-                        onChange={(e) => setInsuranceData({ ...insuranceData, providerAddress: e.target.value })}
-                        placeholder="Provider address"
-                      />
-                      <InputField
-                        label="Relationship to Policy Holder"
-                        name="policyHolderRelation"
-                        value={insuranceData.policyHolderRelation}
-                        onChange={(e) => setInsuranceData({ ...insuranceData, policyHolderRelation: e.target.value })}
-                        options={["Self", "Spouse", "Child", "Parent", "Other"]}
-                      />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </form>
-          </div>
-
-          {/* Footer with Navigation */}
-          <div className="bg-gradient-to-r from-slate-100 to-blue-50 p-6 border-t-2 border-teal-300 flex justify-between items-center gap-3">
-            <div className="flex gap-3">
-              {registerActiveTab !== "patient" && (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  onClick={() => {
-                    const tabs = ["patient", "contact", "medical", "insurance"];
-                    const currentIndex = tabs.indexOf(registerActiveTab);
-                    if (currentIndex > 0) setRegisterActiveTab(tabs[currentIndex - 1]);
-                  }}
-                  className="px-6 py-3 bg-white text-slate-700 rounded-lg font-semibold hover:bg-slate-50 transition border-2 border-slate-300 shadow-md"
-                >
-                  ← Previous
-                </motion.button>
-              )}
-              {registerActiveTab !== "insurance" && (
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  type="button"
-                  onClick={() => {
-                    const tabs = ["patient", "contact", "medical", "insurance"];
-                    const currentIndex = tabs.indexOf(registerActiveTab);
-                    if (currentIndex < tabs.length - 1) setRegisterActiveTab(tabs[currentIndex + 1]);
-                  }}
-                  className="px-6 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-semibold hover:from-teal-700 hover:to-cyan-700 transition shadow-md"
-                >
-                  Next →
-                </motion.button>
-              )}
-            </div>
-
-            <div className="flex gap-3 flex-col items-end">
-              {!isAllTabsValid() && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="text-xs text-red-600 bg-red-50 px-4 py-2 rounded-lg border border-red-200"
-                >
-                  {!isPatientTabValid() && <div>⚠️ Complete Patient Info tab (First Name, Last Name, DOB, Gender)</div>}
-                  {!isContactTabValid() && <div>⚠️ Complete Contact tab (Phone, Address, City, State, Postal Code, Country)</div>}
-                </motion.div>
-              )}
-              <motion.button
-                whileHover={{ scale: isAllTabsValid() ? 1.05 : 1 }}
-                whileTap={{ scale: isAllTabsValid() ? 0.95 : 1 }}
-                type="submit"
-                form="register-patient-form"
-                disabled={!isAllTabsValid() || submitting}
-                className={`px-8 py-3 rounded-lg font-bold shadow-lg transition ${
-                  isAllTabsValid() && !submitting
-                    ? "bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white cursor-pointer"
-                    : "bg-slate-300 text-slate-500 cursor-not-allowed opacity-60"
-                }`}
-              >
-                {submitting ? "Saving..." : "💾 Register Patient"}
-              </motion.button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Booking Options Modal */}
-      <AnimatePresence>
-        {showBookingOptions && registeredPatient && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => {
-              setShowBookingOptions(false);
-              navigate("/");
-            }}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 border-2 border-teal-200"
-            >
-              <div className="text-center mb-6">
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 1 }}
-                  className="text-6xl mb-4"
-                >
-                  ✅
-                </motion.div>
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent mb-2">
-                  Patient Registered!
-                </h2>
-                <p className="text-gray-600 text-base mb-1">
-                  <strong>{registeredPatient.patientName}</strong> has been successfully registered.
-                </p>
-                <p className="text-gray-500 text-sm">
-                  Patient ID: {registeredPatient.patientId}
-                </p>
-              </div>
-
-              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-2xl p-4 mb-6 border border-teal-200">
-                <p className="text-gray-700 text-center text-sm">
-                  Would you like to book an appointment for this patient now?
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => {
-                    setShowBookingOptions(false);
-                    navigate("/");
-                  }}
-                  className="flex-1 px-4 py-3 rounded-lg font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 transition"
-                >
-                  ← Go Home
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => {
-                    setShowBookingOptions(false);
-                    // Navigate to Calendar with patient data
-                    navigate("/appointments", {
-                      state: {
-                        patientData: registeredPatient
-                      }
-                    });
-                  }}
-                  className="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 transition shadow-lg"
-                >
-                  📅 Book Appointment
-                </motion.button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+   
