@@ -32,6 +32,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
   const [patientSearchError, setPatientSearchError] = useState('');
   const [selectedPatientAppointmentId, setSelectedPatientAppointmentId] = useState(null);
   const [mobileNumberError, setMobileNumberError] = useState('');
+  const [showPatientAppointments, setShowPatientAppointments] = useState(false);
 
   // Load clinics from token on mount
   useEffect(() => {
@@ -837,179 +838,242 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                         </div>
                       </div>
 
-                      {/* Action Button */}
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => onPaymentClick({ 
-                          patientId: searchedPatient.patientId, 
-                          firstName: searchedPatient.patientFirstName, 
-                          lastName: searchedPatient.patientLastName, 
-                          mode: 'without-appointment' 
-                        })}
-                        className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg hover:from-amber-700 hover:to-orange-700 transition-all flex items-center gap-2 flex-shrink-0 whitespace-nowrap text-sm"
-                      >
-                        <span>➕</span>
-                        Invoice
-                      </motion.button>
+                      {/* Action Buttons */}
+                      <div className="flex gap-2 flex-shrink-0">
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setShowPatientAppointments(!showPatientAppointments)}
+                          className={`px-3 py-2 rounded-lg font-semibold shadow-md transition-all flex items-center gap-1 flex-shrink-0 whitespace-nowrap text-sm ${
+                            showPatientAppointments
+                              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg'
+                              : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:shadow-lg hover:from-blue-600 hover:to-indigo-600'
+                          }`}
+                        >
+                          <span>{showPatientAppointments ? '🔻' : '📋'}</span>
+                          {showPatientAppointments ? 'Hide' : 'Show'} Appts
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => onPaymentClick({ 
+                            patientId: searchedPatient.patientId, 
+                            firstName: searchedPatient.patientFirstName, 
+                            lastName: searchedPatient.patientLastName, 
+                            mode: 'without-appointment' 
+                          })}
+                          className="px-3 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg hover:from-amber-700 hover:to-orange-700 transition-all flex items-center gap-1 flex-shrink-0 whitespace-nowrap text-sm"
+                        >
+                          <span>➕</span>
+                          Invoice
+                        </motion.button>
+                      </div>
                     </div>
                   </motion.div>
                 </motion.div>
               )}
 
-              {/* Patient Appointments List as Tiles */}
-              {searchedPatient && patientAppointments.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mb-6"
-                >
-                  <h2 className="text-2xl font-bold text-blue-800 mb-4 flex items-center gap-2">
-                    <span>📅</span>
-                    Appointments ({patientAppointments.length})
-                  </h2>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {patientAppointments.map((appt, idx) => (
-                      <motion.div
-                        key={appt.appointmentId}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.1 }}
-                        className="bg-white rounded-xl shadow-md hover:shadow-xl border-2 border-blue-200 overflow-hidden transition-all"
-                      >
-                        {/* Card Header */}
-                        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-lg font-bold">Appointment #{appt.appointmentId}</h3>
-                            <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-semibold">
-                              {appt.appointmentType || 'Consultation'}
-                            </span>
-                          </div>
-                          <p className="text-blue-100 text-sm font-medium">
-                            {appt.doctorName || 'Dr. N/A'}
-                          </p>
-                        </div>
+              {/* Patient Appointments List - Collapsible Table View */}
+              <AnimatePresence>
+                {showPatientAppointments && searchedPatient && patientAppointments.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-6"
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white rounded-2xl p-6 shadow-lg border-2 border-blue-200"
+                    >
+                      <h3 className="text-2xl font-bold text-blue-800 mb-4 flex items-center gap-2">
+                        <span>📅</span>
+                        Appointments for {searchedPatient.patientFirstName} ({patientAppointments.length})
+                      </h3>
 
-                        {/* Card Content */}
-                        <div className="p-4">
-                          {/* Date and Time */}
-                          <div className="mb-4 grid grid-cols-2 gap-2">
-                            <div className="bg-blue-50 rounded-lg p-3 text-center">
-                              <p className="text-xs font-bold text-blue-700 uppercase mb-1">Date</p>
-                              <p className="text-sm font-bold text-slate-800">
-                                {new Date(appt.appointmentDate).toLocaleDateString('en-US', { 
-                                  month: 'short', day: 'numeric', year: 'numeric'
-                                })}
-                              </p>
-                            </div>
-                            <div className="bg-blue-50 rounded-lg p-3 text-center">
-                              <p className="text-xs font-bold text-blue-700 uppercase mb-1">Time</p>
-                              <p className="text-sm font-bold text-slate-800">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
-                            </div>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="space-y-2">
-                            <motion.button
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              onClick={() => handleShowInvoices(appt.appointmentId)}
-                              className="w-full px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-semibold shadow-md transition-all flex items-center justify-center gap-2"
-                            >
-                              <span>📋</span>
-                              View Invoices
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              onClick={() => onPaymentClick(appt)}
-                              className="w-full px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-semibold shadow-md transition-all flex items-center justify-center gap-2"
-                            >
-                              <span>➕</span>
-                              Create Invoice
-                            </motion.button>
-                          </div>
-                        </div>
-
-                        {/* Expandable Invoices Section */}
-                        <AnimatePresence>
-                          {expandedAppointmentId === appt.appointmentId && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="border-t-2 border-blue-200 bg-gradient-to-br from-emerald-50 to-teal-50"
-                            >
-                              <div className="p-4">
-                                <h4 className="font-bold text-emerald-800 mb-3 flex items-center gap-2">
-                                  <span>💰</span>
-                                  Invoices
-                                </h4>
-                                {loadingInvoices[appt.appointmentId] ? (
-                                  <div className="flex items-center justify-center py-4">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-emerald-300 border-t-emerald-600"></div>
+                      {/* Appointments Table */}
+                      <div className="overflow-x-auto mb-4">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="bg-gradient-to-r from-blue-100 to-indigo-100 border-b-2 border-blue-300">
+                              <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">ID</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Date</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Time</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Type</th>
+                              <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Doctor</th>
+                              <th className="px-4 py-3 text-center text-xs font-bold text-blue-900 uppercase tracking-wider">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {patientAppointments.map((appt, idx) => (
+                              <motion.tr
+                                key={appt.appointmentId}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: idx * 0.05 }}
+                                className="border-b border-slate-200 hover:bg-blue-50/50 transition-colors"
+                              >
+                                <td className="px-4 py-3">
+                                  <span className="font-bold text-slate-700">#{appt.appointmentId}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <p className="text-sm text-slate-700">
+                                    {new Date(appt.appointmentDate).toLocaleDateString('en-US', { 
+                                      month: 'short', day: 'numeric', year: 'numeric'
+                                    })}
+                                  </p>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <p className="text-xs text-slate-500">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-sm font-medium text-slate-700">{appt.appointmentType || 'Consultation'}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-sm font-medium text-slate-700">{appt.doctorName || 'N/A'}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => handleShowInvoices(appt.appointmentId)}
+                                      className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
+                                      title="View Invoices"
+                                    >
+                                      📂 Invoices
+                                    </motion.button>
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      whileTap={{ scale: 0.9 }}
+                                      onClick={() => onPaymentClick(appt)}
+                                      className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
+                                      title="Create New Invoice"
+                                    >
+                                      ➕ Create
+                                    </motion.button>
                                   </div>
-                                ) : invoicesByAppointment[appt.appointmentId]?.length === 0 ? (
-                                  <p className="text-sm text-emerald-700 text-center py-4">No invoices created yet</p>
-                                ) : (
-                                  <div className="space-y-2">
-                                    {invoicesByAppointment[appt.appointmentId]?.map((invoice, invIdx) => (
-                                      <motion.div
-                                        key={invIdx}
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        className="bg-white rounded-lg p-3 border-l-4 border-emerald-500"
-                                      >
-                                        <div className="flex items-center justify-between gap-2 mb-2">
-                                          <div>
-                                            <p className="text-xs font-bold text-slate-500 uppercase">Invoice</p>
-                                            <p className="text-sm font-bold text-slate-800">#{invoice.header?.invoiceNumber || 'N/A'}</p>
-                                          </div>
-                                          <div className="text-right">
-                                            <p className="text-xs font-bold text-slate-500 uppercase">Amount</p>
-                                            <p className="text-lg font-bold text-emerald-600">₹{invoice.header?.totalAmount?.toFixed(2) || '0.00'}</p>
-                                          </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                          <motion.button
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            onClick={() => {
-                                              onPaymentClick({ 
-                                                ...appt, 
-                                                invoiceNumber: invoice.header?.invoiceNumber,
-                                                mode: "view"
-                                              });
-                                            }}
-                                            className="flex-1 px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-semibold transition-all"
-                                          >
-                                            <Eye size={12} className="inline mr-1" />
-                                            View
-                                          </motion.button>
-                                          <motion.button
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            onClick={() => downloadInvoicePDF(invoice)}
-                                            className="flex-1 px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-semibold transition-all"
-                                          >
-                                            <Download size={12} className="inline mr-1" />
-                                            PDF
-                                          </motion.button>
-                                        </div>
-                                      </motion.div>
-                                    ))}
-                                  </div>
-                                )}
+                                </td>
+                              </motion.tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Expandable Invoices Section */}
+                      <AnimatePresence>
+                        {expandedAppointmentId && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="border-t-2 border-blue-300 pt-4"
+                          >
+                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-6 border-2 border-teal-200">
+                              <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-bold text-teal-800 flex items-center gap-2">
+                                  <span>📋</span>
+                                  Invoices for Appointment #{expandedAppointmentId}
+                                </h3>
                               </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
+                              {loadingInvoices[expandedAppointmentId] ? (
+                                <div className="flex items-center justify-center py-8">
+                                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-300 border-t-teal-600"></div>
+                                </div>
+                              ) : invoicesByAppointment[expandedAppointmentId]?.length === 0 ? (
+                                <div className="py-8 text-center">
+                                  <p className="text-teal-700 font-medium">No invoices created yet for this appointment.</p>
+                                </div>
+                              ) : (
+                                <div className="space-y-3">
+                                  {invoicesByAppointment[expandedAppointmentId]?.map((invoice, idx) => (
+                                    <motion.div
+                                      key={idx}
+                                      initial={{ opacity: 0, x: -20 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: idx * 0.1 }}
+                                      className={`rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 ${
+                                        invoice.header?.status === 'Paid'
+                                          ? 'border-l-green-500 bg-gradient-to-r from-green-50/40 to-white'
+                                          : invoice.header?.status === 'Partial'
+                                          ? 'border-l-amber-500 bg-gradient-to-r from-amber-50/40 to-white'
+                                          : 'border-l-red-500 bg-gradient-to-r from-red-50/40 to-white'
+                                      } border border-slate-100`}
+                                    >
+                                      <div className="px-5 py-3.5 flex items-center justify-between gap-5">
+                                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                                          <div className="flex-shrink-0">
+                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">INV</p>
+                                            <p className="text-base font-black text-slate-900">{invoice.header?.invoiceNumber || 'N/A'}</p>
+                                          </div>
+                                          <div className="h-10 border-r border-slate-200"></div>
+                                          <div className="flex-shrink-0">
+                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date</p>
+                                            <p className="text-sm font-bold text-slate-800">
+                                              {invoice.header?.billDate ? new Date(invoice.header.billDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A'}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="flex-shrink-0 text-right">
+                                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</p>
+                                          <p className="text-xl font-black text-slate-900">₹{invoice.header?.totalAmount?.toFixed(2) || '0.00'}</p>
+                                        </div>
+                                      </div>
+                                      {/* Invoice Actions */}
+                                      <div className="px-5 py-3 bg-white border-t border-slate-100 flex gap-2">
+                                        <motion.button
+                                          whileHover={{ scale: 1.05 }}
+                                          whileTap={{ scale: 0.95 }}
+                                          onClick={() => {
+                                            const appt = patientAppointments.find(a => a.appointmentId === expandedAppointmentId);
+                                            onPaymentClick({ 
+                                              ...appt, 
+                                              invoiceNumber: invoice.header?.invoiceNumber,
+                                              mode: "view"
+                                            });
+                                          }}
+                                          className="flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold text-xs transition-all"
+                                          title="View Full Invoice"
+                                        >
+                                          <Eye size={14} />
+                                          View
+                                        </motion.button>
+                                        <motion.button
+                                          whileHover={{ scale: 1.05 }}
+                                          whileTap={{ scale: 0.95 }}
+                                          onClick={() => downloadInvoicePDF(invoice)}
+                                          className="flex items-center justify-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded font-semibold text-xs transition-all"
+                                          title="Download PDF"
+                                        >
+                                          <Download size={14} />
+                                          PDF
+                                        </motion.button>
+                                      </div>
+                                    </motion.div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Collapse Button */}
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setShowPatientAppointments(false)}
+                        className="mt-4 w-full px-4 py-3 border-2 border-blue-400 bg-blue-50 text-blue-700 rounded-lg font-semibold hover:bg-blue-100 transition-all flex items-center justify-center gap-2"
+                      >
+                        <ChevronDown size={20} className="rotate-180" />
+                        Hide Appointments
+                      </motion.button>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {searchedPatient && patientAppointments.length === 0 && (
                 <div className="py-12 text-center bg-slate-50 rounded-xl border-2 border-slate-200">
