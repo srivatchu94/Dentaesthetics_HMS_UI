@@ -176,7 +176,9 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
         // Load appointments for this patient
         if (patient.patientId) {
           try {
+            const clinicIdFromToken = getClinicIdFromToken();
             const appointmentsResponse = await getAppointmentById({
+              clinicId: clinicIdFromToken ? parseInt(clinicIdFromToken) : undefined,
               patientId: patient.patientId,
               mobilenumber: patientSearchPhone || undefined
             });
@@ -251,12 +253,14 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
       // Hide appointments
       setShowPatientAppointments(false);
     } else {
-      // Show appointments - fetch from API with patientId and mobilenumber
+      // Show appointments - fetch from API with patientId, mobilenumber and clinicId
       if (searchedPatient && searchedPatient.patientId) {
         setLoadingPatientSearch(true);
         try {
-          console.log('📅 Fetching appointments for patient:', searchedPatient.patientId);
+          const clinicIdFromToken = getClinicIdFromToken();
+          console.log('📅 Fetching appointments for patient:', searchedPatient.patientId, 'from clinic:', clinicIdFromToken);
           const appointmentsResponse = await getAppointmentById({
+            clinicId: clinicIdFromToken ? parseInt(clinicIdFromToken) : undefined,
             patientId: searchedPatient.patientId,
             mobilenumber: patientSearchPhone || undefined
           });
