@@ -245,6 +245,35 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
     }
   }, [expandedAppointmentId, invoicesByAppointment, loadInvoicesForAppointment]);
 
+  // Handle showing/hiding patient appointments
+  const handleTogglePatientAppointments = useCallback(async () => {
+    if (showPatientAppointments) {
+      // Hide appointments
+      setShowPatientAppointments(false);
+    } else {
+      // Show appointments - fetch from API with patientId and mobilenumber
+      if (searchedPatient && searchedPatient.patientId) {
+        setLoadingPatientSearch(true);
+        try {
+          console.log('📅 Fetching appointments for patient:', searchedPatient.patientId);
+          const appointmentsResponse = await getAppointmentById({
+            patientId: searchedPatient.patientId,
+            mobilenumber: patientSearchPhone || undefined
+          });
+          
+          console.log('✅ Fetched appointments:', appointmentsResponse);
+          setPatientAppointments(Array.isArray(appointmentsResponse) ? appointmentsResponse : []);
+          setShowPatientAppointments(true);
+        } catch (error) {
+          console.error('Error fetching appointments:', error);
+          setPatientSearchError('Failed to load appointments. Please try again.');
+        } finally {
+          setLoadingPatientSearch(false);
+        }
+      }
+    }
+  }, [showPatientAppointments, searchedPatient, patientSearchPhone]);
+
   // Download invoice as PDF
   const downloadInvoicePDF = (invoice) => {
     try {
@@ -843,15 +872,20 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => setShowPatientAppointments(!showPatientAppointments)}
-                          className={`px-3 py-2 rounded-lg font-semibold shadow-md transition-all flex items-center gap-1 flex-shrink-0 whitespace-nowrap text-sm ${
+                          onClick={handleTogglePatientAppointments}
+                          disabled={loadingPatientSearch}
+                          className={`px-4 py-2 rounded-lg font-semibold shadow-md transition-all flex items-center gap-2 flex-shrink-0 whitespace-nowrap text-sm ${
                             showPatientAppointments
-                              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg'
-                              : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:shadow-lg hover:from-blue-600 hover:to-indigo-600'
+                              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg disabled:opacity-50'
+                              : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:shadow-lg hover:from-blue-600 hover:to-indigo-600 disabled:opacity-50'
                           }`}
                         >
-                          <span>{showPatientAppointments ? '🔻' : '📋'}</span>
-                          {showPatientAppointments ? 'Hide' : 'Show'} Appts
+                          {loadingPatientSearch ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                          ) : (
+                            <span>{showPatientAppointments ? '🔻' : '📋'}</span>
+                          )}
+                          {loadingPatientSearch ? 'Loading...' : (showPatientAppointments ? 'Hide Appointments' : 'Show Appointments')}
                         </motion.button>
                         <motion.button
                           whileHover={{ scale: 1.05 }}
