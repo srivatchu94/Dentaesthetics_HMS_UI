@@ -158,19 +158,21 @@ export default function RegisterPatient() {
     });
 
     const [insuranceData, setInsuranceData] = useState({
-        insuranceProvider: "",
+        patientInsuranceProvider: "",
+        insuranceProviderId: "",
         policyNumber: "",
         groupNumber: "",
         policyHolderName: "",
-        policyHolderRelation: "",
+        relationshipToPolicyHolder: "",
         coverageStartDate: "",
         coverageEndDate: "",
-        isPrimaryInsurance: true,
+        isPrimary: true,
         copayAmount: "",
         deductibleAmount: "",
         coveragePercentage: "",
         insurancePhone: "",
-        isActive: true
+        providerEmail: "",
+        providerAddress: ""
     });
 
     const [allEnterprises, setAllEnterprises] = useState([]);
@@ -410,7 +412,23 @@ export default function RegisterPatient() {
             },
             patientInsurance: {
                 patientId: 0,
-                patientInsuranceProvider: insuranceData.insuranceProvider || ""
+                patientInsuranceProvider: insuranceData.patientInsuranceProvider || "",
+                insuranceProviderId: insuranceData.insuranceProviderId ? parseInt(insuranceData.insuranceProviderId) : null,
+                policyNumber: insuranceData.policyNumber || "",
+                groupNumber: insuranceData.groupNumber || "",
+                policyHolderName: insuranceData.policyHolderName || "",
+                relationshipToPolicyHolder: insuranceData.relationshipToPolicyHolder || "",
+                coverageStartDate: insuranceData.coverageStartDate ? new Date(insuranceData.coverageStartDate).toISOString() : null,
+                coverageEndDate: insuranceData.coverageEndDate ? new Date(insuranceData.coverageEndDate).toISOString() : null,
+                isPrimary: insuranceData.isPrimary || false,
+                copayAmount: insuranceData.copayAmount ? parseFloat(insuranceData.copayAmount) : null,
+                deductibleAmount: insuranceData.deductibleAmount ? parseFloat(insuranceData.deductibleAmount) : null,
+                coveragePercentage: insuranceData.coveragePercentage ? parseFloat(insuranceData.coveragePercentage) : null,
+                insurancePhone: insuranceData.insurancePhone || "",
+                providerEmail: insuranceData.providerEmail || "",
+                providerAddress: insuranceData.providerAddress || "",
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
             }
         };
 
@@ -890,10 +908,18 @@ export default function RegisterPatient() {
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <InputField
                                                 label="Insurance Provider"
-                                                name="insuranceProvider"
-                                                value={insuranceData.insuranceProvider}
-                                                onChange={(e) => setInsuranceData({ ...insuranceData, insuranceProvider: e.target.value })}
+                                                name="patientInsuranceProvider"
+                                                value={insuranceData.patientInsuranceProvider}
+                                                onChange={(e) => setInsuranceData({ ...insuranceData, patientInsuranceProvider: e.target.value })}
                                                 placeholder="Provider name"
+                                            />
+                                            <InputField
+                                                label="Provider ID"
+                                                name="insuranceProviderId"
+                                                type="number"
+                                                value={insuranceData.insuranceProviderId}
+                                                onChange={(e) => setInsuranceData({ ...insuranceData, insuranceProviderId: e.target.value })}
+                                                placeholder="Provider ID"
                                             />
                                             <InputField
                                                 label="Policy Number"
@@ -915,6 +941,35 @@ export default function RegisterPatient() {
                                                 value={insuranceData.policyHolderName}
                                                 onChange={(e) => setInsuranceData({ ...insuranceData, policyHolderName: e.target.value })}
                                                 placeholder="Full name"
+                                            />
+                                            <InputField
+                                                label="Relationship to Policy Holder"
+                                                name="relationshipToPolicyHolder"
+                                                value={insuranceData.relationshipToPolicyHolder}
+                                                onChange={(e) => setInsuranceData({ ...insuranceData, relationshipToPolicyHolder: e.target.value })}
+                                                placeholder="e.g., Self, Spouse, Child"
+                                            />
+                                            <InputField
+                                                label="Insurance Phone"
+                                                name="insurancePhone"
+                                                value={insuranceData.insurancePhone}
+                                                onChange={(e) => setInsuranceData({ ...insuranceData, insurancePhone: e.target.value })}
+                                                placeholder="Provider phone"
+                                            />
+                                            <InputField
+                                                label="Provider Email"
+                                                name="providerEmail"
+                                                type="email"
+                                                value={insuranceData.providerEmail}
+                                                onChange={(e) => setInsuranceData({ ...insuranceData, providerEmail: e.target.value })}
+                                                placeholder="provider@insurance.com"
+                                            />
+                                            <InputField
+                                                label="Provider Address"
+                                                name="providerAddress"
+                                                value={insuranceData.providerAddress}
+                                                onChange={(e) => setInsuranceData({ ...insuranceData, providerAddress: e.target.value })}
+                                                placeholder="Address"
                                             />
                                             <InputField
                                                 label="Coverage Start Date"
@@ -958,8 +1013,8 @@ export default function RegisterPatient() {
                                                 <label className="flex items-center gap-2 cursor-pointer">
                                                     <input
                                                         type="checkbox"
-                                                        checked={insuranceData.isPrimaryInsurance}
-                                                        onChange={(e) => setInsuranceData({ ...insuranceData, isPrimaryInsurance: e.target.checked })}
+                                                        checked={insuranceData.isPrimary}
+                                                        onChange={(e) => setInsuranceData({ ...insuranceData, isPrimary: e.target.checked })}
                                                         className="w-5 h-5 text-amber-600 rounded focus:ring-2 focus:ring-amber-400"
                                                     />
                                                     <span className="text-sm font-medium text-stone-700">Primary Insurance</span>

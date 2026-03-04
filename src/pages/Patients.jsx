@@ -1189,19 +1189,21 @@ export default function Patients() {
   });
 
   const [insuranceData, setInsuranceData] = useState({
-    insuranceProvider: "",
+    patientInsuranceProvider: "",
+    insuranceProviderId: "",
     policyNumber: "",
     groupNumber: "",
     policyHolderName: "",
-    policyHolderRelation: "",
+    relationshipToPolicyHolder: "",
     coverageStartDate: "",
     coverageEndDate: "",
-    isPrimaryInsurance: true,
+    isPrimary: true,
     copayAmount: "",
     deductibleAmount: "",
     coveragePercentage: "",
     insurancePhone: "",
-    isActive: true
+    providerEmail: "",
+    providerAddress: ""
   });
 
   // View/Filter states
@@ -1308,8 +1310,24 @@ export default function Patients() {
         medicalHistory: `Past Surgeries: ${medicalData.pastSurgeries || 'None'}; Smoking: ${medicalData.smokingStatus || 'Unknown'}; Alcohol: ${medicalData.alcoholConsumption || 'Unknown'}; Exercise: ${medicalData.exerciseFrequency || 'Unknown'}; Diet: ${medicalData.dietaryRestrictions || 'None'}; Notes: ${medicalData.notes || 'None'}`
       },
       patientInsurance: {
-        patientId: 0, // Will be assigned by backend
-        patientInsuranceProvider: insuranceData.insuranceProvider || ""
+        patientId: 0,
+        patientInsuranceProvider: insuranceData.patientInsuranceProvider || "",
+        insuranceProviderId: insuranceData.insuranceProviderId ? parseInt(insuranceData.insuranceProviderId) : null,
+        policyNumber: insuranceData.policyNumber || "",
+        groupNumber: insuranceData.groupNumber || "",
+        policyHolderName: insuranceData.policyHolderName || "",
+        relationshipToPolicyHolder: insuranceData.relationshipToPolicyHolder || "",
+        coverageStartDate: insuranceData.coverageStartDate ? new Date(insuranceData.coverageStartDate).toISOString() : null,
+        coverageEndDate: insuranceData.coverageEndDate ? new Date(insuranceData.coverageEndDate).toISOString() : null,
+        isPrimary: insuranceData.isPrimary || false,
+        copayAmount: insuranceData.copayAmount ? parseFloat(insuranceData.copayAmount) : null,
+        deductibleAmount: insuranceData.deductibleAmount ? parseFloat(insuranceData.deductibleAmount) : null,
+        coveragePercentage: insuranceData.coveragePercentage ? parseFloat(insuranceData.coveragePercentage) : null,
+        insurancePhone: insuranceData.insurancePhone || "",
+        providerEmail: insuranceData.providerEmail || "",
+        providerAddress: insuranceData.providerAddress || "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       }
     };
     
@@ -1332,7 +1350,7 @@ export default function Patients() {
       setPatientData({ firstName: "", lastName: "", dateOfBirth: "", gender: "", bloodGroup: "", maritalStatus: "", clinicId: "", isActive: true });
       setContactData({ phoneNumber: "", alternatePhoneNumber: "", email: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "", emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelation: "" });
       setMedicalData({ allergies: "", chronicConditions: "", currentMedications: "", pastSurgeries: "", familyMedicalHistory: "", smokingStatus: "", alcoholConsumption: "", exerciseFrequency: "", dietaryRestrictions: "", lastDentalVisit: "", notes: "" });
-      setInsuranceData({ insuranceProvider: "", policyNumber: "", groupNumber: "", policyHolderName: "", policyHolderRelation: "", coverageStartDate: "", coverageEndDate: "", isPrimaryInsurance: true, copayAmount: "", deductibleAmount: "", coveragePercentage: "", insurancePhone: "", isActive: true });
+      setInsuranceData({ patientInsuranceProvider: "", insuranceProviderId: "", policyNumber: "", groupNumber: "", policyHolderName: "", relationshipToPolicyHolder: "", coverageStartDate: "", coverageEndDate: "", isPrimary: true, copayAmount: "", deductibleAmount: "", coveragePercentage: "", insurancePhone: "", providerEmail: "", providerAddress: "" });
       
       // Close the registration modal
       setActiveView("list");
@@ -2109,10 +2127,18 @@ export default function Patients() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <InputField
                   label="Insurance Provider"
-                  name="insuranceProvider"
-                  value={insuranceData.insuranceProvider}
-                  onChange={(e) => setInsuranceData({ ...insuranceData, insuranceProvider: e.target.value })}
+                  name="patientInsuranceProvider"
+                  value={insuranceData.patientInsuranceProvider}
+                  onChange={(e) => setInsuranceData({ ...insuranceData, patientInsuranceProvider: e.target.value })}
                   placeholder="Insurance company name"
+                />
+                <InputField
+                  label="Provider ID"
+                  name="insuranceProviderId"
+                  type="number"
+                  value={insuranceData.insuranceProviderId}
+                  onChange={(e) => setInsuranceData({ ...insuranceData, insuranceProviderId: e.target.value })}
+                  placeholder="Provider ID"
                 />
                 <InputField
                   label="Policy Number"
@@ -2137,6 +2163,14 @@ export default function Patients() {
                   placeholder="Insurance company phone"
                 />
                 <InputField
+                  label="Provider Email"
+                  name="providerEmail"
+                  type="email"
+                  value={insuranceData.providerEmail}
+                  onChange={(e) => setInsuranceData({ ...insuranceData, providerEmail: e.target.value })}
+                  placeholder="provider@insurance.com"
+                />
+                <InputField
                   label="Policy Holder Name"
                   name="policyHolderName"
                   value={insuranceData.policyHolderName}
@@ -2145,10 +2179,17 @@ export default function Patients() {
                 />
                 <InputField
                   label="Relationship to Policy Holder"
-                  name="policyHolderRelation"
-                  value={insuranceData.policyHolderRelation}
-                  onChange={(e) => setInsuranceData({ ...insuranceData, policyHolderRelation: e.target.value })}
+                  name="relationshipToPolicyHolder"
+                  value={insuranceData.relationshipToPolicyHolder}
+                  onChange={(e) => setInsuranceData({ ...insuranceData, relationshipToPolicyHolder: e.target.value })}
                   options={["Self", "Spouse", "Child", "Parent", "Other"]}
+                />
+                <InputField
+                  label="Provider Address"
+                  name="providerAddress"
+                  value={insuranceData.providerAddress}
+                  onChange={(e) => setInsuranceData({ ...insuranceData, providerAddress: e.target.value })}
+                  placeholder="Provider address"
                 />
                 <InputField
                   label="Coverage Start Date"
@@ -2192,8 +2233,8 @@ export default function Patients() {
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={insuranceData.isPrimaryInsurance}
-                      onChange={(e) => setInsuranceData({ ...insuranceData, isPrimaryInsurance: e.target.checked })}
+                      checked={insuranceData.isPrimary}
+                      onChange={(e) => setInsuranceData({ ...insuranceData, isPrimary: e.target.checked })}
                       className="w-5 h-5 text-amber-600 rounded focus:ring-2 focus:ring-amber-400"
                     />
                     <span className="text-sm font-medium text-stone-700">Primary Insurance</span>

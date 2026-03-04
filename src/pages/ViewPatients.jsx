@@ -425,15 +425,21 @@ export default function ViewPatients() {
       };
 
       const newInsuranceData = {
-        insuranceProvider: insuranceInfo.patientInsuranceProvider || "",
-        policyNumber: insuranceInfo.patientPolicyNumber || "",
-        groupNumber: insuranceInfo.patientGroupNumber || "",
-        policyHolderName: insuranceInfo.patientPolicyHolderName || "",
-        policyHolderRelation: insuranceInfo.patientPolicyHolderRelation || "",
-        coverageStartDate: insuranceInfo.patientCoverageStartDate ? insuranceInfo.patientCoverageStartDate.split('T')[0] : "",
-        coverageEndDate: insuranceInfo.patientCoverageEndDate ? insuranceInfo.patientCoverageEndDate.split('T')[0] : "",
-        isPrimaryInsurance: insuranceInfo.patientIsPrimaryInsurance !== false,
-        copayAmount: insuranceInfo.patientCopayAmount || ""
+        patientInsuranceProvider: insuranceInfo.patientInsuranceProvider || "",
+        insuranceProviderId: insuranceInfo.insuranceProviderId || "",
+        policyNumber: insuranceInfo.policyNumber || "",
+        groupNumber: insuranceInfo.groupNumber || "",
+        policyHolderName: insuranceInfo.policyHolderName || "",
+        relationshipToPolicyHolder: insuranceInfo.relationshipToPolicyHolder || "",
+        coverageStartDate: insuranceInfo.coverageStartDate ? insuranceInfo.coverageStartDate.split('T')[0] : "",
+        coverageEndDate: insuranceInfo.coverageEndDate ? insuranceInfo.coverageEndDate.split('T')[0] : "",
+        isPrimary: insuranceInfo.isPrimary !== false,
+        copayAmount: insuranceInfo.copayAmount || "",
+        deductibleAmount: insuranceInfo.deductibleAmount || "",
+        coveragePercentage: insuranceInfo.coveragePercentage || "",
+        insurancePhone: insuranceInfo.insurancePhone || "",
+        providerEmail: insuranceInfo.providerEmail || "",
+        providerAddress: insuranceInfo.providerAddress || ""
       };
 
       console.log('✅ FINAL MAPPED STATE TO BE SET:');
@@ -524,15 +530,23 @@ export default function ViewPatients() {
         },
         patientInsurance: {
           patientId: editPatientData.patientId,
-          patientInsuranceProvider: editInsuranceData.insuranceProvider,
-          patientPolicyNumber: editInsuranceData.policyNumber,
-          patientGroupNumber: editInsuranceData.groupNumber,
-          patientPolicyHolderName: editInsuranceData.policyHolderName,
-          patientPolicyHolderRelation: editInsuranceData.policyHolderRelation,
-          patientCoverageStartDate: editInsuranceData.coverageStartDate,
-          patientCoverageEndDate: editInsuranceData.coverageEndDate,
-          patientIsPrimaryInsurance: editInsuranceData.isPrimaryInsurance,
-          patientCopayAmount: editInsuranceData.copayAmount
+          patientInsuranceProvider: editInsuranceData.patientInsuranceProvider,
+          insuranceProviderId: editInsuranceData.insuranceProviderId ? parseInt(editInsuranceData.insuranceProviderId) : null,
+          policyNumber: editInsuranceData.policyNumber,
+          groupNumber: editInsuranceData.groupNumber,
+          policyHolderName: editInsuranceData.policyHolderName,
+          relationshipToPolicyHolder: editInsuranceData.relationshipToPolicyHolder,
+          coverageStartDate: editInsuranceData.coverageStartDate ? new Date(editInsuranceData.coverageStartDate).toISOString() : null,
+          coverageEndDate: editInsuranceData.coverageEndDate ? new Date(editInsuranceData.coverageEndDate).toISOString() : null,
+          isPrimary: editInsuranceData.isPrimary !== false,
+          copayAmount: editInsuranceData.copayAmount ? parseFloat(editInsuranceData.copayAmount) : null,
+          deductibleAmount: editInsuranceData.deductibleAmount ? parseFloat(editInsuranceData.deductibleAmount) : null,
+          coveragePercentage: editInsuranceData.coveragePercentage ? parseFloat(editInsuranceData.coveragePercentage) : null,
+          insurancePhone: editInsuranceData.insurancePhone,
+          providerEmail: editInsuranceData.providerEmail,
+          providerAddress: editInsuranceData.providerAddress,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         }
       };
 

@@ -2935,17 +2935,22 @@ export default function SuperAdmin() {
         patientInsurance: {
           patientId: 0,
           patientInsuranceProvider: createPatientForm.insuranceProvider || "",
+          insuranceProviderId: createPatientForm.insuranceProviderId ? parseInt(createPatientForm.insuranceProviderId) : null,
           policyNumber: createPatientForm.policyNumber || "",
           groupNumber: createPatientForm.groupNumber || "",
           insurancePhone: createPatientForm.insurancePhone || "",
           policyHolderName: createPatientForm.policyHolderName || "",
-          relationshipToHolder: createPatientForm.relationshipToHolder || "",
+          relationshipToPolicyHolder: createPatientForm.relationshipToHolder || "",
+          providerEmail: createPatientForm.providerEmail || "",
+          providerAddress: createPatientForm.providerAddress || "",
           coverageStartDate: formattedCoverageStart || null,
           coverageEndDate: formattedCoverageEnd || null,
-          copayAmount: createPatientForm.copayAmount ? Number(createPatientForm.copayAmount) : 0,
-          deductibleAmount: createPatientForm.deductibleAmount ? Number(createPatientForm.deductibleAmount) : 0,
-          coveragePercentage: createPatientForm.coveragePercentage ? Number(createPatientForm.coveragePercentage) : 0,
-          isPrimaryInsurance: createPatientForm.isPrimaryInsurance || false
+          copayAmount: createPatientForm.copayAmount ? Number(createPatientForm.copayAmount) : null,
+          deductibleAmount: createPatientForm.deductibleAmount ? Number(createPatientForm.deductibleAmount) : null,
+          coveragePercentage: createPatientForm.coveragePercentage ? Number(createPatientForm.coveragePercentage) : null,
+          isPrimary: createPatientForm.isPrimaryInsurance || false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         }
       };
 
