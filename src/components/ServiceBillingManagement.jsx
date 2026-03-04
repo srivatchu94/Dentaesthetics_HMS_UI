@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAppointmentsByFilters } from '../services/appointmentService';
+import { getAppointmentsByFilters, getAppointmentById } from '../services/appointmentService';
+import { searchPatients } from '../services/patientService';
 import { getAccessToken, getClinicIdFromToken, getSelectedAccess } from '../services/tokenManager';
 import { request } from '../services/apiClient';
 import { Download, Mail, Eye, ChevronDown, Plus } from 'lucide-react';
@@ -30,6 +31,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
   const [loadingPatientSearch, setLoadingPatientSearch] = useState(false);
   const [patientSearchError, setPatientSearchError] = useState('');
   const [selectedPatientAppointmentId, setSelectedPatientAppointmentId] = useState(null);
+  const [mobileNumberError, setMobileNumberError] = useState('');
 
   // Load clinics from token on mount
   useEffect(() => {
@@ -110,10 +112,40 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
     setInvoicesByAppointment({});
   }, [refreshTrigger]);
 
+  // Validate mobile number
+  const validateMobileNumber = (mobileNumber) => {
+    // If empty, it's optional - no validation needed
+    if (!mobileNumber || mobileNumber.trim() === "") {
+      setMobileNumberError("");
+      return true;
+    }
+
+    // Check if only numbers
+    if (!/^\d+$/.test(mobileNumber)) {
+      setMobileNumberError("⚠️ Mobile number should contain only numbers");
+      return false;
+    }
+
+    // Check if length is at least 10
+    if (mobileNumber.length !== 10) {
+      setMobileNumberError("⚠️ Mobile number must be exactly 10 digits");
+      return false;
+    }
+
+    // Validation passed
+    setMobileNumberError("");
+    return true;
+  };
+
   // Search patient by ID or phone number
   const searchPatient = useCallback(async () => {
     if (!patientSearchId && !patientSearchPhone) {
       setPatientSearchError('Please enter Patient ID or Phone Number');
+      return;
+    }
+
+    // Validate mobile number if provided
+    if (!validateMobileNumber(patientSearchPhone)) {
       return;
     }
 
@@ -123,42 +155,36 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
     setPatientAppointments([]);
 
     try {
-      // Search patient by ID or phone
-      const searchQuery = patientSearchId 
-        ? `searchByPatientId=${patientSearchId}`
-        : `searchByPhone=${patientSearchPhone}`;
+      // Use the proper searchPatients function with mobilenumber parameter
+      const params = {
+        patientId: patientSearchId ? parseInt(patientSearchId) : undefined,
+        mobilenumber: patientSearchPhone || undefined
+      };
 
-      const response = await fetch(
-        `${API_BASE_URL}/Patient/Search?${searchQuery}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${getAccessToken()}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      // Remove undefined values
+      Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
-      if (response.ok) {
-        const patient = await response.json();
+      console.log('🔍 Searching patient with params:', params);
+      const results = await searchPatients(params);
+      
+      if (results && results.length > 0) {
+        const patient = results[0];
         console.log('✅ Patient found:', patient);
         setSearchedPatient(patient);
 
         // Load appointments for this patient
         if (patient.patientId) {
-          const appointmentsResponse = await fetch(
-            `${API_BASE_URL}/Appointment/GetByPatientId?patientId=${patient.patientId}`,
-            {
-              headers: {
-                'Authorization': `Bearer ${getAccessToken()}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-
-          if (appointmentsResponse.ok) {
-            const appointments = await appointmentsResponse.json();
-            console.log('✅ Patient appointments:', appointments);
-            setPatientAppointments(Array.isArray(appointments) ? appointments : []);
+          try {
+            const appointmentsResponse = await getAppointmentById({
+              patientId: patient.patientId,
+              mobilenumber: patientSearchPhone || undefined
+            });
+            
+            console.log('✅ Patient appointments:', appointmentsResponse);
+            setPatientAppointments(Array.isArray(appointmentsResponse) ? appointmentsResponse : []);
+          } catch (apptError) {
+            console.error('Error fetching appointments:', apptError);
+            setPatientAppointments([]);
           }
         }
       } else {
@@ -716,9 +742,14 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                     <input
                       type="text"
                       value={patientSearchId}
-                      onChange={(e) => setPatientSearchId(e.target.value)}
-                      placeholder="Enter Patient ID"
+                      onChange={(e) => {
+                        // Only allow numbers
+                        const value = e.target.value.replace(/[^\d]/g, '');
+                        setPatientSearchId(value);
+                      }}
+                      placeholder="Enter Patient ID (numbers only)"
                       className="w-full px-3 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+                      inputMode="numeric"
                     />
                   </div>
                   <div>
@@ -726,10 +757,25 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                     <input
                       type="text"
                       value={patientSearchPhone}
-                      onChange={(e) => setPatientSearchPhone(e.target.value)}
-                      placeholder="Enter Phone Number"
-                      className="w-full px-3 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+                      onChange={(e) => {
+                        // Only allow numbers and limit to 10 digits
+                        const value = e.target.value.replace(/[^\d]/g, '').slice(0, 10);
+                        setPatientSearchPhone(value);
+                        // Clear error when user starts typing
+                        if (mobileNumberError) {
+                          setMobileNumberError("");
+                        }
+                      }}
+                      placeholder="Enter Mobile Number (exactly 10 digits)"
+                      className={`w-full px-3 py-2.5 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition font-medium text-slate-700 bg-white ${
+                        mobileNumberError ? "border-red-500 focus:ring-red-400" : "border-purple-300"
+                      }`}
+                      inputMode="numeric"
+                      maxLength="10"
                     />
+                    {mobileNumberError && (
+                      <p className="text-sm text-red-600 mt-1">{mobileNumberError}</p>
+                    )}
                   </div>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
@@ -761,215 +807,207 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                 )}
               </AnimatePresence>
 
-              {/* Patient Details Display */}
+              {/* Patient Details Display - Compact Tile */}
               {searchedPatient && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-6 border-2 border-emerald-300 mb-6"
+                  className="mb-6"
                 >
-                  <h3 className="text-lg font-bold text-emerald-800 mb-4">👤 Patient Details</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-emerald-700 uppercase mb-1">Patient Name</p>
-                      <p className="text-lg font-bold text-slate-800">{searchedPatient.firstName} {searchedPatient.lastName}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-emerald-700 uppercase mb-1">Patient ID</p>
-                      <p className="text-lg font-bold text-slate-800">{searchedPatient.patientId}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-emerald-700 uppercase mb-1">Phone Number</p>
-                      <p className="text-lg font-bold text-slate-800">{searchedPatient.phoneNumber || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-emerald-700 uppercase mb-1">Email</p>
-                      <p className="text-lg font-bold text-slate-800">{searchedPatient.email || 'N/A'}</p>
-                    </div>
-                  </div>
+                  <motion.div
+                    whileHover={{ scale: 1.01, boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.15)" }}
+                    className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-5 border-2 border-emerald-200 shadow-md transition-all"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      {/* Avatar + Info */}
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg flex-shrink-0">
+                          {searchedPatient.patientFirstName?.charAt(0)}{searchedPatient.patientLastName?.charAt(0)}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-bold text-emerald-900 truncate">
+                            {searchedPatient.patientFirstName} {searchedPatient.patientLastName}
+                          </h3>
+                          <p className="text-sm text-emerald-700 font-semibold">ID: #{searchedPatient.patientId}</p>
+                          <div className="flex gap-4 mt-1 text-xs text-slate-600">
+                            <span title="Phone">📞 {searchedPatient.patientPhoneNumber || 'N/A'}</span>
+                            <span title="Email" className="truncate">📧 {searchedPatient.patientEmail || 'N/A'}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                  {/* Invoice Creation Options */}
-                  <div className="mt-6 flex gap-3 flex-wrap">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setActiveTab('appointments')}
-                      className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-                    >
-                      <span>📋</span>
-                      Create Invoice WITH Appointment
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => onPaymentClick({ patientId: searchedPatient.patientId, firstName: searchedPatient.firstName, lastName: searchedPatient.lastName, mode: 'without-appointment' })}
-                      className="px-6 py-3 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
-                    >
-                      <span>➕</span>
-                      Create Invoice WITHOUT Appointment
-                    </motion.button>
-                  </div>
+                      {/* Action Button */}
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => onPaymentClick({ 
+                          patientId: searchedPatient.patientId, 
+                          firstName: searchedPatient.patientFirstName, 
+                          lastName: searchedPatient.patientLastName, 
+                          mode: 'without-appointment' 
+                        })}
+                        className="px-4 py-2 bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-lg font-semibold shadow-md hover:shadow-lg hover:from-amber-700 hover:to-orange-700 transition-all flex items-center gap-2 flex-shrink-0 whitespace-nowrap text-sm"
+                      >
+                        <span>➕</span>
+                        Invoice
+                      </motion.button>
+                    </div>
+                  </motion.div>
                 </motion.div>
               )}
 
-              {/* Patient Appointments List (when patient found) */}
+              {/* Patient Appointments List as Tiles */}
               {searchedPatient && patientAppointments.length > 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-xl border-2 border-blue-200 overflow-hidden"
+                  className="mb-6"
                 >
-                  <div className="bg-gradient-to-r from-blue-100 to-indigo-100 p-4 border-b border-blue-200">
-                    <h3 className="text-lg font-bold text-blue-800 flex items-center gap-2">
-                      <span>📅</span>
-                      Appointments for {searchedPatient.firstName}
-                    </h3>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="bg-gradient-to-r from-blue-100 to-indigo-100 border-b border-blue-200">
-                          <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">ID</th>
-                          <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Date</th>
-                          <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Time</th>
-                          <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Type</th>
-                          <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Doctor</th>
-                          <th className="px-4 py-3 text-center text-xs font-bold text-blue-900 uppercase tracking-wider">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {patientAppointments.map((appt, idx) => (
-                          <motion.tr
-                            key={appt.appointmentId}
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: idx * 0.03 }}
-                            className="border-b border-slate-200 hover:bg-blue-50/50 transition-colors"
-                          >
-                            <td className="px-4 py-3">
-                              <span className="font-bold text-slate-700">#{appt.appointmentId}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <p className="text-sm text-slate-700">
+                  <h2 className="text-2xl font-bold text-blue-800 mb-4 flex items-center gap-2">
+                    <span>📅</span>
+                    Appointments ({patientAppointments.length})
+                  </h2>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {patientAppointments.map((appt, idx) => (
+                      <motion.div
+                        key={appt.appointmentId}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                        className="bg-white rounded-xl shadow-md hover:shadow-xl border-2 border-blue-200 overflow-hidden transition-all"
+                      >
+                        {/* Card Header */}
+                        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-bold">Appointment #{appt.appointmentId}</h3>
+                            <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-semibold">
+                              {appt.appointmentType || 'Consultation'}
+                            </span>
+                          </div>
+                          <p className="text-blue-100 text-sm font-medium">
+                            {appt.doctorName || 'Dr. N/A'}
+                          </p>
+                        </div>
+
+                        {/* Card Content */}
+                        <div className="p-4">
+                          {/* Date and Time */}
+                          <div className="mb-4 grid grid-cols-2 gap-2">
+                            <div className="bg-blue-50 rounded-lg p-3 text-center">
+                              <p className="text-xs font-bold text-blue-700 uppercase mb-1">Date</p>
+                              <p className="text-sm font-bold text-slate-800">
                                 {new Date(appt.appointmentDate).toLocaleDateString('en-US', { 
                                   month: 'short', day: 'numeric', year: 'numeric'
                                 })}
                               </p>
-                            </td>
-                            <td className="px-4 py-3">
-                              <p className="text-xs text-slate-500">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="text-sm font-medium text-slate-700">{appt.appointmentType || 'Consultation'}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="text-sm font-medium text-slate-700">{appt.doctorName || 'N/A'}</span>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center justify-center gap-2">
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => handleShowInvoices(appt.appointmentId)}
-                                  className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
-                                  title="Expand to view invoices"
-                                >
-                                  📂 Invoices
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => onPaymentClick(appt)}
-                                  className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
-                                  title="Create New Invoice"
-                                >
-                                  ➕ Create
-                                </motion.button>
-                              </div>
-                            </td>
-                          </motion.tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Expandable Invoices for Appointments in Patient Search */}
-                  <AnimatePresence>
-                    {expandedAppointmentId && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="border-t-2 border-blue-300 p-6"
-                      >
-                        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-6 border-2 border-teal-200">
-                          <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-bold text-teal-800 flex items-center gap-2">
-                              <span>📋</span>
-                              Invoices for Appointment #{expandedAppointmentId}
-                            </h3>
+                            </div>
+                            <div className="bg-blue-50 rounded-lg p-3 text-center">
+                              <p className="text-xs font-bold text-blue-700 uppercase mb-1">Time</p>
+                              <p className="text-sm font-bold text-slate-800">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
+                            </div>
                           </div>
-                          {loadingInvoices[expandedAppointmentId] ? (
-                            <div className="flex items-center justify-center py-8">
-                              <div className="animate-spin rounded-full h-10 w-10 border-4 border-teal-300 border-t-teal-600"></div>
-                            </div>
-                          ) : invoicesByAppointment[expandedAppointmentId]?.length === 0 ? (
-                            <div className="py-8 text-center">
-                              <p className="text-teal-700 font-medium">No invoices created yet for this appointment.</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              {invoicesByAppointment[expandedAppointmentId]?.map((invoice, idx) => (
-                                <motion.div
-                                  key={idx}
-                                  initial={{ opacity: 0, x: -20 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  transition={{ delay: idx * 0.1 }}
-                                  className={`rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 ${
-                                    invoice.header?.status === 'Paid'
-                                      ? 'border-l-green-500 bg-gradient-to-r from-green-50/40 to-white'
-                                      : invoice.header?.status === 'Partial'
-                                      ? 'border-l-amber-500 bg-gradient-to-r from-amber-50/40 to-white'
-                                      : 'border-l-red-500 bg-gradient-to-r from-red-50/40 to-white'
-                                  } border border-slate-100`}
-                                >
-                                  <div className="px-5 py-3.5 flex items-center justify-between gap-5">
-                                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                                      <div className="flex-shrink-0">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">INV</p>
-                                        <p className="text-base font-black text-slate-900">{invoice.header?.invoiceNumber || 'N/A'}</p>
-                                      </div>
-                                      <div className="h-10 border-r border-slate-200"></div>
-                                      <div className="flex-shrink-0">
-                                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Date</p>
-                                        <p className="text-sm font-bold text-slate-800">
-                                          {invoice.header?.billDate ? new Date(invoice.header.billDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A'}
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <div className="flex-shrink-0 text-right">
-                                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Amount</p>
-                                      <p className="text-xl font-black text-slate-900">₹{invoice.header?.totalAmount?.toFixed(2) || '0.00'}</p>
-                                    </div>
-                                  </div>
-                                </motion.div>
-                              ))}
-                            </div>
-                          )}
-                          <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => setExpandedAppointmentId(null)}
-                            className="mt-4 w-full px-4 py-3 border-2 border-teal-400 bg-teal-50 text-teal-700 rounded-lg font-semibold hover:bg-teal-100 transition-all flex items-center justify-center gap-2"
-                          >
-                            <ChevronDown size={20} className="rotate-180" />
-                            Collapse Invoices
-                          </motion.button>
+
+                          {/* Action Buttons */}
+                          <div className="space-y-2">
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => handleShowInvoices(appt.appointmentId)}
+                              className="w-full px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-semibold shadow-md transition-all flex items-center justify-center gap-2"
+                            >
+                              <span>📋</span>
+                              View Invoices
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => onPaymentClick(appt)}
+                              className="w-full px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-semibold shadow-md transition-all flex items-center justify-center gap-2"
+                            >
+                              <span>➕</span>
+                              Create Invoice
+                            </motion.button>
+                          </div>
                         </div>
+
+                        {/* Expandable Invoices Section */}
+                        <AnimatePresence>
+                          {expandedAppointmentId === appt.appointmentId && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="border-t-2 border-blue-200 bg-gradient-to-br from-emerald-50 to-teal-50"
+                            >
+                              <div className="p-4">
+                                <h4 className="font-bold text-emerald-800 mb-3 flex items-center gap-2">
+                                  <span>💰</span>
+                                  Invoices
+                                </h4>
+                                {loadingInvoices[appt.appointmentId] ? (
+                                  <div className="flex items-center justify-center py-4">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-4 border-emerald-300 border-t-emerald-600"></div>
+                                  </div>
+                                ) : invoicesByAppointment[appt.appointmentId]?.length === 0 ? (
+                                  <p className="text-sm text-emerald-700 text-center py-4">No invoices created yet</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {invoicesByAppointment[appt.appointmentId]?.map((invoice, invIdx) => (
+                                      <motion.div
+                                        key={invIdx}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        className="bg-white rounded-lg p-3 border-l-4 border-emerald-500"
+                                      >
+                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                          <div>
+                                            <p className="text-xs font-bold text-slate-500 uppercase">Invoice</p>
+                                            <p className="text-sm font-bold text-slate-800">#{invoice.header?.invoiceNumber || 'N/A'}</p>
+                                          </div>
+                                          <div className="text-right">
+                                            <p className="text-xs font-bold text-slate-500 uppercase">Amount</p>
+                                            <p className="text-lg font-bold text-emerald-600">₹{invoice.header?.totalAmount?.toFixed(2) || '0.00'}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={() => {
+                                              onPaymentClick({ 
+                                                ...appt, 
+                                                invoiceNumber: invoice.header?.invoiceNumber,
+                                                mode: "view"
+                                              });
+                                            }}
+                                            className="flex-1 px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-semibold transition-all"
+                                          >
+                                            <Eye size={12} className="inline mr-1" />
+                                            View
+                                          </motion.button>
+                                          <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={() => downloadInvoicePDF(invoice)}
+                                            className="flex-1 px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-semibold transition-all"
+                                          >
+                                            <Download size={12} className="inline mr-1" />
+                                            PDF
+                                          </motion.button>
+                                        </div>
+                                      </motion.div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </motion.div>
-                    )}
-                  </AnimatePresence>
+                    ))}
+                  </div>
                 </motion.div>
               )}
 

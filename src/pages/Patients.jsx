@@ -367,6 +367,8 @@ export default function Patients() {
     firstName: "",
     lastName: "",
     doctorId: "",
+    patientId: "",
+    mobilenumber: "",
     appointmentDate: "",
     status: "All",
     appointmentType: "All"
@@ -374,6 +376,7 @@ export default function Patients() {
   const [filteredAppointmentsList, setFilteredAppointmentsList] = useState([]);
   const [distinctStatuses, setDistinctStatuses] = useState([]);
   const [distinctAppointmentTypes, setDistinctAppointmentTypes] = useState([]);
+  const [mobileNumberError, setMobileNumberError] = useState('');
   
   // Load clinics on mount
   useEffect(() => {
@@ -457,10 +460,40 @@ export default function Patients() {
     }
   };
   
+  // Validate mobile number
+  const validateMobileNumber = (mobileNumber) => {
+    // If empty, it's optional - no validation needed
+    if (!mobileNumber || mobileNumber.trim() === "") {
+      setMobileNumberError("");
+      return true;
+    }
+
+    // Check if only numbers
+    if (!/^\d+$/.test(mobileNumber)) {
+      setMobileNumberError("⚠️ Mobile number should contain only numbers");
+      return false;
+    }
+
+    // Check if length is exactly 10
+    if (mobileNumber.length !== 10) {
+      setMobileNumberError("⚠️ Mobile number must be exactly 10 digits");
+      return false;
+    }
+
+    // Validation passed
+    setMobileNumberError("");
+    return true;
+  };
+
   // Function to filter appointments via API and apply local status/type filters
   const filterAppointments = async () => {
     if (!appointmentFilter.clinicId) {
       alert('⚠️ Clinic ID is required to search appointments');
+      return;
+    }
+
+    // Validate mobile number if provided
+    if (!validateMobileNumber(appointmentFilter.mobilenumber)) {
       return;
     }
     
@@ -471,6 +504,8 @@ export default function Patients() {
         firstName: appointmentFilter.firstName || undefined,
         lastName: appointmentFilter.lastName || undefined,
         doctorId: appointmentFilter.doctorId || undefined,
+        patientId: appointmentFilter.patientId ? parseInt(appointmentFilter.patientId) : undefined,
+        mobilenumber: appointmentFilter.mobilenumber || undefined,
         appointmentDate: appointmentFilter.appointmentDate || undefined
       };
       
@@ -507,10 +542,13 @@ export default function Patients() {
       firstName: "",
       lastName: "",
       doctorId: "",
+      patientId: "",
+      mobilenumber: "",
       appointmentDate: "",
       status: "All",
       appointmentType: "All"
     });
+    setMobileNumberError("");
     setFilteredAppointmentsList(appointmentsList);
   };
 
@@ -6265,6 +6303,54 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
                         placeholder="Doctor ID"
                       />
+                    </div>
+
+                    {/* Patient ID */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
+                        <span>🆔</span> Patient ID
+                      </label>
+                      <input
+                        type="text"
+                        value={appointmentFilter.patientId}
+                        onChange={(e) => {
+                          // Only allow numbers
+                          const value = e.target.value.replace(/[^\d]/g, '');
+                          setAppointmentFilter({ ...appointmentFilter, patientId: value });
+                        }}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder="Patient ID (numbers only)"
+                        inputMode="numeric"
+                      />
+                    </div>
+
+                    {/* Mobile Number */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
+                        <span>📱</span> Mobile Number
+                      </label>
+                      <input
+                        type="text"
+                        value={appointmentFilter.mobilenumber}
+                        onChange={(e) => {
+                          // Only allow numbers and limit to 10 digits
+                          const value = e.target.value.replace(/[^\d]/g, '').slice(0, 10);
+                          setAppointmentFilter({ ...appointmentFilter, mobilenumber: value });
+                          // Clear error when user starts typing
+                          if (mobileNumberError) {
+                            setMobileNumberError("");
+                          }
+                        }}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${
+                          mobileNumberError ? "border-red-500 focus:border-red-500 focus:ring-4 focus:ring-red-100" : "border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100"
+                        }`}
+                        placeholder="Mobile number (exactly 10 digits)"
+                        inputMode="numeric"
+                        maxLength="10"
+                      />
+                      {mobileNumberError && (
+                        <p className="text-sm text-red-600 mt-1">{mobileNumberError}</p>
+                      )}
                     </div>
 
                     {/* Appointment Date */}

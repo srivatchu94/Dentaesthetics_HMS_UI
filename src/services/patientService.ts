@@ -93,6 +93,7 @@ export function searchPatients(params: {
   firstName?: string;
   lastName?: string;
   dob?: string;
+  mobilenumber?: string;
 }): Promise<PatientDataModel[]> {
   const queryParams = new URLSearchParams();
   
@@ -101,6 +102,7 @@ export function searchPatients(params: {
   if (params.firstName) queryParams.append('firstName', params.firstName);
   if (params.lastName) queryParams.append('lastName', params.lastName);
   if (params.dob) queryParams.append('dob', params.dob);
+  if (params.mobilenumber) queryParams.append('mobilenumber', params.mobilenumber);
   
   return request<any[]>(`/Patient/Patientsearch?${queryParams.toString()}`).then(response => {
     // Transform the response from new API format to expected format

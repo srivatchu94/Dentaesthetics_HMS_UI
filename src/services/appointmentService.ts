@@ -197,14 +197,18 @@ export function getAppointmentById(params: {
   firstName?: string;
   lastName?: string;
   doctorId?: number;
+  patientId?: number;
   appointmentDate?: string;
+  mobilenumber?: string;
 }): Promise<AppointmentsModel> {
   const queryString = new URLSearchParams();
   if (params.clinicId) queryString.append('clinicId', params.clinicId.toString());
   if (params.firstName) queryString.append('firstName', params.firstName);
   if (params.lastName) queryString.append('lastName', params.lastName);
   if (params.doctorId) queryString.append('doctorId', params.doctorId.toString());
+  if (params.patientId) queryString.append('patientId', params.patientId.toString());
   if (params.appointmentDate) queryString.append('appointmentDate', params.appointmentDate);
+  if (params.mobilenumber) queryString.append('mobilenumber', params.mobilenumber);
   
   const endpoint = `/Appointments/GetAppointmentById?${queryString.toString()}`;
   console.log("🔍 DEBUG: getAppointmentById called");
@@ -221,7 +225,9 @@ export interface AppointmentFilterParams {
   firstName?: string;
   lastName?: string;
   doctorId?: string;
+  patientId?: number;
   appointmentDate?: string;
+  mobilenumber?: string;
 }
 
 export function getAppointmentsByFilters(params: AppointmentFilterParams): Promise<AppointmentsModel[]> {
@@ -233,7 +239,9 @@ export function getAppointmentsByFilters(params: AppointmentFilterParams): Promi
   if (params.firstName) queryParams.append('firstName', params.firstName);
   if (params.lastName) queryParams.append('lastName', params.lastName);
   if (params.doctorId) queryParams.append('doctorId', params.doctorId);
+  if (params.patientId) queryParams.append('patientId', params.patientId.toString());
   if (params.appointmentDate) queryParams.append('appointmentDate', params.appointmentDate);
+  if (params.mobilenumber) queryParams.append('mobilenumber', params.mobilenumber);
   
   const endpoint = `/Appointments/GetAppointmentById?${queryParams.toString()}`;
   console.log("🔍 DEBUG: getAppointmentsByFilters called");

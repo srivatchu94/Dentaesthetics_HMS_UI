@@ -118,8 +118,9 @@ export default function ViewPatients() {
     dateOfBirth: "",
     patientId: "",
     clinicId: "",
-    phoneNumber: ""
+    mobileNumber: ""
   });
+  const [mobileNumberError, setMobileNumberError] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -265,7 +266,37 @@ export default function ViewPatients() {
     loadClinics();
   }, []);
 
+  // Validate mobile number
+  const validateMobileNumber = (mobileNumber) => {
+    // If empty, it's optional - no validation needed
+    if (!mobileNumber || mobileNumber.trim() === "") {
+      setMobileNumberError("");
+      return true;
+    }
+
+    // Check if only numbers
+    if (!/^\d+$/.test(mobileNumber)) {
+      setMobileNumberError("⚠️ Mobile number should contain only numbers");
+      return false;
+    }
+
+    // Check if length is at least 10
+    if (mobileNumber.length < 10) {
+      setMobileNumberError("⚠️ Mobile number must be at least 10 digits");
+      return false;
+    }
+
+    // Validation passed
+    setMobileNumberError("");
+    return true;
+  };
+
   const handleSearchClick = async () => {
+    // Validate mobile number before search
+    if (!validateMobileNumber(filterData.mobileNumber)) {
+      return;
+    }
+
     setIsLoading(true);
     try {
       const params = {
@@ -274,7 +305,7 @@ export default function ViewPatients() {
         dob: filterData.dateOfBirth || undefined,
         patientId: filterData.patientId ? parseInt(filterData.patientId) : undefined,
         clinicId: filterData.clinicId ? parseInt(filterData.clinicId) : undefined,
-        phoneNumber: filterData.phoneNumber || undefined
+        mobilenumber: filterData.mobileNumber || undefined
       };
 
       // Remove undefined values
@@ -300,8 +331,10 @@ export default function ViewPatients() {
       lastName: "",
       dateOfBirth: "",
       patientId: "",
-      clinicId: clinics.length > 0 ? clinics[0].clinicId.toString() : ""
+      clinicId: clinics.length > 0 ? clinics[0].clinicId.toString() : "",
+      mobileNumber: ""
     });
+    setMobileNumberError("");
     setSearchResults([]);
   };
 
@@ -611,15 +644,27 @@ export default function ViewPatients() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-stone-700 mb-2">Phone Number</label>
+                <label className="block text-sm font-medium text-stone-700 mb-2">Mobile Number</label>
                 <input
-                  type="tel"
-                  value={filterData.phoneNumber}
-                  onChange={(e) => setFilterData({ ...filterData, phoneNumber: e.target.value })}
+                  type="text"
+                  value={filterData.mobileNumber}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFilterData({ ...filterData, mobileNumber: value });
+                    // Clear error when user starts typing
+                    if (mobileNumberError) {
+                      setMobileNumberError("");
+                    }
+                  }}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
-                  placeholder="Search by phone number"
-                  className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition"
+                  placeholder="Search by mobile number (numbers only, min 10 digits)"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition ${
+                    mobileNumberError ? "border-red-500 focus:ring-red-400" : "border-stone-300"
+                  }`}
                 />
+                {mobileNumberError && (
+                  <p className="text-sm text-red-600 mt-1">{mobileNumberError}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-2">Clinic</label>
