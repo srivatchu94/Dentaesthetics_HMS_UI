@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import FancyDatePicker from "../components/FancyDatePicker";
@@ -98,7 +98,45 @@ export default function Clinics(){
     createdBy: 0,
     updatedBy: 0
   });
+  const [createClinicErrors, setCreateClinicErrors] = useState({
+    contactEmail: ""
+  });
+  const [isClinicCityLookupLoading, setIsClinicCityLookupLoading] = useState(false);
+  const clinicCityLookupAbortRef = useRef(null);
   const [creatingClinic, setCreatingClinic] = useState(false);
+
+  const validateEmailFormat = (email) => {
+    if (!email) return "";
+    const normalized = String(email).trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalized)) {
+      return "Please enter a valid email address (example@domain.com)";
+    }
+    return "";
+  };
+
+  const normalizeClinicPhoneDigits = (value) => {
+    const rawValue = String(value || "").trim();
+    let normalizedValue = rawValue;
+
+    if (normalizedValue.startsWith("+91")) {
+      normalizedValue = normalizedValue.slice(3);
+    }
+
+    let digits = normalizedValue.replace(/\D/g, "");
+    return digits.slice(0, 10);
+  };
+
+  const formatClinicPhone = (value) => {
+    return normalizeClinicPhoneDigits(value);
+  };
+
+  const addClinicCountryCode = (value) => {
+    const digits = normalizeClinicPhoneDigits(value);
+    return digits ? `+91${digits}` : "";
+  };
+
+  const isValidClinicPhone = (value) => /^\d{10}$/.test(String(value || ""));
   
   // Working hours state for clinic
   const [clinicWorkingHours, setClinicWorkingHours] = useState({
@@ -614,6 +652,65 @@ export default function Clinics(){
       loadEnterprises();
     }
   }, [showCreateClinicModal, showDoctorForm, showListClinicsModal]);
+
+  useEffect(() => {
+    const cityValue = String(createClinicForm.city || "").trim();
+    if (!showCreateClinicModal || cityValue.length < 2) {
+      setIsClinicCityLookupLoading(false);
+      return;
+    }
+
+    const timerId = setTimeout(async () => {
+      try {
+        if (clinicCityLookupAbortRef.current) {
+          clinicCityLookupAbortRef.current.abort();
+        }
+
+        const controller = new AbortController();
+        clinicCityLookupAbortRef.current = controller;
+        setIsClinicCityLookupLoading(true);
+
+        const response = await fetch(
+          `https://geodb-free-service.wirefreethought.com/v1/geo/cities?namePrefix=${encodeURIComponent(cityValue)}&limit=1&sort=-population`,
+          { signal: controller.signal }
+        );
+
+        if (!response.ok) return;
+
+        const payload = await response.json();
+        const cityMatch = payload?.data?.[0];
+        if (!cityMatch) return;
+
+        const nextState = cityMatch.region || cityMatch.regionCode || "";
+        const nextCountry = cityMatch.country || cityMatch.countryCode || "";
+
+        setCreateClinicForm((prev) => {
+          if (String(prev.city || "").trim() !== cityValue) return prev;
+          return {
+            ...prev,
+            state: nextState || prev.state,
+            country: nextCountry || prev.country
+          };
+        });
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Clinic city lookup failed:", error);
+        }
+      } finally {
+        setIsClinicCityLookupLoading(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timerId);
+  }, [createClinicForm.city, showCreateClinicModal]);
+
+  useEffect(() => {
+    return () => {
+      if (clinicCityLookupAbortRef.current) {
+        clinicCityLookupAbortRef.current.abort();
+      }
+    };
+  }, []);
   
   // Load clinics for doctor when enterprise is selected
   useEffect(() => {
@@ -772,7 +869,8 @@ export default function Clinics(){
       createClinicForm.clinicCode?.trim() !== "" &&
       createClinicForm.enterpriseId > 0 &&
       createClinicForm.contactEmail?.trim() !== "" &&
-      createClinicForm.contactPhone?.trim() !== "" &&
+      validateEmailFormat(createClinicForm.contactEmail) === "" &&
+      isValidClinicPhone(createClinicForm.contactPhone) &&
       createClinicForm.addressLine1?.trim() !== "" &&
       createClinicForm.city?.trim() !== "" &&
       createClinicForm.state?.trim() !== ""
@@ -791,7 +889,8 @@ export default function Clinics(){
       case "contact":
         return (
           createClinicForm.contactEmail?.trim() !== "" &&
-          createClinicForm.contactPhone?.trim() !== ""
+          validateEmailFormat(createClinicForm.contactEmail) === "" &&
+          isValidClinicPhone(createClinicForm.contactPhone)
         );
       case "address":
         return (
@@ -3347,40 +3446,37 @@ export default function Clinics(){
                         <input
                           type="email"
                           value={createClinicForm.contactEmail}
-                          onChange={(e) => setCreateClinicForm({ ...createClinicForm, contactEmail: e.target.value })}
+                          onChange={(e) => {
+                            const emailValue = e.target.value;
+                            setCreateClinicForm({ ...createClinicForm, contactEmail: emailValue });
+                            setCreateClinicErrors((prev) => ({ ...prev, contactEmail: validateEmailFormat(emailValue) }));
+                          }}
                           placeholder="clinic@example.com"
                           className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-700 transition-colors ${
-                            createClinicForm.contactEmail && !createClinicForm.contactEmail.includes('@') 
+                            createClinicErrors.contactEmail
                               ? 'border-red-500 bg-red-50' 
                               : 'border-slate-300'
                           }`}
                         />
-                        {createClinicForm.contactEmail && !createClinicForm.contactEmail.includes('@') && (
-                          <p className="text-xs text-red-600 font-semibold mt-1">⚠️ Please enter a valid email address</p>
+                        {createClinicErrors.contactEmail && (
+                          <p className="text-xs text-red-600 font-semibold mt-1">⚠️ {createClinicErrors.contactEmail}</p>
                         )}
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">Phone Number * (Max 10 digits)</label>
-                        <input
-                          type="tel"
-                          value={createClinicForm.contactPhone}
-                          onChange={(e) => {
-                            const phoneValue = e.target.value.replace(/\D/g, '');
-                            if (phoneValue.length <= 10) {
-                              setCreateClinicForm({ ...createClinicForm, contactPhone: phoneValue });
-                            }
-                          }}
-                          placeholder="Enter up to 10 digits"
-                          maxLength="10"
-                          className={`w-full px-4 py-2.5 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-700 transition-colors ${
-                            createClinicForm.contactPhone.length > 10 ? 'border-red-500 bg-red-50' : 'border-slate-300'
-                          }`}
-                        />
-                        {createClinicForm.contactPhone.length > 0 && (
-                          <p className="text-xs text-slate-600 font-semibold mt-1">
-                            {createClinicForm.contactPhone.length}/10 digits
-                          </p>
-                        )}
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Phone Number *</label>
+                        <div className="flex items-center w-full border-2 border-slate-300 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-purple-500 focus-within:border-purple-500 bg-white">
+                          <span className="px-4 py-2.5 text-sm font-semibold bg-slate-100 text-slate-700 border-r border-slate-300">+91</span>
+                          <input
+                            type="tel"
+                            value={createClinicForm.contactPhone}
+                            onChange={(e) => setCreateClinicForm({ ...createClinicForm, contactPhone: formatClinicPhone(e.target.value) })}
+                            placeholder="Enter 10 digits"
+                            inputMode="numeric"
+                            maxLength={10}
+                            autoComplete="off"
+                            className="w-full px-4 py-2.5 text-slate-700 outline-none"
+                          />
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -3426,6 +3522,9 @@ export default function Clinics(){
                           placeholder="City"
                           className="w-full px-4 py-2.5 border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-slate-700 transition-colors"
                         />
+                        {isClinicCityLookupLoading && (
+                          <p className="text-xs text-indigo-600 font-semibold mt-1">Auto-filling state and country...</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-2">State/Province *</label>
@@ -3640,6 +3739,21 @@ export default function Clinics(){
                             setCreatingClinic(false);
                             return;
                           }
+
+                          const contactEmailError = validateEmailFormat(createClinicForm.contactEmail);
+                          if (contactEmailError) {
+                            setCreateClinicErrors((prev) => ({ ...prev, contactEmail: contactEmailError }));
+                            setCreateClinicActiveTab("contact");
+                            setCreatingClinic(false);
+                            return;
+                          }
+
+                          if (!isValidClinicPhone(createClinicForm.contactPhone)) {
+                            alert("⚠️ Contact phone must be exactly 10 digits.");
+                            setCreateClinicActiveTab("contact");
+                            setCreatingClinic(false);
+                            return;
+                          }
                           
                           // Convert working hours to string format
                           const workingHoursString = Object.keys(clinicWorkingHours)
@@ -3660,7 +3774,7 @@ export default function Clinics(){
                             clinicName: createClinicForm.clinicName,
                             clinicCode: createClinicForm.clinicCode,
                             contactEmail: createClinicForm.contactEmail,
-                            contactPhone: createClinicForm.contactPhone,
+                            contactPhone: addClinicCountryCode(createClinicForm.contactPhone),
                             addressLine1: createClinicForm.addressLine1,
                             addressLine2: createClinicForm.addressLine2,
                             city: createClinicForm.city,
@@ -3735,6 +3849,7 @@ export default function Clinics(){
                             createdBy: 0,
                             updatedBy: 0
                           });
+                          setCreateClinicErrors({ contactEmail: "" });
                         } catch (error) {
                           console.error("❌ Error creating clinic:", error.message);
                           console.error("❌ Full error:", error);

@@ -323,17 +323,27 @@ export default function Patients() {
 
   const normalizePhoneNumber = (value) => value.replace(/\D/g, '').slice(0, 10);
   const normalizeIndianPhoneDigits = (value) => {
-    let digits = String(value || "").replace(/\D/g, "");
+    const rawValue = String(value || "").trim();
+    let normalizedValue = rawValue;
+
+    if (normalizedValue.startsWith("+91")) {
+      normalizedValue = normalizedValue.slice(3);
+    }
+
+    let digits = normalizedValue.replace(/\D/g, "");
     if (digits.startsWith("91") && digits.length > 10) {
       digits = digits.slice(2);
     }
     return digits.slice(0, 10);
   };
   const formatIndianPhone = (value) => {
+    return normalizeIndianPhoneDigits(value);
+  };
+  const addIndianCountryCode = (value) => {
     const digits = normalizeIndianPhoneDigits(value);
     return digits ? `+91${digits}` : "";
   };
-  const isValidIndianPhone = (value) => /^\+91\d{10}$/.test(String(value || ""));
+  const isValidIndianPhone = (value) => /^\d{10}$/.test(String(value || ""));
   const isValidPostalCode = (value) => /^\d{6}$/.test(String(value || ""));
   const validateEmailDomain = (email) => {
     if (!email) return "";
@@ -1484,19 +1494,19 @@ export default function Patients() {
     }
 
     if (!isValidIndianPhone(contactData.phoneNumber)) {
-      alert("⚠️ Phone Number must be exactly 10 digits with +91 country code.");
+      alert("⚠️ Phone Number must be exactly 10 digits.");
       setRegisterActiveTab("contact");
       return;
     }
 
     if (contactData.alternatePhoneNumber && !isValidIndianPhone(contactData.alternatePhoneNumber)) {
-      alert("⚠️ Alternate Phone must be exactly 10 digits with +91 country code.");
+      alert("⚠️ Alternate Phone must be exactly 10 digits.");
       setRegisterActiveTab("contact");
       return;
     }
 
     if (contactData.emergencyContactPhone && !isValidIndianPhone(contactData.emergencyContactPhone)) {
-      alert("⚠️ Emergency Contact Phone must be exactly 10 digits with +91 country code.");
+      alert("⚠️ Emergency Contact Phone must be exactly 10 digits.");
       setRegisterActiveTab("contact");
       return;
     }
@@ -1529,10 +1539,10 @@ export default function Patients() {
         patientId: 0, // Will be assigned by backend
         patientAddress: `${contactData.addressLine1}${contactData.addressLine2 ? ', ' + contactData.addressLine2 : ''}`,
         patientCity: contactData.city,
-        patientPhone: contactData.phoneNumber,
+        patientPhone: addIndianCountryCode(contactData.phoneNumber),
         patientEmail: contactData.email || "",
         patientEmergencyContact: contactData.emergencyContactName 
-          ? `${contactData.emergencyContactName} - ${contactData.emergencyContactPhone} (${contactData.emergencyContactRelation})`
+          ? `${contactData.emergencyContactName} - ${addIndianCountryCode(contactData.emergencyContactPhone)} (${contactData.emergencyContactRelation})`
           : ""
       },
       patientMedicalInfo: {
@@ -1578,7 +1588,7 @@ export default function Patients() {
         patientId: response.patient.patientId,
         name: `${patientData.firstName} ${patientData.lastName}`,
         email: contactData.email,
-        phone: contactData.phoneNumber,
+        phone: addIndianCountryCode(contactData.phoneNumber),
         dateOfBirth: patientData.dateOfBirth
       });
       setShowSuccessModal(true);
@@ -2101,11 +2111,12 @@ export default function Patients() {
                     <input
                       type="tel"
                       name="phoneNumber"
-                      value={normalizeIndianPhoneDigits(contactData.phoneNumber)}
-                      onChange={(e) => setContactData({ ...contactData, phoneNumber: formatIndianPhone(e.target.value) })}
+                      value={contactData.phoneNumber}
+                      onChange={(e) => setContactData({ ...contactData, phoneNumber: normalizeIndianPhoneDigits(e.target.value) })}
                       required
                       inputMode="numeric"
                       maxLength={10}
+                      autoComplete="off"
                       placeholder="10-digit mobile number"
                       className="w-full px-3 py-1.5 text-sm outline-none"
                     />
@@ -2118,10 +2129,11 @@ export default function Patients() {
                     <input
                       type="tel"
                       name="alternatePhoneNumber"
-                      value={normalizeIndianPhoneDigits(contactData.alternatePhoneNumber)}
-                      onChange={(e) => setContactData({ ...contactData, alternatePhoneNumber: formatIndianPhone(e.target.value) })}
+                      value={contactData.alternatePhoneNumber}
+                      onChange={(e) => setContactData({ ...contactData, alternatePhoneNumber: normalizeIndianPhoneDigits(e.target.value) })}
                       inputMode="numeric"
                       maxLength={10}
+                      autoComplete="off"
                       placeholder="10-digit mobile number"
                       className="w-full px-3 py-1.5 text-sm outline-none"
                     />
@@ -2225,10 +2237,11 @@ export default function Patients() {
                         <input
                           type="tel"
                           name="emergencyContactPhone"
-                          value={normalizeIndianPhoneDigits(contactData.emergencyContactPhone)}
-                          onChange={(e) => setContactData({ ...contactData, emergencyContactPhone: formatIndianPhone(e.target.value) })}
+                          value={contactData.emergencyContactPhone}
+                          onChange={(e) => setContactData({ ...contactData, emergencyContactPhone: normalizeIndianPhoneDigits(e.target.value) })}
                           inputMode="numeric"
                           maxLength={10}
+                          autoComplete="off"
                           placeholder="10-digit mobile number"
                           className="w-full px-3 py-1.5 text-sm outline-none"
                         />
