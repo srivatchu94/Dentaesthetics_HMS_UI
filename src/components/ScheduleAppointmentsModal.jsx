@@ -1,8 +1,283 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { getSelectedAccess } from "../services/authService";
 import { getAppointmentsByDate, getAppointmentById, updateAppointment } from "../services/appointmentService";
 import FancyDatePicker from "./FancyDatePicker";
+
+// Memoized Detail Modal Form Component
+const AppointmentDetailsForm = React.memo(({ 
+  editForm, 
+  onEditFormChange, 
+  editMode, 
+  onEditModeToggle, 
+  onSaveChanges, 
+  onCancel,
+  onClose,
+  savingChanges,
+  appointmentDetails
+}) => {
+  // Use useCallback for onChange handlers to prevent re-renders
+  const handleFirstNameChange = useCallback((e) => {
+    onEditFormChange({ ...editForm, firstName: e.target.value });
+  }, [editForm, onEditFormChange]);
+
+  const handleLastNameChange = useCallback((e) => {
+    onEditFormChange({ ...editForm, lastName: e.target.value });
+  }, [editForm, onEditFormChange]);
+
+  const handleContactNumberChange = useCallback((e) => {
+    onEditFormChange({ ...editForm, contactNumber: e.target.value });
+  }, [editForm, onEditFormChange]);
+
+  const handleAppointmentDateChange = useCallback((e) => {
+    onEditFormChange({ ...editForm, appointmentDate: e.target.value });
+  }, [editForm, onEditFormChange]);
+
+  const handleAppointmentTimeChange = useCallback((e) => {
+    onEditFormChange({ ...editForm, appointmentTime: e.target.value });
+  }, [editForm, onEditFormChange]);
+
+  const handleStatusChange = useCallback((e) => {
+    onEditFormChange({ ...editForm, appointmentStatus: e.target.value });
+  }, [editForm, onEditFormChange]);
+
+  const handleNotesChange = useCallback((e) => {
+    onEditFormChange({ ...editForm, notes: e.target.value });
+  }, [editForm, onEditFormChange]);
+
+  return (
+    <div className="p-6 space-y-4">
+      {/* Patient Information */}
+      <div className="bg-blue-50 rounded-2xl p-5 border-2 border-blue-200">
+        <h3 className="text-lg font-bold text-blue-900 mb-4">👤 Patient Information</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-blue-700 mb-1">First Name</label>
+            <input
+              type="text"
+              value={editForm.firstName || ""}
+              onChange={handleFirstNameChange}
+              disabled={!editMode}
+              className={`w-full px-3 py-2 border-2 border-blue-200 rounded-lg outline-none transition-all ${
+                editMode ? "bg-white focus:border-blue-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+              }`}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-blue-700 mb-1">Last Name</label>
+            <input
+              type="text"
+              value={editForm.lastName || ""}
+              onChange={handleLastNameChange}
+              disabled={!editMode}
+              className={`w-full px-3 py-2 border-2 border-blue-200 rounded-lg outline-none transition-all ${
+                editMode ? "bg-white focus:border-blue-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+              }`}
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs font-bold text-blue-700 mb-1">Contact Number</label>
+            <input
+              type="tel"
+              value={editForm.contactNumber || ""}
+              onChange={handleContactNumberChange}
+              disabled={!editMode}
+              className={`w-full px-3 py-2 border-2 border-blue-200 rounded-lg outline-none transition-all ${
+                editMode ? "bg-white focus:border-blue-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+              }`}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Appointment Information */}
+      <div className="bg-purple-50 rounded-2xl p-5 border-2 border-purple-200">
+        <h3 className="text-lg font-bold text-purple-900 mb-4">📅 Appointment Information</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-purple-700 mb-1">Date</label>
+            <input
+              type="date"
+              value={editForm.appointmentDate || ""}
+              onChange={handleAppointmentDateChange}
+              disabled={!editMode}
+              className={`w-full px-3 py-2 border-2 border-purple-200 rounded-lg outline-none transition-all ${
+                editMode ? "bg-white focus:border-purple-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+              }`}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-purple-700 mb-1">Time</label>
+            <input
+              type="time"
+              value={editForm.appointmentTime || ""}
+              onChange={handleAppointmentTimeChange}
+              disabled={!editMode}
+              className={`w-full px-3 py-2 border-2 border-purple-200 rounded-lg outline-none transition-all ${
+                editMode ? "bg-white focus:border-purple-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+              }`}
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="block text-xs font-bold text-purple-700 mb-1">Status</label>
+            <select
+              value={editForm.appointmentStatus || ""}
+              onChange={handleStatusChange}
+              disabled={!editMode}
+              className={`w-full px-3 py-2 border-2 border-purple-200 rounded-lg outline-none transition-all ${
+                editMode ? "bg-white focus:border-purple-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+              }`}
+            >
+              <option value="Pending">Pending</option>
+              <option value="Confirmed">Confirmed</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div className="bg-amber-50 rounded-2xl p-5 border-2 border-amber-200">
+        <h3 className="text-lg font-bold text-amber-900 mb-4">📝 Notes</h3>
+        <textarea
+          value={editForm.notes || ""}
+          onChange={handleNotesChange}
+          disabled={!editMode}
+          rows={3}
+          className={`w-full px-3 py-2 border-2 border-amber-200 rounded-lg outline-none transition-all resize-none ${
+            editMode ? "bg-white focus:border-amber-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
+          }`}
+          placeholder="Add appointment notes here..."
+        />
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex gap-3 pt-4">
+        {!editMode ? (
+          <>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onEditModeToggle(true)}
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold rounded-lg hover:shadow-lg transition-all"
+            >
+              ✏️ Edit Appointment
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onClose}
+              className="flex-1 px-6 py-3 bg-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-400 transition-all"
+            >
+              ✕ Close
+            </motion.button>
+          </>
+        ) : (
+          <>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onSaveChanges}
+              disabled={savingChanges}
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingChanges ? "💾 Saving..." : "💾 Save Changes"}
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onCancel}
+              disabled={savingChanges}
+              className="flex-1 px-6 py-3 bg-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              ↩️ Cancel
+            </motion.button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
+
+AppointmentDetailsForm.displayName = 'AppointmentDetailsForm';
+
+// Memoized Appointment Card Component
+const AppointmentCard = React.memo(({ appointment, onViewDetails, index }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05 }}
+      className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-5 border-2 border-indigo-200 hover:border-indigo-400 transition-all shadow-md hover:shadow-lg"
+    >
+      <div className="space-y-3">
+        <div>
+          <p className="text-xs text-gray-600 font-semibold">PATIENT</p>
+          <p className="text-lg font-bold text-indigo-900">
+            {appointment.firstName} {appointment.lastName}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-600 font-semibold">TIME</p>
+          <p className="text-base font-bold text-purple-600">
+            {appointment.appointmentTime || "N/A"}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-gray-600 font-semibold">DOCTOR</p>
+          <p className="text-sm text-gray-700">
+            {appointment.doctorName || "Not assigned"}
+          </p>
+        </div>
+        <div>
+          <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
+            appointment.appointmentStatus === 'Confirmed'
+              ? 'bg-green-100 text-green-800'
+              : appointment.appointmentStatus === 'Pending'
+              ? 'bg-yellow-100 text-yellow-800'
+              : 'bg-red-100 text-red-800'
+          }`}>
+            {appointment.appointmentStatus || "Pending"}
+          </span>
+        </div>
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => onViewDetails(appointment)}
+          className="w-full mt-4 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold rounded-lg hover:shadow-lg transition-all"
+        >
+          👁️ View Details
+        </motion.button>
+      </div>
+    </motion.div>
+  );
+});
+
+AppointmentCard.displayName = 'AppointmentCard';
+
+// Memoized Appointments Grid Component
+const AppointmentsGrid = React.memo(({ appointments, onViewDetails }) => {
+  return (
+    <div>
+      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+        <span>📋</span> Appointments ({appointments.length})
+      </h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {appointments.map((appointment, index) => (
+          <AppointmentCard
+            key={appointment.appointmentId || index}
+            appointment={appointment}
+            onViewDetails={onViewDetails}
+            index={index}
+          />
+        ))}
+      </div>
+    </div>
+  );
+});
+
+AppointmentsGrid.displayName = 'AppointmentsGrid';
 
 const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
   // State declarations
@@ -44,7 +319,7 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
   }, [isOpen, selectedDate]);
 
   // Fetch appointments
-  const fetchAppointments = async () => {
+  const fetchAppointments = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
     try {
@@ -65,10 +340,10 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate]);
 
   // View appointment details
-  const handleViewDetails = async (appointment) => {
+  const handleViewDetails = useCallback(async (appointment) => {
     setLoadingDetails(true);
     setEditMode(false);
     setAppointmentDetails(null);
@@ -107,10 +382,9 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
     } finally {
       setLoadingDetails(false);
     }
-  };
+  }, []);
 
-  // Save appointment changes
-  const handleSaveChanges = async () => {
+  const handleSaveChanges = useCallback(async () => {
     setSavingChanges(true);
     setErrorMessage("");
     try {
@@ -132,7 +406,25 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
     } finally {
       setSavingChanges(false);
     }
-  };
+  }, [editForm, appointments, funnyMessages]);
+
+  // Change handlers with useCallback
+  const handleEditFormChange = useCallback((newForm) => {
+    setEditForm(newForm);
+  }, []);
+
+  const handleEditModeToggle = useCallback((mode) => {
+    setEditMode(mode);
+  }, []);
+
+  const handleDetailCancel = useCallback(() => {
+    setEditMode(false);
+    setEditForm(appointmentDetails);
+  }, [appointmentDetails]);
+
+  const handleDetailClose = useCallback(() => {
+    setShowDetailModal(false);
+  }, []);
 
   if (!isOpen) return null;
 
@@ -211,62 +503,10 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
 
               {/* Appointments Grid */}
               {!loading && appointments.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <span>📋</span> Appointments ({appointments.length})
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {appointments.map((appointment, index) => (
-                      <motion.div
-                        key={index}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-5 border-2 border-indigo-200 hover:border-indigo-400 transition-all shadow-md hover:shadow-lg"
-                      >
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-xs text-gray-600 font-semibold">PATIENT</p>
-                            <p className="text-lg font-bold text-indigo-900">
-                              {appointment.firstName} {appointment.lastName}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-600 font-semibold">TIME</p>
-                            <p className="text-base font-bold text-purple-600">
-                              {appointment.appointmentTime || "N/A"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-600 font-semibold">DOCTOR</p>
-                            <p className="text-sm text-gray-700">
-                              {appointment.doctorName || "Not assigned"}
-                            </p>
-                          </div>
-                          <div>
-                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${
-                              appointment.appointmentStatus === 'Confirmed'
-                                ? 'bg-green-100 text-green-800'
-                                : appointment.appointmentStatus === 'Pending'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {appointment.appointmentStatus || "Pending"}
-                            </span>
-                          </div>
-                          <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            onClick={() => handleViewDetails(appointment)}
-                            className="w-full mt-4 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold rounded-lg hover:shadow-lg transition-all"
-                          >
-                            👁️ View Details
-                          </motion.button>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
+                <AppointmentsGrid 
+                  appointments={appointments} 
+                  onViewDetails={handleViewDetails}
+                />
               )}
 
               {/* No Appointments State */}
@@ -327,160 +567,17 @@ const ScheduleAppointmentsModal = ({ isOpen, onClose }) => {
 
                   {/* Details Content */}
                   {!loadingDetails && (
-                    <div className="p-6 space-y-4">
-                      {/* Patient Information */}
-                      <div className="bg-blue-50 rounded-2xl p-5 border-2 border-blue-200">
-                        <h3 className="text-lg font-bold text-blue-900 mb-4">👤 Patient Information</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-xs font-bold text-blue-700 mb-1">First Name</label>
-                            <input
-                              type="text"
-                              value={editForm.firstName || ""}
-                              onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
-                              disabled={!editMode}
-                              className={`w-full px-3 py-2 border-2 border-blue-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-blue-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
-                              }`}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-blue-700 mb-1">Last Name</label>
-                            <input
-                              type="text"
-                              value={editForm.lastName || ""}
-                              onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
-                              disabled={!editMode}
-                              className={`w-full px-3 py-2 border-2 border-blue-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-blue-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
-                              }`}
-                            />
-                          </div>
-                          <div className="col-span-2">
-                            <label className="block text-xs font-bold text-blue-700 mb-1">Contact Number</label>
-                            <input
-                              type="tel"
-                              value={editForm.contactNumber || ""}
-                              onChange={(e) => setEditForm({ ...editForm, contactNumber: e.target.value })}
-                              disabled={!editMode}
-                              className={`w-full px-3 py-2 border-2 border-blue-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-blue-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
-                              }`}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Appointment Information */}
-                      <div className="bg-purple-50 rounded-2xl p-5 border-2 border-purple-200">
-                        <h3 className="text-lg font-bold text-purple-900 mb-4">📅 Appointment Information</h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-xs font-bold text-purple-700 mb-1">Date</label>
-                            <input
-                              type="date"
-                              value={editForm.appointmentDate || ""}
-                              onChange={(e) => setEditForm({ ...editForm, appointmentDate: e.target.value })}
-                              disabled={!editMode}
-                              className={`w-full px-3 py-2 border-2 border-purple-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-purple-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
-                              }`}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-purple-700 mb-1">Time</label>
-                            <input
-                              type="time"
-                              value={editForm.appointmentTime || ""}
-                              onChange={(e) => setEditForm({ ...editForm, appointmentTime: e.target.value })}
-                              disabled={!editMode}
-                              className={`w-full px-3 py-2 border-2 border-purple-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-purple-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
-                              }`}
-                            />
-                          </div>
-                          <div className="col-span-2">
-                            <label className="block text-xs font-bold text-purple-700 mb-1">Status</label>
-                            <select
-                              value={editForm.appointmentStatus || ""}
-                              onChange={(e) => setEditForm({ ...editForm, appointmentStatus: e.target.value })}
-                              disabled={!editMode}
-                              className={`w-full px-3 py-2 border-2 border-purple-200 rounded-lg outline-none transition-all ${
-                                editMode ? "bg-white focus:border-purple-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
-                              }`}
-                            >
-                              <option value="Pending">Pending</option>
-                              <option value="Confirmed">Confirmed</option>
-                              <option value="Completed">Completed</option>
-                              <option value="Cancelled">Cancelled</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Notes */}
-                      <div className="bg-amber-50 rounded-2xl p-5 border-2 border-amber-200">
-                        <h3 className="text-lg font-bold text-amber-900 mb-4">📝 Notes</h3>
-                        <textarea
-                          value={editForm.notes || ""}
-                          onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                          disabled={!editMode}
-                          rows={3}
-                          className={`w-full px-3 py-2 border-2 border-amber-200 rounded-lg outline-none transition-all resize-none ${
-                            editMode ? "bg-white focus:border-amber-500" : "bg-gray-50 text-gray-600 cursor-not-allowed"
-                          }`}
-                          placeholder="Add appointment notes here..."
-                        />
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex gap-3 pt-4">
-                        {!editMode ? (
-                          <>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => setEditMode(true)}
-                              className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold rounded-lg hover:shadow-lg transition-all"
-                            >
-                              ✏️ Edit Appointment
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => setShowDetailModal(false)}
-                              className="flex-1 px-6 py-3 bg-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-400 transition-all"
-                            >
-                              ✕ Close
-                            </motion.button>
-                          </>
-                        ) : (
-                          <>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={handleSaveChanges}
-                              disabled={savingChanges}
-                              className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {savingChanges ? "💾 Saving..." : "💾 Save Changes"}
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => {
-                                setEditMode(false);
-                                setEditForm(appointmentDetails);
-                              }}
-                              disabled={savingChanges}
-                              className="flex-1 px-6 py-3 bg-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              ↩️ Cancel
-                            </motion.button>
-                          </>
-                        )}
-                      </div>
-                    </div>
+                    <AppointmentDetailsForm
+                      editForm={editForm}
+                      onEditFormChange={handleEditFormChange}
+                      editMode={editMode}
+                      onEditModeToggle={handleEditModeToggle}
+                      onSaveChanges={handleSaveChanges}
+                      onCancel={handleDetailCancel}
+                      onClose={handleDetailClose}
+                      savingChanges={savingChanges}
+                      appointmentDetails={appointmentDetails}
+                    />
                   )}
                 </motion.div>
               </motion.div>
