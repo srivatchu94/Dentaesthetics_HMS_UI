@@ -57,6 +57,8 @@ export default function Calendar() {
   const [updatingAppointment, setUpdatingAppointment] = useState(false);
   const [showPaymentDetailsModal, setShowPaymentDetailsModal] = useState(false);
   const [paymentModalAppointment, setPaymentModalAppointment] = useState(null);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState(null);
   
   // Booking form state - pre-fill with patient data if available
   const [bookingForm, setBookingForm] = useState({
@@ -314,6 +316,22 @@ export default function Calendar() {
     setViewMode("day");
   };
 
+  const handlePreviousDay = () => {
+    if (!selectedDate) return;
+    const currentDateObj = new Date(selectedDate);
+    currentDateObj.setDate(currentDateObj.getDate() - 1);
+    const previousDate = currentDateObj.toISOString().split('T')[0];
+    setSelectedDate(previousDate);
+  };
+
+  const handleNextDay = () => {
+    if (!selectedDate) return;
+    const currentDateObj = new Date(selectedDate);
+    currentDateObj.setDate(currentDateObj.getDate() + 1);
+    const nextDate = currentDateObj.toISOString().split('T')[0];
+    setSelectedDate(nextDate);
+  };
+
   const handleSlotClick = (time, dateStr) => {
     setSelectedSlot(time);
     setBookingForm({
@@ -565,72 +583,61 @@ export default function Calendar() {
           </div>
         </motion.div>
 
-        {/* Calendar Controls */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-2xl shadow-lg p-6 mb-6"
-        >
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            {/* Month Navigation */}
-            <div className="flex items-center gap-3">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
-                className="p-2 rounded-lg bg-gradient-to-r from-coral-100 to-peach-100 text-coral-600 hover:from-coral-200 hover:to-peach-200 transition-all"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </motion.button>
-              
-              <h2 className="text-2xl font-bold text-gray-800 min-w-[200px] text-center">
-                {viewMode === "month" ? `${months[currentDate.getMonth()]} ${currentDate.getFullYear()}` : selectedDate}
-              </h2>
-              
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
-                className="p-2 rounded-lg bg-gradient-to-r from-coral-100 to-peach-100 text-coral-600 hover:from-coral-200 hover:to-peach-200 transition-all"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </motion.button>
-            </div>
-
-            {/* View Mode & Today Button */}
-            <div className="flex items-center gap-3">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  setCurrentDate(new Date());
-                  setViewMode("month");
-                }}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-gold-500 to-peach-500 text-white font-semibold shadow-md hover:shadow-lg transition-all"
-              >
-                Today
-              </motion.button>
-              
-              {viewMode === "day" && (
+        {/* Calendar Controls - Only show in Month View */}
+        {viewMode === "month" && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white rounded-2xl shadow-lg p-6 mb-6"
+          >
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              {/* Month Navigation */}
+              <div className="flex items-center gap-3">
                 <motion.button
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setViewMode("month")}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-coral-500 to-peach-500 text-white font-semibold shadow-coral hover:shadow-lg transition-all"
+                  onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
+                  className="p-2 rounded-lg bg-gradient-to-r from-coral-100 to-peach-100 text-coral-600 hover:from-coral-200 hover:to-peach-200 transition-all"
                 >
-                  Back to Month
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
                 </motion.button>
-              )}
+                
+                <h2 className="text-2xl font-bold text-gray-800 min-w-[200px] text-center">
+                  {`${months[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
+                </h2>
+                
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
+                  className="p-2 rounded-lg bg-gradient-to-r from-coral-100 to-peach-100 text-coral-600 hover:from-coral-200 hover:to-peach-200 transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </motion.button>
+              </div>
+
+              {/* View Mode & Today Button */}
+              <div className="flex items-center gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setCurrentDate(new Date());
+                    setViewMode("month");
+                  }}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-gold-500 to-peach-500 text-white font-semibold shadow-md hover:shadow-lg transition-all"
+                >
+                  Today
+                </motion.button>
+              </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        )}
 
         {/* Month View */}
         {viewMode === "month" && (
@@ -712,21 +719,57 @@ export default function Calendar() {
             className="bg-white rounded-2xl shadow-lg p-6"
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-2xl font-bold text-gray-800">
-                Schedule for {selectedDate}
-              </h3>
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  setBookingForm({ ...bookingForm, date: selectedDate });
-                  setShowBookingModal(true);
-                }}
-                className="px-6 py-3 bg-gradient-to-r from-teal-500 to-sage-500 text-white rounded-xl font-semibold shadow-teal hover:shadow-xl transition-all flex items-center gap-2"
-              >
-                <span>➕</span>
-                <span>New Appointment</span>
-              </motion.button>
+              <div className="flex items-center gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handlePreviousDay}
+                  className="p-2 rounded-lg bg-gradient-to-r from-coral-100 to-peach-100 text-coral-600 hover:from-coral-200 hover:to-peach-200 transition-all"
+                  title="Previous day"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </motion.button>
+                
+                <h3 className="text-2xl font-bold text-gray-800 min-w-[150px] text-center">
+                  {selectedDate}
+                </h3>
+                
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleNextDay}
+                  className="p-2 rounded-lg bg-gradient-to-r from-coral-100 to-peach-100 text-coral-600 hover:from-coral-200 hover:to-peach-200 transition-all"
+                  title="Next day"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </motion.button>
+              </div>
+              <div className="flex items-center gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setViewMode("month")}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-coral-500 to-peach-500 text-white font-semibold shadow-coral hover:shadow-lg transition-all"
+                >
+                  Back to Month
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setBookingForm({ ...bookingForm, date: selectedDate });
+                    setShowBookingModal(true);
+                  }}
+                  className="px-6 py-3 bg-gradient-to-r from-teal-500 to-sage-500 text-white rounded-xl font-semibold shadow-teal hover:shadow-xl transition-all flex items-center gap-2"
+                >
+                  <span>➕</span>
+                  <span>New Appointment</span>
+                </motion.button>
+              </div>
             </div>
 
             {/* Time Slots Grid */}
@@ -742,7 +785,8 @@ export default function Calendar() {
                     {isStartOfAppointment ? (
                       <>
                         {startingAppointments.map((currentAppointment, index) => {
-                          const cardWidth = 100 / startingAppointments.length;
+                          const totalAppointments = startingAppointments.length;
+                          const cardWidth = 100 / totalAppointments;
 
                           return (
                             <motion.div
@@ -759,7 +803,7 @@ export default function Calendar() {
                                   handleAppointmentDrag(currentAppointment.id, TIME_SLOTS[newIdx]);
                                 }
                               }}
-                              whileHover={{ scale: 1.02, zIndex: 10 }}
+                              whileHover={{ scale: 1.02, zIndex: 50, y: -2 }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedAppointment(currentAppointment);
@@ -783,22 +827,17 @@ export default function Calendar() {
                                 setIsEditingAppointment(false);
                                 setShowAppointmentModal(true);
                               }}
-                              className="absolute z-10 cursor-move"
+                              className="absolute cursor-move"
                               style={{
-                                height: calculateSlotHeight(currentAppointment.startTime, currentAppointment.endTime),
-                                width: `calc(${cardWidth}% - 4px)`,
-                                left: `calc(${index * cardWidth}% + 2px)`
+                                height: '60px',
+                                width: `calc(${cardWidth}% - ${totalAppointments > 1 ? 6 : 2}px)`,
+                                left: `calc(${index * cardWidth}%)`,
+                                top: '0px',
+                                zIndex: 10 + index
                               }}
                             >
-                              <div className={`h-full bg-gradient-to-r from-${currentAppointment.color}-400 to-${currentAppointment.color}-500 rounded-lg p-3 shadow-lg border-2 border-${currentAppointment.color}-600 hover:shadow-xl transition-all`}>
-                                <div className="flex items-center justify-between mb-1">
-                                  <p className="font-bold text-white text-sm truncate">{currentAppointment.patient}</p>
-                                  <svg className="w-4 h-4 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                                  </svg>
-                                </div>
-                                <p className="text-xs text-white opacity-90 truncate">{currentAppointment.type}</p>
-                                <p className="text-xs text-white opacity-90 truncate">{currentAppointment.startTime} - {currentAppointment.endTime}</p>
+                              <div className={`h-full bg-gradient-to-br from-${currentAppointment.color}-400 to-${currentAppointment.color}-500 rounded-lg p-2.5 shadow-md hover:shadow-xl border border-${currentAppointment.color}-300 transition-all flex items-center justify-center`}>
+                                <p className="font-bold text-white text-sm text-center truncate px-1">{currentAppointment.patient}</p>
                               </div>
                             </motion.div>
                           );
@@ -1393,8 +1432,8 @@ export default function Calendar() {
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => {
-                          setAppointments(appointments.filter(apt => apt.id !== selectedAppointment.id));
-                          setShowAppointmentModal(false);
+                          setAppointmentToDelete(selectedAppointment);
+                          setShowDeleteConfirmModal(true);
                         }}
                         className="flex-1 py-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition-all"
                       >
@@ -1489,6 +1528,95 @@ export default function Calendar() {
                       "Yes, Double Book"
                     )}
                   </motion.button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Delete Confirmation Modal */}
+        <AnimatePresence>
+          {showDeleteConfirmModal && appointmentToDelete && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-md z-[120] flex items-center justify-center p-4"
+              onClick={() => setShowDeleteConfirmModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+              >
+                {/* Header */}
+                <div className="bg-gradient-to-r from-red-500 to-rose-500 p-6 text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-2xl">
+                      ⚠️
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold">Delete Appointment</h3>
+                      <p className="text-red-100 text-sm">This action cannot be undone</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-6">
+                  <p className="text-gray-700 mb-4">
+                    Are you sure you want to delete this appointment?
+                  </p>
+                  
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2 mb-6">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600 font-semibold">Patient:</span>
+                      <span className="text-gray-900">{appointmentToDelete.patient}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600 font-semibold">Date:</span>
+                      <span className="text-gray-900">{appointmentToDelete.date}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600 font-semibold">Time:</span>
+                      <span className="text-gray-900">{appointmentToDelete.startTime} - {appointmentToDelete.endTime}</span>
+                    </div>
+                    {appointmentToDelete.type && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-600 font-semibold">Type:</span>
+                        <span className="text-gray-900">{appointmentToDelete.type}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setShowDeleteConfirmModal(false)}
+                      className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                    >
+                      Cancel
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setAppointments(appointments.filter(apt => apt.id !== appointmentToDelete.id));
+                        setShowDeleteConfirmModal(false);
+                        setShowAppointmentModal(false);
+                        setSuccessMessage('🗑️ Appointment deleted successfully!');
+                        setShowSuccessModal(true);
+                        setTimeout(() => setShowSuccessModal(false), 2000);
+                      }}
+                      className="flex-1 py-3 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all"
+                    >
+                      Delete
+                    </motion.button>
+                  </div>
                 </div>
               </motion.div>
             </motion.div>
