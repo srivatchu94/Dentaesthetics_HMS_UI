@@ -6,6 +6,7 @@ import { getSelectedAccess, getAuthToken } from "../services/authService";
 import { getClinicsByEnterpriseId } from "../services/clinicService";
 
 const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+const countryCodeOptions = ["+91", "+1", "+44", "+61", "+65", "+971"];
 
 export default function ViewStaffDetails() {
   const navigate = useNavigate();
@@ -42,6 +43,33 @@ export default function ViewStaffDetails() {
   // Roles from API
   const [roleOptions, setRoleOptions] = useState([]);
   const [rolesLoading, setRolesLoading] = useState(false);
+
+  const splitPhoneWithCountryCode = (value) => {
+    const raw = (value || "").toString().trim();
+    const defaultCode = "+91";
+    if (!raw) {
+      return { countryCode: defaultCode, number: "" };
+    }
+
+    const normalized = raw.replace(/[\s-]/g, "");
+    if (normalized.startsWith("+")) {
+      const matchedCode = [...countryCodeOptions]
+        .sort((a, b) => b.length - a.length)
+        .find(code => normalized.startsWith(code));
+
+      if (matchedCode) {
+        return {
+          countryCode: matchedCode,
+          number: normalized.slice(matchedCode.length).replace(/\D/g, "").slice(0, 10)
+        };
+      }
+    }
+
+    return {
+      countryCode: defaultCode,
+      number: normalized.replace(/\D/g, "").slice(0, 10)
+    };
+  };
 
   // Fetch roles for staff on mount
   useEffect(() => {
@@ -248,9 +276,18 @@ export default function ViewStaffDetails() {
   const openEditModal = staff => {
     console.log("🔍 Full Staff Object for Edit:", staff);
     console.log("  - Profile ID:", staff.profileId);
+    const { countryCode: phoneCountryCode, number: phone } = splitPhoneWithCountryCode(staff.phone);
+    const { countryCode: emergencyCountryCode, number: emergencyContact } = splitPhoneWithCountryCode(staff.emergencyContact);
+
     setSelectedStaff(staff);
     // Store profileId from mapped data
-    setEditFormData({ ...staff });
+    setEditFormData({
+      ...staff,
+      phoneCountryCode,
+      emergencyCountryCode,
+      phone,
+      emergencyContact
+    });
     setShowEditModal(true);
   };
 
@@ -285,6 +322,16 @@ export default function ViewStaffDetails() {
 
     if (editFormData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editFormData.email)) {
       setError("Please enter a valid email address");
+      return;
+    }
+
+    if (editFormData.phone && editFormData.phone.length !== 10) {
+      setError("Phone number must be exactly 10 digits");
+      return;
+    }
+
+    if (editFormData.emergencyContact && editFormData.emergencyContact.length !== 10) {
+      setError("Emergency contact number must be exactly 10 digits");
       return;
     }
 
@@ -325,7 +372,7 @@ export default function ViewStaffDetails() {
         FirstName: editFormData.firstName || null,
         LastName: editFormData.lastName || null,
         Email: editFormData.email || null,
-        Phone: editFormData.phone || null,
+        Phone: editFormData.phone ? `${editFormData.phoneCountryCode || "+91"}${editFormData.phone}` : null,
         Gender: editFormData.gender || null,
         DateOfBirth: editFormData.dateOfBirth || null,
         Address: editFormData.address || null,
@@ -337,7 +384,7 @@ export default function ViewStaffDetails() {
         Languages: editFormData.languages || null,
         Availability: editFormData.availability || null,
         InsuranceDetails: editFormData.insuranceDetails || null,
-        EmergencyContact: editFormData.emergencyContact || null,
+        EmergencyContact: editFormData.emergencyContact ? `${editFormData.emergencyCountryCode || "+91"}${editFormData.emergencyContact}` : null,
         Bio: editFormData.bio || null,
         ProfilePhotoUrl: editFormData.profilePhotoUrl || null,
         Achievements: editFormData.achievements || null,
@@ -968,15 +1015,29 @@ export default function ViewStaffDetails() {
                       <label className="block text-sm font-semibold text-gray-700 mb-1">
                         Phone
                       </label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={editFormData.phone}
-                        onChange={handleEditFormChange}
-                        maxLength={10}
-                        inputMode="numeric"
-                        className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
+                      <div className="flex gap-2">
+                        <select
+                          name="phoneCountryCode"
+                          value={editFormData.phoneCountryCode || "+91"}
+                          onChange={handleEditFormChange}
+                          className="w-28 border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          {countryCodeOptions.map(code => (
+                            <option key={code} value={code}>{code}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          name="phone"
+                          value={editFormData.phone}
+                          onChange={handleEditFormChange}
+                          maxLength={10}
+                          inputMode="numeric"
+                          pattern="[0-9]{10}"
+                          className="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          placeholder="Enter 10-digit phone number"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -1182,15 +1243,29 @@ export default function ViewStaffDetails() {
                         <label className="block text-sm font-semibold text-gray-700 mb-1">
                           Emergency Contact
                         </label>
-                        <input
-                          type="tel"
-                          name="emergencyContact"
-                          value={editFormData.emergencyContact || ""}
-                          onChange={handleEditFormChange}
-                          maxLength={10}
-                          inputMode="numeric"
-                          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
+                        <div className="flex gap-2">
+                          <select
+                            name="emergencyCountryCode"
+                            value={editFormData.emergencyCountryCode || "+91"}
+                            onChange={handleEditFormChange}
+                            className="w-28 border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          >
+                            {countryCodeOptions.map(code => (
+                              <option key={code} value={code}>{code}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="tel"
+                            name="emergencyContact"
+                            value={editFormData.emergencyContact || ""}
+                            onChange={handleEditFormChange}
+                            maxLength={10}
+                            inputMode="numeric"
+                            pattern="[0-9]{10}"
+                            className="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            placeholder="Enter 10-digit emergency contact number"
+                          />
+                        </div>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

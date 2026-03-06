@@ -52,6 +52,7 @@ const availableRoles = [
     permissions: ["Enterprise Management", "Multi-clinic Operations", "User Management", "Settings"]
   }
 ];
+const countryCodeOptions = ["+91", "+1", "+44", "+61", "+65", "+971"];
 
 const TeamHub = () => {
   const navigate = useNavigate();
@@ -64,6 +65,7 @@ const TeamHub = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
+  const [emailError, setEmailError] = useState("");
   
   // Access Control Modal States
   const [showAccessControlModal, setShowAccessControlModal] = useState(false);
@@ -118,6 +120,41 @@ const TeamHub = () => {
   // Today's date (YYYY-MM-DD) for date validation and max attribute
   const today = new Date();
   const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const isValidEmailWithDomain = (email) => {
+    if (!email) return false;
+    const normalized = email.trim();
+    const basicPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!basicPattern.test(normalized)) return false;
+
+    const [localPart, domainPartRaw] = normalized.split("@");
+    if (!localPart || !domainPartRaw) return false;
+    if (localPart.length > 64 || domainPartRaw.length > 253) return false;
+    if (localPart.startsWith(".") || localPart.endsWith(".") || localPart.includes("..")) return false;
+
+    const domainPart = domainPartRaw.toLowerCase();
+    if (domainPart === "localhost" || domainPart.includes("..")) return false;
+
+    const labels = domainPart.split(".");
+    if (labels.length < 2) return false;
+
+    const hasInvalidLabel = labels.some(label => {
+      if (!label || label.length > 63) return true;
+      if (!/^[a-z0-9-]+$/i.test(label)) return true;
+      if (label.startsWith("-") || label.endsWith("-")) return true;
+      return false;
+    });
+    if (hasInvalidLabel) return false;
+
+    const tld = labels[labels.length - 1];
+    if (!/^[a-z]{2,24}$/i.test(tld)) return false;
+
+    return true;
+  };
+  const hasValidFourDigitYear = (dateValue) => {
+    if (!dateValue) return true;
+    const yearPart = (dateValue.split("-")[0] || "").trim();
+    return /^\d{4}$/.test(yearPart);
+  };
   
   // Security Questions Modal States
   const [showSecurityQuestionsModal, setShowSecurityQuestionsModal] = useState(false);
@@ -176,6 +213,7 @@ const TeamHub = () => {
     dateOfBirth: "",
     gender: "",
     email: "",
+    phoneCountryCode: "+91",
     phone: "",
     address: "",
     licenseNumber: "",
@@ -189,6 +227,7 @@ const TeamHub = () => {
     employmentStatus: "Active",
     availability: "",
     insuranceDetails: "",
+    emergencyCountryCode: "+91",
     emergencyContact: "",
     bio: "",
     profilePhotoUrl: "",
@@ -1358,7 +1397,6 @@ const TeamHub = () => {
     const errors = [];
     
     if (tab === "personal") {
-      if (!doctorFormData.enterpriseId) errors.push("enterpriseId");
       if (!doctorFormData.clinicId) errors.push("clinicId");
       if (!doctorFormData.firstName) errors.push("firstName");
       if (!doctorFormData.lastName) errors.push("lastName");
@@ -1369,16 +1407,21 @@ const TeamHub = () => {
       if (!doctorFormData.roleId || doctorFormData.roleId === "") errors.push("roleId");
     } else if (tab === "contact") {
       if (!doctorFormData.email) errors.push("email");
+      if (doctorFormData.email && !isValidEmailWithDomain(doctorFormData.email)) errors.push("email");
       if (!doctorFormData.phone) errors.push("phone");
+      if (doctorFormData.phone && doctorFormData.phone.length !== 10) errors.push("phone");
       if (!doctorFormData.emergencyContact) errors.push("emergencyContact");
+      if (doctorFormData.emergencyContact && doctorFormData.emergencyContact.length !== 10) errors.push("emergencyContact");
     } else if (tab === "professional") {
       if (!isReceptionistMode) {
         if (!doctorFormData.licenseNumber) errors.push("licenseNumber");
         if (!doctorFormData.licenseExpiry) errors.push("licenseExpiry");
+        if (doctorFormData.licenseExpiry && !hasValidFourDigitYear(doctorFormData.licenseExpiry)) errors.push("licenseExpiry");
         if (!doctorFormData.specialtyId) errors.push("specialtyId");
       }
     } else if (tab === "employment") {
       if (!doctorFormData.joiningDate) errors.push("joiningDate");
+      if (doctorFormData.joiningDate && !hasValidFourDigitYear(doctorFormData.joiningDate)) errors.push("joiningDate");
       if (!doctorFormData.employmentStatus) errors.push("employmentStatus");
     }
     
@@ -1389,7 +1432,6 @@ const TeamHub = () => {
   const validateBeforeSubmit = () => {
     const missing = [];
     // Personal
-    if (!doctorFormData.enterpriseId || parseInt(doctorFormData.enterpriseId) <= 0) missing.push('Enterprise ID');
     if (!doctorFormData.clinicId || parseInt(doctorFormData.clinicId) <= 0) missing.push('Clinic ID');
     if (!doctorFormData.firstName?.trim()) missing.push('First Name');
     if (!doctorFormData.lastName?.trim()) missing.push('Last Name');
@@ -1399,17 +1441,22 @@ const TeamHub = () => {
     if (!doctorFormData.roleId || doctorFormData.roleId === "") missing.push('Role');
     // Contact
     if (!doctorFormData.email?.trim()) missing.push('Email');
+    if (doctorFormData.email && !isValidEmailWithDomain(doctorFormData.email)) missing.push('Valid Email with valid domain');
     if (!doctorFormData.phone?.trim()) missing.push('Phone');
+    if (doctorFormData.phone?.trim() && doctorFormData.phone.length !== 10) missing.push('Valid 10-digit Phone');
     if (!doctorFormData.emergencyContact?.trim()) missing.push('Emergency Contact');
+    if (doctorFormData.emergencyContact?.trim() && doctorFormData.emergencyContact.length !== 10) missing.push('Valid 10-digit Emergency Contact');
     // Professional
     if (!isReceptionistMode) {
       const specId = parseInt(doctorFormData.specialtyId);
       if (!doctorFormData.licenseNumber?.trim()) missing.push('License Number');
       if (!doctorFormData.licenseExpiry) missing.push('License Expiry');
+      if (doctorFormData.licenseExpiry && !hasValidFourDigitYear(doctorFormData.licenseExpiry)) missing.push('Valid 4-digit year in License Expiry');
       if (!specId || specId <= 0 || Number.isNaN(specId)) missing.push('Specialty ID');
     }
     // Employment
     if (!doctorFormData.joiningDate) missing.push('Joining Date');
+    if (doctorFormData.joiningDate && !hasValidFourDigitYear(doctorFormData.joiningDate)) missing.push('Valid 4-digit year in Joining Date');
     if (!doctorFormData.employmentStatus?.trim()) missing.push('Employment Status');
     // Receptionist-only
     if (isReceptionistMode && (!doctorFormData.roleId || doctorFormData.roleId === 0)) missing.push('Assigned Role');
@@ -1442,6 +1489,40 @@ const TeamHub = () => {
   // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === "email") {
+      setDoctorFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+      if (value && !isValidEmailWithDomain(value)) {
+        setEmailError("Please enter a valid email with a valid domain");
+      } else {
+        setEmailError("");
+      }
+      return;
+    }
+
+    if (name === "phone" || name === "emergencyContact") {
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+      setDoctorFormData(prev => ({
+        ...prev,
+        [name]: digitsOnly
+      }));
+      return;
+    }
+
+    if ((name === "licenseExpiry" || name === "joiningDate") && value) {
+      const [yearPart, monthPart, dayPart] = value.split("-");
+      const normalizedYear = (yearPart || "").replace(/\D/g, "").slice(0, 4);
+      const normalizedValue = [normalizedYear, monthPart, dayPart].filter(Boolean).join("-");
+      setDoctorFormData(prev => ({
+        ...prev,
+        [name]: normalizedValue
+      }));
+      return;
+    }
+
     setDoctorFormData(prev => ({
       ...prev,
       [name]: value
@@ -1457,6 +1538,7 @@ const TeamHub = () => {
       dateOfBirth: "",
       gender: "",
       email: "",
+      phoneCountryCode: "+91",
       phone: "",
       address: "",
       licenseNumber: "",
@@ -1470,6 +1552,7 @@ const TeamHub = () => {
       employmentStatus: "",
       availability: "",
       insuranceDetails: "",
+      emergencyCountryCode: "+91",
       emergencyContact: "",
       bio: "",
       profilePhotoUrl: "",
@@ -1510,15 +1593,17 @@ const TeamHub = () => {
       console.log("🎭 Selected role:", roleName);
 
       // Build payload for StaffDetail API - matches the C# model exactly
+      const selectedAccess = getSelectedAccess();
+      const resolvedEnterpriseId = parseInt(doctorFormData.enterpriseId) || selectedAccess?.enterpriseId || null;
       const staffDetailPayload = {
-        enterpriseId: parseInt(doctorFormData.enterpriseId) || null,
+        enterpriseId: resolvedEnterpriseId,
         clinicId: parseInt(doctorFormData.clinicId) || null,
         firstName: doctorFormData.firstName,
         lastName: doctorFormData.lastName,
         dateOfBirth: doctorFormData.dateOfBirth ? new Date(doctorFormData.dateOfBirth).toISOString() : null,
         gender: doctorFormData.gender || null,
         email: doctorFormData.email || null,
-        phone: doctorFormData.phone || null,
+        phone: doctorFormData.phone ? `${doctorFormData.phoneCountryCode}${doctorFormData.phone}` : null,
         address: doctorFormData.address || null,
         licenseNumber: doctorFormData.licenseNumber || null,
         licenseExpiry: doctorFormData.licenseExpiry ? new Date(doctorFormData.licenseExpiry).toISOString() : null,
@@ -1531,7 +1616,7 @@ const TeamHub = () => {
         employmentStatus: doctorFormData.employmentStatus || "Active",
         availability: doctorFormData.availability || null,
         insuranceDetails: doctorFormData.insuranceDetails || null,
-        emergencyContact: doctorFormData.emergencyContact || null,
+        emergencyContact: doctorFormData.emergencyContact ? `${doctorFormData.emergencyCountryCode}${doctorFormData.emergencyContact}` : null,
         bio: doctorFormData.bio || null,
         profilePhotoUrl: doctorFormData.profilePhotoUrl || null,
         achievements: doctorFormData.achievements || null,
@@ -1791,32 +1876,7 @@ const TeamHub = () => {
                     animate={{ opacity: 1, x: 0 }}
                     className="space-y-4"
                   >
-                    {/* Staff ID, Branch ID, and Role in same row */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-purple-900 mb-2">
-                          Enterprise ID <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                          name="enterpriseId"
-                          value={doctorFormData.enterpriseId}
-                          onChange={handleInputChange}
-                          className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            validationErrors.includes("enterpriseId") ? "border-red-500 bg-red-50" : "border-purple-300"
-                          } ${freezeEnterprise ? 'bg-gray-100 cursor-not-allowed opacity-90' : ''}`}
-                          disabled={freezeEnterprise}
-                        >
-                          <option value="">Select enterprise</option>
-                          {allEnterprises.map(enterprise => {
-                            const enterpriseId = enterprise.enterpriseID || enterprise.enterpriseId || enterprise.id;
-                            return (
-                              <option key={enterpriseId} value={enterpriseId}>
-                                {enterprise.enterpriseName || enterprise.name} ({enterpriseId})
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-semibold text-purple-900 mb-2">
                           Clinic ID <span className="text-red-500">*</span>
@@ -1960,25 +2020,41 @@ const TeamHub = () => {
                           value={doctorFormData.email}
                           onChange={handleInputChange}
                           className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            validationErrors.includes("email") ? "border-red-500 bg-red-50" : "border-purple-300"
+                            (validationErrors.includes("email") || emailError) ? "border-red-500 bg-red-50" : "border-purple-300"
                           }`}
                           placeholder="doctor@example.com"
                         />
+                        {emailError && <p className="text-xs text-red-600 mt-1">{emailError}</p>}
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-purple-900 mb-2">
                           Phone <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="tel"
-                          name="phone"
-                          value={doctorFormData.phone}
-                          onChange={handleInputChange}
-                          className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            validationErrors.includes("phone") ? "border-red-500 bg-red-50" : "border-purple-300"
-                          }`}
-                          placeholder="+91 98765 43210"
-                        />
+                        <div className="flex gap-2">
+                          <select
+                            name="phoneCountryCode"
+                            value={doctorFormData.phoneCountryCode}
+                            onChange={handleInputChange}
+                            className="w-28 px-3 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          >
+                            {countryCodeOptions.map(code => (
+                              <option key={code} value={code}>{code}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="tel"
+                            name="phone"
+                            value={doctorFormData.phone}
+                            onChange={handleInputChange}
+                            inputMode="numeric"
+                            pattern="[0-9]{10}"
+                            maxLength={10}
+                            className={`flex-1 px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                              validationErrors.includes("phone") ? "border-red-500 bg-red-50" : "border-purple-300"
+                            }`}
+                            placeholder="Enter 10-digit phone number"
+                          />
+                        </div>
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-sm font-semibold text-purple-900 mb-2">
@@ -1997,16 +2073,31 @@ const TeamHub = () => {
                         <label className="block text-sm font-semibold text-purple-900 mb-2">
                           Emergency Contact <span className="text-red-500">*</span>
                         </label>
-                        <input
-                          type="text"
-                          name="emergencyContact"
-                          value={doctorFormData.emergencyContact}
-                          onChange={handleInputChange}
-                          className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            validationErrors.includes("emergencyContact") ? "border-red-500 bg-red-50" : "border-purple-300"
-                          }`}
-                          placeholder="Emergency contact number"
-                        />
+                        <div className="flex gap-2">
+                          <select
+                            name="emergencyCountryCode"
+                            value={doctorFormData.emergencyCountryCode}
+                            onChange={handleInputChange}
+                            className="w-28 px-3 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          >
+                            {countryCodeOptions.map(code => (
+                              <option key={code} value={code}>{code}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="tel"
+                            name="emergencyContact"
+                            value={doctorFormData.emergencyContact}
+                            onChange={handleInputChange}
+                            inputMode="numeric"
+                            pattern="[0-9]{10}"
+                            maxLength={10}
+                            className={`flex-1 px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                              validationErrors.includes("emergencyContact") ? "border-red-500 bg-red-50" : "border-purple-300"
+                            }`}
+                            placeholder="Enter 10-digit emergency contact number"
+                          />
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -2076,6 +2167,8 @@ const TeamHub = () => {
                                 name="licenseExpiry"
                                 value={doctorFormData.licenseExpiry}
                                 onChange={handleInputChange}
+                                min="1000-01-01"
+                                max="9999-12-31"
                                 disabled={disableClinicalFields}
                                 className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                                   disableClinicalFields ? "border-gray-200 " + disabledClass : validationErrors.includes("licenseExpiry") ? "border-red-500 bg-red-50" : "border-purple-300"
@@ -2087,7 +2180,7 @@ const TeamHub = () => {
                                 Specialty ID {requiresAcademic && !isAdmin ? <span className="text-red-500">*</span> : null}
                               </label>
                               <input
-                                type="number"
+                                type="text"
                                 name="specialtyId"
                                 value={doctorFormData.specialtyId}
                                 onChange={handleInputChange}
@@ -2178,6 +2271,8 @@ const TeamHub = () => {
                           name="joiningDate"
                           value={doctorFormData.joiningDate}
                           onChange={handleInputChange}
+                          min="1000-01-01"
+                          max="9999-12-31"
                           className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                             validationErrors.includes("joiningDate") ? "border-red-500 bg-red-50" : "border-purple-300"
                           }`}
@@ -2266,7 +2361,7 @@ const TeamHub = () => {
                         Profile Photo URL
                       </label>
                       <input
-                        type="text"
+                        type="url"
                         name="profilePhotoUrl"
                         value={doctorFormData.profilePhotoUrl}
                         onChange={handleInputChange}
@@ -2386,7 +2481,7 @@ const TeamHub = () => {
                   <div><span className="font-bold">Clinic ID:</span> {doctorFormData.clinicId}</div>
                   <div><span className="font-bold">Role:</span> {doctorFormData.role || availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId))?.roleName}</div>
                   <div><span className="font-bold">Email:</span> {doctorFormData.email}</div>
-                  <div><span className="font-bold">Phone:</span> {doctorFormData.phone}</div>
+                  <div><span className="font-bold">Phone:</span> {doctorFormData.phone ? `${doctorFormData.phoneCountryCode}${doctorFormData.phone}` : ""}</div>
                   <div><span className="font-bold">License:</span> {doctorFormData.licenseNumber}</div>
                   <div><span className="font-bold">Specialty ID:</span> {doctorFormData.specialtyId}</div>
                   <div><span className="font-bold">Employment:</span> {doctorFormData.employmentStatus}</div>

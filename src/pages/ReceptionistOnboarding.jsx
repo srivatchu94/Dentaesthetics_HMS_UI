@@ -9,6 +9,7 @@ export default function ReceptionistOnboarding() {
   const [loadingClinics, setLoadingClinics] = useState(false);
   const [loadingEnterprises, setLoadingEnterprises] = useState(false);
   const [error, setError] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [showDebug, setShowDebug] = useState(false);
   const [freezeEnterprise, setFreezeEnterprise] = useState(false);
@@ -21,6 +22,41 @@ export default function ReceptionistOnboarding() {
   // Local date string (YYYY-MM-DD) for input max validation
   const today = new Date();
   const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const isValidEmailWithDomain = (email) => {
+    if (!email) return false;
+    const normalized = email.trim();
+    const basicPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!basicPattern.test(normalized)) return false;
+
+    const [localPart, domainPartRaw] = normalized.split("@");
+    if (!localPart || !domainPartRaw) return false;
+    if (localPart.length > 64 || domainPartRaw.length > 253) return false;
+    if (localPart.startsWith(".") || localPart.endsWith(".") || localPart.includes("..")) return false;
+
+    const domainPart = domainPartRaw.toLowerCase();
+    if (domainPart === "localhost" || domainPart.includes("..")) return false;
+
+    const labels = domainPart.split(".");
+    if (labels.length < 2) return false;
+
+    const hasInvalidLabel = labels.some(label => {
+      if (!label || label.length > 63) return true;
+      if (!/^[a-z0-9-]+$/i.test(label)) return true;
+      if (label.startsWith("-") || label.endsWith("-")) return true;
+      return false;
+    });
+    if (hasInvalidLabel) return false;
+
+    const tld = labels[labels.length - 1];
+    if (!/^[a-z]{2,24}$/i.test(tld)) return false;
+
+    return true;
+  };
+  const hasValidFourDigitYear = (dateValue) => {
+    if (!dateValue) return true;
+    const yearPart = (dateValue.split("-")[0] || "").trim();
+    return /^\d{4}$/.test(yearPart);
+  };
   
   // Available roles - using role names as both id and value to match API requirements
   const availableRoles = [
@@ -30,12 +66,14 @@ export default function ReceptionistOnboarding() {
     { name: "Doctor", label: "Doctor" },
     { name: "Receptionist", label: "Receptionist" }
   ];
+  const countryCodeOptions = ["+91", "+1", "+44", "+61", "+65", "+971"];
   
   const [form, setForm] = useState({
     staffId: "",
     firstName: "",
     lastName: "",
     email: "",
+    phoneCountryCode: "+91",
     phone: "",
     enterpriseId: 0,
     clinicId: 0,
@@ -51,6 +89,7 @@ export default function ReceptionistOnboarding() {
     employmentStatus: "Full-time",
     availability: "",
     insuranceDetails: "",
+    emergencyCountryCode: "+91",
     emergencyContact: "",
     bio: "",
     profilePhotoUrl: "",
@@ -153,6 +192,34 @@ export default function ReceptionistOnboarding() {
 
   const handleChange = e => {
     const { name, value } = e.target;
+
+    if (name === "email") {
+      setForm(prev => ({ ...prev, [name]: value }));
+      if (value && !isValidEmailWithDomain(value)) {
+        setEmailError("Please enter a valid email with a valid domain");
+      } else {
+        setEmailError("");
+      }
+      setError("");
+      return;
+    }
+
+    if (name === "phone" || name === "emergencyContact") {
+      const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+      setForm(prev => ({ ...prev, [name]: digitsOnly }));
+      setError("");
+      return;
+    }
+
+    if ((name === "licenseExpiry" || name === "joiningDate") && value) {
+      const [yearPart, monthPart, dayPart] = value.split("-");
+      const normalizedYear = (yearPart || "").replace(/\D/g, "").slice(0, 4);
+      const normalizedValue = [normalizedYear, monthPart, dayPart].filter(Boolean).join("-");
+      setForm(prev => ({ ...prev, [name]: normalizedValue }));
+      setError("");
+      return;
+    }
+
     setForm(prev => ({ ...prev, [name]: value }));
     setError("");
   };
@@ -163,10 +230,20 @@ export default function ReceptionistOnboarding() {
     console.log("Form state:", form);
     setError("");
     setSuccessMessage("");
+    const selectedAccess = getSelectedAccess();
+    const resolvedEnterpriseId = form.enterpriseId || selectedAccess?.enterpriseId || 0;
 
     if (!form.firstName || !form.lastName || !form.email) {
         console.log("❌ Validation failed: Missing required fields");
       setError("Please fill all required fields");
+      return;
+    }
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
+    if (!isValidEmailWithDomain(form.email)) {
+      setError("Please enter a valid email with a valid domain");
       return;
     }
     // Validate date of birth not in future
@@ -174,18 +251,39 @@ export default function ReceptionistOnboarding() {
       setError("Date of birth cannot be a future date");
       return;
     }
+    if (form.licenseExpiry && !hasValidFourDigitYear(form.licenseExpiry)) {
+      setError("License expiry year must be exactly 4 digits");
+      return;
+    }
+    if (form.joiningDate && !hasValidFourDigitYear(form.joiningDate)) {
+      setError("Joining date year must be exactly 4 digits");
+      return;
+    }
 
     // Validate phone and emergency contact are not the same (normalize digits)
     const norm = (s) => (s || "").replace(/\D/g, "");
     const phoneNorm = norm(form.phone);
     const emergencyNorm = norm(form.emergencyContact);
-    if (phoneNorm && emergencyNorm && phoneNorm === emergencyNorm) {
+    if (phoneNorm && phoneNorm.length !== 10) {
+      setError("Phone number must be exactly 10 digits");
+      return;
+    }
+    if (emergencyNorm && emergencyNorm.length !== 10) {
+      setError("Emergency contact number must be exactly 10 digits");
+      return;
+    }
+    if (
+      phoneNorm &&
+      emergencyNorm &&
+      form.phoneCountryCode === form.emergencyCountryCode &&
+      phoneNorm === emergencyNorm
+    ) {
       setError("Phone number and emergency contact cannot be the same");
       return;
     }
-    if (!form.enterpriseId || !form.clinicId) {
-        console.log("❌ Validation failed: Missing enterprise or clinic");
-      setError("Please select an enterprise and clinic");
+    if (!resolvedEnterpriseId || !form.clinicId) {
+        console.log("❌ Validation failed: Missing enterprise context or clinic");
+      setError("Please select a clinic");
       return;
     }
     if (!form.roleId || form.roleId === "") {
@@ -219,12 +317,12 @@ export default function ReceptionistOnboarding() {
     // Build payload matching backend C# StaffDetailModel (camelCase for JSON serialization)
     // DO NOT include staffId - it's auto-generated by the backend
     const payload = {
-      enterpriseID: form.enterpriseId ? parseInt(form.enterpriseId, 10) : 0,
+      enterpriseID: resolvedEnterpriseId ? parseInt(resolvedEnterpriseId, 10) : 0,
       clinicID: form.clinicId ? parseInt(form.clinicId, 10) : 0,
       firstName: form.firstName || "",
       lastName: form.lastName || "",
       email: form.email || "",
-      phone: form.phone || "",
+      phone: form.phone ? `${form.phoneCountryCode}${form.phone}` : "",
       dateOfBirth: form.dateOfBirth || null,
       gender: form.gender || "",
       address: form.address || "",
@@ -236,7 +334,7 @@ export default function ReceptionistOnboarding() {
       employmentStatus: form.employmentStatus || "Full-time",
       availability: form.availability || "",
       insuranceDetails: form.insuranceDetails || "",
-      emergencyContact: form.emergencyContact || "",
+      emergencyContact: form.emergencyContact ? `${form.emergencyCountryCode}${form.emergencyContact}` : "",
       bio: form.bio || "",
       profilePhotoUrl: form.profilePhotoUrl || "",
       achievements: form.achievements || "",
@@ -310,7 +408,6 @@ export default function ReceptionistOnboarding() {
     setError("");
     setSuccessMessage("");
     
-    const selectedAccess = getSelectedAccess();
     const apiUrl = `${API_BASE_URL}/StaffDetail/CreateRoleBasedProfile`;
     console.log("🎯 Calling API:", apiUrl);
     console.log("📋 Method: POST");
@@ -322,7 +419,7 @@ export default function ReceptionistOnboarding() {
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${getAuthToken()}`,
-        "X-Enterprise-Id": (form.enterpriseId || selectedAccess?.enterpriseId || "").toString(),
+          "X-Enterprise-Id": (resolvedEnterpriseId || "").toString(),
         "X-Clinic-Id": (form.clinicId || selectedAccess?.clinicId || "").toString()
       },
       body: jsonBody
@@ -343,6 +440,7 @@ export default function ReceptionistOnboarding() {
             firstName: "",
             lastName: "",
             email: "",
+            phoneCountryCode: "+91",
             phone: "",
             enterpriseId: 0,
             clinicId: 0,
@@ -358,6 +456,7 @@ export default function ReceptionistOnboarding() {
             employmentStatus: "Full-time",
             availability: "",
             insuranceDetails: "",
+            emergencyCountryCode: "+91",
             emergencyContact: "",
             bio: "",
             profilePhotoUrl: "",
@@ -403,6 +502,7 @@ export default function ReceptionistOnboarding() {
             firstName: "",
             lastName: "",
             email: "",
+            phoneCountryCode: "+91",
             phone: "",
             enterpriseId: 0,
             clinicId: 0,
@@ -418,6 +518,7 @@ export default function ReceptionistOnboarding() {
             employmentStatus: "Full-time",
             availability: "",
             insuranceDetails: "",
+            emergencyCountryCode: "+91",
             emergencyContact: "",
             bio: "",
             profilePhotoUrl: "",
@@ -441,6 +542,7 @@ export default function ReceptionistOnboarding() {
             firstName: "",
             lastName: "",
             email: "",
+            phoneCountryCode: "+91",
             phone: "",
             enterpriseId: 0,
             clinicId: 0,
@@ -456,6 +558,7 @@ export default function ReceptionistOnboarding() {
             employmentStatus: "Full-time",
             availability: "",
             insuranceDetails: "",
+            emergencyCountryCode: "+91",
             emergencyContact: "",
             bio: "",
             profilePhotoUrl: "",
@@ -482,7 +585,7 @@ export default function ReceptionistOnboarding() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-indigo-700">Onboard Staff</h1>
-            <p className="text-sm text-gray-600 mt-1">Select enterprise and clinic, then add core details.</p>
+            <p className="text-sm text-gray-600 mt-1">Select clinic, then add core details.</p>
           </div>
           <button
             type="button"
@@ -494,7 +597,7 @@ export default function ReceptionistOnboarding() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Profile ID</label>
               <input
@@ -505,23 +608,6 @@ export default function ReceptionistOnboarding() {
                 className="w-full border rounded-lg px-3 py-2"
                 placeholder="Leave empty for auto-generation (e.g., S001)"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Enterprise ID *</label>
-              <input
-                type="number"
-                name="enterpriseId"
-                value={form.enterpriseId}
-                onChange={handleChange}
-                disabled={freezeEnterprise}
-                className={`w-full border rounded-lg px-3 py-2 ${freezeEnterprise ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                placeholder="Enter enterprise ID"
-              />
-              {freezeEnterprise && (
-                <p className="text-xs text-blue-600 mt-1">
-                  🔒 Locked from login access
-                </p>
-              )}
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Assign Role</label>
@@ -574,10 +660,11 @@ export default function ReceptionistOnboarding() {
                 name="email"
                 value={form.email}
                 onChange={handleChange}
-                className="w-full border rounded-lg px-3 py-2"
+                className={`w-full border rounded-lg px-3 py-2 ${emailError ? "border-red-500 bg-red-50" : ""}`}
                 placeholder="name@example.com"
                 title="Enter a valid work email ID, e.g., name@example.com"
               />
+              {emailError && <p className="text-xs text-red-600 mt-1">{emailError}</p>}
               <p className="text-xs text-gray-500 mt-1">Use a valid email ID (e.g., name@example.com). This will be used for login and notifications.</p>
             </div>
           </div>
@@ -603,16 +690,31 @@ export default function ReceptionistOnboarding() {
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
-              <input
-                type="tel"
-                name="phone"
-                value={form.phone}
-                onChange={handleChange}
-                className="w-full border rounded-lg px-3 py-2"
-                placeholder="e.g., +91 9876543210"
-                title="Enter digits only, include country code if applicable"
-              />
-              <p className="text-xs text-gray-500 mt-1">Digits only. Include country code if needed (e.g., +91 9876543210). Recommended 10–15 digits.</p>
+              <div className="flex gap-2">
+                <select
+                  name="phoneCountryCode"
+                  value={form.phoneCountryCode}
+                  onChange={handleChange}
+                  className="w-28 border rounded-lg px-3 py-2"
+                >
+                  {countryCodeOptions.map(code => (
+                    <option key={code} value={code}>{code}</option>
+                  ))}
+                </select>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={form.phone}
+                  onChange={handleChange}
+                  inputMode="numeric"
+                  pattern="[0-9]{10}"
+                  maxLength={10}
+                  className="flex-1 border rounded-lg px-3 py-2"
+                  placeholder="Enter 10-digit phone number"
+                  title="Enter exactly 10 digits"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Enter exactly 10 digits.</p>
             </div>
           </div>
 
@@ -661,16 +763,31 @@ export default function ReceptionistOnboarding() {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Emergency Contact</label>
-                  <input
-                    type="tel"
-                    name="emergencyContact"
-                    value={form.emergencyContact}
-                    onChange={handleChange}
-                    className="w-full border rounded-lg px-3 py-2"
-                    placeholder="Alternate contact number (e.g., +91 9876501234)"
-                    title="Alternate number to reach in emergencies; include country code"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Alternate number for emergencies. Include country code. Prefer a different number than the primary phone.</p>
+                  <div className="flex gap-2">
+                    <select
+                      name="emergencyCountryCode"
+                      value={form.emergencyCountryCode}
+                      onChange={handleChange}
+                      className="w-28 border rounded-lg px-3 py-2"
+                    >
+                      {countryCodeOptions.map(code => (
+                        <option key={code} value={code}>{code}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="tel"
+                      name="emergencyContact"
+                      value={form.emergencyContact}
+                      onChange={handleChange}
+                      inputMode="numeric"
+                      pattern="[0-9]{10}"
+                      maxLength={10}
+                      className="flex-1 border rounded-lg px-3 py-2"
+                      placeholder="Enter 10-digit emergency contact number"
+                      title="Enter exactly 10 digits"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Enter exactly 10 digits. Prefer a different number than the primary phone.</p>
                 </div>
               </div>
             </div>
@@ -740,6 +857,8 @@ export default function ReceptionistOnboarding() {
                     name="joiningDate"
                     value={form.joiningDate}
                     onChange={handleChange}
+                    min="1000-01-01"
+                    max="9999-12-31"
                     className="w-full border rounded-lg px-3 py-2"
                   />
                 </div>
@@ -759,7 +878,7 @@ export default function ReceptionistOnboarding() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Specialty ID <span className="text-xs text-gray-500">(Only for Doctor role)</span></label>
                   <input
-                    type="number"
+                    type="text"
                     name="specialtyId"
                     value={form.specialtyId}
                     onChange={handleChange}
@@ -801,6 +920,8 @@ export default function ReceptionistOnboarding() {
                           name="licenseExpiry"
                           value={form.licenseExpiry}
                           onChange={handleChange}
+                          min="1000-01-01"
+                          max="9999-12-31"
                           disabled={disableLicense}
                           className={`w-full border rounded-lg px-3 py-2 ${disabledClass}`}
                         />
@@ -848,7 +969,7 @@ export default function ReceptionistOnboarding() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Profile Photo URL</label>
                   <input
-                    type="text"
+                    type="url"
                     name="profilePhotoUrl"
                     value={form.profilePhotoUrl}
                     onChange={handleChange}
