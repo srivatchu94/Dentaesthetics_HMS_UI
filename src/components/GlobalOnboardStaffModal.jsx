@@ -13,16 +13,16 @@ const GlobalOnboardStaffModal = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
+  const [emailError, setEmailError] = useState("");
   const [onboardedRoleName, setOnboardedRoleName] = useState("");
   const [isReceptionistMode, setIsReceptionistMode] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [allEnterprises, setAllEnterprises] = useState([]);
   const [onboardingClinics, setOnboardingClinics] = useState([]);
   const [loadingRoles, setLoadingRoles] = useState(false);
   const [availableRolesFromApi, setAvailableRolesFromApi] = useState([]);
-  const [freezeEnterprise, setFreezeEnterprise] = useState(false);
 
   const tabOrder = ["personal", "contact", "professional", "employment", "compliance", "profile"];
+  const countryCodeOptions = ["+91", "+1", "+44", "+61", "+65", "+971"];
 
   const [doctorFormData, setDoctorFormData] = useState({
     staffId: "",
@@ -31,6 +31,7 @@ const GlobalOnboardStaffModal = () => {
     dateOfBirth: "",
     gender: "",
     email: "",
+    phoneCountryCode: "+91",
     phone: "",
     address: "",
     licenseNumber: "",
@@ -44,13 +45,13 @@ const GlobalOnboardStaffModal = () => {
     employmentStatus: "",
     availability: "",
     insuranceDetails: "",
+    emergencyCountryCode: "+91",
     emergencyContact: "",
     bio: "",
     profilePhotoUrl: "",
     achievements: "",
     publications: "",
     socialLinks: "",
-    enterpriseId: 0,
     clinicId: 0,
     roleId: "",
     role: "",
@@ -59,6 +60,41 @@ const GlobalOnboardStaffModal = () => {
 
   const today = new Date();
   const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const isValidEmailWithDomain = (email) => {
+    if (!email) return false;
+    const normalized = email.trim();
+    const basicPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!basicPattern.test(normalized)) return false;
+
+    const [localPart, domainPartRaw] = normalized.split("@");
+    if (!localPart || !domainPartRaw) return false;
+    if (localPart.length > 64 || domainPartRaw.length > 253) return false;
+    if (localPart.startsWith(".") || localPart.endsWith(".") || localPart.includes("..")) return false;
+
+    const domainPart = domainPartRaw.toLowerCase();
+    if (domainPart === "localhost" || domainPart.includes("..")) return false;
+
+    const labels = domainPart.split(".");
+    if (labels.length < 2) return false;
+
+    const hasInvalidLabel = labels.some(label => {
+      if (!label || label.length > 63) return true;
+      if (!/^[a-z0-9-]+$/i.test(label)) return true;
+      if (label.startsWith("-") || label.endsWith("-")) return true;
+      return false;
+    });
+    if (hasInvalidLabel) return false;
+
+    const tld = labels[labels.length - 1];
+    if (!/^[a-z]{2,24}$/i.test(tld)) return false;
+
+    return true;
+  };
+  const hasValidFourDigitYear = (dateValue) => {
+    if (!dateValue) return true;
+    const yearPart = (dateValue.split("-")[0] || "").trim();
+    return /^\d{4}$/.test(yearPart);
+  };
 
   // Load initial data when modal opens
   useEffect(() => {
@@ -71,25 +107,13 @@ const GlobalOnboardStaffModal = () => {
     try {
       const access = getSelectedAccess();
       
-      // Auto-set enterprise from login
+      // Load clinics based on enterprise from login access
       if (access?.enterpriseId) {
-        setDoctorFormData(prev => ({
-          ...prev,
-          enterpriseId: access.enterpriseId
-        }));
-        setFreezeEnterprise(true);
-        
-        // Load clinics for this enterprise
         await loadClinics(access.enterpriseId);
       }
 
       // Load roles
       await loadRoles();
-
-      // Load enterprises if user is admin
-      if (access?.roleId === 1) {
-        await loadEnterprises();
-      }
     } catch (error) {
       console.error("Error loading initial data:", error);
     }
@@ -134,31 +158,21 @@ const GlobalOnboardStaffModal = () => {
     }
   };
 
-  const loadEnterprises = async () => {
-    try {
-      const selectedAccess = getSelectedAccess();
-      const response = await fetch(`${API_BASE_URL}/Enterprise/GetEnterprises`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getAuthToken()}`,
-          ...(selectedAccess?.enterpriseId && { "X-Enterprise-Id": selectedAccess.enterpriseId.toString() }),
-          ...(selectedAccess?.clinicId && { "X-Clinic-Id": selectedAccess.clinicId.toString() })
-        }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAllEnterprises(Array.isArray(data) ? data : []);
-      } else {
-        console.error("Failed to load enterprises:", response.statusText);
-      }
-    } catch (error) {
-      console.error("Error loading enterprises:", error);
-    }
-  };
-
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+
+    if (name === "email") {
+      setDoctorFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+      if (value && !isValidEmailWithDomain(value)) {
+        setEmailError("Please enter a valid email with a valid domain");
+      } else {
+        setEmailError("");
+      }
+      return;
+    }
 
     // Phone and emergency contact: digits only, max 10
     if (name === "phone" || name === "emergencyContact") {
@@ -170,9 +184,19 @@ const GlobalOnboardStaffModal = () => {
       return;
     }
 
-    // Date fields: always update state to prevent cursor from disappearing
-    // The HTML date input type will handle date validation
+    // Date fields
     if (name === "dateOfBirth" || name === "licenseExpiry" || name === "joiningDate") {
+      if ((name === "licenseExpiry" || name === "joiningDate") && value) {
+        const [yearPart, monthPart, dayPart] = value.split("-");
+        const normalizedYear = (yearPart || "").replace(/\D/g, "").slice(0, 4);
+        const normalizedValue = [normalizedYear, monthPart, dayPart].filter(Boolean).join("-");
+        setDoctorFormData(prev => ({
+          ...prev,
+          [name]: normalizedValue
+        }));
+        return;
+      }
+
       setDoctorFormData(prev => ({
         ...prev,
         [name]: value
@@ -185,18 +209,6 @@ const GlobalOnboardStaffModal = () => {
       ...prev,
       [name]: value
     }));
-  };
-
-  const handleEnterpriseChange = async (e) => {
-    const enterpriseId = e.target.value;
-    setDoctorFormData(prev => ({
-      ...prev,
-      enterpriseId: parseInt(enterpriseId) || 0,
-      clinicId: 0
-    }));
-    if (enterpriseId) {
-      await loadClinics(enterpriseId);
-    }
   };
 
   const validateTab = (tab) => {
@@ -212,9 +224,11 @@ const GlobalOnboardStaffModal = () => {
       if (!doctorFormData.roleId || doctorFormData.roleId === "") errors.push("roleId");
     } else if (tab === "contact") {
       if (!doctorFormData.email) errors.push("email");
-      if (doctorFormData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(doctorFormData.email)) errors.push("email");
+      if (doctorFormData.email && !isValidEmailWithDomain(doctorFormData.email)) errors.push("email");
       if (!doctorFormData.phone) errors.push("phone");
+      if (doctorFormData.phone && doctorFormData.phone.length !== 10) errors.push("phone");
       if (!doctorFormData.emergencyContact) errors.push("emergencyContact");
+      if (doctorFormData.emergencyContact && doctorFormData.emergencyContact.length !== 10) errors.push("emergencyContact");
     } else if (tab === "professional") {
       const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId));
       const roleName = selectedRole?.roleName?.toLowerCase() || "";
@@ -223,10 +237,12 @@ const GlobalOnboardStaffModal = () => {
       if (!isReceptionistMode && requiresAcademic && !isAdmin) {
         if (!doctorFormData.licenseNumber) errors.push("licenseNumber");
         if (!doctorFormData.licenseExpiry) errors.push("licenseExpiry");
+        if (doctorFormData.licenseExpiry && !hasValidFourDigitYear(doctorFormData.licenseExpiry)) errors.push("licenseExpiry");
         if (!doctorFormData.specialtyId) errors.push("specialtyId");
       }
     } else if (tab === "employment") {
       if (!doctorFormData.joiningDate) errors.push("joiningDate");
+      if (doctorFormData.joiningDate && !hasValidFourDigitYear(doctorFormData.joiningDate)) errors.push("joiningDate");
       if (!doctorFormData.employmentStatus) errors.push("employmentStatus");
     }
 
@@ -243,9 +259,11 @@ const GlobalOnboardStaffModal = () => {
     if (!doctorFormData.gender) missing.push("Gender");
     if (!doctorFormData.roleId || doctorFormData.roleId === "") missing.push("Role");
     if (!doctorFormData.email?.trim()) missing.push("Email");
-    if (doctorFormData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(doctorFormData.email)) missing.push("Valid Email");
+    if (doctorFormData.email && !isValidEmailWithDomain(doctorFormData.email)) missing.push("Valid Email with valid domain");
     if (!doctorFormData.phone?.trim()) missing.push("Phone");
+    if (doctorFormData.phone?.trim() && doctorFormData.phone.length !== 10) missing.push("Valid 10-digit Phone");
     if (!doctorFormData.emergencyContact?.trim()) missing.push("Emergency Contact");
+    if (doctorFormData.emergencyContact?.trim() && doctorFormData.emergencyContact.length !== 10) missing.push("Valid 10-digit Emergency Contact");
     if (!isReceptionistMode) {
       const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId));
       const roleName = selectedRole?.roleName?.toLowerCase() || "";
@@ -255,10 +273,12 @@ const GlobalOnboardStaffModal = () => {
         const specId = parseInt(doctorFormData.specialtyId);
         if (!doctorFormData.licenseNumber?.trim()) missing.push("License Number");
         if (!doctorFormData.licenseExpiry) missing.push("License Expiry");
+        if (doctorFormData.licenseExpiry && !hasValidFourDigitYear(doctorFormData.licenseExpiry)) missing.push("Valid 4-digit year in License Expiry");
         if (!specId || specId <= 0 || Number.isNaN(specId)) missing.push("Specialty ID");
       }
     }
     if (!doctorFormData.joiningDate) missing.push("Joining Date");
+    if (doctorFormData.joiningDate && !hasValidFourDigitYear(doctorFormData.joiningDate)) missing.push("Valid 4-digit year in Joining Date");
     if (!doctorFormData.employmentStatus?.trim()) missing.push("Employment Status");
     if (isReceptionistMode && (!doctorFormData.roleId || doctorFormData.roleId === 0)) missing.push("Assigned Role");
     return missing;
@@ -281,7 +301,7 @@ const GlobalOnboardStaffModal = () => {
     setIsCreating(true);
     try {
       const access = getSelectedAccess();
-      const enterpriseId = doctorFormData.enterpriseId || access?.enterpriseId || 0;
+      const enterpriseId = access?.enterpriseId || 0;
       
       const selectedRole = availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId));
       const roleName = selectedRole?.roleName || "";
@@ -290,14 +310,14 @@ const GlobalOnboardStaffModal = () => {
       
       // Build payload matching StaffDetailModel (PascalCase on backend, camelCase in TS)
       const staffDetailPayload = {
-        enterpriseId: parseInt(doctorFormData.enterpriseId) || enterpriseId || null,
+        enterpriseId: enterpriseId || null,
         clinicId: parseInt(doctorFormData.clinicId) || null,
         firstName: doctorFormData.firstName,
         lastName: doctorFormData.lastName,
         dateOfBirth: doctorFormData.dateOfBirth ? new Date(doctorFormData.dateOfBirth).toISOString() : null,
         gender: doctorFormData.gender || null,
         email: doctorFormData.email || null,
-        phone: doctorFormData.phone || null,
+        phone: doctorFormData.phone ? `${doctorFormData.phoneCountryCode}${doctorFormData.phone}` : null,
         address: doctorFormData.address || null,
         licenseNumber: doctorFormData.licenseNumber || null,
         licenseExpiry: doctorFormData.licenseExpiry ? new Date(doctorFormData.licenseExpiry).toISOString() : null,
@@ -310,7 +330,7 @@ const GlobalOnboardStaffModal = () => {
         employmentStatus: doctorFormData.employmentStatus || "Active",
         availability: doctorFormData.availability || null,
         insuranceDetails: doctorFormData.insuranceDetails || null,
-        emergencyContact: doctorFormData.emergencyContact || null,
+        emergencyContact: doctorFormData.emergencyContact ? `${doctorFormData.emergencyCountryCode}${doctorFormData.emergencyContact}` : null,
         bio: doctorFormData.bio || null,
         profilePhotoUrl: doctorFormData.profilePhotoUrl || null,
         achievements: doctorFormData.achievements || null,
@@ -383,6 +403,7 @@ const GlobalOnboardStaffModal = () => {
       dateOfBirth: "",
       gender: "",
       email: "",
+      phoneCountryCode: "+91",
       phone: "",
       address: "",
       licenseNumber: "",
@@ -396,13 +417,13 @@ const GlobalOnboardStaffModal = () => {
       employmentStatus: "",
       availability: "",
       insuranceDetails: "",
+      emergencyCountryCode: "+91",
       emergencyContact: "",
       bio: "",
       profilePhotoUrl: "",
       achievements: "",
       publications: "",
       socialLinks: "",
-      enterpriseId: getSelectedAccess()?.enterpriseId || 0,
       clinicId: 0,
       roleId: "",
       role: "",
@@ -635,25 +656,41 @@ const GlobalOnboardStaffModal = () => {
                         value={doctorFormData.email}
                         onChange={handleInputChange}
                         className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("email") ? "border-red-500 bg-red-50" : "border-purple-300"
+                          (validationErrors.includes("email") || emailError) ? "border-red-500 bg-red-50" : "border-purple-300"
                         }`}
                         placeholder="doctor@example.com"
                       />
+                      {emailError && <p className="text-xs text-red-600 mt-1">{emailError}</p>}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
                         Phone <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={doctorFormData.phone}
-                        onChange={handleInputChange}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("phone") ? "border-red-500 bg-red-50" : "border-purple-300"
-                        }`}
-                        placeholder="+91 98765 43210"
-                      />
+                      <div className="flex gap-2">
+                        <select
+                          name="phoneCountryCode"
+                          value={doctorFormData.phoneCountryCode}
+                          onChange={handleInputChange}
+                          className="w-28 px-3 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        >
+                          {countryCodeOptions.map(code => (
+                            <option key={code} value={code}>{code}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          name="phone"
+                          value={doctorFormData.phone}
+                          onChange={handleInputChange}
+                          inputMode="numeric"
+                          pattern="[0-9]{10}"
+                          maxLength={10}
+                          className={`flex-1 px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                            validationErrors.includes("phone") ? "border-red-500 bg-red-50" : "border-purple-300"
+                          }`}
+                          placeholder="Enter 10-digit phone number"
+                        />
+                      </div>
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
@@ -674,16 +711,31 @@ const GlobalOnboardStaffModal = () => {
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
                         Emergency Contact <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="text"
-                        name="emergencyContact"
-                        value={doctorFormData.emergencyContact}
-                        onChange={handleInputChange}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("emergencyContact") ? "border-red-500 bg-red-50" : "border-purple-300"
-                        }`}
-                        placeholder="Emergency contact number"
-                      />
+                      <div className="flex gap-2">
+                        <select
+                          name="emergencyCountryCode"
+                          value={doctorFormData.emergencyCountryCode}
+                          onChange={handleInputChange}
+                          className="w-28 px-3 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        >
+                          {countryCodeOptions.map(code => (
+                            <option key={code} value={code}>{code}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          name="emergencyContact"
+                          value={doctorFormData.emergencyContact}
+                          onChange={handleInputChange}
+                          inputMode="numeric"
+                          pattern="[0-9]{10}"
+                          maxLength={10}
+                          className={`flex-1 px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
+                            validationErrors.includes("emergencyContact") ? "border-red-500 bg-red-50" : "border-purple-300"
+                          }`}
+                          placeholder="Enter 10-digit emergency contact number"
+                        />
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -752,6 +804,8 @@ const GlobalOnboardStaffModal = () => {
                               name="licenseExpiry"
                               value={doctorFormData.licenseExpiry}
                               onChange={handleInputChange}
+                              min="1000-01-01"
+                              max="9999-12-31"
                               disabled={disableClinicalFields}
                               className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                                 disableClinicalFields ? "border-gray-200 " + disabledClass : validationErrors.includes("licenseExpiry") ? "border-red-500 bg-red-50" : "border-purple-300"
@@ -763,7 +817,7 @@ const GlobalOnboardStaffModal = () => {
                               Specialty ID {requiresAcademic && !isAdmin ? <span className="text-red-500">*</span> : null}
                             </label>
                             <input
-                              type="number"
+                              type="text"
                               name="specialtyId"
                               value={doctorFormData.specialtyId}
                               onChange={handleInputChange}
@@ -854,6 +908,8 @@ const GlobalOnboardStaffModal = () => {
                         name="joiningDate"
                         value={doctorFormData.joiningDate}
                         onChange={handleInputChange}
+                        min="1000-01-01"
+                        max="9999-12-31"
                         className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
                           validationErrors.includes("joiningDate") ? "border-red-500 bg-red-50" : "border-purple-300"
                         }`}
@@ -942,7 +998,7 @@ const GlobalOnboardStaffModal = () => {
                       Profile Photo URL
                     </label>
                     <input
-                      type="text"
+                      type="url"
                       name="profilePhotoUrl"
                       value={doctorFormData.profilePhotoUrl}
                       onChange={handleInputChange}
@@ -1053,7 +1109,7 @@ const GlobalOnboardStaffModal = () => {
                 <div><span className="font-bold">Clinic ID:</span> {doctorFormData.clinicId}</div>
                 <div><span className="font-bold">Role:</span> {doctorFormData.role || availableRolesFromApi.find(r => r.roleId === parseInt(doctorFormData.roleId))?.roleName}</div>
                 <div><span className="font-bold">Email:</span> {doctorFormData.email}</div>
-                <div><span className="font-bold">Phone:</span> {doctorFormData.phone}</div>
+                <div><span className="font-bold">Phone:</span> {doctorFormData.phone ? `${doctorFormData.phoneCountryCode}${doctorFormData.phone}` : ""}</div>
                 <div><span className="font-bold">License:</span> {doctorFormData.licenseNumber}</div>
                 <div><span className="font-bold">Specialty ID:</span> {doctorFormData.specialtyId}</div>
                 <div><span className="font-bold">Employment:</span> {doctorFormData.employmentStatus}</div>

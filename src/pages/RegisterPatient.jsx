@@ -108,6 +108,127 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
         )}
     </div>
 );
+// Chronic Conditions Multi-Select Dropdown Component
+const ChronicConditionsDropdown = ({ value, onChange }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const conditions = ["Diabetes", "Hypertension", "Heart Disease", "Asthma", "Arthritis", "Thyroid Disease", "Kidney Disease", "Liver Disease", "Cancer History"];
+    const selected = value.split(',').filter(Boolean);
+    const hasOther = selected.some(c => c.startsWith('Other:'));
+    const otherValue = selected.find(c => c.startsWith('Other:'))?.replace('Other:', '') || '';
+
+    const toggleCondition = (condition) => {
+        const current = selected.filter(c => !c.startsWith('Other:'));
+        const updated = current.includes(condition)
+            ? current.filter(c => c !== condition)
+            : [...current, condition];
+        const other = hasOther && otherValue ? `Other:${otherValue}` : '';
+        onChange([...updated, other].filter(Boolean).join(','));
+    };
+
+    const handleOtherChange = (text) => {
+        const current = selected.filter(c => !c.startsWith('Other:'));
+        const other = text ? `Other:${text}` : '';
+        onChange([...current, other].filter(Boolean).join(','));
+    };
+
+    return (
+        <div className="relative">
+            {/* Dropdown Button */}
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white hover:bg-slate-50 transition text-left flex items-center justify-between"
+            >
+                <span className={selected.length === 0 ? 'text-slate-500' : 'text-slate-700'}>
+                    {selected.length === 0 ? 'Select conditions...' : `${selected.length} condition${selected.length !== 1 ? 's' : ''} selected`}
+                </span>
+                <span className={`text-xs transition transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+            </button>
+
+            {/* Dropdown Menu */}
+            {isOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-300 rounded-lg shadow-lg z-10">
+                    <div className="p-3 space-y-3 max-h-64 overflow-y-auto">
+                        {/* Predefined Conditions */}
+                        {conditions.map((condition) => (
+                            <label key={condition} className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
+                                <input
+                                    type="checkbox"
+                                    checked={selected.includes(condition)}
+                                    onChange={() => toggleCondition(condition)}
+                                    className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
+                                />
+                                <span className="text-sm text-slate-700">{condition}</span>
+                            </label>
+                        ))}
+
+                        {/* Other Option */}
+                        <div className="border-t border-slate-200 pt-3">
+                            <label className="flex items-center gap-2 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
+                                <input
+                                    type="checkbox"
+                                    checked={hasOther}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            handleOtherChange('');
+                                        } else {
+                                            const current = selected.filter(c => !c.startsWith('Other:'));
+                                            onChange(current.join(','));
+                                        }
+                                    }}
+                                    className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
+                                />
+                                <span className="text-sm text-slate-700">Other (please specify)</span>
+                            </label>
+
+                            {/* Other Text Input */}
+                            {hasOther && (
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm mt-2 ml-6"
+                                    placeholder="E.g., Diabetes Type 2, Migraine"
+                                    value={otherValue}
+                                    onChange={(e) => handleOtherChange(e.target.value)}
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Selected Tags */}
+            {selected.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                    {selected.filter(c => !c.startsWith('Other:')).map((condition) => (
+                        <span key={condition} className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg text-xs text-amber-800">
+                            {condition}
+                            <button
+                                type="button"
+                                onClick={() => toggleCondition(condition)}
+                                className="ml-1 hover:text-amber-900 font-bold"
+                            >
+                                ×
+                            </button>
+                        </span>
+                    ))}
+                    {hasOther && (
+                        <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg text-xs text-amber-800">
+                            Other: {otherValue || '...'}
+                            <button
+                                type="button"
+                                onClick={() => handleOtherChange('')}
+                                className="ml-1 hover:text-amber-900 font-bold"
+                            >
+                                ×
+                            </button>
+                        </span>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 export default function RegisterPatient() {
     const navigate = useNavigate();
@@ -465,34 +586,34 @@ export default function RegisterPatient() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 py-8">
+        <div className="h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-cyan-50 py-2">
             {/* Header */}
             <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="max-w-4xl mx-auto px-4 mb-8"
+                className="max-w-4xl mx-auto px-4 mb-2"
             >
-                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-700 p-8 shadow-2xl">
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-700 p-3 sm:p-4 shadow-2xl">
                     <div className="relative z-10">
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3">
                                 <motion.span
                                     animate={{ rotate: [0, 10, -10, 0] }}
                                     transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
-                                    className="text-6xl"
+                                    className="text-3xl"
                                 >
                                     📝
                                 </motion.span>
                                 <div>
-                                    <h1 className="text-4xl font-bold text-white mb-2">Register New Patient</h1>
-                                    <p className="text-cyan-100 text-lg">Fill in the patient information to create a new record</p>
+                                    <h1 className="text-xl font-bold text-white mb-0.5">Register New Patient</h1>
+                                    <p className="text-cyan-100 text-xs">Fill in the patient information to create a new record</p>
                                 </div>
                             </div>
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
                                 onClick={() => navigate("/")}
-                                className="px-6 py-3 bg-white/20 hover:bg-white/30 text-white rounded-xl font-semibold backdrop-blur-lg border border-white/30 transition-all"
+                                className="px-2.5 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-semibold backdrop-blur-lg border border-white/30 transition-all"
                             >
                                 ← Back to Home
                             </motion.button>
@@ -508,9 +629,9 @@ export default function RegisterPatient() {
                 transition={{ delay: 0.1 }}
                 className="max-w-4xl mx-auto px-4"
             >
-                <div className="bg-white rounded-3xl shadow-2xl border-2 border-teal-200 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-2xl border-2 border-teal-200 overflow-hidden flex flex-col h-[calc(100vh-120px)]">
                     {/* Tabs */}
-                    <div className="bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-4 border-b-2 border-teal-200 flex gap-2 overflow-x-auto">
+                    <div className="sticky top-0 z-20 bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-3 border-b-2 border-teal-200 flex gap-2 overflow-x-auto shrink-0">
                         {[
                             { key: "patient", label: "Patient Info", icon: "👤" },
                             { key: "contact", label: "Contact", icon: "📞" },
@@ -535,7 +656,7 @@ export default function RegisterPatient() {
                     </div>
 
                     {/* Form Content */}
-                    <div className="p-6 min-h-[500px] overflow-y-auto">
+                    <div className="p-4 sm:p-6 overflow-y-auto flex-1">
                         <form onSubmit={handleSubmit} id="register-patient-form">
                             <AnimatePresence mode="wait">
                                 {/* Patient Tab */}
@@ -757,68 +878,13 @@ export default function RegisterPatient() {
                                                 onChange={(e) => setMedicalData({ ...medicalData, allergies: e.target.value })}
                                                 placeholder="List any allergies"
                                             />
-                                            {/* Chronic Conditions Multi-Select */}
+                                            {/* Chronic Conditions Multi-Select Dropdown */}
                                             <div>
                                                 <label className="block text-sm font-medium text-slate-700 mb-2">Chronic Conditions</label>
-                                                <div className="bg-white border border-slate-300 rounded-lg p-4 space-y-3">
-                                                    {["Diabetes", "Hypertension", "Heart Disease", "Asthma", "Arthritis", "Thyroid Disease", "Kidney Disease", "Liver Disease", "Cancer History"].map((condition) => (
-                                                        <label key={condition} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={medicalData.chronicConditions.split(',').filter(Boolean).includes(condition)}
-                                                                onChange={(e) => {
-                                                                    const current = medicalData.chronicConditions.split(',').filter(Boolean);
-                                                                    const updated = e.target.checked
-                                                                        ? [...current, condition]
-                                                                        : current.filter(c => c !== condition);
-                                                                    setMedicalData({ ...medicalData, chronicConditions: updated.join(',') });
-                                                                }}
-                                                                className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
-                                                            />
-                                                            <span className="text-sm text-slate-700">{condition}</span>
-                                                        </label>
-                                                    ))}
-
-                                                    {/* Other with Textbox */}
-                                                    <div className="border-t border-slate-200 pt-3">
-                                                        <label className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={medicalData.chronicConditions.split(',').filter(Boolean).some(c => c.startsWith('Other:'))}
-                                                                onChange={(e) => {
-                                                                    const current = medicalData.chronicConditions.split(',').filter(c => !c.startsWith('Other:')).filter(Boolean);
-                                                                    if (e.target.checked) {
-                                                                        // Checkbox checked - add "Other:" placeholder
-                                                                        setMedicalData({ ...medicalData, chronicConditions: [...current, 'Other:'].join(',') });
-                                                                    } else {
-                                                                        // Checkbox unchecked - remove all "Other:*" entries
-                                                                        setMedicalData({ ...medicalData, chronicConditions: current.join(',') });
-                                                                    }
-                                                                }}
-                                                                className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
-                                                            />
-                                                            <span className="text-sm text-slate-700">Other (please specify)</span>
-                                                        </label>
-
-                                                        {/* Other Textbox - Show when "Other" is checked */}
-                                                        {medicalData.chronicConditions.split(',').filter(Boolean).some(c => c.startsWith('Other:')) && (
-                                                            <input
-                                                                type="text"
-                                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm mt-2"
-                                                                placeholder="Please specify other conditions (e.g., Diabetes Type 2, Migraine)"
-                                                                value={medicalData.chronicConditions.split(',').filter(Boolean).find(c => c.startsWith('Other:'))?.replace('Other:', '') || ''}
-                                                                onChange={(e) => {
-                                                                    const current = medicalData.chronicConditions.split(',').filter(c => !c.startsWith('Other:')).filter(Boolean);
-                                                                    const other = e.target.value ? `Other:${e.target.value}` : 'Other:';
-                                                                    setMedicalData({
-                                                                        ...medicalData,
-                                                                        chronicConditions: [...current, other].filter(v => v !== 'Other:').join(',') || other
-                                                                    });
-                                                                }}
-                                                            />
-                                                        )}
-                                                    </div>
-                                                </div>
+                                                <ChronicConditionsDropdown
+                                                    value={medicalData.chronicConditions}
+                                                    onChange={(value) => setMedicalData({ ...medicalData, chronicConditions: value })}
+                                                />
                                             </div>
                                             <InputField
                                                 label="Current Medications"
@@ -1028,7 +1094,7 @@ export default function RegisterPatient() {
                     </div>
 
                     {/* Footer with Navigation */}
-                    <div className="bg-gradient-to-r from-slate-100 to-blue-50 p-6 border-t-2 border-teal-300 flex justify-between items-center gap-3">
+                    <div className="bg-gradient-to-r from-slate-100 to-blue-50 p-4 border-t-2 border-teal-300 flex justify-between items-center gap-3 shrink-0">
                         <div className="flex gap-3">
                             {registerActiveTab !== "patient" && (
                                 <motion.button

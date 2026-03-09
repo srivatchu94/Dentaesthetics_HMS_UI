@@ -13,11 +13,28 @@ export default function FancyDatePicker({
   minDate = null,
   maxDate = null,
   disabled = false,
-  name = ""
+  name = "",
+  restrictYearToFourDigits = false
 }) {
   const handleChange = (event) => {
     if (onChange) {
       onChange(event.target.value);
+    }
+  };
+
+  const handleInput = (event) => {
+    if (!restrictYearToFourDigits) return;
+    const inputValue = String(event.target.value || "");
+    if (!inputValue) return;
+
+    const [year = "", month = "", day = ""] = inputValue.split("-");
+    if (year.length <= 4) return;
+
+    const normalizedValue = [year.slice(0, 4), month, day].filter(Boolean).join("-");
+    event.target.value = normalizedValue;
+
+    if (onChange) {
+      onChange(normalizedValue);
     }
   };
 
@@ -39,9 +56,10 @@ export default function FancyDatePicker({
           name={name}
           value={value || ""}
           onChange={handleChange}
+          onInput={handleInput}
           required={required}
           min={minDate || undefined}
-          max={maxDate || undefined}
+          max={maxDate || (restrictYearToFourDigits ? "9999-12-31" : undefined)}
           disabled={disabled}
           placeholder={placeholder}
           className="w-full bg-transparent outline-none"

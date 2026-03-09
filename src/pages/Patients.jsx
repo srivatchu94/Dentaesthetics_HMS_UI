@@ -16,7 +16,7 @@ import html2canvas from "html2canvas";
 const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
-const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => (
+const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false, error = "" }) => (
   <div className="mb-2">
     <label className={`block text-xs font-medium mb-1 transition ${
       disabled ? "text-gray-400" : "text-gray-700"
@@ -32,6 +32,9 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
         required={required}
         disabled={disabled}
         className={`w-full px-3 py-1.5 text-sm border rounded-lg transition ${
+          error
+            ? "border-red-400 focus:ring-1 focus:ring-red-500 focus:border-transparent"
+            :
           disabled 
             ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
             : "border-purple-300 focus:ring-1 focus:ring-indigo-500 focus:border-transparent"
@@ -52,6 +55,9 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
         rows={2}
         disabled={disabled}
         className={`w-full px-3 py-1.5 text-sm border rounded-lg resize-none transition ${
+          error
+            ? "border-red-400 focus:ring-1 focus:ring-red-500 focus:border-transparent"
+            :
           disabled 
             ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
             : "border-purple-300 focus:ring-1 focus:ring-indigo-500 focus:border-transparent"
@@ -60,10 +66,17 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
     ) : type === "date" ? (
       <FancyDatePicker
         label=""
+        name={name}
         value={value}
         onChange={(dateValue) => onChange({ target: { name, value: dateValue } })}
         required={required}
         disabled={disabled}
+        restrictYearToFourDigits={[
+          "dateOfBirth",
+          "lastDentalVisit",
+          "coverageStartDate",
+          "coverageEndDate"
+        ].includes(name)}
       />
     ) : (
       <input
@@ -75,12 +88,16 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
         placeholder={disabled ? "Select patient first to enable" : placeholder}
         disabled={disabled}
         className={`w-full px-3 py-1.5 text-sm border rounded-lg transition ${
+          error
+            ? "border-red-400 focus:ring-1 focus:ring-red-500 focus:border-transparent"
+            :
           disabled 
             ? "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
             : "border-purple-300 focus:ring-1 focus:ring-indigo-500 focus:border-transparent"
         }`}
       />
     )}
+    {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
   </div>
 );
 
@@ -121,6 +138,87 @@ const CollapsibleSection = ({ title, isOpen, onToggle, children, icon }) => (
     </AnimatePresence>
   </div>
 );
+
+const ChronicConditionsDropdown = ({ value, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const conditions = ["Diabetes", "Hypertension", "Heart Disease", "Asthma", "Arthritis", "Thyroid Disease", "Kidney Disease", "Liver Disease", "Cancer History"];
+  const selected = value.split(',').filter(Boolean);
+  const hasOther = selected.some((item) => item.startsWith('Other:'));
+  const otherValue = selected.find((item) => item.startsWith('Other:'))?.replace('Other:', '') || '';
+
+  const toggleCondition = (condition, checked) => {
+    const current = selected.filter((item) => !item.startsWith('Other:'));
+    const updated = checked
+      ? [...current, condition]
+      : current.filter((item) => item !== condition);
+    const other = hasOther ? `Other:${otherValue}` : '';
+    onChange([...updated, other].filter(Boolean).join(','));
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white hover:bg-slate-50 transition flex items-center justify-between"
+      >
+        <span className={`text-sm ${selected.length ? 'text-slate-700' : 'text-slate-500'}`}>
+          {selected.length ? `${selected.length} selected` : 'Select chronic conditions'}
+        </span>
+        <span className={`text-xs transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-20 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg p-3 space-y-2 max-h-64 overflow-y-auto">
+          {conditions.map((condition) => (
+            <label key={condition} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
+              <input
+                type="checkbox"
+                checked={selected.includes(condition)}
+                onChange={(e) => toggleCondition(condition, e.target.checked)}
+                className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
+              />
+              <span className="text-sm text-slate-700">{condition}</span>
+            </label>
+          ))}
+
+          <div className="border-t border-slate-200 pt-2">
+            <label className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
+              <input
+                type="checkbox"
+                checked={hasOther}
+                onChange={(e) => {
+                  const current = selected.filter((item) => !item.startsWith('Other:'));
+                  if (e.target.checked) {
+                    onChange([...current, 'Other:'].join(','));
+                  } else {
+                    onChange(current.join(','));
+                  }
+                }}
+                className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
+              />
+              <span className="text-sm text-slate-700">Other (please specify)</span>
+            </label>
+
+            {hasOther && (
+              <input
+                type="text"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm mt-2"
+                placeholder="Please specify other conditions"
+                value={otherValue}
+                onChange={(e) => {
+                  const current = selected.filter((item) => !item.startsWith('Other:'));
+                  const other = e.target.value ? `Other:${e.target.value}` : 'Other:';
+                  onChange([...current, other].join(','));
+                }}
+              />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Sample patient data
 const SAMPLE_PATIENTS_LIST = [
@@ -224,11 +322,49 @@ export default function Patients() {
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(!!localStorage.getItem('accessToken'));
 
   const normalizePhoneNumber = (value) => value.replace(/\D/g, '').slice(0, 10);
+  const normalizeIndianPhoneDigits = (value) => {
+    const rawValue = String(value || "").trim();
+    let normalizedValue = rawValue;
+
+    if (normalizedValue.startsWith("+91")) {
+      normalizedValue = normalizedValue.slice(3);
+    }
+
+    let digits = normalizedValue.replace(/\D/g, "");
+    if (digits.startsWith("91") && digits.length > 10) {
+      digits = digits.slice(2);
+    }
+    return digits.slice(0, 10);
+  };
+  const formatIndianPhone = (value) => {
+    return normalizeIndianPhoneDigits(value);
+  };
+  const addIndianCountryCode = (value) => {
+    const digits = normalizeIndianPhoneDigits(value);
+    return digits ? `+91${digits}` : "";
+  };
+  const isValidIndianPhone = (value) => /^\d{10}$/.test(String(value || ""));
+  const isValidPostalCode = (value) => /^\d{6}$/.test(String(value || ""));
+  const validateEmailDomain = (email) => {
+    if (!email) return "";
+    const normalizedEmail = String(email).trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      return "Please enter a valid email format (example@domain.com)";
+    }
+    const domain = normalizedEmail.split("@")[1] || "";
+    const tld = domain.split(".").pop() || "";
+    if (tld.length < 2) {
+      return "Please enter a valid email domain";
+    }
+    return "";
+  };
   const isYearLengthValid = (dateValue) => {
     if (!dateValue) return true;
     const [year] = String(dateValue).split('-');
     return !year || year.length <= 4;
   };
+  const isStrictDateWithFourDigitYear = (dateValue) => /^\d{4}-\d{2}-\d{2}$/.test(String(dateValue || ""));
 
   // Initialize appointment form with pre-populated data from registration
   useEffect(() => {
@@ -1173,6 +1309,13 @@ export default function Patients() {
     emergencyContactPhone: "",
     emergencyContactRelation: ""
   });
+  const [isCityLookupLoading, setIsCityLookupLoading] = useState(false);
+  const cityLookupAbortRef = useRef(null);
+  const [registerFormErrors, setRegisterFormErrors] = useState({
+    email: "",
+    providerEmail: "",
+    postalCode: ""
+  });
 
   const [medicalData, setMedicalData] = useState({
     allergies: "",
@@ -1250,6 +1393,66 @@ export default function Patients() {
     }
   }, []);
 
+  useEffect(() => {
+    const cityValue = String(contactData.city || "").trim();
+
+    if (cityValue.length < 2) {
+      setIsCityLookupLoading(false);
+      return;
+    }
+
+    const timerId = setTimeout(async () => {
+      try {
+        if (cityLookupAbortRef.current) {
+          cityLookupAbortRef.current.abort();
+        }
+
+        const controller = new AbortController();
+        cityLookupAbortRef.current = controller;
+        setIsCityLookupLoading(true);
+
+        const response = await fetch(
+          `https://geodb-free-service.wirefreethought.com/v1/geo/cities?namePrefix=${encodeURIComponent(cityValue)}&limit=1&sort=-population`,
+          { signal: controller.signal }
+        );
+
+        if (!response.ok) return;
+
+        const payload = await response.json();
+        const cityMatch = payload?.data?.[0];
+        if (!cityMatch) return;
+
+        const nextState = cityMatch.region || cityMatch.regionCode || "";
+        const nextCountry = cityMatch.country || cityMatch.countryCode || "";
+
+        setContactData((prev) => {
+          if (String(prev.city || "").trim() !== cityValue) return prev;
+          return {
+            ...prev,
+            state: nextState || prev.state,
+            country: nextCountry || prev.country
+          };
+        });
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("City lookup failed:", error);
+        }
+      } finally {
+        setIsCityLookupLoading(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timerId);
+  }, [contactData.city]);
+
+  useEffect(() => {
+    return () => {
+      if (cityLookupAbortRef.current) {
+        cityLookupAbortRef.current.abort();
+      }
+    };
+  }, []);
+
   // Mock patient data (replace with API call)
   const mockPatients = [
     { patientId: 1, firstName: "John", lastName: "Doe", dateOfBirth: "1990-05-15", gender: "Male", clinicId: 1, phoneNumber: "+1 555-0101", email: "john.doe@email.com", registrationDate: "2024-01-15" },
@@ -1275,6 +1478,50 @@ export default function Patients() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const emailError = validateEmailDomain(contactData.email);
+    if (emailError) {
+      setRegisterFormErrors((prev) => ({ ...prev, email: emailError }));
+      setRegisterActiveTab("contact");
+      return;
+    }
+
+    const providerEmailError = validateEmailDomain(insuranceData.providerEmail);
+    if (providerEmailError) {
+      setRegisterFormErrors((prev) => ({ ...prev, providerEmail: providerEmailError }));
+      setRegisterActiveTab("insurance");
+      return;
+    }
+
+    if (!isValidIndianPhone(contactData.phoneNumber)) {
+      alert("⚠️ Phone Number must be exactly 10 digits.");
+      setRegisterActiveTab("contact");
+      return;
+    }
+
+    if (contactData.alternatePhoneNumber && !isValidIndianPhone(contactData.alternatePhoneNumber)) {
+      alert("⚠️ Alternate Phone must be exactly 10 digits.");
+      setRegisterActiveTab("contact");
+      return;
+    }
+
+    if (contactData.emergencyContactPhone && !isValidIndianPhone(contactData.emergencyContactPhone)) {
+      alert("⚠️ Emergency Contact Phone must be exactly 10 digits.");
+      setRegisterActiveTab("contact");
+      return;
+    }
+
+    if (!isValidPostalCode(contactData.postalCode)) {
+      setRegisterFormErrors((prev) => ({ ...prev, postalCode: "Postal code must be exactly 6 digits" }));
+      setRegisterActiveTab("contact");
+      return;
+    }
+
+    if (!isStrictDateWithFourDigitYear(patientData.dateOfBirth)) {
+      alert("⚠️ Date of Birth must be in YYYY-MM-DD format with a 4-digit year.");
+      setRegisterActiveTab("patient");
+      return;
+    }
     
     // Construct PatientDataModel according to API interface
     const patientDataModel = {
@@ -1292,10 +1539,10 @@ export default function Patients() {
         patientId: 0, // Will be assigned by backend
         patientAddress: `${contactData.addressLine1}${contactData.addressLine2 ? ', ' + contactData.addressLine2 : ''}`,
         patientCity: contactData.city,
-        patientPhone: contactData.phoneNumber,
+        patientPhone: addIndianCountryCode(contactData.phoneNumber),
         patientEmail: contactData.email || "",
         patientEmergencyContact: contactData.emergencyContactName 
-          ? `${contactData.emergencyContactName} - ${contactData.emergencyContactPhone} (${contactData.emergencyContactRelation})`
+          ? `${contactData.emergencyContactName} - ${addIndianCountryCode(contactData.emergencyContactPhone)} (${contactData.emergencyContactRelation})`
           : ""
       },
       patientMedicalInfo: {
@@ -1341,7 +1588,7 @@ export default function Patients() {
         patientId: response.patient.patientId,
         name: `${patientData.firstName} ${patientData.lastName}`,
         email: contactData.email,
-        phone: contactData.phoneNumber,
+        phone: addIndianCountryCode(contactData.phoneNumber),
         dateOfBirth: patientData.dateOfBirth
       });
       setShowSuccessModal(true);
@@ -1351,6 +1598,7 @@ export default function Patients() {
       setContactData({ phoneNumber: "", alternatePhoneNumber: "", email: "", addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "", country: "", emergencyContactName: "", emergencyContactPhone: "", emergencyContactRelation: "" });
       setMedicalData({ allergies: "", chronicConditions: "", currentMedications: "", pastSurgeries: "", familyMedicalHistory: "", smokingStatus: "", alcoholConsumption: "", exerciseFrequency: "", dietaryRestrictions: "", lastDentalVisit: "", notes: "" });
       setInsuranceData({ patientInsuranceProvider: "", insuranceProviderId: "", policyNumber: "", groupNumber: "", policyHolderName: "", relationshipToPolicyHolder: "", coverageStartDate: "", coverageEndDate: "", isPrimary: true, copayAmount: "", deductibleAmount: "", coveragePercentage: "", insurancePhone: "", providerEmail: "", providerAddress: "" });
+      setRegisterFormErrors({ email: "", providerEmail: "", postalCode: "" });
       
       // Close the registration modal
       setActiveView("list");
@@ -1684,7 +1932,7 @@ export default function Patients() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-2 sm:p-4"
             onClick={() => setActiveView("list")}
           >
             <motion.div
@@ -1692,21 +1940,21 @@ export default function Patients() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-2xl shadow-2xl border-2 border-teal-400 overflow-hidden max-w-5xl w-full my-8"
+              className="bg-white rounded-2xl shadow-2xl border-2 border-teal-400 overflow-hidden max-w-5xl w-full h-[94vh] flex flex-col"
             >
               {/* Modal Header */}
-              <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6 text-white flex items-center justify-between">
+              <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-4 text-white flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <motion.span
                     animate={{ rotate: [0, 10, -10, 0] }}
                     transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
-                    className="text-4xl"
+                    className="text-3xl"
                   >
                     📝
                   </motion.span>
                   <div>
-                    <h2 className="text-3xl font-bold">Register New Patient</h2>
-                    <p className="text-cyan-100 text-sm mt-1">Fill in the patient information to create a new record</p>
+                    <h2 className="text-2xl font-bold">Register New Patient</h2>
+                    <p className="text-cyan-100 text-xs mt-1">Fill in the patient information to create a new record</p>
                   </div>
                 </div>
                 <motion.button
@@ -1723,7 +1971,7 @@ export default function Patients() {
               </div>
 
               {/* Tab Navigation */}
-              <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50">
+              <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 shrink-0 sticky top-0 z-10">
                 {[
                   { key: "patient", label: "Patient Info", icon: "👤" },
                   { key: "contact", label: "Contact", icon: "📞" },
@@ -1749,7 +1997,7 @@ export default function Patients() {
               </div>
 
               {/* Content */}
-              <div className="p-6 overflow-y-auto min-h-[500px]">
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1">
                 <form onSubmit={handleSubmit} id="register-patient-form">
             
             {/* Patient Basic Information - Tab */}
@@ -1788,7 +2036,17 @@ export default function Patients() {
                   name="dateOfBirth"
                   type="date"
                   value={patientData.dateOfBirth}
-                  onChange={(e) => setPatientData({ ...patientData, dateOfBirth: e.target.value })}
+                  onChange={(e) => {
+                    const dobValue = e.target.value;
+                    if (!dobValue) {
+                      setPatientData({ ...patientData, dateOfBirth: "" });
+                      return;
+                    }
+                    const [year = "", month = "", day = ""] = String(dobValue).split('-');
+                    const normalizedYear = year.slice(0, 4);
+                    if (normalizedYear.length !== 4 || !month || !day) return;
+                    setPatientData({ ...patientData, dateOfBirth: `${normalizedYear}-${month}-${day}` });
+                  }}
                   required
                 />
                 <InputField
@@ -1846,31 +2104,54 @@ export default function Patients() {
                   Contact Information
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <InputField
-                  label="Phone Number"
-                  name="phoneNumber"
-                  type="tel"
-                  value={contactData.phoneNumber}
-                  onChange={(e) => setContactData({ ...contactData, phoneNumber: e.target.value })}
-                  required
-                  placeholder="+1 (555) 123-4567"
-                />
-                <InputField
-                  label="Alternate Phone"
-                  name="alternatePhoneNumber"
-                  type="tel"
-                  value={contactData.alternatePhoneNumber}
-                  onChange={(e) => setContactData({ ...contactData, alternatePhoneNumber: e.target.value })}
-                  placeholder="Optional"
-                />
+                <div className="mb-2">
+                  <label className="block text-xs font-medium mb-1 transition text-gray-700">Phone Number <span className="text-red-500">*</span></label>
+                  <div className="flex items-center w-full border border-purple-300 rounded-lg overflow-hidden focus-within:ring-1 focus-within:ring-indigo-500 focus-within:border-transparent bg-white">
+                    <span className="px-3 py-1.5 text-sm bg-slate-100 text-slate-700 border-r border-slate-300">+91</span>
+                    <input
+                      type="tel"
+                      name="phoneNumber"
+                      value={contactData.phoneNumber}
+                      onChange={(e) => setContactData({ ...contactData, phoneNumber: normalizeIndianPhoneDigits(e.target.value) })}
+                      required
+                      inputMode="numeric"
+                      maxLength={10}
+                      autoComplete="off"
+                      placeholder="10-digit mobile number"
+                      className="w-full px-3 py-1.5 text-sm outline-none"
+                    />
+                  </div>
+                </div>
+                <div className="mb-2">
+                  <label className="block text-xs font-medium mb-1 transition text-gray-700">Alternate Phone</label>
+                  <div className="flex items-center w-full border border-purple-300 rounded-lg overflow-hidden focus-within:ring-1 focus-within:ring-indigo-500 focus-within:border-transparent bg-white">
+                    <span className="px-3 py-1.5 text-sm bg-slate-100 text-slate-700 border-r border-slate-300">+91</span>
+                    <input
+                      type="tel"
+                      name="alternatePhoneNumber"
+                      value={contactData.alternatePhoneNumber}
+                      onChange={(e) => setContactData({ ...contactData, alternatePhoneNumber: normalizeIndianPhoneDigits(e.target.value) })}
+                      inputMode="numeric"
+                      maxLength={10}
+                      autoComplete="off"
+                      placeholder="10-digit mobile number"
+                      className="w-full px-3 py-1.5 text-sm outline-none"
+                    />
+                  </div>
+                </div>
                 <div className="md:col-span-3">
                   <InputField
                     label="Email Address"
                     name="email"
                     type="email"
                     value={contactData.email}
-                    onChange={(e) => setContactData({ ...contactData, email: e.target.value })}
+                    onChange={(e) => {
+                      const emailValue = e.target.value;
+                      setContactData({ ...contactData, email: emailValue });
+                      setRegisterFormErrors((prev) => ({ ...prev, email: validateEmailDomain(emailValue) }));
+                    }}
                     placeholder="patient@example.com"
+                    error={registerFormErrors.email}
                   />
                 </div>
                 <div className="md:col-span-3">
@@ -1892,14 +2173,19 @@ export default function Patients() {
                     placeholder="Apt, suite, unit, etc. (optional)"
                   />
                 </div>
-                <InputField
-                  label="City"
-                  name="city"
-                  value={contactData.city}
-                  onChange={(e) => setContactData({ ...contactData, city: e.target.value })}
-                  required
-                  placeholder="City"
-                />
+                <div>
+                  <InputField
+                    label="City"
+                    name="city"
+                    value={contactData.city}
+                    onChange={(e) => setContactData({ ...contactData, city: e.target.value })}
+                    required
+                    placeholder="City"
+                  />
+                  {isCityLookupLoading && (
+                    <p className="text-xs text-indigo-600 -mt-1">Auto-filling state and country...</p>
+                  )}
+                </div>
                 <InputField
                   label="State/Province"
                   name="state"
@@ -1912,9 +2198,19 @@ export default function Patients() {
                   label="Postal Code"
                   name="postalCode"
                   value={contactData.postalCode}
-                  onChange={(e) => setContactData({ ...contactData, postalCode: e.target.value })}
+                  onChange={(e) => {
+                    const postalValue = String(e.target.value || "").replace(/\D/g, "").slice(0, 6);
+                    setContactData({ ...contactData, postalCode: postalValue });
+                    setRegisterFormErrors((prev) => ({
+                      ...prev,
+                      postalCode: postalValue.length === 0 || postalValue.length === 6
+                        ? ""
+                        : "Postal code must be exactly 6 digits"
+                    }));
+                  }}
                   required
-                  placeholder="12345"
+                  placeholder="123456"
+                  error={registerFormErrors.postalCode}
                 />
                 <InputField
                   label="Country"
@@ -1934,14 +2230,23 @@ export default function Patients() {
                       onChange={(e) => setContactData({ ...contactData, emergencyContactName: e.target.value })}
                       placeholder="Emergency contact name"
                     />
-                    <InputField
-                      label="Phone"
-                      name="emergencyContactPhone"
-                      type="tel"
-                      value={contactData.emergencyContactPhone}
-                      onChange={(e) => setContactData({ ...contactData, emergencyContactPhone: e.target.value })}
-                      placeholder="Emergency phone"
-                    />
+                    <div className="mb-2">
+                      <label className="block text-xs font-medium mb-1 transition text-gray-700">Phone</label>
+                      <div className="flex items-center w-full border border-purple-300 rounded-lg overflow-hidden focus-within:ring-1 focus-within:ring-indigo-500 focus-within:border-transparent bg-white">
+                        <span className="px-3 py-1.5 text-sm bg-slate-100 text-slate-700 border-r border-slate-300">+91</span>
+                        <input
+                          type="tel"
+                          name="emergencyContactPhone"
+                          value={contactData.emergencyContactPhone}
+                          onChange={(e) => setContactData({ ...contactData, emergencyContactPhone: normalizeIndianPhoneDigits(e.target.value) })}
+                          inputMode="numeric"
+                          maxLength={10}
+                          autoComplete="off"
+                          placeholder="10-digit mobile number"
+                          className="w-full px-3 py-1.5 text-sm outline-none"
+                        />
+                      </div>
+                    </div>
                     <InputField
                       label="Relation"
                       name="emergencyContactRelation"
@@ -1977,65 +2282,13 @@ export default function Patients() {
                   onChange={(e) => setMedicalData({ ...medicalData, allergies: e.target.value })}
                   placeholder="List any known allergies (medications, food, environmental)"
                 />
-                {/* Chronic Conditions Multi-Select */}
+                {/* Chronic Conditions Multi-Select Dropdown */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Chronic Conditions</label>
-                  <div className="bg-white border border-slate-300 rounded-lg p-3 space-y-2 max-h-64 overflow-y-auto">
-                    {["Diabetes", "Hypertension", "Heart Disease", "Asthma", "Arthritis", "Thyroid Disease", "Kidney Disease", "Liver Disease", "Cancer History"].map((condition) => (
-                      <label key={condition} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
-                        <input
-                          type="checkbox"
-                          checked={medicalData.chronicConditions.split(',').filter(Boolean).includes(condition)}
-                          onChange={(e) => {
-                            const current = medicalData.chronicConditions.split(',').filter(Boolean);
-                            const updated = e.target.checked
-                              ? [...current, condition]
-                              : current.filter(c => c !== condition);
-                            setMedicalData({ ...medicalData, chronicConditions: updated.join(',') });
-                          }}
-                          className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
-                        />
-                        <span className="text-sm text-slate-700">{condition}</span>
-                      </label>
-                    ))}
-                    
-                    {/* Other with Textbox */}
-                    <div className="border-t border-slate-200 pt-2">
-                      <label className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 rounded transition">
-                        <input
-                          type="checkbox"
-                          checked={medicalData.chronicConditions.split(',').filter(Boolean).some(c => c.startsWith('Other:'))}
-                          onChange={(e) => {
-                            const current = medicalData.chronicConditions.split(',').filter(c => !c.startsWith('Other:')).filter(Boolean);
-                            if (e.target.checked) {
-                              setMedicalData({ ...medicalData, chronicConditions: [...current, 'Other:'].join(',') });
-                            } else {
-                              setMedicalData({ ...medicalData, chronicConditions: current.join(',') });
-                            }
-                          }}
-                          className="w-4 h-4 text-teal-600 rounded focus:ring-2 focus:ring-teal-500"
-                        />
-                        <span className="text-sm text-slate-700">Other (please specify)</span>
-                      </label>
-                      
-                      {medicalData.chronicConditions.split(',').filter(Boolean).some(c => c.startsWith('Other:')) && (
-                        <input
-                          type="text"
-                          className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent text-sm mt-2"
-                          placeholder="Please specify other conditions"
-                          value={medicalData.chronicConditions.split(',').filter(Boolean).find(c => c.startsWith('Other:'))?.replace('Other:', '') || ''}
-                          onChange={(e) => {
-                            const current = medicalData.chronicConditions.split(',').filter(c => !c.startsWith('Other:')).filter(Boolean);
-                            const other = e.target.value ? `Other:${e.target.value}` : 'Other:';
-                            setMedicalData({ 
-                              ...medicalData, 
-                              chronicConditions: [...current, other].filter(v => v !== 'Other:').join(',') || other
-                            });
-                          }}
-                        />
-                      )}
-                    </div>
-                  </div>
+                  <ChronicConditionsDropdown
+                    value={medicalData.chronicConditions}
+                    onChange={(value) => setMedicalData({ ...medicalData, chronicConditions: value })}
+                  />
                 </div>
                 <InputField
                   label="Current Medications"
@@ -2167,8 +2420,13 @@ export default function Patients() {
                   name="providerEmail"
                   type="email"
                   value={insuranceData.providerEmail}
-                  onChange={(e) => setInsuranceData({ ...insuranceData, providerEmail: e.target.value })}
+                  onChange={(e) => {
+                    const providerEmailValue = e.target.value;
+                    setInsuranceData({ ...insuranceData, providerEmail: providerEmailValue });
+                    setRegisterFormErrors((prev) => ({ ...prev, providerEmail: validateEmailDomain(providerEmailValue) }));
+                  }}
                   placeholder="provider@insurance.com"
+                  error={registerFormErrors.providerEmail}
                 />
                 <InputField
                   label="Policy Holder Name"
@@ -2249,7 +2507,7 @@ export default function Patients() {
               </div>
 
               {/* Footer with Tab Navigation */}
-              <div className="bg-gradient-to-r from-slate-100 to-blue-50 p-6 border-t-2 border-teal-300 flex justify-between items-center gap-3 rounded-b-2xl">
+              <div className="bg-gradient-to-r from-slate-100 to-blue-50 p-4 border-t-2 border-teal-300 flex justify-between items-center gap-3 rounded-b-2xl shrink-0">
                 {/* Previous/Next Tab Buttons */}
                 <div className="flex gap-3">
                   {registerActiveTab !== "patient" && (
