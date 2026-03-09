@@ -688,6 +688,19 @@ export default function Patients() {
     setFilteredAppointmentsList(appointmentsList);
   };
 
+  // Unified close handler for edit appointment modal (exits edit mode only)
+  const handleCloseEditAppointment = () => {
+    setIsEditingAppointment(false);
+    setEditAppointmentForm(null);
+  };
+
+  // Unified close handler for entire appointment details modal
+  const handleCloseAppointmentDetails = () => {
+    setSelectedAppointmentDetails(null);
+    setIsEditingAppointment(false);
+    setEditAppointmentForm(null);
+  };
+
   // Load diagnosis details for an appointment
   const loadDiagnosisDetails = async (appointmentId) => {
     console.log('🔍 loadDiagnosisDetails called with appointmentId:', appointmentId);
@@ -7133,18 +7146,15 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
       </AnimatePresence>
 
       {/* Appointment Details Modal with Edit */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {selectedAppointmentDetails && (
           <motion.div
+            key={`appointment-details-${selectedAppointmentDetails.appointmentId}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[120] flex items-center justify-center p-4"
-            onClick={() => {
-              setSelectedAppointmentDetails(null);
-              setIsEditingAppointment(false);
-              setEditAppointmentForm(null);
-            }}
+            onClick={handleCloseAppointmentDetails}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -7157,11 +7167,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
               <motion.button
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => {
-                  setSelectedAppointmentDetails(null);
-                  setIsEditingAppointment(false);
-                  setEditAppointmentForm(null);
-                }}
+                onClick={handleCloseAppointmentDetails}
                 className="absolute top-6 right-6 z-50 w-12 h-12 bg-white hover:bg-red-50 text-red-600 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all"
                 title="Close"
               >
@@ -7696,10 +7702,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        setIsEditingAppointment(false);
-                        setEditAppointmentForm(null);
-                      }}
+                      onClick={handleCloseEditAppointment}
                       type="button"
                       className="flex-1 px-6 py-4 bg-white hover:bg-slate-100 border-2 border-slate-300 text-slate-700 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
                     >
@@ -7762,13 +7765,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                           const response = await updateAppointment(updatedAppointment);
                           console.log('Update response:', response);
                           
-                          // Update the selected details
-                          setSelectedAppointmentDetails({
-                            ...selectedAppointmentDetails,
-                            ...updatedAppointment
-                          });
-                          
-                          // Update the list
+                          // Batch all state updates together
+                          // Update the list first
                           setFilteredAppointmentsList(prev => 
                             prev.map(apt => 
                               apt.appointmentId === selectedAppointmentDetails.appointmentId 
@@ -7777,12 +7775,17 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                             )
                           );
                           
-                          // Exit edit mode
+                          // Update selected details and exit edit mode in single update
+                          setSelectedAppointmentDetails({
+                            ...selectedAppointmentDetails,
+                            ...updatedAppointment
+                          });
+                          
+                          // Exit edit mode - using batched state updates
                           setIsEditingAppointment(false);
                           setEditAppointmentForm(null);
-                          
-                          // Show success popup
                           setShowAppointmentUpdateSuccess(true);
+                          
                           setTimeout(() => setShowAppointmentUpdateSuccess(false), 4000);
                         } catch (error) {
                           console.error('Error updating appointment:', error);
@@ -7811,11 +7814,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => {
-                        setSelectedAppointmentDetails(null);
-                        setIsEditingAppointment(false);
-                        setEditAppointmentForm(null);
-                      }}
+                      onClick={handleCloseAppointmentDetails}
                       type="button"
                       className="flex-1 px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
                     >
