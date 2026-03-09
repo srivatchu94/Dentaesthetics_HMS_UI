@@ -59,6 +59,51 @@ export default function Calendar() {
   const [paymentModalAppointment, setPaymentModalAppointment] = useState(null);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [appointmentToDelete, setAppointmentToDelete] = useState(null);
+
+  const mapApiAppointmentToCalendar = (apt) => ({
+    id: apt.appointmentId,
+    appointmentId: apt.appointmentId,
+    patient: `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
+    firstName: apt.firstName || '',
+    lastName: apt.lastName || '',
+    patientPhone: apt.phoneNumber || '',
+    patientEmail: apt.email || '',
+    date: apt.appointmentDate ? apt.appointmentDate.split('T')[0] : '',
+    startTime: apt.startTime || '',
+    endTime: apt.endTime || '',
+    type: apt.appointmentType || '',
+    doctor: apt.attendingPhysician || 'Dr. Smith',
+    status: apt.status || 'Confirmed',
+    notes: apt.notes || '',
+    billableAmount: apt.billableAmount || 0,
+    paidAmount: apt.paidAmount || 0,
+    pendingAmount: apt.pendingAmount || 0,
+    paymentStatus: apt.paymentStatus || 'Pending',
+    patientId: apt.patientId,
+    clinicId: apt.clinicId,
+    doctorId: apt.doctorId,
+    enterpriseId: apt.enterpriseId,
+    reasonForVisit: apt.reasonForVisit || '',
+    invoiceNumber: apt.invoiceNumber || null,
+    color: 'emerald'
+  });
+
+  const loadAppointments = async () => {
+    try {
+      setLoadingAppointments(true);
+      console.log('📅 Loading calendar appointments from API...');
+      const data = await getCalendarAppointments();
+
+      const transformedAppointments = data.map(mapApiAppointmentToCalendar);
+      console.log('✅ Loaded appointments:', transformedAppointments);
+      setAppointments(transformedAppointments);
+    } catch (error) {
+      console.error('❌ Error loading appointments:', error);
+      setAppointments([]);
+    } finally {
+      setLoadingAppointments(false);
+    }
+  };
   
   // Booking form state - pre-fill with patient data if available
   const [bookingForm, setBookingForm] = useState({
@@ -92,53 +137,6 @@ export default function Calendar() {
 
   // Load appointments from API
   useEffect(() => {
-    const loadAppointments = async () => {
-      try {
-        setLoadingAppointments(true);
-        console.log('📅 Loading calendar appointments from API...');
-        const data = await getCalendarAppointments();
-        
-        // Transform backend data to match frontend format
-        const transformedAppointments = data.map((apt) => ({
-          id: apt.appointmentId,
-          appointmentId: apt.appointmentId,
-          patient: `${apt.firstName || ''} ${apt.lastName || ''}`.trim(),
-          firstName: apt.firstName || '',
-          lastName: apt.lastName || '',
-          patientPhone: apt.phoneNumber || '',
-          patientEmail: apt.email || '',
-          date: apt.appointmentDate ? apt.appointmentDate.split('T')[0] : '',
-          startTime: apt.startTime || '',
-          endTime: apt.endTime || '',
-          type: apt.appointmentType || '',
-          doctor: apt.attendingPhysician || 'Dr. Smith',
-          status: apt.status || 'Confirmed',
-          notes: apt.notes || '',
-          billableAmount: apt.billableAmount || 0,
-          paidAmount: apt.paidAmount || 0,
-          pendingAmount: apt.pendingAmount || 0,
-          paymentStatus: apt.paymentStatus || 'Pending',
-          patientId: apt.patientId,
-          clinicId: apt.clinicId,
-          doctorId: apt.doctorId,
-          enterpriseId: apt.enterpriseId,
-          reasonForVisit: apt.reasonForVisit || '',
-          invoiceNumber: apt.invoiceNumber || null,
-          color: 'emerald'
-        }));
-        
-        console.log('✅ Loaded appointments:', transformedAppointments);
-        setAppointments(transformedAppointments);
-      } catch (error) {
-        console.error('❌ Error loading appointments:', error);
-        // Show error to user
-        alert('Failed to load appointments. Please refresh the page.');
-        setAppointments([]);
-      } finally {
-        setLoadingAppointments(false);
-      }
-    };
-
     loadAppointments();
   }, []);
 
@@ -334,13 +332,12 @@ export default function Calendar() {
 
   const handleSlotClick = (time, dateStr) => {
     setSelectedSlot(time);
-    setBookingForm({
-      ...bookingForm,
+    const params = new URLSearchParams({
+      openAppointment: "true",
       date: dateStr,
-      startTime: time,
-      endTime: ""
+      startTime: time
     });
-    setShowBookingModal(true);
+    navigate(`/patients?${params.toString()}`);
   };
 
   const handleBookingSubmit = (e) => {
@@ -421,9 +418,12 @@ export default function Calendar() {
       console.log('⏰ End Time Format:', appointmentPayload.endTime);
 
       // Call API to create appointment
-      const createdAppointment = await createAppointment(appointmentPayload);
+      await createAppointment(appointmentPayload);
       
-      console.log('✅ Appointment created successfully:', createdAppointment);
+      console.log('✅ Appointment created successfully');
+
+      // Reload from backend so newly booked appointment appears immediately in calendar.
+      await loadAppointments();
 
       // Show success modal with funny message
       const funnyMessages = [
@@ -446,7 +446,7 @@ export default function Calendar() {
       setShowDoubleBookingModal(false);
       setPendingAppointment(null);
 
-      // Reset form after 3 seconds and redirect
+      // Reset form after 3 seconds
       setTimeout(() => {
         setShowSuccessModal(false);
         setBookingForm({
@@ -470,14 +470,13 @@ export default function Calendar() {
           paymentStatus: "Pending",
           isConfirmed: false
         });
-        // Redirect to calendar
-        navigate("/calendar");
       }, 3000);
 
     } catch (error) {
       console.error("❌ Error booking appointment:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
       alert(`❌ Error booking appointment: ${errorMessage}`);
+    } finally {
       setIsBookingLoading(false);
     }
   };
@@ -761,8 +760,11 @@ export default function Calendar() {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => {
-                    setBookingForm({ ...bookingForm, date: selectedDate });
-                    setShowBookingModal(true);
+                    const params = new URLSearchParams({
+                      openAppointment: "true",
+                      ...(selectedDate ? { date: selectedDate } : {})
+                    });
+                    navigate(`/patients?${params.toString()}`);
                   }}
                   className="px-6 py-3 bg-gradient-to-r from-teal-500 to-sage-500 text-white rounded-xl font-semibold shadow-teal hover:shadow-xl transition-all flex items-center gap-2"
                 >

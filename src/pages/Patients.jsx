@@ -233,7 +233,7 @@ const SAMPLE_PATIENTS_LIST = [
 ];
 
 export default function Patients() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const [activeView, setActiveView] = useState("list");
   const [hoveredCard, setHoveredCard] = useState(null);
@@ -1113,6 +1113,29 @@ export default function Patients() {
       setActiveView("list");
     }
   }, [searchParams]);
+
+  // Open Patients "New Appointment" modal when redirected from Calendar.
+  useEffect(() => {
+    const shouldOpenAppointment = searchParams.get("openAppointment") === "true";
+    if (!shouldOpenAppointment) return;
+
+    const dateFromQuery = searchParams.get("date") || "";
+    const startTimeFromQuery = searchParams.get("startTime") || "";
+
+    setShowNewAppointmentModal(true);
+    setAppointmentForm((prev) => ({
+      ...prev,
+      ...(dateFromQuery ? { date: dateFromQuery } : {}),
+      ...(startTimeFromQuery ? { startTime: startTimeFromQuery } : {})
+    }));
+
+    // Remove one-time params so refresh/back doesn't re-open unexpectedly.
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("openAppointment");
+    nextParams.delete("date");
+    nextParams.delete("startTime");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
   
   // Apply local filtering based on status and appointment type when filters change
   useEffect(() => {

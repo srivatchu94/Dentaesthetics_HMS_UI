@@ -216,17 +216,25 @@ const GlobalOnboardStaffModal = () => {
 
     if (tab === "personal") {
       if (!doctorFormData.clinicId) errors.push("clinicId");
-      if (!doctorFormData.firstName) errors.push("firstName");
-      if (!doctorFormData.lastName) errors.push("lastName");
+      if (!doctorFormData.firstName?.trim()) errors.push("firstName");
+      if (!doctorFormData.lastName?.trim()) errors.push("lastName");
       if (!doctorFormData.dateOfBirth) errors.push("dateOfBirth");
       if (doctorFormData.dateOfBirth && doctorFormData.dateOfBirth > todayISO) errors.push("dateOfBirth");
       if (!doctorFormData.gender) errors.push("gender");
       if (!doctorFormData.roleId || doctorFormData.roleId === "") errors.push("roleId");
     } else if (tab === "contact") {
-      if (!doctorFormData.email) errors.push("email");
+      console.log("Validating contact tab, address value:", doctorFormData.address);
+      console.log("Address trimmed:", doctorFormData.address?.trim());
+      console.log("Address is empty:", !doctorFormData.address?.trim());
+      
+      if (!doctorFormData.email?.trim()) errors.push("email");
       if (doctorFormData.email && !isValidEmailWithDomain(doctorFormData.email)) errors.push("email");
       if (!doctorFormData.phone) errors.push("phone");
       if (doctorFormData.phone && doctorFormData.phone.length !== 10) errors.push("phone");
+      if (!doctorFormData.address?.trim()) {
+        console.log("Address validation failed - pushing error");
+        errors.push("address");
+      }
       if (!doctorFormData.emergencyContact) errors.push("emergencyContact");
       if (doctorFormData.emergencyContact && doctorFormData.emergencyContact.length !== 10) errors.push("emergencyContact");
     } else if (tab === "professional") {
@@ -234,8 +242,14 @@ const GlobalOnboardStaffModal = () => {
       const roleName = selectedRole?.roleName?.toLowerCase() || "";
       const requiresAcademic = roleName.includes("doctor") || roleName.includes("nurse");
       const isAdmin = roleName.includes("admin");
+      
+      // Validate years of experience and education for all roles
+      if (!doctorFormData.yearsExperience) errors.push("yearsExperience");
+      if (!doctorFormData.education?.trim()) errors.push("education");
+      
+      // Validate license and specialty only for clinical roles
       if (!isReceptionistMode && requiresAcademic && !isAdmin) {
-        if (!doctorFormData.licenseNumber) errors.push("licenseNumber");
+        if (!doctorFormData.licenseNumber?.trim()) errors.push("licenseNumber");
         if (!doctorFormData.licenseExpiry) errors.push("licenseExpiry");
         if (doctorFormData.licenseExpiry && !hasValidFourDigitYear(doctorFormData.licenseExpiry)) errors.push("licenseExpiry");
         if (!doctorFormData.specialtyId) errors.push("specialtyId");
@@ -246,6 +260,7 @@ const GlobalOnboardStaffModal = () => {
       if (!doctorFormData.employmentStatus) errors.push("employmentStatus");
     }
 
+    console.log(`${tab} tab validation complete. Errors:`, errors);
     return errors;
   };
 
@@ -291,8 +306,39 @@ const GlobalOnboardStaffModal = () => {
     console.log("📋 Form data:", doctorFormData);
     
     if (missing.length > 0) {
-      setValidationErrors(missing);
-      alert(`⚠️ Please fill required fields:\n\n${missing.join('\n')}`);
+      // Close preview and show errors in the main form
+      setShowPreview(false);
+      setValidationErrors(missing.map(field => {
+        // Convert friendly names back to field names for highlighting
+        const fieldMap = {
+          'Clinic ID': 'clinicId',
+          'First Name': 'firstName',
+          'Last Name': 'lastName',
+          'Date of Birth': 'dateOfBirth',
+          'Valid Date of Birth': 'dateOfBirth',
+          'Gender': 'gender',
+          'Role': 'roleId',
+          'Email': 'email',
+          'Valid Email with valid domain': 'email',
+          'Phone': 'phone',
+          'Valid 10-digit Phone': 'phone',
+          'Emergency Contact': 'emergencyContact',
+          'Valid 10-digit Emergency Contact': 'emergencyContact',
+          'License Number': 'licenseNumber',
+          'License Expiry': 'licenseExpiry',
+          'Valid 4-digit year in License Expiry': 'licenseExpiry',
+          'Specialty ID': 'specialtyId',
+          'Joining Date': 'joiningDate',
+          'Valid 4-digit year in Joining Date': 'joiningDate',
+          'Employment Status': 'employmentStatus',
+          'Assigned Role': 'roleId'
+        };
+        return fieldMap[field] || field.toLowerCase().replace(/\s+/g, '');
+      }));
+      // Scroll to top to show error message
+      setTimeout(() => {
+        document.querySelector('.overflow-y-auto')?.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 100);
       console.error("Validation failed:", missing);
       return;
     }
@@ -352,18 +398,57 @@ const GlobalOnboardStaffModal = () => {
       }, 2000);
     } catch (error) {
       console.error("❌ Error creating staff:", error);
-      alert(`Error: ${error.message || "Failed to create staff member"}`);
-      setValidationErrors([error.message || "Failed to create staff member"]);
+      setShowPreview(false);
+      setValidationErrors([`Error: ${error.message || "Failed to create staff member"}`]);
+      // Scroll to top to show error message
+      setTimeout(() => {
+        document.querySelector('.overflow-y-auto')?.scrollTo({ top: 0, behavior: 'smooth' });
+      }, 100);
     } finally {
       setIsCreating(false);
       console.log("🏁 Submit process completed");
     }
   };
 
-  const handleNextTab = () => {
+  const handleTabClick = (targetTab) => {
+    // Allow going back to previous tabs without validation
+    const currentIndex = tabOrder.indexOf(activeTab);
+    const targetIndex = tabOrder.indexOf(targetTab);
+    
+    if (targetIndex <= currentIndex) {
+      // Allow backward navigation
+      setActiveTab(targetTab);
+      setValidationErrors([]);
+      return;
+    }
+    
+    // For forward navigation, validate current tab first
+    console.log(`Validating ${activeTab} tab before moving to ${targetTab}`);
     const errors = validateTab(activeTab);
+    console.log(`Validation errors:`, errors);
+    console.log(`Current form data:`, doctorFormData);
+    
     if (errors.length > 0) {
       setValidationErrors(errors);
+      // Scroll to top to show error message
+      document.querySelector('.overflow-y-auto')?.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    
+    // Clear errors and navigate forward
+    setValidationErrors([]);
+    setActiveTab(targetTab);
+  };
+
+  const handleNextTab = () => {
+    console.log(`Validating ${activeTab} tab before moving to next`);
+    const errors = validateTab(activeTab);
+    console.log(`Validation errors:`, errors);
+    
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      // Scroll to top to show error message
+      document.querySelector('.overflow-y-auto')?.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
@@ -385,6 +470,8 @@ const GlobalOnboardStaffModal = () => {
     const errors = validateTab(activeTab);
     if (errors.length > 0) {
       setValidationErrors(errors);
+      // Scroll to top to show error message
+      document.querySelector('.overflow-y-auto')?.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     setShowPreview(true);
@@ -488,7 +575,7 @@ const GlobalOnboardStaffModal = () => {
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleTabClick(tab.id)}
                     className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${
                       activeTab === tab.id
                         ? "bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-lg scale-105"
@@ -503,8 +590,37 @@ const GlobalOnboardStaffModal = () => {
 
               {/* Error Messages */}
               {validationErrors.length > 0 && (
-                <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg">
-                  <p className="text-red-700 font-semibold">Please fill in all required fields marked with *</p>
+                <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg shadow-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">⚠️</span>
+                    <div className="flex-1">
+                      <p className="text-red-800 font-bold text-lg mb-2">Please fill in all required fields before proceeding</p>
+                      <p className="text-red-700 text-sm mb-2">The following fields are missing or invalid:</p>
+                      <ul className="list-disc list-inside text-red-700 text-sm space-y-1">
+                        {validationErrors.map((error, index) => (
+                          <li key={index} className="font-medium">
+                            {error === 'clinicId' && 'Clinic ID'}
+                            {error === 'firstName' && 'First Name'}
+                            {error === 'lastName' && 'Last Name'}
+                            {error === 'dateOfBirth' && 'Date of Birth'}
+                            {error === 'gender' && 'Gender'}
+                            {error === 'roleId' && 'Role'}
+                            {error === 'email' && 'Valid Email Address'}
+                            {error === 'phone' && 'Valid 10-digit Phone Number'}
+                            {error === 'address' && 'Address'}
+                            {error === 'emergencyContact' && 'Valid 10-digit Emergency Contact'}
+                            {error === 'licenseNumber' && 'License Number'}
+                            {error === 'licenseExpiry' && 'License Expiry Date'}
+                            {error === 'specialtyId' && 'Specialty ID'}
+                            {error === 'yearsExperience' && 'Years of Experience'}
+                            {error === 'education' && 'Education'}
+                            {error === 'joiningDate' && 'Joining Date'}
+                            {error === 'employmentStatus' && 'Employment Status'}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               )}
 
