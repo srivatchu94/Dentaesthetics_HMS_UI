@@ -315,28 +315,44 @@ export const refreshAccessToken = async (): Promise<boolean> => {
       return false;
     }
     
-    console.log('\n🔄 ====================== REFRESHING ACCESS TOKEN =======================');
-    console.log('📋 STEP 1: Preparing refresh request');
-    console.log(`   ✓ Access Token obtained (${accessToken.substring(0, 20)}...)`);
-    console.log(`   ✓ API Base URL: ${window.location.origin}/api`);
-    console.log(`   ✓ Endpoint: /Authentication/refresh-token`);
+    console.log('\n\n');
+    console.log('════════════════════════════════════════════════════════════════════════════════');
+    console.log('🔄 TOKEN REFRESH INITIATED');
+    console.log('════════════════════════════════════════════════════════════════════════════════');
+    console.log(`⏰ Timestamp: ${new Date().toLocaleString()}`);
     
     // Prepare request parameters
     const refreshUrl = `${window.location.origin}/api/Authentication/refresh-token`;
     const requestBody = { accessToken };
     
-    console.log('\n📋 STEP 2: Request Details');
-    console.log(`   URL: POST ${refreshUrl}`);
-    console.log(`   Headers:`);
-    console.log(`      - Content-Type: application/json`);
-    console.log(`      - Authorization: Bearer [token present]`);
-    console.log(`      - credentials: 'include' (to send HttpOnly refresh token cookie)`);
-    console.log(`   Body:`, JSON.stringify(requestBody, null, 2));
+    console.log('\n📋 STEP 1: API ENDPOINT DETAILS');
+    console.log('═══════════════════════════════════════════');
+    console.log(`   API URL: ${refreshUrl}`);
+    console.log(`   Method: POST`);
+    console.log(`   Protocol: HTTPS`);
+    console.log(`   Origin: ${window.location.origin}`);
+    console.log(`   Path: /api/Authentication/refresh-token`);
+    
+    console.log('\n📋 STEP 2: REQUEST PARAMETERS');
+    console.log('═══════════════════════════════════════════');
+    console.log('   Request Headers:');
+    console.log(`      1. Content-Type: application/json`);
+    console.log(`      2. Authorization: Bearer ${accessToken.substring(0, 30)}...${accessToken.substring(accessToken.length - 20)}`);
+    console.log(`      3. credentials: 'include' (sends HttpOnly cookies)`);
+    console.log('\n   Request Body:');
+    console.log(`      Type: JSON object`);
+    console.log(`      {`);
+    console.log(`        "accessToken": "${accessToken.substring(0, 30)}...${accessToken.substring(accessToken.length - 20)}"`);
+    console.log(`      }`);
+    console.log('\n   Full Body JSON:');
+    console.log(`      ${JSON.stringify(requestBody, null, 6)}`);
     
     const startTime = Date.now();
+    console.log(`\n📋 STEP 3: SENDING REQUEST`);
+    console.log('═══════════════════════════════════════════');
+    console.log(`   ⏱️ Request started at: ${new Date(startTime).toLocaleTimeString()}`);
     
-    // Call refresh endpoint with credentials to access HttpOnly refresh token cookie
-    console.log('\n📋 STEP 3: Sending request...');
+    // Execute fetch with detailed parameter logging
     const response = await fetch(refreshUrl, {
       method: 'POST',
       headers: {
@@ -349,35 +365,165 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     
     const duration = Date.now() - startTime;
     
-    console.log(`\n📋 STEP 4: Response Received (${duration}ms)`);
-    console.log(`   Status: ${response.status} ${response.statusText}`);
-    console.log(`   Content-Type: ${response.headers.get('content-type')}`);
+    console.log(`\n📋 STEP 4: RESPONSE RECEIVED`);
+    console.log('═══════════════════════════════════════════');
+    console.log(`   ⏱️ Duration: ${duration}ms`);
+    console.log(`   📊 HTTP Status: ${response.status} ${response.statusText}`);
+    console.log(`\n   Response Headers:`);
+    console.log(`      - Content-Type: ${response.headers.get('content-type')}`);
+    console.log(`      - Content-Length: ${response.headers.get('content-length')}`);
+    console.log(`      - Set-Cookie: ${response.headers.get('set-cookie') ? 'YES (Cookie set)' : 'N/A'}`);
+    console.log(`      - Cache-Control: ${response.headers.get('cache-control') || 'N/A'}`);
     
-    const data = await response.json();
-    console.log(`   Response Body:`, JSON.stringify(data, null, 2));
+    // Parse response
+    let data: any;
+    try {
+      const responseText = await response.text();
+      console.log(`\n   Raw Response Body (first 500 chars):`);
+      console.log(`      ${responseText.substring(0, 500)}${responseText.length > 500 ? '...' : ''}`);
+      
+      data = JSON.parse(responseText);
+      console.log(`\n   Parsed Response JSON:`);
+      console.log(``, JSON.stringify(data, null, 6));
+    } catch (parseError) {
+      console.error(`\n❌ ERROR PARSING RESPONSE`);
+      console.error(`   Failed to parse response as JSON`);
+      console.error(`   Error: ${(parseError as Error).message}`);
+      return false;
+    }
     
     // Check if response was successful
     if (response.status !== 200) {
-      console.error(`\n❌ REFRESH FAILED - Status ${response.status}`);
-      console.error('   Possible causes:');
-      console.error('   1. HttpOnly refresh token cookie not received/invalid');
-      console.error('   2. Refresh token expired');
-      console.error('   3. Backend validation failed');
-      console.error(`   4. Server error: ${data.message || data.error || 'Unknown'}`);
+      console.error(`\n❌ REFRESH FAILED - HTTP Status ${response.status}`);
+      console.error('═══════════════════════════════════════════');
+      console.error('   Diagnostic Information:');
+      console.error(`   1. Status Code Issue: ${response.status}`);
+      
+      if (response.status === 401) {
+        console.error(`      → Unauthorized: Refresh token may be invalid or expired`);
+      } else if (response.status === 403) {
+        console.error(`      → Forbidden: Access denied`);
+      } else if (response.status === 400) {
+        console.error(`      → Bad Request: Request parameters invalid`);
+      } else if (response.status >= 500) {
+        console.error(`      → Server Error: Backend issue`);
+      }
+      
+      console.error(`   2. Server Response: ${data.message || data.error || 'No error message'}`);
+      console.error(`   3. Full Error Response:`, data);
       return false;
     }
     
     // Validate response has required fields
     if (!data.accessToken) {
-      console.error('\n❌ INVALID REFRESH RESPONSE');
-      console.error('   Missing required fields: accessToken');
+      console.error(`\n❌ INVALID REFRESH RESPONSE`);
+      console.error('═══════════════════════════════════════════');
+      console.error('   Missing required field: accessToken');
+      console.error('   Response provided:', Object.keys(data));
       console.error('   Full response:', data);
       return false;
     }
     
-    console.log('\n📋 STEP 5: Updating Token Storage');
-    console.log(`   New Access Token (first 30 chars): ${data.accessToken.substring(0, 30)}...`);
+    console.log(`\n✅ RESPONSE VALIDATION PASSED`);
+    console.log('═══════════════════════════════════════════');
+    console.log(`   ✓ Status: 200 OK`);
+    console.log(`   ✓ Has accessToken: YES`);
+    console.log(`   ✓ New Token: ${data.accessToken.substring(0, 30)}...${data.accessToken.substring(data.accessToken.length - 20)}`);
+    console.log(`   ✓ Expires: ${data.accessTokenExpiresAt}`);
+    
+    console.log('\n📋 STEP 5: UPDATING LOCAL STORAGE');
+    console.log('═══════════════════════════════════════════');
+    console.log(`   Saving new access token...`);
+    console.log(`   New Token (first 30 chars): ${data.accessToken.substring(0, 30)}...`);
     console.log(`   Expires At: ${data.accessTokenExpiresAt}`);
+    
+    // Update access token in HYBRID storage
+    saveAccessToken(data.accessToken);
+    
+    console.log('\n✅ TOKEN STORAGE UPDATED');
+    console.log('═══════════════════════════════════════════');
+    console.log(`   ✓ Access Token: Saved to memory`);
+    console.log(`   ✓ Access Token: Saved to sessionStorage`);
+    console.log(`   ✓ Refresh Token: HttpOnly Cookie updated by backend`);
+    
+    // Extract and log new expiry time
+    const newExpiryStr = getTokenExpiry();
+    if (newExpiryStr) {
+      const newExpiry = new Date(newExpiryStr);
+      const minutesRemaining = Math.floor((newExpiry.getTime() - Date.now()) / 1000 / 60);
+      const secondsRemaining = Math.floor((newExpiry.getTime() - Date.now()) / 1000) % 60;
+      
+      console.log(`\n⏰ NEW TOKEN EXPIRY INFORMATION`);
+      console.log('═══════════════════════════════════════════');
+      console.log(`   Now: ${new Date().toLocaleTimeString()}`);
+      console.log(`   Expires: ${newExpiry.toLocaleTimeString()}`);
+      console.log(`   Time Remaining: ${minutesRemaining}m ${secondsRemaining}s`);
+      console.log(`   Full Expiry: ${newExpiryStr}`);
+    }
+    
+    console.log(`\n📋 STEP 6: RESTARTING REFRESH TIMER`);
+    console.log('═══════════════════════════════════════════');
+    console.log(`   Setting new timer...`);
+    console.log(`   Will refresh again in: 12 minutes`);
+    console.log(`   (3 minutes before new expiry)`);
+    
+    // Restart refresh timer with new expiry
+    startTokenRefreshTimer();
+    
+    console.log(`\n✅ TOKEN REFRESH COMPLETED SUCCESSFULLY`);
+    console.log('════════════════════════════════════════════════════════════════════════════════\n');
+    
+    return true;
+  } catch (error) {
+    const timestamp = new Date().toLocaleString();
+    console.error(`\n\n❌ ════════════════════════════════════════════════════════════════════════════════`);
+    console.error(`❌ REFRESH TOKEN FAILED AT ${timestamp}`);
+    console.error(`❌ ════════════════════════════════════════════════════════════════════════════════`);
+    
+    console.error(`\n📋 ERROR DETAILS:`);
+    console.error('═══════════════════════════════════════════');
+    console.error(`   Error Type: ${(error as Error).name}`);
+    console.error(`   Error Message: ${(error as Error).message}`);
+    console.error(`   Error Stack: ${(error as Error).stack}`);
+    console.error(`   Full Error Object:`, error);
+    
+    if (error instanceof TypeError) {
+      console.error(`\n🔍 ANALYSIS: TypeError detected`);
+      console.error('   This usually means:');
+      console.error('   1. Network error (CORS, network unreachable)');
+      console.error('   2. Fetch API error');
+      console.error('   3. Invalid URL or fetch parameters');
+    }
+    
+    console.error(`\n📋 TROUBLESHOOTING STEPS:`);
+    console.error('═══════════════════════════════════════════');
+    console.error(`   1. Check Network tab for failed requests`);
+    console.error(`   2. Verify API endpoint is reachable`);
+    console.error(`   3. Check if refresh token cookie exists`);
+    console.error(`   4. Check browser console for CORS errors`);
+    
+    // Attempt automatic retry after 5 seconds if we have less than 2 minutes left
+    const expiryStr = getTokenExpiry();
+    if (expiryStr) {
+      const timeRemaining = new Date(expiryStr).getTime() - Date.now();
+      if (timeRemaining < 2 * 60 * 1000) {
+        console.warn(`\n⏳ RETRY LOGIC TRIGGERED`);
+        console.warn('═══════════════════════════════════════════');
+        console.warn(`   Token expiring in ${Math.floor(timeRemaining / 1000)} seconds`);
+        console.warn(`   Will retry refresh in 5 seconds...`);
+        
+        setTimeout(() => {
+          console.log(`\n🔄 RETRY ATTEMPT at ${new Date().toLocaleTimeString()}`);
+          refreshAccessToken();
+        }, 5000);
+      }
+    }
+    
+    console.error(`\n❌ ════════════════════════════════════════════════════════════════════════════════\n`);
+    
+    return false;
+  }
+};
     
     // Update access token in HYBRID storage (Memory + SessionStorage)
     saveAccessToken(data.accessToken);
@@ -461,11 +607,17 @@ const startTokenRefreshTimer = (): void => {
     const now = Date.now();
     const timeUntilExpiry = expiryTime - now;
     
-    console.log('\n⏰ ================ TOKEN REFRESH TIMER SETUP ===================');
-    console.log('📋 TIMER CONFIGURATION:');
-    console.log(`   📅 Current Time: ${new Date(now).toLocaleTimeString()}`);
-    console.log(`   📅 Token Expires: ${new Date(expiryTime).toLocaleTimeString()}`);
-    console.log(`   ⏱️ Total Remaining: ${Math.floor(timeUntilExpiry / 1000 / 60)}m ${Math.floor((timeUntilExpiry % 60000) / 1000)}s`);
+    console.log('\n\n════════════════════════════════════════════════════════════════════════════════');
+    console.log('⏰ SETTING UP TOKEN REFRESH TIMER');
+    console.log('════════════════════════════════════════════════════════════════════════════════');
+    console.log(`⏰ Setup Time: ${new Date(now).toLocaleString()}`);
+    
+    console.log('\n📋 TOKEN EXPIRY INFORMATION:');
+    console.log('═══════════════════════════════════════════');
+    console.log(`   Current Time: ${new Date(now).toLocaleTimeString()}`);
+    console.log(`   Token Expires: ${new Date(expiryTime).toLocaleTimeString()}`);
+    console.log(`   Total Remaining: ${Math.floor(timeUntilExpiry / 1000 / 60)}m ${Math.floor((timeUntilExpiry % 60000) / 1000)}s`);
+    console.log(`   Expiry Timestamp: ${expiryStr}`);
     
     // If token is already expired, refresh immediately
     if (timeUntilExpiry <= 0) {
@@ -481,33 +633,80 @@ const startTokenRefreshTimer = (): void => {
       return;
     }
     
-    // Refresh 3 minutes before expiry (aggressive buffer for 15-min tokens)
-    const refreshBuffer = 3 * 60 * 1000; // 3 minutes
+    // Refresh 3 minutes before expiry
+    const refreshBuffer = 3 * 60 * 1000; // 3 minutes = 180000 ms
     const refreshTime = Math.max(0, timeUntilExpiry - refreshBuffer);
     const minutesUntilRefresh = Math.floor(refreshTime / 1000 / 60);
     const secondsUntilRefresh = Math.floor((refreshTime % 60000) / 1000);
-    const scheduledRefreshTime = new Date(now + refreshTime).toLocaleTimeString();
+    const scheduledRefreshTime = new Date(now + refreshTime);
     
-    console.log(`\n⏱️ REFRESH SCHEDULE:`);
-    console.log(`   🔄 Will refresh in: ${minutesUntilRefresh}m ${secondsUntilRefresh}s`);
-    console.log(`   🔄 Scheduled refresh at: ${scheduledRefreshTime}`);
-    console.log(`   💡 (3 minutes before expiry for safety margin)`);
-    console.log('⏰ ===============================================================\n');
+    console.log(`\n📋 REFRESH TIMER SCHEDULE:`);
+    console.log('═══════════════════════════════════════════');
+    console.log(`   3-Minute Buffer: ${3 * 60} seconds`);
+    console.log(`   Refresh Time Before Expiry: 180 seconds`);
+    console.log(`   Will refresh in: ${minutesUntilRefresh}m ${secondsUntilRefresh}s`);
+    console.log(`   Scheduled refresh at: ${scheduledRefreshTime.toLocaleTimeString()}`);
+    console.log(`   (${minutesUntilRefresh * 60 + secondsUntilRefresh} seconds from now)`);
+    
+    console.log(`\n📋 API THAT WILL BE CALLED:`);
+    console.log('═══════════════════════════════════════════');
+    console.log(`   Endpoint: ${window.location.origin}/api/Authentication/refresh-token`);
+    console.log(`   Method: POST`);
+    console.log(`   Content-Type: application/json`);
+    console.log(`   Auth Header: Bearer [access token]`);
+    console.log(`   Body: { "accessToken": "[token]" }`);
+    console.log(`   Credentials: 'include' (sends HttpOnly cookie)`);
+    
+    console.log(`\n📋 WHAT HAPPENS WHEN TIMER FIRES:`);
+    console.log('═══════════════════════════════════════════');
+    console.log(`   1. Trigger time: ${scheduledRefreshTime.toLocaleTimeString()}`);
+    console.log(`   2. POST request sent to /Authentication/refresh-token`);
+    console.log(`   3. Request includes current access token in body`);
+    console.log(`   4. Request includes refresh token (in HttpOnly cookie)`);
+    console.log(`   5. Backend validates both tokens`);
+    console.log(`   6. Backend returns new access token`);
+    console.log(`   7. New token saved to memory + sessionStorage`);
+    console.log(`   8. New refresh timer scheduled (12 min from token issue)`);
+    console.log(`   9. User stays logged in ✅`);
+    
+    console.log(`\n⏱️ COUNTDOWN:`);
+    console.log('═══════════════════════════════════════════');
+    console.log(`   At ${scheduledRefreshTime.toLocaleTimeString()}, timer will trigger refresh`);
+    console.log(`   Waiting... ${minutesUntilRefresh}m ${secondsUntilRefresh}s`);
+    console.log('════════════════════════════════════════════════════════════════════════════════\n');
     
     // Set the timer
     refreshTokenTimer = window.setTimeout(async () => {
-      console.log('\n⏰ ==================== TIMER FIRED ===========================');
-      console.log(`🔄 AUTO-REFRESH TRIGGERED at ${new Date().toLocaleTimeString()}`);
-      console.log('📋 Reason: Proactive refresh before token expiry (3-minute buffer)');
-      console.log('⏰ =============================================================\n');
+      const fireTime = new Date();
+      console.log('\n\n════════════════════════════════════════════════════════════════════════════════');
+      console.log('⏰ TIMER FIRED - REFRESH TRIGGERED');
+      console.log('════════════════════════════════════════════════════════════════════════════════');
+      console.log(`🔔 Fired at: ${fireTime.toLocaleTimeString()}`);
+      console.log(`📅 Full timestamp: ${fireTime.toLocaleString()}`);
+      console.log(`\n📋 WHY IT FIRED:`);
+      console.log('═══════════════════════════════════════════');
+      console.log(`   • Proactive token refresh`);
+      console.log(`   • Triggered 3 minutes before token expiry`);
+      console.log(`   • This ensures token never expires in production use`);
+      console.log(`\n📋 ACTION:`);
+      console.log('═══════════════════════════════════════════');
+      console.log(`   NOW calling: refreshAccessToken()`);
+      console.log(`   This will make the API call to /Authentication/refresh-token`);
+      console.log('════════════════════════════════════════════════════════════════════════════════\n');
       
       const success = await refreshAccessToken();
       
       if (!success) {
-        console.error('\n❌ ================ REFRESH FAILED - AUTO LOGOUT ================');
-        console.error('Token refresh failed. Session may be expired.');
-        console.error('Showing session expired popup and logging out user.');
-        console.error('❌ ===============================================================\n');
+        console.error('\n❌════════════════════════════════════════════════════════════════════════════════');
+        console.error('❌ REFRESH API CALL FAILED - AUTO LOGOUT TRIGGERED');
+        console.error('❌════════════════════════════════════════════════════════════════════════════════');
+        console.error(`\n   Reason: refreshAccessToken() returned false`);
+        console.error(`   This means:`);
+        console.error(`   1. API call failed or returned error status`);
+        console.error(`   2. Response didn't have new access token`);
+        console.error(`   3. Refresh token may have expired`);
+        console.error(`\n   Action: User will be logged out automatically`);
+        console.error('❌════════════════════════════════════════════════════════════════════════════════\n');
         showSessionExpiredPopup();
         handleLogout();
       }
