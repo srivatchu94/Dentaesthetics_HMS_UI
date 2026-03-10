@@ -47,6 +47,10 @@ let refreshTokenTimer: number | null = null;
 let inactivityTimer: number | null = null;
 let sessionExpiryTimer: number | null = null;
 
+// ⚙️ DEBUG/TEST MODE - Disable inactivity checks while testing token refresh
+const TEST_MODE_DISABLE_INACTIVITY = true; // SET TO FALSE TO ENABLE INACTIVITY TIMEOUT
+const TEST_MODE_DISABLE_SESSION_EXPIRY = true; // SET TO FALSE TO ENABLE SESSION EXPIRY CHECK
+
 // Activity tracking
 let lastActivityTime: number = Date.now();
 
@@ -762,6 +766,13 @@ const startTokenRefreshTimer = (): void => {
  * ⭐ LOGS ALL INACTIVITY CHECKS TO PERSISTENT STORAGE
  */
 const startInactivityTimer = (): void => {
+  // 🧪 TEST MODE: Skip inactivity checks
+  if (TEST_MODE_DISABLE_INACTIVITY) {
+    console.log('🧪 TEST MODE: Inactivity timeout DISABLED - focus on token refresh testing');
+    logInactivityEvent('TEST_MODE: Inactivity checks DISABLED');
+    return;
+  }
+  
   // Clear existing timer
   if (inactivityTimer) {
     clearInterval(inactivityTimer);
@@ -871,6 +882,12 @@ export const removeActivityListeners = (): void => {
  * Start session expiry timer (max session duration)
  */
 const startSessionExpiryTimer = (refreshTokenExpiresAt: string): void => {
+  // 🧪 TEST MODE: Skip session expiry warnings
+  if (TEST_MODE_DISABLE_SESSION_EXPIRY) {
+    console.log('🧪 TEST MODE: Session expiry warnings DISABLED - focus on token refresh testing');
+    return;
+  }
+  
   // Clear existing timer
   if (sessionExpiryTimer) {
     clearTimeout(sessionExpiryTimer);
