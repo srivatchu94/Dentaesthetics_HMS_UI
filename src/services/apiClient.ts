@@ -167,6 +167,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   try {
     res = await fetch(fullUrl, {
       headers,
+      credentials: 'include',  // ✅ CRITICAL: Send HttpOnly cookies (refresh token) with every request
       ...options
     });
     console.log(`✅ API RESPONSE: ${res.status} ${res.statusText} for ${path}`);
