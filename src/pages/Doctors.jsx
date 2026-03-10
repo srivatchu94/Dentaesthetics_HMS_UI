@@ -165,7 +165,7 @@ const FullEditAppointmentModal = ({
   setActiveEditSection,
   isUpdatingAppointment,
   handleUpdateAppointmentSubmit,
-  setShowEditModal,
+  onCloseEditModal,
   doctorsList,
   setDoctorsList,
   loadingDoctors,
@@ -244,7 +244,7 @@ const FullEditAppointmentModal = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[9999] p-4"
-        onClick={() => setShowEditModal(false)}
+        onClick={onCloseEditModal}
       >
         <motion.div
           initial={{ scale: 0.9, y: 30 }}
@@ -270,7 +270,7 @@ const FullEditAppointmentModal = ({
               <motion.button
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => setShowEditModal(false)}
+                onClick={onCloseEditModal}
                 className="flex-shrink-0 w-12 h-12 bg-white/20 hover:bg-red-500/30 text-white rounded-full flex items-center justify-center transition-all duration-300 border-2 border-white/40"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -628,7 +628,7 @@ const FullEditAppointmentModal = ({
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setShowEditModal(false)}
+              onClick={onCloseEditModal}
               disabled={isUpdatingAppointment}
               className="px-6 py-2.5 bg-white border-2 border-stone-300 text-stone-700 hover:border-stone-500 hover:bg-stone-50 font-semibold transition-all rounded-lg disabled:opacity-50"
             >
@@ -933,6 +933,7 @@ export default function Doctors() {
   const [showUpdateSuccessModal, setShowUpdateSuccessModal] = useState(false);
   const [updateSuccessMessage, setUpdateSuccessMessage] = useState("");
   const [activeEditSection, setActiveEditSection] = useState('patient');
+  const [restoreDetailsAfterEditClose, setRestoreDetailsAfterEditClose] = useState(false);
   
   // New appointment booking states
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
@@ -1003,12 +1004,34 @@ export default function Doctors() {
     "Global Dental Equipment"
   ];
   
+  const handleCloseAppointmentDetails = useCallback(() => {
+    setShowAppointmentDetails(false);
+    setSelectedAppointmentDetails(null);
+  }, []);
+
   // Appointment management functions
   const handleEditAppointmentClick = (appointment) => {
+    // Hide details while edit modal is open to avoid duplicate stacked renders.
+    const shouldRestoreDetails = showAppointmentDetails;
+    setRestoreDetailsAfterEditClose(shouldRestoreDetails);
+    if (shouldRestoreDetails) {
+      setShowAppointmentDetails(false);
+    }
+
     setEditFormData({ ...appointment });
     setActiveEditSection('patient'); // Reset to first tab
     setShowEditModal(true);
   };
+
+  const handleCloseEditModal = useCallback(() => {
+    setShowEditModal(false);
+
+    if (restoreDetailsAfterEditClose && selectedAppointmentDetails) {
+      setShowAppointmentDetails(true);
+    }
+
+    setRestoreDetailsAfterEditClose(false);
+  }, [restoreDetailsAfterEditClose, selectedAppointmentDetails]);
   
   const handleUpdateAppointmentSubmit = async () => {
     if (!editFormData) {
@@ -1037,13 +1060,67 @@ export default function Doctors() {
     console.log(JSON.stringify(editFormData, null, 2));
     console.log("════════════════════════════════════════════════════════════════");
     
+    const toApiTime = (value) => {
+      if (!value) return null;
+      const v = String(value).trim();
+      if (!v) return null;
+      if (/^\d{2}:\d{2}:\d{2}$/.test(v)) return v;
+      if (/^\d{2}:\d{2}$/.test(v)) return `${v}:00`;
+      return v;
+    };
+
+    const toApiDate = (value) => {
+      if (!value) return "";
+      const v = String(value).trim();
+      if (!v) return "";
+      return v.includes('T') ? v.split('T')[0] : v;
+    };
+
     const billableAmountNum = parseFloat(editFormData.billableAmount || 0);
     const paidAmountNum = parseFloat(editFormData.paidAmount || 0);
     const computedPendingAmount = Number((billableAmountNum - paidAmountNum).toFixed(2));
+    const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+    const localUserId = Number(localStorage.getItem('userId') || userData?.userId || 0);
+
     const payload = {
-      ...editFormData,
-      pendingAmount: computedPendingAmount
+      appointmentId: Number(editFormData.appointmentId || selectedAppointmentDetails?.appointmentId || 0),
+      patientId: Number(editFormData.patientId || selectedAppointmentDetails?.patientId || 0),
+      clinicId: Number(editFormData.clinicId || selectedAppointmentDetails?.clinicId || 0),
+      doctorId: editFormData.doctorId
+        ? String(editFormData.doctorId)
+        : (selectedAppointmentDetails?.doctorId ? String(selectedAppointmentDetails.doctorId) : null),
+      visitId: editFormData.visitId || selectedAppointmentDetails?.visitId || null,
+      attendingPhysician: editFormData.attendingPhysician || selectedAppointmentDetails?.attendingPhysician || '',
+      enterpriseId: Number(editFormData.enterpriseId || selectedAppointmentDetails?.enterpriseId || 0),
+      firstName: editFormData.firstName || selectedAppointmentDetails?.firstName || '',
+      lastName: editFormData.lastName || selectedAppointmentDetails?.lastName || '',
+      phoneNumber: editFormData.phoneNumber || selectedAppointmentDetails?.phoneNumber || '',
+      email: editFormData.email || selectedAppointmentDetails?.email || '',
+      appointmentDate: toApiDate(editFormData.appointmentDate || selectedAppointmentDetails?.appointmentDate),
+      startTime: toApiTime(editFormData.startTime || selectedAppointmentDetails?.startTime),
+      endTime: toApiTime(editFormData.endTime || selectedAppointmentDetails?.endTime),
+      durationMinutes: Number(editFormData.durationMinutes || selectedAppointmentDetails?.durationMinutes || 0),
+      appointmentType: editFormData.appointmentType || selectedAppointmentDetails?.appointmentType || 'Consultation',
+      reasonForVisit: editFormData.reasonForVisit || selectedAppointmentDetails?.reasonForVisit || '',
+      notes: editFormData.notes || selectedAppointmentDetails?.notes || '',
+      roomNumber: editFormData.roomNumber || selectedAppointmentDetails?.roomNumber || '',
+      telehealthLink: editFormData.telehealthLink || selectedAppointmentDetails?.telehealthLink || '',
+      status: editFormData.status || selectedAppointmentDetails?.status || 'Scheduled',
+      isConfirmed: Boolean(editFormData.isConfirmed ?? selectedAppointmentDetails?.isConfirmed ?? false),
+      billableAmount: billableAmountNum,
+      paidAmount: paidAmountNum,
+      pendingAmount: computedPendingAmount,
+      paymentStatus: editFormData.paymentStatus || selectedAppointmentDetails?.paymentStatus || 'Pending',
+      createdAt: editFormData.createdAt || selectedAppointmentDetails?.createdAt,
+      updatedAt: new Date().toISOString(),
+      createdBy: Number(editFormData.createdBy || selectedAppointmentDetails?.createdBy || 0),
+      updatedBy: localUserId
     };
+
+    if (!payload.appointmentId || !payload.patientId || !payload.clinicId || !payload.appointmentDate) {
+      alert('❌ Missing required appointment fields. Please verify date, patient and clinic details.');
+      return;
+    }
 
     setIsUpdatingAppointment(true);
     try {
@@ -1068,21 +1145,22 @@ export default function Doctors() {
           : appt
       ));
       
-      // Update selectedAppointmentDetails if it's the same appointment being viewed
-      if (selectedAppointmentDetails?.appointmentId === payload.appointmentId) {
-        setSelectedAppointmentDetails({ ...selectedAppointmentDetails, ...payload });
-        console.log("✅ Updated appointment details view with new data");
-      }
+      const updatedDetails = {
+        ...(selectedAppointmentDetails || {}),
+        ...payload
+      };
+      setSelectedAppointmentDetails(updatedDetails);
+      console.log("✅ Updated appointment details view with new data");
       
       console.log("✅ Local state updated with new data");
       
-      // Show success modal
-      setUpdateSuccessMessage("🎉 Appointment updated successfully! Your changes have been saved to the system.");
-      setShowUpdateSuccessModal(true);
-      
-      // Close edit modal
+      // Batch all modal state updates together
       setShowEditModal(false);
       setEditFormData(null);
+      setRestoreDetailsAfterEditClose(false);
+      setShowAppointmentDetails(true);
+      setUpdateSuccessMessage("🎉 Appointment updated successfully! Your changes have been saved to the system.");
+      setShowUpdateSuccessModal(true);
       
       console.log("✅ Update process completed successfully");
     } catch (error) {
@@ -1093,7 +1171,8 @@ export default function Doctors() {
       console.error("Error message:", error?.message);
       console.error("Error response:", error?.response);
       console.error("════════════════════════════════════════════════════════════════");
-      alert("❌ Failed to update appointment. Please try again.");
+      const errorText = (error?.response?.data || error?.message || '').toString().slice(0, 200);
+      alert(`❌ Failed to update appointment. ${errorText ? `Details: ${errorText}` : 'Please try again.'}`);
     } finally {
       setIsUpdatingAppointment(false);
     }
@@ -3008,13 +3087,6 @@ export default function Doctors() {
 
   // Visit Info Modal Component - IMPROVED DIAGNOSIS FORM - FIXED FOCUS LOSS
   // Using React.memo to prevent recreation on every parent re-render (like when typing)
-  // Add parent-level render logging - only on modal visibility changes
-  React.useEffect(() => {
-    if (showVisitInfoModal || showAppointmentDetails) {
-      console.log('👨‍⚕️ DOCTORS COMPONENT RE-RENDERED - Modal active');
-    }
-  }, [showVisitInfoModal, showAppointmentDetails]);
-
   const VisitInfoModal = React.useMemo(() => React.memo(() => {
     if (!showVisitInfoModal || !selectedAppointmentForVisit) return null;
 
@@ -4274,17 +4346,19 @@ export default function Doctors() {
   ]);
 
   // Appointment Details Modal Component - IMPROVED LAYOUT
-  const AppointmentDetailsModal = () => {
+  // Memoized to prevent recreation on every parent render
+  const AppointmentDetailsModal = React.useMemo(() => {
     if (!showAppointmentDetails || !selectedAppointmentDetails) return null;
 
     return (
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         <motion.div
+          key={`appointment-details-${selectedAppointmentDetails.appointmentId}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[9999] p-4"
-          onClick={() => setShowAppointmentDetails(false)}
+          onClick={handleCloseAppointmentDetails}
         >
           <motion.div
             initial={{ scale: 0.9, y: 30 }}
@@ -4309,7 +4383,7 @@ export default function Doctors() {
               <motion.button
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => setShowAppointmentDetails(false)}
+                onClick={handleCloseAppointmentDetails}
                 className="flex-shrink-0 w-12 h-12 bg-white/20 hover:bg-red-500/30 text-white rounded-full flex items-center justify-center transition-all duration-300 border-2 border-white/40"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4488,7 +4562,7 @@ export default function Doctors() {
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => setShowAppointmentDetails(false)}
+                onClick={handleCloseAppointmentDetails}
                 className="px-6 py-2.5 bg-white border-2 border-stone-300 text-stone-700 hover:border-stone-500 hover:bg-stone-50 font-semibold transition-all rounded-lg"
               >
                 ✕ Close
@@ -4544,7 +4618,18 @@ export default function Doctors() {
         </motion.div>
       </AnimatePresence>
     );
-  };
+  }, [
+    showAppointmentDetails,
+    selectedAppointmentDetails,
+    handleCloseAppointmentDetails,
+    handleEditAppointmentClick,
+    currentPrescription,
+    handlePrintPrescription,
+    setSelectedAppointmentForVisit,
+    loadMedicalInfoSummary,
+    setShowVisitInfoModal,
+    setShowAppointmentDetails
+  ]);
 
   // Prescription Modal Component - ENHANCED with patient details & keyboard nav
   const commonMedications = [
@@ -7904,10 +7989,7 @@ export default function Doctors() {
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
                               onClick={async () => {
-                                // Show quick view then hydrate with full data from API
-                                setSelectedAppointmentDetails(appt);
-                                setShowAppointmentDetails(true);
-
+                                // Open details only after hydration to avoid double render/flicker.
                                 const hydrated = await fetchAppointmentDetails(appt);
                                 setSelectedAppointmentDetails(hydrated);
                                 setShowAppointmentDetails(true);
@@ -9356,7 +9438,7 @@ export default function Doctors() {
       <BookAppointmentModal />
       
       {/* Appointment Details Modal */}
-      <AppointmentDetailsModal />
+      {AppointmentDetailsModal}
       
       {/* Visit Info Modal */}
       <AnimatePresence mode="wait">
@@ -9364,10 +9446,29 @@ export default function Doctors() {
           <VisitInfoModalExternal
             key="visit-info-modal"
             show={showVisitInfoModal}
-            onClose={() => setShowVisitInfoModal(false)}
-            selectedAppointment={selectedAppointmentForVisit}
-            onVisitSaved={() => {
+            onClose={() => {
               setShowVisitInfoModal(false);
+              if (selectedAppointmentDetails) {
+                setShowAppointmentDetails(true);
+              }
+            }}
+            selectedAppointment={selectedAppointmentForVisit}
+            onVisitSaved={(savedVisitData) => {
+              setShowVisitInfoModal(false);
+              if (savedVisitData && selectedAppointmentDetails) {
+                setSelectedAppointmentDetails((prev) => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    reasonForVisit: savedVisitData.reasonForVisit || prev.reasonForVisit,
+                    notes: savedVisitData.notes || prev.notes,
+                    diagnosis: savedVisitData.diagnosis || prev.diagnosis,
+                    treatmentProvided: savedVisitData.treatmentProvided || prev.treatmentProvided,
+                    existingVisitData: savedVisitData
+                  };
+                });
+              }
+              setShowAppointmentDetails(true);
               reloadVisitData();
             }}
             loadInventoryMedications={loadInventoryMedications}
@@ -9824,7 +9925,7 @@ export default function Doctors() {
         setActiveEditSection={setActiveEditSection}
         isUpdatingAppointment={isUpdatingAppointment}
         handleUpdateAppointmentSubmit={handleUpdateAppointmentSubmit}
-        setShowEditModal={setShowEditModal}
+        onCloseEditModal={handleCloseEditModal}
         doctorsList={doctorsList}
         setDoctorsList={setDoctorsList}
         loadingDoctors={loadingDoctors}

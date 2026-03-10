@@ -773,10 +773,23 @@ const VisitInfoModal = ({
       // Show success message
       setSuccessMessage(randomMessage);
       setShowPrescriptionSuccessModal(true);
+
+      const savedVisitData = {
+        visitDate: visitForm.visitDate,
+        reasonForVisit: visitForm.chiefComplaint,
+        diagnosis: visitForm.diagnosis,
+        treatmentProvided: visitForm.treatmentProvided,
+        notes: visitForm.notes || '',
+        followUpDate: visitForm.followUpDate || null,
+        prescriptions
+      };
       
       setTimeout(() => {
-        onClose();
-        onVisitSaved();
+        if (typeof onVisitSaved === 'function') {
+          onVisitSaved(savedVisitData);
+        } else if (typeof onClose === 'function') {
+          onClose();
+        }
         setVisitForm({
           visitDate: new Date().toISOString().split('T')[0],
           followUpDate: '',
