@@ -292,7 +292,6 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.log('🔄 ==================== REFRESHING ACCESS TOKEN ====================');
     console.log('   🍪 Using HttpOnly Refresh Token (sent automatically in request)');
     console.log('   📤 Calling backend /refresh-token endpoint...');
-    console.log('   ℹ️ IMPORTANT: credentials: "include" must be set to send HttpOnly cookies');
     
     const response = await request<RefreshTokenResponse>(`${AUTH_BASE_URL}/refresh-token`, {
       method: 'POST',
@@ -333,11 +332,11 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.error('❌ ==================== FAILED TO REFRESH TOKEN ====================');
     console.error('   Error:', error);
     console.error('   This may happen if:');
-    console.error('   1. ❌ CRITICAL: credentials:"include" not set (HttpOnly cookie not sent)');
-    console.error('   2. Refresh token has expired (user needs to login again)');
-    console.error('   3. Backend /refresh-token endpoint is not responding');
-    console.error('   4. Network error occurred');
-    console.error('   5. Backend returns 4xx/5xx error (check Network tab)');
+    console.error('   1. Refresh token has expired (user needs to login again)');
+    console.error('   2. Backend /refresh-token endpoint is not responding');
+    console.error('   3. Network error occurred');
+    console.error('   - Stored refresh token may be invalid or expired');
+    console.error('   - Retrying refresh in background...');
     console.error('🔄 ====================================================================');
     
     // Attempt automatic retry after 5 seconds if we have less than 2 minutes left
