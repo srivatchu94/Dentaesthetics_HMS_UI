@@ -25,7 +25,8 @@ import {
   logLogoutEvent,
   logAuthEvent,
   printDebugLogs,
-  exportDebugLogs
+  exportDebugLogs,
+  getStoredLogs
 } from '../utils/persistentDebugLogger';
 
 const AUTH_BASE_URL = '/Authentication';
@@ -348,11 +349,23 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     // Get BOTH tokens needed for refresh
     console.log('\n📋 STEP 0: RETRIEVING TOKENS FROM STORAGE');
     console.log('═══════════════════════════════════════════');
+    console.log('📊 SessionStorage Inspection:');
+    console.log(`   Total sessionStorage items: ${sessionStorage.length}`);
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      const value = sessionStorage.getItem(key || '');
+      console.log(`   - ${key}: ${value ? value.substring(0, 50) + '...' : 'EMPTY'}`);
+    }
     
     const refreshToken = getRefreshToken();
     if (!refreshToken) {
       console.error('❌ CRITICAL ERROR: Refresh token not found in sessionStorage!');
-      console.error('   Cannot call refresh API without refresh token');
+      console.error('   This is why the API call is NOT happening');
+      console.error('   Expected key: refreshToken_session');
+      console.error('\n🔍 Available keys in sessionStorage:');
+      for (let i = 0; i < sessionStorage.length; i++) {
+        console.error(`   - ${sessionStorage.key(i)}`);
+      }
       logTokenRefreshEvent('STEP 0: FAILED - Refresh token missing from storage');
       return false;
     }
@@ -1083,6 +1096,21 @@ export const loginUser = async (loginData: LoginRequest): Promise<LoginResponse>
     
     // Initialize activity tracking
     initActivityListeners();
+    
+    // 🧪 Add global commands for debugging
+    (window as any).viewDebugLogs = () => {
+      console.clear();
+      console.log('🔍 RETRIEVING STORED DEBUG LOGS...\n');
+      printDebugLogs();
+      const exported = exportDebugLogs();
+      console.log('\n📋 COPYABLE LOG EXPORT:\n');
+      console.log(exported);
+      return exported;
+    };
+    
+    console.log('\n✅ Global debug command available:');
+    console.log('   TYPE IN CONSOLE: viewDebugLogs()');
+    console.log('   This will display ALL stored debug logs even after logout!\n');
     
     // Show success popup
     showLoginSuccessPopup(response.username);
