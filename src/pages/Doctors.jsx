@@ -214,17 +214,112 @@ const FullEditAppointmentModal = ({
     }
   }, [showEditModal, editFormData?.clinicId, setDoctorsList, setLoadingDoctors]);
   
+  // Validation state
+  const [fieldErrors, setFieldErrors] = React.useState({});
+
+  const calculateDurationMinutes = React.useCallback((startTime, endTime) => {
+    if (!startTime || !endTime) {
+      return '';
+    }
+
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+
+    if ([startHour, startMinute, endHour, endMinute].some(Number.isNaN)) {
+      return '';
+    }
+
+    const startTotalMinutes = startHour * 60 + startMinute;
+    const endTotalMinutes = endHour * 60 + endMinute;
+
+    if (endTotalMinutes <= startTotalMinutes) {
+      return '';
+    }
+
+    return String(endTotalMinutes - startTotalMinutes);
+  }, []);
+
+  const validateField = React.useCallback((field, value) => {
+    let error = '';
+    if (field === 'phoneNumber') {
+      const digits = String(value).replace(/\D/g, '');
+      if (value && digits.length !== 10) {
+        error = 'Phone number must be exactly 10 digits';
+      }
+    } else if (field === 'email') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (value && !emailRegex.test(value)) {
+        error = 'Please enter a valid email address';
+      }
+    } else if (field === 'appointmentDate') {
+      if (value) {
+        const selected = new Date(value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (selected < today) {
+          error = 'Appointment date cannot be in the past';
+        }
+      }
+    } else if (field === 'billableAmount') {
+      if (value !== '' && parseFloat(value) < 0) {
+        error = 'Billable amount cannot be negative';
+      }
+    } else if (field === 'paidAmount') {
+      if (value !== '' && parseFloat(value) < 0) {
+        error = 'Paid amount cannot be negative';
+      }
+    }
+    return error;
+  }, []);
+
   // Work directly with parent's editFormData
   const handleLocalInputChange = useCallback((field, value) => {
-    setEditFormData(prev => ({
+    const normalizedValue = field === 'phoneNumber'
+      ? String(value).replace(/\D/g, '').slice(0, 10)
+      : value;
+
+    setEditFormData(prev => {
+      const nextFormData = {
+        ...prev,
+        [field]: normalizedValue
+      };
+
+      if (field === 'startTime' || field === 'endTime') {
+        nextFormData.durationMinutes = calculateDurationMinutes(
+          field === 'startTime' ? normalizedValue : nextFormData.startTime,
+          field === 'endTime' ? normalizedValue : nextFormData.endTime
+        );
+      }
+
+      return nextFormData;
+    });
+
+    // Run inline validation
+    const error = validateField(field, normalizedValue);
+    setFieldErrors(prev => ({
       ...prev,
-      [field]: value
+      [field]: error
     }));
-  }, [setEditFormData]);
+  }, [calculateDurationMinutes, setEditFormData, validateField]);
   
   const handleLocalSave = useCallback(async () => {
+    // Run full validation before save
+    const errors = {};
+    ['phoneNumber', 'email', 'appointmentDate', 'billableAmount', 'paidAmount'].forEach(field => {
+      const val = editFormData?.[field];
+      const err = validateField(field, val !== undefined && val !== null ? String(val) : '');
+      if (err) errors[field] = err;
+    });
+    if (Object.values(errors).some(Boolean)) {
+      setFieldErrors(prev => ({ ...prev, ...errors }));
+      // Navigate to the tab that contains the first error
+      if (errors.phoneNumber || errors.email) setActiveEditSection('patient');
+      else if (errors.appointmentDate) setActiveEditSection('appointment');
+      else if (errors.billableAmount || errors.paidAmount) setActiveEditSection('billing');
+      return;
+    }
     await handleUpdateAppointmentSubmit();
-  }, [handleUpdateAppointmentSubmit]);
+  }, [handleUpdateAppointmentSubmit, editFormData, validateField, setActiveEditSection]);
   
   // Tab navigation logic
   const editSections = ['patient', 'appointment', 'billing', 'other'];
@@ -358,9 +453,20 @@ const FullEditAppointmentModal = ({
                           type="tel"
                           value={editFormData.phoneNumber || ""}
                           onChange={(e) => handleLocalInputChange("phoneNumber", e.target.value)}
-                          className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                          placeholder="Enter phone number"
+                          className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 transition ${
+                            fieldErrors.phoneNumber
+                              ? 'border-red-400 focus:ring-red-400 focus:border-red-400 bg-red-50'
+                              : 'border-blue-300 focus:ring-blue-500 focus:border-blue-500'
+                          }`}
+                          placeholder="Enter 10-digit phone number"
+                          inputMode="numeric"
+                          maxLength={10}
                         />
+                        {fieldErrors.phoneNumber && (
+                          <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                            <span>⚠️</span> {fieldErrors.phoneNumber}
+                          </p>
+                        )}
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-sm font-bold text-stone-700 mb-2">Email</label>
@@ -368,9 +474,18 @@ const FullEditAppointmentModal = ({
                           type="email"
                           value={editFormData.email || ""}
                           onChange={(e) => handleLocalInputChange("email", e.target.value)}
-                          className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                          className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 transition ${
+                            fieldErrors.email
+                              ? 'border-red-400 focus:ring-red-400 focus:border-red-400 bg-red-50'
+                              : 'border-blue-300 focus:ring-blue-500 focus:border-blue-500'
+                          }`}
                           placeholder="Enter email"
                         />
+                        {fieldErrors.email && (
+                          <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                            <span>⚠️</span> {fieldErrors.email}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -398,8 +513,17 @@ const FullEditAppointmentModal = ({
                           type="date"
                           value={editFormData.appointmentDate ? editFormData.appointmentDate.split('T')[0] : ""}
                           onChange={(e) => handleLocalInputChange("appointmentDate", e.target.value)}
-                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
+                          className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 transition ${
+                            fieldErrors.appointmentDate
+                              ? 'border-red-400 focus:ring-red-400 focus:border-red-400 bg-red-50'
+                              : 'border-green-300 focus:ring-green-500 focus:border-green-500'
+                          }`}
                         />
+                        {fieldErrors.appointmentDate && (
+                          <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                            <span>⚠️</span> {fieldErrors.appointmentDate}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-bold text-stone-700 mb-2">Start Time *</label>
@@ -424,9 +548,10 @@ const FullEditAppointmentModal = ({
                         <input
                           type="number"
                           value={editFormData.durationMinutes || ""}
-                          onChange={(e) => handleLocalInputChange("durationMinutes", e.target.value)}
-                          className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                          placeholder="e.g., 30"
+                          readOnly
+                          disabled
+                          className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl bg-gray-100 text-gray-700 cursor-not-allowed"
+                          placeholder="Calculated from start and end time"
                         />
                       </div>
                       <div>
@@ -536,22 +661,42 @@ const FullEditAppointmentModal = ({
                         <input
                           type="number"
                           step="0.01"
+                          min="0"
                           value={editFormData.billableAmount || ""}
                           onChange={(e) => handleLocalInputChange("billableAmount", e.target.value)}
-                          className="w-full px-4 py-3 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
+                          className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 transition ${
+                            fieldErrors.billableAmount
+                              ? 'border-red-400 focus:ring-red-400 focus:border-red-400 bg-red-50'
+                              : 'border-yellow-300 focus:ring-yellow-500 focus:border-yellow-500'
+                          }`}
                           placeholder="0.00"
                         />
+                        {fieldErrors.billableAmount && (
+                          <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                            <span>⚠️</span> {fieldErrors.billableAmount}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-bold text-stone-700 mb-2">Paid Amount (₹)</label>
                         <input
                           type="number"
                           step="0.01"
+                          min="0"
                           value={editFormData.paidAmount || ""}
                           onChange={(e) => handleLocalInputChange("paidAmount", e.target.value)}
-                          className="w-full px-4 py-3 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
+                          className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 transition ${
+                            fieldErrors.paidAmount
+                              ? 'border-red-400 focus:ring-red-400 focus:border-red-400 bg-red-50'
+                              : 'border-yellow-300 focus:ring-yellow-500 focus:border-yellow-500'
+                          }`}
                           placeholder="0.00"
                         />
+                        {fieldErrors.paidAmount && (
+                          <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                            <span>⚠️</span> {fieldErrors.paidAmount}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-bold text-stone-700 mb-2">Pending Amount (₹)</label>
