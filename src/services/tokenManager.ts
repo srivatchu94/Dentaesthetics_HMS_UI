@@ -171,33 +171,52 @@ export const extractTokenExpiryFromJWT = (token: string): string | null => {
  */
 export const saveAccessToken = (token: string, backendExpiryTime?: string): void => {
   try {
-    // IMPORTANT: Extract expiry from JWT token's exp claim (ground truth)
-    // This is more reliable than using backend's response
+    console.log('\n📋 SAVING ACCESS TOKEN STEP-BY-STEP:');
+    
+    // Extract expiry from JWT token's exp claim
     const jwtExpiry = extractTokenExpiryFromJWT(token);
     
     if (!jwtExpiry) {
-      console.error('❌ Could not extract expiry from JWT token');
+      console.error('❌ CRITICAL: Could not extract expiry from JWT token');
       return;
     }
     
-    const expiryTime = jwtExpiry; // Use JWT expiry as source of truth
+    const expiryTime = jwtExpiry;
+    console.log(`   ✓ JWT Expiry extracted: ${expiryTime}`);
     
     // Store in memory (primary)
     memoryAccessToken = token;
     memoryTokenExpiry = expiryTime;
+    console.log('   ✓ Saved to memory (RAM)');
     
-    // Store in sessionStorage (fallback - auto-cleared on tab close)
+    // Store in sessionStorage (fallback)
     sessionStorage.setItem(ACCESS_TOKEN_SS_KEY, token);
     sessionStorage.setItem(TOKEN_EXPIRY_SS_KEY, expiryTime);
     
-    console.log('✅ ACCESS TOKEN SAVED SUCCESSFULLY:');
-    console.log('   Token (first 50 chars):', token.substring(0, 50) + '...');
-    console.log('   🔑 Expiry extracted from JWT exp claim (ground truth)');
-    console.log('   Storage locations:');
-    console.log('      🧠 Memory: Active (fast access)');
-    console.log('      📋 SessionStorage: Backup (persists on page refresh)');
+    // VERIFY what was actually saved
+    const verifyToken = sessionStorage.getItem(ACCESS_TOKEN_SS_KEY);
+    const verifyExpiry = sessionStorage.getItem(TOKEN_EXPIRY_SS_KEY);
     
-    // Decode and show full claims
+    console.log('   ✓ Saved to sessionStorage');
+    console.log(`   ✅ VERIFICATION:`);
+    console.log(`      - accessToken_session exists: ${verifyToken ? 'YES' : 'MISSING ❌'}`);
+    console.log(`      - accessTokenExpiry exists: ${verifyExpiry ? 'YES' : 'MISSING ❌'}`);
+    
+    if (verifyToken && verifyExpiry) {
+      console.log(`   ✅ ACCESS TOKEN SAVED SUCCESSFULLY`);
+    } else {
+      console.error(`   ❌ SAVE VERIFICATION FAILED`);
+      if (!verifyToken) console.error(`      - accessToken_session not found after setItem!`);
+      if (!verifyExpiry) console.error(`      - accessTokenExpiry not found after setItem!`);
+    }
+    
+    decodeAndLogTokenClaims(token);
+    
+  } catch (error) {
+    console.error('❌ Failed to save access token:', error);
+    console.error('   Stack:', (error as Error).stack);
+  }
+};
     decodeAndLogTokenClaims(token);
     
     console.log('   🔒 Security: Protected from XSS via memory storage');
@@ -347,15 +366,38 @@ export const getUserAccess = (): any[] => {
  */
 export const saveSelectedAccess = (enterpriseId: number, clinicId: number, roleIds: number[] = []): void => {
   try {
+    console.log('\n📋 SAVING SELECTED ACCESS STEP-BY-STEP:');
+    console.log(`   Input Parameters:`);
+    console.log(`      - enterpriseId: ${enterpriseId}`);
+    console.log(`      - clinicId: ${clinicId}`);
+    console.log(`      - roleIds: ${roleIds && roleIds.length > 0 ? roleIds.join(', ') : 'NONE'}`);
+    
     const selectedAccess = { enterpriseId, clinicId, roleIds };
-    localStorage.setItem(SELECTED_ACCESS_LS_KEY, JSON.stringify(selectedAccess));
-    console.log('🏢 SELECTED ACCESS SAVED TO LOCALSTORAGE:');
-    console.log(`   Enterprise: ${enterpriseId}`);
-    console.log(`   Clinic: ${clinicId}`);
-    console.log(`   Roles: ${roleIds && roleIds.length > 0 ? roleIds.join(', ') : 'NONE'}`);
-    console.log(`   Number of roles: ${roleIds?.length || 0}`);
+    const jsonString = JSON.stringify(selectedAccess);
+    
+    console.log(`   JSON to save: ${jsonString}`);
+    console.log(`   Key: ${SELECTED_ACCESS_LS_KEY}`);
+    
+    // Save to localStorage
+    localStorage.setItem(SELECTED_ACCESS_LS_KEY, jsonString);
+    console.log('   ✓ Saved to localStorage');
+    
+    // VERIFY what was actually saved
+    const verify = localStorage.getItem(SELECTED_ACCESS_LS_KEY);
+    
+    if (verify) {
+      console.log(`   ✅ VERIFICATION SUCCESS`);
+      console.log(`      Saved value: ${verify}`);
+      const parsed = JSON.parse(verify);
+      console.log(`      Parsed: Enterprise=${parsed.enterpriseId}, Clinic=${parsed.clinicId}, Roles=${parsed.roleIds?.join(',') || 'NONE'}`);
+    } else {
+      console.error(`   ❌ VERIFICATION FAILED: Key "${SELECTED_ACCESS_LS_KEY}" not found after setItem`);
+      console.error(`      localStorage keys:`, Array.from({length: localStorage.length}, (_, i) => localStorage.key(i)));
+    }
+    
   } catch (error) {
     console.error('❌ Failed to save selected access:', error);
+    console.error('   Stack:', (error as Error).stack);
   }
 };
 

@@ -71,95 +71,122 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
   try {
     const { accessToken, refreshToken, username, userId, access, accessTokenExpiresAt, refreshTokenExpiresAt, inactivityTimeoutMinutes, maxSessionDurationHours } = loginResponse;
     
-    console.log('🔐 ==================== SAVING AUTHENTICATION TOKENS ====================');
-    console.log('📝 Login Response Keys:', Object.keys(loginResponse));
-    console.log('👤 User:', username, '(ID:', userId, ')');
-    console.log('🏢 Access Count:', access?.length || 0);
+    console.log('\n🔐 ==================== SAVING AUTHENTICATION TOKENS ====================');
+    console.log('📋 STEP 1: Validating Login Response');
+    console.log('   Response Keys:', Object.keys(loginResponse));
+    console.log(`   ✓ accessToken: ${accessToken ? 'YES (' + accessToken.substring(0, 20) + '...)' : 'MISSING ❌'}`);
+    console.log(`   ✓ refreshToken: ${refreshToken ? 'YES' : 'MISSING ❌'}`);
+    console.log(`   ✓ username: ${username || 'MISSING ❌'}`);
+    console.log(`   ✓ userId: ${userId || 'MISSING ❌'}`);
+    console.log(`   ✓ access: ${access && access.length > 0 ? `YES (${access.length} items)` : 'MISSING ❌'}`);
+    console.log(`   ✓ accessTokenExpiresAt: ${accessTokenExpiresAt || 'MISSING ❌'}`);
     
     // 🧠 Save ACCESS TOKEN using HYBRID strategy
-    // Primary: Memory (fastest, XSS protected)
-    // Fallback: SessionStorage (survives page refresh, cleared on tab close)
-    console.log('💾 Saving access token...');
+    console.log('\n📋 STEP 2: Saving Access Token (Memory + SessionStorage)');
     saveAccessToken(accessToken, accessTokenExpiresAt);
     
-    // 🍪 REFRESH TOKEN - Already handled by Backend
-    // Backend sends: Set-Cookie: refreshToken=...; HttpOnly; Secure; SameSite=Strict
-    // This is the MOST SECURE way - frontend doesn't touch it
-    console.log('✅ Refresh Token set as HttpOnly Cookie (Backend managed, XSS protected)');
-    console.log('   Refresh Token expires at:', refreshTokenExpiresAt);
+    // Verify access token was saved
+    const savedToken = sessionStorage.getItem('accessToken_session');
+    const savedExpiry = sessionStorage.getItem('accessTokenExpiry');
+    console.log(`   ✓ SessionStorage check:`);
+    console.log(`      - accessToken_session: ${savedToken ? 'YES' : 'MISSING ❌'}`);
+    console.log(`      - accessTokenExpiry: ${savedExpiry ? 'YES' : 'MISSING ❌'}`);
     
-    // 💾 Save NON-SENSITIVE user data to localStorage (persists across sessions)
+    console.log('   ✓ Refresh Token set as HttpOnly Cookie (Backend managed)');
+    console.log(`      Expires at: ${refreshTokenExpiresAt}`);
+    
+    // 💾 Save NON-SENSITIVE user data
+    console.log('\n📋 STEP 3: Saving User Data to localStorage');
     saveUserData({ username, userId });
+    
+    // Verify user data was saved
+    const savedUserData = localStorage.getItem('userData');
+    console.log(`   ✓ userData saved: ${savedUserData ? 'YES' : 'MISSING ❌'}`);
+    if (savedUserData) {
+      console.log(`      Content: ${savedUserData}`);
+    }
+    
+    console.log('\n📋 STEP 4: Saving User Access Rights');
     saveUserAccess(access);
     
-    // Log detailed access and role information
-    console.log('👥 ===== USER ACCESS & ROLES INFORMATION =====');
+    // Verify access was saved
+    const savedAccess = localStorage.getItem('userAccess');
+    console.log(`   ✓ userAccess saved: ${savedAccess ? 'YES' : 'MISSING ❌'}`);
+    if (savedAccess) {
+      const accessCount = JSON.parse(savedAccess).length;
+      console.log(`      Count: ${accessCount} access configurations`);
+    }
+    
+    // Log detailed access info
+    console.log('\n📋 STEP 5: Access & Roles Details');
     if (access && access.length > 0) {
       console.log(`✅ User has ${access.length} access configuration(s):`);
       access.forEach((accessItem, index) => {
-        console.log(`\n📍 Access #${index + 1}:`);
-        console.log(`   Enterprise ID: ${accessItem.enterpriseId}`);
-        console.log(`   Clinic ID: ${accessItem.clinicId}`);
-        console.log(`   Role IDs: ${accessItem.roleIds && accessItem.roleIds.length > 0 ? accessItem.roleIds.join(', ') : 'NONE'}`);
-        console.log(`   Number of roles: ${accessItem.roleIds?.length || 0}`);
-        if (accessItem.roleIds && accessItem.roleIds.length > 0) {
-          console.log(`   Role details:`);
-          accessItem.roleIds.forEach((roleId, roleIndex) => {
-            console.log(`      Role ${roleIndex + 1}: ID = ${roleId}`);
-          });
-        }
+        console.log(`   [${index + 1}] Enterprise ${accessItem.enterpriseId} → Clinic ${accessItem.clinicId}`);
+        console.log(`       Roles: ${accessItem.roleIds && accessItem.roleIds.length > 0 ? accessItem.roleIds.join(', ') : 'NONE'}`);
       });
     } else {
-      console.warn('⚠️ NO ACCESS CONFIGURATIONS - User has no roles/permissions!');
+      console.warn('⚠️ NO ACCESS CONFIGURATIONS - User has no roles!');
     }
-    console.log('👥 ============================================\n');
     
-    // Auto-select first access if available (including roleIds)
+    // Auto-select first access
+    console.log('\n📋 STEP 6: Auto-Selecting First Access');
     if (access && access.length > 0) {
       const firstAccess = access[0];
-      console.log('🎯 Auto-selecting first access:');
-      console.log(`   Enterprise: ${firstAccess.enterpriseId}`);
-      console.log(`   Clinic: ${firstAccess.clinicId}`);
+      console.log(`   Selecting: Enterprise ${firstAccess.enterpriseId}, Clinic ${firstAccess.clinicId}`);
       console.log(`   Roles: ${firstAccess.roleIds && firstAccess.roleIds.length > 0 ? firstAccess.roleIds.join(', ') : 'NONE'}`);
+      
       try {
         saveSelectedAccess(firstAccess.enterpriseId, firstAccess.clinicId, firstAccess.roleIds);
-        // Verify selectedAccess was actually saved
+        
+        // Verify selectedAccess was saved
+        const verify = localStorage.getItem('selectedAccess');
+        if (verify) {
+          console.log(`   ✅ selectedAccess saved: ${verify}`);
+        } else {
+          console.error('   ❌ selectedAccess NOT found in localStorage after save!');
+        }
+        
         const verifySelected = getSelectedAccess();
-        if (!verifySelected) {
-          console.error('⚠️ WARNING: saveSelectedAccess was called but verification failed!');
-          console.error('   This may cause downstream issues with enterprise/clinic selection');
+        if (verifySelected) {
+          console.log(`   ✅ Verification successful: ${JSON.stringify(verifySelected)}`);
+        } else {
+          console.error('   ❌ Verification FAILED: getSelectedAccess() returned null');
         }
       } catch (error) {
-        console.error('❌ CRITICAL ERROR saving selectedAccess:', error);
+        console.error('❌ ERROR saving selectedAccess:', error);
       }
     } else {
-      console.error('❌ CRITICAL: No access found - User cannot perform any actions');
+      console.error('❌ Cannot auto-select: No access found');
     }
     
-    // Save session timeout settings
+    // Save metadata
+    console.log('\n📋 STEP 7: Saving Session Metadata');
     saveSessionMetadata(STORAGE_KEYS.INACTIVITY_TIMEOUT_LS, inactivityTimeoutMinutes.toString());
-    
-    // Track activity
     updateLastActivity();
+    console.log(`   ✓ Inactivity timeout: ${inactivityTimeoutMinutes} minutes`);
+    console.log(`   ✓ Max session duration: ${maxSessionDurationHours} hours`);
     
-    console.log('✅ SESSION STARTED SUCCESSFULLY (HYBRID STORAGE)');
+    // Final verification
+    console.log('\n📋 STEP 8: Final Storage Verification');
+    console.log('   localStorage keys:', Array.from({length: localStorage.length}, (_, i) => localStorage.key(i)));
+    console.log('   sessionStorage keys:', Array.from({length: sessionStorage.length}, (_, i) => sessionStorage.key(i)));
+    
+    console.log('\n✅ SESSION STARTED SUCCESSFULLY (HYBRID STORAGE)');
     console.log('🧠 Access Token: Memory + SessionStorage (XSS protected)');
     console.log('🍪 Refresh Token: HttpOnly Cookie (Backend managed)');
     console.log('💾 User Data: localStorage (non-sensitive)');
-    console.log('🔑 Access Token expires at:', accessTokenExpiresAt);
-    console.log('🔄 Refresh Token expires at:', refreshTokenExpiresAt);
-    console.log('⏱️ Inactivity timeout:', inactivityTimeoutMinutes, 'minutes');
-    console.log('⏰ Max session duration:', maxSessionDurationHours, 'hours');
-    console.log('🔐 ======================================================================');
+    console.log('🔐 ======================================================================\n');
     
-    // Start auto-refresh and session monitoring
+    // Start timers
     startTokenRefreshTimer();
-    startTokenRefreshHeartbeat(); // Start heartbeat to keep refresh timer alive
-    // DISABLED: startInactivityTimer(); // Replaced with refresh token mechanism to avoid false logouts
+    startTokenRefreshHeartbeat();
     startSessionExpiryTimer(refreshTokenExpiresAt);
     
   } catch (error) {
-    console.error('❌ Failed to save tokens:', error);
+    console.error('\n❌ FATAL ERROR in saveAuthToken:');
+    console.error('   Error:', error);
+    console.error('   Stack:', (error as Error).stack);
   }
 };
 
