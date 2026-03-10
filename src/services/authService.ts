@@ -14,6 +14,8 @@ import {
   saveSessionMetadata,
   getSessionMetadata,
   decodeAndLogTokenClaims,
+  getRefreshToken,
+  saveRefreshToken,
   STORAGE_KEYS
 } from './tokenManager';
 import {
@@ -101,7 +103,12 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
     console.log(`      - accessToken_session: ${savedToken ? 'YES' : 'MISSING ❌'}`);
     console.log(`      - accessTokenExpiry: ${savedExpiry ? 'YES' : 'MISSING ❌'}`);
     
-    console.log('   ✓ Refresh Token set as HttpOnly Cookie (Backend managed)');
+    // 🔄 Save REFRESH TOKEN to sessionStorage
+    // CRITICAL: Backend requires this in refresh API request body
+    console.log('\n📋 STEP 2B: Saving Refresh Token to SessionStorage');
+    saveRefreshToken(refreshToken);
+    
+    console.log('   ✓ Refresh Token also set as HttpOnly Cookie (Backend managed)');
     console.log(`      Expires at: ${refreshTokenExpiresAt}`);
     
     // 💾 Save NON-SENSITIVE user data
@@ -334,9 +341,27 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.log('════════════════════════════════════════════════════════════════════════════════');
     console.log(`⏰ Timestamp: ${refreshStartTime.toLocaleString()}`);
     
-    // Prepare request parameters
+    // Get BOTH tokens needed for refresh
+    console.log('\n📋 STEP 0: RETRIEVING TOKENS FROM STORAGE');
+    console.log('═══════════════════════════════════════════');
+    
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+      console.error('❌ CRITICAL ERROR: Refresh token not found in sessionStorage!');
+      console.error('   Cannot call refresh API without refresh token');
+      logTokenRefreshEvent('STEP 0: FAILED - Refresh token missing from storage');
+      return false;
+    }
+    
+    console.log(`   ✅ Access Token found: ${accessToken.substring(0, 30)}...`);
+    console.log(`   ✅ Refresh Token found: ${refreshToken.substring(0, 30)}...`);
+    
+    // Prepare request parameters with BOTH tokens
     const refreshUrl = `${window.location.origin}/api/Authentication/refresh-token`;
-    const requestBody = { accessToken };
+    const requestBody = {
+      accessToken: accessToken,
+      refreshToken: refreshToken
+    };
     
     console.log('\n📋 STEP 1: API ENDPOINT DETAILS');
     console.log('═══════════════════════════════════════════');
@@ -354,13 +379,19 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.log(`      1. Content-Type: application/json`);
     console.log(`      2. Authorization: Bearer ${accessToken.substring(0, 30)}...${accessToken.substring(accessToken.length - 20)}`);
     console.log(`      3. credentials: 'include' (sends HttpOnly cookies)`);
-    console.log('\n   Request Body:');
-    console.log(`      Type: JSON object`);
+    console.log('\n   Request Body (REQUIRED BY BACKEND):');
     console.log(`      {`);
-    console.log(`        "accessToken": "${accessToken.substring(0, 30)}...${accessToken.substring(accessToken.length - 20)}"`);
+    console.log(`        "AccessToken": "${accessToken.substring(0, 30)}..."`);
+    console.log(`        "RefreshToken": "${refreshToken.substring(0, 30)}..."`);
     console.log(`      }`);
     console.log('\n   Full Body JSON:');
     console.log(`      ${JSON.stringify(requestBody, null, 6)}`);
+    
+    logTokenRefreshEvent('STEP 2: Sending request body with both tokens', {
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+      bodyKeys: Object.keys(requestBody)
+    });
     
     const startTime = Date.now();
     console.log(`\n📋 STEP 3: SENDING REQUEST`);

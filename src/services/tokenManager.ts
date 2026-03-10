@@ -20,6 +20,7 @@ const INACTIVITY_TIMEOUT_LS_KEY = 'inactivityTimeout'; // timeout in minutes
 
 // sessionStorage - SESSION-SPECIFIC data (cleared on tab close)
 const ACCESS_TOKEN_SS_KEY = 'accessToken_session';      // Fallback for access token
+const REFRESH_TOKEN_SS_KEY = 'refreshToken_session';    // Refresh token for request body
 const TOKEN_EXPIRY_SS_KEY = 'accessTokenExpiry';        // When access token expires
 const LAST_ACTIVITY_SS_KEY = 'lastActivity';            // Last user interaction time
 const SESSION_ID_SS_KEY = 'sessionId';                  // Unique session identifier
@@ -273,13 +274,44 @@ export const getAccessToken = (): string | null => {
  * 
  * Frontend doesn't need to do anything - just let the backend handle it!
  */
-export const getRefreshToken = (): string => {
-  // This function is here for documentation purposes
-  // In reality, we CANNOT access HttpOnly cookies from JavaScript
-  // The browser automatically includes them in requests
-  console.log('ℹ️ Refresh Token is stored as HttpOnly Cookie (cannot be accessed via JavaScript)');
-  console.log('✅ Browser automatically includes it in API requests');
-  return '';
+/**
+ * Get refresh token from sessionStorage
+ * CRITICAL: Backend model requires this in request body: { accessToken, refreshToken }
+ */
+export const getRefreshToken = (): string | null => {
+  try {
+    const token = sessionStorage.getItem(REFRESH_TOKEN_SS_KEY);
+    if (token) {
+      console.log('✅ Refresh token retrieved from sessionStorage for API call');
+      return token;
+    }
+    console.error('❌ Refresh token NOT found in sessionStorage - refresh will fail!');
+    return null;
+  } catch (error) {
+    console.error('❌ Failed to get refresh token:', error);
+    return null;
+  }
+};
+
+/**
+ * Save refresh token to sessionStorage during login
+ * CRITICAL: Backend expects this in refresh API request body
+ */
+export const saveRefreshToken = (token: string): void => {
+  try {
+    sessionStorage.setItem(REFRESH_TOKEN_SS_KEY, token);
+    console.log('✅ Refresh token saved to sessionStorage for later API calls');
+    
+    // Verify
+    const verify = sessionStorage.getItem(REFRESH_TOKEN_SS_KEY);
+    if (verify) {
+      console.log('✅ VERIFIED: Refresh token ready to be sent in API requests');
+    } else {
+      console.error('❌ ERROR: Refresh token not saved properly!');
+    }
+  } catch (error) {
+    console.error('❌ Failed to save refresh token:', error);
+  }
 };
 
 /**
