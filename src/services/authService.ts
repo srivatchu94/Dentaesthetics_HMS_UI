@@ -282,71 +282,124 @@ export const isInactive = (): boolean => {
 export const refreshAccessToken = async (): Promise<boolean> => {
   try {
     const accessToken = getAuthToken();
-    // Refresh token is in HttpOnly cookie - don't try to get it from JS
     
     if (!accessToken) {
       console.warn('⚠️ No access token available for refresh. User may not be authenticated.');
       return false;
     }
     
-    console.log('🔄 ==================== REFRESHING ACCESS TOKEN ====================');
-    console.log('   🍪 Using HttpOnly Refresh Token (sent automatically in request)');
-    console.log('   📤 Calling backend /refresh-token endpoint...');
+    console.log('\n🔄 ====================== REFRESHING ACCESS TOKEN =======================');
+    console.log('📋 STEP 1: Preparing refresh request');
+    console.log(`   ✓ Access Token obtained (${accessToken.substring(0, 20)}...)`);
+    console.log(`   ✓ API Base URL: ${window.location.origin}/api`);
+    console.log(`   ✓ Endpoint: /Authentication/refresh-token`);
     
-    const response = await request<RefreshTokenResponse>(`${AUTH_BASE_URL}/refresh-token`, {
+    // Prepare request parameters
+    const refreshUrl = `${window.location.origin}/api/Authentication/refresh-token`;
+    const requestBody = { accessToken };
+    
+    console.log('\n📋 STEP 2: Request Details');
+    console.log(`   URL: POST ${refreshUrl}`);
+    console.log(`   Headers:`);
+    console.log(`      - Content-Type: application/json`);
+    console.log(`      - Authorization: Bearer [token present]`);
+    console.log(`      - credentials: 'include' (to send HttpOnly refresh token cookie)`);
+    console.log(`   Body:`, JSON.stringify(requestBody, null, 2));
+    
+    const startTime = Date.now();
+    
+    // Call refresh endpoint with credentials to access HttpOnly refresh token cookie
+    console.log('\n📋 STEP 3: Sending request...');
+    const response = await fetch(refreshUrl, {
       method: 'POST',
-      body: JSON.stringify({ accessToken })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      credentials: 'include',  // ✅ CRITICAL: Send HttpOnly refresh token cookie
+      body: JSON.stringify(requestBody)
     });
     
-    // Validate response has required fields
-    if (!response.accessToken) {
-      console.error('❌ Invalid refresh response - missing new access token');
-      console.error('   Response:', response);
+    const duration = Date.now() - startTime;
+    
+    console.log(`\n📋 STEP 4: Response Received (${duration}ms)`);
+    console.log(`   Status: ${response.status} ${response.statusText}`);
+    console.log(`   Content-Type: ${response.headers.get('content-type')}`);
+    
+    const data = await response.json();
+    console.log(`   Response Body:`, JSON.stringify(data, null, 2));
+    
+    // Check if response was successful
+    if (response.status !== 200) {
+      console.error(`\n❌ REFRESH FAILED - Status ${response.status}`);
+      console.error('   Possible causes:');
+      console.error('   1. HttpOnly refresh token cookie not received/invalid');
+      console.error('   2. Refresh token expired');
+      console.error('   3. Backend validation failed');
+      console.error(`   4. Server error: ${data.message || data.error || 'Unknown'}`);
       return false;
     }
     
-    // Update access token in HYBRID storage (Memory + SessionStorage)
-    // Now saveAccessToken will extract expiry from JWT's exp claim automatically
-    saveAccessToken(response.accessToken);
+    // Validate response has required fields
+    if (!data.accessToken) {
+      console.error('\n❌ INVALID REFRESH RESPONSE');
+      console.error('   Missing required fields: accessToken');
+      console.error('   Full response:', data);
+      return false;
+    }
     
-    // Backend updates HttpOnly cookie automatically - no action needed
-    console.log('✅ TOKEN REFRESH SUCCESSFUL');
-    console.log('   🧠 Access Token: Memory + SessionStorage updated');
-    console.log('   🍪 Refresh Token: HttpOnly Cookie updated by backend');
+    console.log('\n📋 STEP 5: Updating Token Storage');
+    console.log(`   New Access Token (first 30 chars): ${data.accessToken.substring(0, 30)}...`);
+    console.log(`   Expires At: ${data.accessTokenExpiresAt}`);
+    
+    // Update access token in HYBRID storage (Memory + SessionStorage)
+    saveAccessToken(data.accessToken);
+    
+    console.log('✅ TOKEN STORAGE UPDATED');
+    console.log('   ✓ Access Token saved to memory');
+    console.log('   ✓ Access Token saved to sessionStorage');
+    console.log('   ✓ Refresh Token: HttpOnly Cookie updated by backend');
     
     // Extract and log new expiry time
     const newExpiryStr = getTokenExpiry();
     if (newExpiryStr) {
       const newExpiry = new Date(newExpiryStr);
       const minutesRemaining = Math.floor((newExpiry.getTime() - Date.now()) / 1000 / 60);
-      console.log(`   🔑 New token expires in: ${minutesRemaining} minutes (at ${newExpiry.toLocaleTimeString()})`);
+      const secondsRemaining = Math.floor((newExpiry.getTime() - Date.now()) / 1000) % 60;
+      console.log(`\n⏰ NEW TOKEN EXPIRY`);
+      console.log(`   Time Remaining: ${minutesRemaining}m ${secondsRemaining}s`);
+      console.log(`   Expires At: ${newExpiry.toLocaleTimeString()}`);
     }
     
-    console.log('🔄 ====================================================================');
+    console.log('\n📋 STEP 6: Restarting Refresh Timer');
+    console.log('   Next refresh will occur in 12 minutes (3 min before new expiry)');
     
     // Restart refresh timer with new expiry
     startTokenRefreshTimer();
     
+    console.log('\n✅ TOKEN REFRESH COMPLETE =============================================\n');
+    
     return true;
   } catch (error) {
-    console.error('❌ ==================== FAILED TO REFRESH TOKEN ====================');
-    console.error('   Error:', error);
-    console.error('   This may happen if:');
-    console.error('   1. Refresh token has expired (user needs to login again)');
-    console.error('   2. Backend /refresh-token endpoint is not responding');
-    console.error('   3. Network error occurred');
-    console.error('   - Stored refresh token may be invalid or expired');
-    console.error('   - Retrying refresh in background...');
-    console.error('🔄 ====================================================================');
+    const duration = new Date().toLocaleString();
+    console.error(`\n❌ =================== REFRESH FAILED AT ${duration} ====================`);
+    console.error('Full Error Object:', error);
+    console.error('Error Message:', (error as Error).message);
+    console.error('Error Stack:', (error as Error).stack);
+    
+    if (error instanceof TypeError) {
+      console.error('🔍 TypeError detected - likely network/fetch issue');
+    }
     
     // Attempt automatic retry after 5 seconds if we have less than 2 minutes left
     const expiryStr = getTokenExpiry();
     if (expiryStr) {
       const timeRemaining = new Date(expiryStr).getTime() - Date.now();
       if (timeRemaining < 2 * 60 * 1000) {
-        console.warn('⚠️ Token expiring very soon and refresh failed. Will retry in 5 seconds...');
+        console.warn('⚠️ Token expiring very soon and refresh failed.');
+        console.warn(`⏳ Will retry in 5 seconds (${Math.floor(timeRemaining / 1000)} seconds before expiry)`);
         setTimeout(() => {
-          console.log('🔄 Retrying token refresh...');
+          console.log('🔄 Retrying token refresh after 5 second wait...');
           refreshAccessToken();
         }, 5000);
       }
@@ -367,7 +420,7 @@ const startTokenRefreshTimer = (): void => {
   // Clear existing timer
   if (refreshTokenTimer) {
     clearTimeout(refreshTokenTimer);
-    console.log('🔄 Cleared existing refresh timer');
+    console.log('🔄 Cleared previous refresh timer to set new one');
   }
   
   try {
@@ -381,9 +434,11 @@ const startTokenRefreshTimer = (): void => {
     const now = Date.now();
     const timeUntilExpiry = expiryTime - now;
     
-    console.log('⏰ ==================== TOKEN REFRESH TIMER ====================');
-    console.log(`   📅 Token expires at: ${new Date(expiryTime).toLocaleTimeString()}`);
-    console.log(`   ⏱️ Total remaining: ${Math.floor(timeUntilExpiry / 1000 / 60)} minutes ${Math.floor((timeUntilExpiry % 60000) / 1000)} seconds`);
+    console.log('\n⏰ ================ TOKEN REFRESH TIMER SETUP ===================');
+    console.log('📋 TIMER CONFIGURATION:');
+    console.log(`   📅 Current Time: ${new Date(now).toLocaleTimeString()}`);
+    console.log(`   📅 Token Expires: ${new Date(expiryTime).toLocaleTimeString()}`);
+    console.log(`   ⏱️ Total Remaining: ${Math.floor(timeUntilExpiry / 1000 / 60)}m ${Math.floor((timeUntilExpiry % 60000) / 1000)}s`);
     
     // If token is already expired, refresh immediately
     if (timeUntilExpiry <= 0) {
@@ -400,25 +455,37 @@ const startTokenRefreshTimer = (): void => {
     }
     
     // Refresh 3 minutes before expiry (aggressive buffer for 15-min tokens)
-    // This ensures refresh completes before token actually expires
     const refreshBuffer = 3 * 60 * 1000; // 3 minutes
     const refreshTime = Math.max(0, timeUntilExpiry - refreshBuffer);
     const minutesUntilRefresh = Math.floor(refreshTime / 1000 / 60);
     const secondsUntilRefresh = Math.floor((refreshTime % 60000) / 1000);
+    const scheduledRefreshTime = new Date(now + refreshTime).toLocaleTimeString();
     
+    console.log(`\n⏱️ REFRESH SCHEDULE:`);
     console.log(`   🔄 Will refresh in: ${minutesUntilRefresh}m ${secondsUntilRefresh}s`);
-    console.log(`   💡 Refresh happens 3 minutes before expiry for safety margin`);
-    console.log('⏰ ================================================================');
+    console.log(`   🔄 Scheduled refresh at: ${scheduledRefreshTime}`);
+    console.log(`   💡 (3 minutes before expiry for safety margin)`);
+    console.log('⏰ ===============================================================\n');
     
+    // Set the timer
     refreshTokenTimer = window.setTimeout(async () => {
-      console.log('🔄 AUTO-REFRESH TRIGGERED (proactive refresh before expiry)');
+      console.log('\n⏰ ==================== TIMER FIRED ===========================');
+      console.log(`🔄 AUTO-REFRESH TRIGGERED at ${new Date().toLocaleTimeString()}`);
+      console.log('📋 Reason: Proactive refresh before token expiry (3-minute buffer)');
+      console.log('⏰ =============================================================\n');
+      
       const success = await refreshAccessToken();
+      
       if (!success) {
-        console.error('❌ Token refresh failed. Session may be expired.');
+        console.error('\n❌ ================ REFRESH FAILED - AUTO LOGOUT ================');
+        console.error('Token refresh failed. Session may be expired.');
+        console.error('Showing session expired popup and logging out user.');
+        console.error('❌ ===============================================================\n');
         showSessionExpiredPopup();
         handleLogout();
       }
     }, refreshTime);
+    
   } catch (error) {
     console.error('❌ Failed to start refresh timer:', error);
   }
