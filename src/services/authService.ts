@@ -16,6 +16,15 @@ import {
   decodeAndLogTokenClaims,
   STORAGE_KEYS
 } from './tokenManager';
+import {
+  logTokenRefreshEvent,
+  logTimerEvent,
+  logInactivityEvent,
+  logLogoutEvent,
+  logAuthEvent,
+  printDebugLogs,
+  exportDebugLogs
+} from '../utils/persistentDebugLogger';
 
 const AUTH_BASE_URL = '/Authentication';
 
@@ -312,14 +321,18 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     
     if (!accessToken) {
       console.warn('⚠️ No access token available for refresh. User may not be authenticated.');
+      logTokenRefreshEvent('FAILED: No access token available');
       return false;
     }
+    
+    const refreshStartTime = new Date();
+    logTokenRefreshEvent('REFRESH STARTED', { timestamp: refreshStartTime.toLocaleString() });
     
     console.log('\n\n');
     console.log('════════════════════════════════════════════════════════════════════════════════');
     console.log('🔄 TOKEN REFRESH INITIATED');
     console.log('════════════════════════════════════════════════════════════════════════════════');
-    console.log(`⏰ Timestamp: ${new Date().toLocaleString()}`);
+    console.log(`⏰ Timestamp: ${refreshStartTime.toLocaleString()}`);
     
     // Prepare request parameters
     const refreshUrl = `${window.location.origin}/api/Authentication/refresh-token`;
@@ -332,6 +345,8 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.log(`   Protocol: HTTPS`);
     console.log(`   Origin: ${window.location.origin}`);
     console.log(`   Path: /api/Authentication/refresh-token`);
+    
+    logTokenRefreshEvent('STEP 1: Preparing API endpoint', { url: refreshUrl });
     
     console.log('\n📋 STEP 2: REQUEST PARAMETERS');
     console.log('═══════════════════════════════════════════');
@@ -352,6 +367,12 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.log('═══════════════════════════════════════════');
     console.log(`   ⏱️ Request started at: ${new Date(startTime).toLocaleTimeString()}`);
     
+    logTokenRefreshEvent('STEP 3: About to call fetch', {
+      url: refreshUrl,
+      method: 'POST',
+      timestamp: new Date(startTime).toLocaleTimeString()
+    });
+    
     // Execute fetch with detailed parameter logging
     const response = await fetch(refreshUrl, {
       method: 'POST',
@@ -361,6 +382,12 @@ export const refreshAccessToken = async (): Promise<boolean> => {
       },
       credentials: 'include',  // ✅ CRITICAL: Send HttpOnly refresh token cookie
       body: JSON.stringify(requestBody)
+    });
+    
+    logTokenRefreshEvent('STEP 3: Fetch response received', {
+      status: response.status,
+      statusText: response.statusText,
+      durationMs: Date.now() - startTime
     });
     
     const duration = Date.now() - startTime;
@@ -399,14 +426,24 @@ export const refreshAccessToken = async (): Promise<boolean> => {
       console.error('   Diagnostic Information:');
       console.error(`   1. Status Code Issue: ${response.status}`);
       
+      logTokenRefreshEvent('STEP 4: Response FAILED', {
+        status: response.status,
+        statusText: response.statusText,
+        message: data.message || data.error || 'Unknown error'
+      });
+      
       if (response.status === 401) {
         console.error(`      → Unauthorized: Refresh token may be invalid or expired`);
+        logTokenRefreshEvent('Status 401: Refresh token expired or invalid');
       } else if (response.status === 403) {
         console.error(`      → Forbidden: Access denied`);
+        logTokenRefreshEvent('Status 403: Access forbidden');
       } else if (response.status === 400) {
         console.error(`      → Bad Request: Request parameters invalid`);
+        logTokenRefreshEvent('Status 400: Bad request parameters');
       } else if (response.status >= 500) {
         console.error(`      → Server Error: Backend issue`);
+        logTokenRefreshEvent('Status 5xx: Server error');
       }
       
       console.error(`   2. Server Response: ${data.message || data.error || 'No error message'}`);
@@ -421,6 +458,8 @@ export const refreshAccessToken = async (): Promise<boolean> => {
       console.error('   Missing required field: accessToken');
       console.error('   Response provided:', Object.keys(data));
       console.error('   Full response:', data);
+      
+      logTokenRefreshEvent('STEP 4: Response validation failed - missing accessToken', data);
       return false;
     }
     
@@ -431,11 +470,19 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.log(`   ✓ New Token: ${data.accessToken.substring(0, 30)}...${data.accessToken.substring(data.accessToken.length - 20)}`);
     console.log(`   ✓ Expires: ${data.accessTokenExpiresAt}`);
     
+    logTokenRefreshEvent('STEP 4: Response validation PASSED', {
+      status: 200,
+      hasAccessToken: true,
+      expiresAt: data.accessTokenExpiresAt
+    });
+    
     console.log('\n📋 STEP 5: UPDATING LOCAL STORAGE');
     console.log('═══════════════════════════════════════════');
     console.log(`   Saving new access token...`);
     console.log(`   New Token (first 30 chars): ${data.accessToken.substring(0, 30)}...`);
     console.log(`   Expires At: ${data.accessTokenExpiresAt}`);
+    
+    logTokenRefreshEvent('STEP 5: Saving new access token to storage');
     
     // Update access token in HYBRID storage
     saveAccessToken(data.accessToken);
@@ -480,6 +527,12 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.error(`❌ REFRESH TOKEN FAILED AT ${timestamp}`);
     console.error(`❌ ════════════════════════════════════════════════════════════════════════════════`);
     
+    logTokenRefreshEvent('REFRESH FAILED - Exception caught', {
+      timestamp,
+      errorName: (error as Error).name,
+      errorMessage: (error as Error).message
+    });
+    
     console.error(`\n📋 ERROR DETAILS:`);
     console.error('═══════════════════════════════════════════');
     console.error(`   Error Type: ${(error as Error).name}`);
@@ -493,6 +546,8 @@ export const refreshAccessToken = async (): Promise<boolean> => {
       console.error('   1. Network error (CORS, network unreachable)');
       console.error('   2. Fetch API error');
       console.error('   3. Invalid URL or fetch parameters');
+      
+      logTokenRefreshEvent('TypeError caught - possible network issue');
     }
     
     console.error(`\n📋 TROUBLESHOOTING STEPS:`);
@@ -524,67 +579,7 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     return false;
   }
 };
-    
-    // Update access token in HYBRID storage (Memory + SessionStorage)
-    saveAccessToken(data.accessToken);
-    
-    console.log('✅ TOKEN STORAGE UPDATED');
-    console.log('   ✓ Access Token saved to memory');
-    console.log('   ✓ Access Token saved to sessionStorage');
-    console.log('   ✓ Refresh Token: HttpOnly Cookie updated by backend');
-    
-    // Extract and log new expiry time
-    const newExpiryStr = getTokenExpiry();
-    if (newExpiryStr) {
-      const newExpiry = new Date(newExpiryStr);
-      const minutesRemaining = Math.floor((newExpiry.getTime() - Date.now()) / 1000 / 60);
-      const secondsRemaining = Math.floor((newExpiry.getTime() - Date.now()) / 1000) % 60;
-      console.log(`\n⏰ NEW TOKEN EXPIRY`);
-      console.log(`   Time Remaining: ${minutesRemaining}m ${secondsRemaining}s`);
-      console.log(`   Expires At: ${newExpiry.toLocaleTimeString()}`);
-    }
-    
-    console.log('\n📋 STEP 6: Restarting Refresh Timer');
-    console.log('   Next refresh will occur in 12 minutes (3 min before new expiry)');
-    
-    // Restart refresh timer with new expiry
-    startTokenRefreshTimer();
-    
-    console.log('\n✅ TOKEN REFRESH COMPLETE =============================================\n');
-    
-    return true;
-  } catch (error) {
-    const duration = new Date().toLocaleString();
-    console.error(`\n❌ =================== REFRESH FAILED AT ${duration} ====================`);
-    console.error('Full Error Object:', error);
-    console.error('Error Message:', (error as Error).message);
-    console.error('Error Stack:', (error as Error).stack);
-    
-    if (error instanceof TypeError) {
-      console.error('🔍 TypeError detected - likely network/fetch issue');
-    }
-    
-    // Attempt automatic retry after 5 seconds if we have less than 2 minutes left
-    const expiryStr = getTokenExpiry();
-    if (expiryStr) {
-      const timeRemaining = new Date(expiryStr).getTime() - Date.now();
-      if (timeRemaining < 2 * 60 * 1000) {
-        console.warn('⚠️ Token expiring very soon and refresh failed.');
-        console.warn(`⏳ Will retry in 5 seconds (${Math.floor(timeRemaining / 1000)} seconds before expiry)`);
-        setTimeout(() => {
-          console.log('🔄 Retrying token refresh after 5 second wait...');
-          refreshAccessToken();
-        }, 5000);
-      }
-    }
-    
-    return false;
-  }
-};
 
-/**
- * Start timer to auto-refresh token before it expires
- */
 /**
  * Start timer to auto-refresh token before it expires
  * This ensures user never sees "login required" unless refresh token itself expires
@@ -612,6 +607,8 @@ const startTokenRefreshTimer = (): void => {
     console.log('════════════════════════════════════════════════════════════════════════════════');
     console.log(`⏰ Setup Time: ${new Date(now).toLocaleString()}`);
     
+    logTimerEvent('Timer setup started', { setupTime: new Date(now).toLocaleString() });
+    
     console.log('\n📋 TOKEN EXPIRY INFORMATION:');
     console.log('═══════════════════════════════════════════');
     console.log(`   Current Time: ${new Date(now).toLocaleTimeString()}`);
@@ -622,6 +619,7 @@ const startTokenRefreshTimer = (): void => {
     // If token is already expired, refresh immediately
     if (timeUntilExpiry <= 0) {
       console.error('🚨 TOKEN ALREADY EXPIRED! Refreshing immediately...');
+      logTimerEvent('Token already expired - refreshing immediately');
       refreshAccessToken();
       return;
     }
@@ -678,6 +676,12 @@ const startTokenRefreshTimer = (): void => {
     // Set the timer
     refreshTokenTimer = window.setTimeout(async () => {
       const fireTime = new Date();
+      
+      logTimerEvent('🔔 TIMER FIRED - Refresh scheduled now executing', {
+        firedAt: fireTime.toLocaleString(),
+        reason: 'Proactive refresh 3 minutes before token expiry'
+      });
+      
       console.log('\n\n════════════════════════════════════════════════════════════════════════════════');
       console.log('⏰ TIMER FIRED - REFRESH TRIGGERED');
       console.log('════════════════════════════════════════════════════════════════════════════════');
@@ -723,6 +727,8 @@ const startTokenRefreshTimer = (): void => {
 
 /**
  * Start inactivity timer
+ * Checks every minute if user has been inactive for too long
+ * ⭐ LOGS ALL INACTIVITY CHECKS TO PERSISTENT STORAGE
  */
 const startInactivityTimer = (): void => {
   // Clear existing timer
@@ -733,12 +739,41 @@ const startInactivityTimer = (): void => {
   const timeoutStr = getSessionMetadata(STORAGE_KEYS.INACTIVITY_TIMEOUT_LS);
   const timeoutMinutes = parseInt(timeoutStr || '30');
   
+  logInactivityEvent(`Inactivity timer started - will check every 60 seconds for ${timeoutMinutes} minutes idle time`);
+  console.log(`⏱️ Inactivity Timer Setup: Will timeout after ${timeoutMinutes} minutes of no activity`);
+  
+  let checkCount = 0;
+  
   // Check every minute
   inactivityTimer = window.setInterval(() => {
+    checkCount++;
+    const now = new Date();
+    
     if (isInactive()) {
-      console.log('⏱️ User inactive for', timeoutMinutes, 'minutes');
+      const inactiveMinutes = getInactiveMinutes();
+      const logMsg = `⏱️ INACTIVITY DETECTED - User inactive for ${inactiveMinutes}m (timeout is ${timeoutMinutes}m)`;
+      
+      console.error(logMsg);
+      logInactivityEvent(`User INACTIVE - ${inactiveMinutes}/${timeoutMinutes}m`, {
+        checkNumber: checkCount,
+        inactiveMinutes,
+        timeoutMinutes,
+        timestamp: now.toLocaleString()
+      });
+      
+      console.log('⏱️ Showing inactivity popup and logging out...');
+      logInactivityEvent('Inactivity popup triggered - calling handleLogout');
+      
       showInactivityPopup();
       handleLogout();
+    } else {
+      const inactiveMinutes = getInactiveMinutes();
+      // Only log every 3-5 checks to avoid spam (every 3-5 minutes)
+      if (checkCount % 5 === 0) {
+        logInactivityEvent(`Inactivity check #${checkCount} - User ACTIVE (${inactiveMinutes}m idle)`, {
+          checkNumber: checkCount
+        });
+      }
     }
   }, 60 * 1000); // Check every minute
 };
@@ -1036,8 +1071,27 @@ export const logoutUser = async (): Promise<void> => {
 /**
  * Handle logout (clear session and cleanup)
  * Uses hybrid storage clearance for complete session termination
+ * IMPORTANT: Prints all debug logs before clearing to preserve diagnosis info
  */
 const handleLogout = (): void => {
+  // ⭐ CRITICAL: Print all debug logs BEFORE logout clears everything
+  console.log('\n\n🔵 ════════════════════════════════════════════════════════════════');
+  console.log('🔵 LOGOUT INITIATED - PRINTING DEBUG LOGS BEFORE CLEAR');
+  console.log('🔵 ════════════════════════════════════════════════════════════════\n');
+  
+  try {
+    printDebugLogs();
+    const exportedLogs = exportDebugLogs();
+    console.log('\n📋 EXPORTED LOGS (for copy/paste to analysis):');
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log(exportedLogs);
+    console.log('═══════════════════════════════════════════════════════════════\n');
+  } catch (error) {
+    console.error('⚠️ Failed to print debug logs:', error);
+  }
+  
+  logLogoutEvent('Session terminated - printing full debug logs');
+  
   // Clear all timers
   if (refreshTokenTimer) clearTimeout(refreshTokenTimer);
   if (inactivityTimer) clearInterval(inactivityTimer);
@@ -1053,6 +1107,7 @@ const handleLogout = (): void => {
   
   console.log('🔓 Complete logout - All tokens cleared from memory, sessionStorage, and localStorage');
   console.log('🔐 Refresh token in HttpOnly cookie will be invalidated by server on next request');
+  console.log('\n🔵 ════════════════════════════════════════════════════════════════\n');
 };
 
 /**

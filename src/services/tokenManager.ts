@@ -217,13 +217,6 @@ export const saveAccessToken = (token: string, backendExpiryTime?: string): void
     console.error('   Stack:', (error as Error).stack);
   }
 };
-    decodeAndLogTokenClaims(token);
-    
-    console.log('   🔒 Security: Protected from XSS via memory storage');
-  } catch (error) {
-    console.error('❌ Failed to save access token:', error);
-  }
-};
 
 /**
  * Get access token with automatic fallback:
