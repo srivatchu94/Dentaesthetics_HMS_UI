@@ -6,6 +6,7 @@ import {
   saveUserData,
   saveUserAccess,
   saveSelectedAccess,
+  getSelectedAccess,
   clearAllTokens,
   updateTokenExpiry,
   getTokenExpiry,
@@ -120,7 +121,17 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
       console.log(`   Enterprise: ${firstAccess.enterpriseId}`);
       console.log(`   Clinic: ${firstAccess.clinicId}`);
       console.log(`   Roles: ${firstAccess.roleIds && firstAccess.roleIds.length > 0 ? firstAccess.roleIds.join(', ') : 'NONE'}`);
-      saveSelectedAccess(firstAccess.enterpriseId, firstAccess.clinicId, firstAccess.roleIds);
+      try {
+        saveSelectedAccess(firstAccess.enterpriseId, firstAccess.clinicId, firstAccess.roleIds);
+        // Verify selectedAccess was actually saved
+        const verifySelected = getSelectedAccess();
+        if (!verifySelected) {
+          console.error('⚠️ WARNING: saveSelectedAccess was called but verification failed!');
+          console.error('   This may cause downstream issues with enterprise/clinic selection');
+        }
+      } catch (error) {
+        console.error('❌ CRITICAL ERROR saving selectedAccess:', error);
+      }
     } else {
       console.error('❌ CRITICAL: No access found - User cannot perform any actions');
     }
@@ -219,45 +230,9 @@ export const setSelectedAccess = (enterpriseId: number, clinicId: number, roleId
   saveSelectedAccess(enterpriseId, clinicId, roleIds);
 };
 
-/**
- * Get currently selected enterprise, clinic, and roles (backward compatible)
- */
-export const getSelectedAccess = (): { enterpriseId: number; clinicId: number; roleIds: number[] } | null => {
-  try {
-    console.log('═══════════════════════════════════════════════════════');
-    console.log('🔍 getSelectedAccess() CALLED');
-    console.log('═══════════════════════════════════════════════════════');
-    console.log('📦 Checking key:', STORAGE_KEYS.SELECTED_ACCESS_LS);
-    console.log('📦 All localStorage keys:', Object.keys(localStorage));
-    
-    const data = localStorage.getItem(STORAGE_KEYS.SELECTED_ACCESS_LS);
-    console.log('📦 Raw data from localStorage:', data);
-    console.log('📦 Data type:', typeof data);
-    console.log('📦 Data is null?', data === null);
-    console.log('📦 Data is undefined?', data === undefined);
-    
-    if (!data) {
-      console.error('❌ NO selectedAccess found in localStorage!');
-      console.error('❌ Key checked:', STORAGE_KEYS.SELECTED_ACCESS_LS);
-      console.error('💡 Available keys:', Object.keys(localStorage));
-      console.error('💡 Try checking key "selectedAccess":', localStorage.getItem('selectedAccess'));
-      console.log('═══════════════════════════════════════════════════════');
-      return null;
-    }
-    
-    const parsed = JSON.parse(data);
-    console.log('✅ Parsed selectedAccess:', parsed);
-    console.log('   - enterpriseId:', parsed.enterpriseId);
-    console.log('   - clinicId:', parsed.clinicId);
-    console.log('   - roleIds:', parsed.roleIds);
-    console.log('═══════════════════════════════════════════════════════');
-    return parsed;
-
-  } catch (error) {
-    console.error('❌ Failed to parse selected access from localStorage:', error);
-    return null;
-  }
-};
+// Re-export getSelectedAccess from tokenManager.ts to avoid duplication
+// All imports from authService.ts will still work
+export { getSelectedAccess } from './tokenManager';
 
 // ============================================
 // ⏱️ ACTIVITY TRACKING

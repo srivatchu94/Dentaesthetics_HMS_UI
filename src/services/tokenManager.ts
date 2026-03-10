@@ -236,9 +236,13 @@ export const getAccessToken = (): string | null => {
       return sessionToken;
     }
     
-    // No token found - user needs to login
+    // No token found - provide diagnostic info
     console.warn('❌ NO TOKEN FOUND - neither in memory nor in sessionStorage');
     console.warn('   User needs to login again');
+    console.warn('   🔍 Diagnostic Info:');
+    console.warn('      - Memory token exists:', !!memoryAccessToken);
+    console.warn('      - SessionStorage key "' + ACCESS_TOKEN_SS_KEY + '" exists:', sessionStorage.getItem(ACCESS_TOKEN_SS_KEY) !== null);
+    console.warn('      - Available sessionStorage keys:', Array.from({length: sessionStorage.length}, (_, i) => sessionStorage.key(i)));
     return null;
   } catch (error) {
     console.error('❌ Failed to get access token:', error);
