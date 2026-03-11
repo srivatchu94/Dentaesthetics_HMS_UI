@@ -579,7 +579,7 @@ export function updateFullPatientProfile(patientData: any): Promise<any> {
 export async function getDoctorsByClinicID(clinicID: number): Promise<any> {
   console.log('📞 API CALL: getDoctorsByClinicID with clinicID:', clinicID);
   try {
-    const data = await request<any>(`/StaffDetail/GetDoctorsForClinicID?clinicId=${clinicID}`);
+    const data = await request<any>(`/StaffDetail/GetDoctorsByClinicID?ClinicID=${clinicID}`);
     console.log('✅ DOCTORS FETCHED SUCCESSFULLY:', data);
     return data || [];
   } catch (error) {
