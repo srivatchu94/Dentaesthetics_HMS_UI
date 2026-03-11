@@ -764,7 +764,7 @@ const startTokenRefreshTimer = (): void => {
       });
       
       console.log('\n\n════════════════════════════════════════════════════════════════════════════════');
-      console.log('⏰ TIMER FIRED - REFRESH TRIGGERED');
+      console.log('🔔 🔔 🔔  ⏰ TIMER FIRED - TOKEN REFRESH TRIGGERED  🔔 🔔 🔔');
       console.log('════════════════════════════════════════════════════════════════════════════════');
       console.log(`🔔 Fired at: ${fireTime.toLocaleTimeString()}`);
       console.log(`📅 Full timestamp: ${fireTime.toLocaleString()}`);
@@ -773,16 +773,32 @@ const startTokenRefreshTimer = (): void => {
       console.log(`   • Proactive token refresh`);
       console.log(`   • Triggered 3 minutes before token expiry`);
       console.log(`   • This ensures token never expires in production use`);
+      
+      console.log(`\n🌐 API ENDPOINT ABOUT TO BE CALLED:`);
+      console.log('═══════════════════════════════════════════');
+      console.log(`   URL: ${window.location.origin}/api/Authentication/refresh-token`);
+      console.log(`   Method: POST`);
+      console.log(`   Full URL: https://localhost:7104/api/Authentication/refresh-token`);
+      console.log(`   Protocol: HTTPS`);
+      console.log(`   Host: localhost`);
+      console.log(`   Port: 7104`);
+      console.log(`   Endpoint: /api/Authentication/refresh-token`);
+      
       console.log(`\n📋 ACTION:`);
       console.log('═══════════════════════════════════════════');
-      console.log(`   NOW calling: refreshAccessToken()`);
-      console.log(`   This will make the API call to /Authentication/refresh-token`);
+      console.log(`   🔒 Setting isTokenRefreshInProgress = true`);
+      console.log(`      (This prevents apiClient from logging user out)`);
+      console.log(`   ✅ Calling refreshAccessToken()`);
+      console.log(`   ⏳ This will make the API call`);
+      console.log(`   ✅ Wait for response from backend`);
+      console.log(`   ✅ Update token with new value`);
+      console.log(`   🔓 Clear isTokenRefreshInProgress flag`);
       console.log('════════════════════════════════════════════════════════════════════════════════\n');
       
       const success = await refreshAccessToken();
       
       if (!success) {
-        console.error('\n❌════════════════════════════════════════════════════════════════════════════════');
+        console.error('\n\n❌════════════════════════════════════════════════════════════════════════════════');
         console.error('❌ REFRESH API CALL FAILED - AUTO LOGOUT TRIGGERED');
         console.error('❌════════════════════════════════════════════════════════════════════════════════');
         console.error(`\n   Reason: refreshAccessToken() returned false`);
@@ -794,6 +810,15 @@ const startTokenRefreshTimer = (): void => {
         console.error('❌════════════════════════════════════════════════════════════════════════════════\n');
         showSessionExpiredPopup();
         handleLogout();
+      } else {
+        console.log('\n\n✅════════════════════════════════════════════════════════════════════════════════');
+        console.log('✅ TOKEN REFRESH SUCCESSFUL - SESSION EXTENDED');
+        console.log('✅════════════════════════════════════════════════════════════════════════════════');
+        console.log(`   ✓ New access token received from /api/Authentication/refresh-token`);
+        console.log(`   ✓ Token stored in memory and sessionStorage`);
+        console.log(`   ✓ Next refresh timer scheduled`);
+        console.log(`   ✓ User session extended for another 15 minutes`);
+        console.log('✅════════════════════════════════════════════════════════════════════════════════\n');
       }
     }, refreshTime);
     
