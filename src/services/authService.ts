@@ -52,6 +52,10 @@ let sessionExpiryTimer: number | null = null;
 const TEST_MODE_DISABLE_INACTIVITY = true; // SET TO FALSE TO ENABLE INACTIVITY TIMEOUT
 const TEST_MODE_DISABLE_SESSION_EXPIRY = true; // SET TO FALSE TO ENABLE SESSION EXPIRY CHECK
 
+// ⚙️ TEST MODE - REFRESH TIMING
+const TEST_MODE_FAST_REFRESH = true; // SET TO TRUE to test refresh in 2 min instead of 12 min
+const TEST_REFRESH_DELAY_SECONDS = 120; // 2 minutes for testing (normally would be ~12 min)
+
 // Activity tracking
 let lastActivityTime: number = Date.now();
 
@@ -679,17 +683,30 @@ const startTokenRefreshTimer = (): void => {
       return;
     }
     
-    // Refresh 3 minutes before expiry
-    const refreshBuffer = 3 * 60 * 1000; // 3 minutes = 180000 ms
-    const refreshTime = Math.max(0, timeUntilExpiry - refreshBuffer);
+    // 🧪 TEST MODE: Use fast refresh delay instead of 3-minute buffer
+    let refreshTime: number;
+    
+    if (TEST_MODE_FAST_REFRESH) {
+      refreshTime = TEST_REFRESH_DELAY_SECONDS * 1000; // 2 minutes for testing
+      console.log(`\n🧪 TEST MODE: Using ${TEST_REFRESH_DELAY_SECONDS}s refresh delay`);
+    } else {
+      // Normal: Refresh 3 minutes before expiry
+      const refreshBuffer = 3 * 60 * 1000; // 3 minutes = 180000 ms
+      refreshTime = Math.max(0, timeUntilExpiry - refreshBuffer);
+    }
+    
     const minutesUntilRefresh = Math.floor(refreshTime / 1000 / 60);
     const secondsUntilRefresh = Math.floor((refreshTime % 60000) / 1000);
     const scheduledRefreshTime = new Date(now + refreshTime);
     
     console.log(`\n📋 REFRESH TIMER SCHEDULE:`);
     console.log('═══════════════════════════════════════════');
-    console.log(`   3-Minute Buffer: ${3 * 60} seconds`);
-    console.log(`   Refresh Time Before Expiry: 180 seconds`);
+    if (TEST_MODE_FAST_REFRESH) {
+      console.log(`   🧪 TEST MODE: Will refresh in ${TEST_REFRESH_DELAY_SECONDS} seconds`);
+    } else {
+      console.log(`   3-Minute Buffer: ${3 * 60} seconds`);
+      console.log(`   Refresh Time Before Expiry: 180 seconds`);
+    }
     console.log(`   Will refresh in: ${minutesUntilRefresh}m ${secondsUntilRefresh}s`);
     console.log(`   Scheduled refresh at: ${scheduledRefreshTime.toLocaleTimeString()}`);
     console.log(`   (${minutesUntilRefresh * 60 + secondsUntilRefresh} seconds from now)`);
@@ -1108,9 +1125,37 @@ export const loginUser = async (loginData: LoginRequest): Promise<LoginResponse>
       return exported;
     };
     
-    console.log('\n✅ Global debug command available:');
-    console.log('   TYPE IN CONSOLE: viewDebugLogs()');
-    console.log('   This will display ALL stored debug logs even after logout!\n');
+    // 🧪 Add manual refresh trigger for testing
+    (window as any).triggerRefresh = () => {
+      console.log('\n\n🔥 MANUAL REFRESH TRIGGERED FROM CONSOLE\n');
+      logTokenRefreshEvent('MANUAL REFRESH TRIGGERED FROM CONSOLE');
+      return refreshAccessToken();
+    };
+    
+    // 🧪 Add immediate test - refresh in 2 minutes for testing
+    if (TEST_MODE_FAST_REFRESH) {
+      (window as any).getRefreshStatus = () => {
+        const accessToken = getAccessToken();
+        const refreshToken = getRefreshToken();
+        const expiry = getTokenExpiry();
+        console.log('\n📊 REFRESH STATUS:');
+        console.log('═══════════════════════════════════════');
+        console.log(`   Access Token: ${accessToken ? '✅ Exists' : '❌ MISSING'}`);
+        console.log(`   Refresh Token: ${refreshToken ? '✅ Exists' : '❌ MISSING'}`);
+        console.log(`   Expiry: ${expiry}`);
+        console.log(`   Time Remaining: ${expiry ? Math.floor((new Date(expiry).getTime() - Date.now()) / 1000 / 60) + 'm' : 'N/A'}`);
+        console.log('═══════════════════════════════════════\n');
+        return { accessToken: !!accessToken, refreshToken: !!refreshToken, expiry };
+      };
+    }
+    
+    console.log('\n✅ Global debug commands available:');
+    console.log('   1️⃣ viewDebugLogs() - Display all stored debug logs');
+    console.log('   2️⃣ triggerRefresh() - Manually trigger token refresh NOW');
+    if (TEST_MODE_FAST_REFRESH) {
+      console.log('   3️⃣ getRefreshStatus() - Check current token status');
+      console.log('\n🧪 TEST MODE: Refresh will happen in 2 minutes (set TEST_MODE_FAST_REFRESH=false to disable)\n');
+    }
     
     // Show success popup
     showLoginSuccessPopup(response.username);
