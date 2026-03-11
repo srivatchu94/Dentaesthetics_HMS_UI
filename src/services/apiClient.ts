@@ -3,6 +3,9 @@
 
 export const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
+// Import token refresh status check
+import { isRefreshInProgress } from './authService';
+
 type ApiDebugEntry = {
   time: string;
   level: "error" | "warn";
@@ -99,10 +102,17 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
           sessionStorage.setItem('tokenExpiryLocation', currentLocation);
           tokenExpiryEmitter.emit(currentLocation);
           
-          // Force redirect to login page
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 500);
+          // 🔒 CRITICAL: Don't redirect while token refresh is in progress
+          if (!isRefreshInProgress()) {
+            // Force redirect to login page
+            console.error('❌ TOKEN EXPIRED - Redirecting to /login');
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 500);
+          } else {
+            console.warn('⚠️ Token appears expired BUT refresh is in progress - Will not redirect');
+            console.warn('   Refresh will complete shortly and update token');
+          }
           
           throw new Error('Token has expired. Please login again.');
         } else {
@@ -234,10 +244,17 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
               sessionStorage.setItem('tokenExpiryLocation', currentLocation);
               tokenExpiryEmitter.emit(currentLocation);
               
-              // Force redirect to login page
-              setTimeout(() => {
-                window.location.href = '/login';
-              }, 500);
+              // 🔒 CRITICAL: Don't redirect while token refresh is in progress
+              if (!isRefreshInProgress()) {
+                // Force redirect to login page
+                console.error('❌ TOKEN EXPIRED - Redirecting to /login');
+                setTimeout(() => {
+                  window.location.href = '/login';
+                }, 500);
+              } else {
+                console.warn('⚠️ Token appears expired BUT refresh is in progress - Will not redirect');
+                console.warn('   Refresh will complete shortly and update token');
+              }
             }
           }
         } catch (e) {

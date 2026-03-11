@@ -43,6 +43,14 @@ const AUTH_BASE_URL = '/Authentication';
 // ✅ User-friendly popups for session events
 // ✅ Auto-cleanup on logout
 
+// 🔒 CRITICAL FLAG: Prevent apiClient from logging out while refresh is in progress
+let isTokenRefreshInProgress = false;
+
+// Helper to check if refresh is in progress
+export const isRefreshInProgress = (): boolean => {
+  return isTokenRefreshInProgress;
+};
+
 // Timers
 let refreshTokenTimer: number | null = null;
 let inactivityTimer: number | null = null;
@@ -332,6 +340,10 @@ export const isInactive = (): boolean => {
  * - Automatically retries on failure
  */
 export const refreshAccessToken = async (): Promise<boolean> => {
+  // 🔒 CRITICAL: Set flag to prevent apiClient from logging out during refresh
+  isTokenRefreshInProgress = true;
+  console.log('🔒 REFRESH IN PROGRESS FLAG SET - apiClient will NOT redirect to /login');
+  
   try {
     const accessToken = getAuthToken();
     
@@ -629,6 +641,10 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.error(`\n❌ ════════════════════════════════════════════════════════════════════════════════\n`);
     
     return false;
+  } finally {
+    // 🔒 CRITICAL: Clear flag when refresh completes (success or failure)
+    isTokenRefreshInProgress = false;
+    console.log('🔒 REFRESH IN PROGRESS FLAG CLEARED - apiClient can now redirect if needed');
   }
 };
 
