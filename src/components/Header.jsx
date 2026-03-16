@@ -3,6 +3,8 @@ import { NavLink, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, getUserAccess, setSelectedAccess, getSelectedAccess, getAuthToken, checkTokenExpired, manualRefreshToken } from "../services/authService";
 import { listDoctorProfiles } from "../services/doctorService";
+import { getCalendarAppointments } from "../services/appointmentService";
+import { getClinicInventoryByClinicId } from "../services/inventoryService";
 import LoginModal from "./LoginModal";
 import dhanthaLogo from "../assets/dhantha-logo-new.svg";
 
@@ -28,14 +30,240 @@ const CRUD_OPERATIONS = {
   superadmin: [],
 };
 
-// Sample notifications data
-const SAMPLE_NOTIFICATIONS = [
-  { id: 1, type: "appointment", title: "Upcoming Appointment", message: "Sarah Johnson - 2:00 PM Today", time: "10m ago", icon: "📅", unread: true },
-  { id: 2, type: "payment", title: "Payment Received", message: "$350 from Michael Chen", time: "1h ago", icon: "💰", unread: true },
-  { id: 3, type: "inventory", title: "Low Stock Alert", message: "Composite Resin running low", time: "2h ago", icon: "📦", unread: false },
-  { id: 4, type: "followup", title: "Follow-up Reminder", message: "3 patients need follow-up calls", time: "3h ago", icon: "🔔", unread: true },
-  { id: 5, type: "new", title: "New Patient", message: "Lisa Martinez registered", time: "5h ago", icon: "👤", unread: false }
-];
+const NOTIFICATION_POLL_INTERVAL_MS = 60 * 1000;
+const MAX_APPOINTMENT_NOTIFICATIONS = 5;
+const MAX_INVENTORY_NOTIFICATIONS = 3;
+const HEADER_NOTIFICATION_READ_STATE_KEY = "headerNotificationReadState";
+const UPCOMING_NOTIFICATION_WINDOW_DAYS = 7;
+
+const buildNotificationScopeKey = (access) => {
+  if (!access?.enterpriseId || !access?.clinicId) {
+    return "anonymous";
+  }
+
+  return `${access.enterpriseId}:${access.clinicId}`;
+};
+
+const readNotificationState = () => {
+  if (typeof window === "undefined") {
+    return {};
+  }
+
+  try {
+    const rawState = localStorage.getItem(HEADER_NOTIFICATION_READ_STATE_KEY);
+    return rawState ? JSON.parse(rawState) : {};
+  } catch (error) {
+    console.warn("Could not read notification state:", error);
+    return {};
+  }
+};
+
+const getReadNotificationIds = (scopeKey) => {
+  const state = readNotificationState();
+  const ids = state?.[scopeKey];
+  return new Set(Array.isArray(ids) ? ids : []);
+};
+
+const saveReadNotificationIds = (scopeKey, ids) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const state = readNotificationState();
+    state[scopeKey] = Array.from(ids);
+    localStorage.setItem(HEADER_NOTIFICATION_READ_STATE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.warn("Could not persist notification state:", error);
+  }
+};
+
+const formatRelativeTime = (value) => {
+  if (!value) {
+    return "Just now";
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Just now";
+  }
+
+  const diffMs = date.getTime() - Date.now();
+  const absSeconds = Math.round(Math.abs(diffMs) / 1000);
+
+  if (absSeconds < 60) {
+    return diffMs >= 0 ? "In a few seconds" : "Just now";
+  }
+
+  const units = [
+    [60, "second"],
+    [60, "minute"],
+    [24, "hour"],
+    [7, "day"],
+    [4.34524, "week"],
+    [12, "month"],
+    [Number.POSITIVE_INFINITY, "year"]
+  ];
+
+  let duration = absSeconds;
+  let unit = "second";
+
+  for (const [step, currentUnit] of units) {
+    unit = currentUnit;
+    if (duration < step) {
+      break;
+    }
+    duration /= step;
+  }
+
+  const valueRounded = Math.round(duration);
+  const formatter = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  return formatter.format(diffMs >= 0 ? valueRounded : -valueRounded, unit);
+};
+
+const formatAppointmentDateTime = (appointment) => {
+  if (!appointment?.appointmentDate) {
+    return null;
+  }
+
+  const datePart = String(appointment.appointmentDate).split("T")[0];
+  const timeParts = String(appointment.startTime || "09:00:00").split(":");
+  const hours = String(timeParts[0] || "09").padStart(2, "0");
+  const minutes = String(timeParts[1] || "00").padStart(2, "0");
+  const seconds = String(timeParts[2] || "00").padStart(2, "0");
+  const date = new Date(`${datePart}T${hours}:${minutes}:${seconds}`);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatClockTime = (date) => {
+  if (!date) {
+    return "TBD";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+};
+
+const formatDayLabel = (date) => {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfTarget = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((startOfTarget.getTime() - startOfToday.getTime()) / (24 * 60 * 60 * 1000));
+
+  if (diffDays === 0) {
+    return "today";
+  }
+
+  if (diffDays === 1) {
+    return "tomorrow";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    weekday: "short",
+    month: "short",
+    day: "numeric"
+  }).format(date);
+};
+
+const getPatientDisplayName = (appointment) => {
+  const fullName = [appointment?.firstName, appointment?.lastName].filter(Boolean).join(" ").trim();
+  return fullName || `Patient #${appointment?.patientId || "Unknown"}`;
+};
+
+const isActiveAppointmentStatus = (status) => {
+  const normalizedStatus = String(status || "scheduled").trim().toLowerCase();
+  return !["cancelled", "completed", "noshow", "no show"].includes(normalizedStatus);
+};
+
+const buildNotificationItems = ({ appointments, inventoryItems, readIds }) => {
+  const now = new Date();
+  const upcomingCutoff = new Date(now.getTime() + UPCOMING_NOTIFICATION_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  const appointmentNotifications = (appointments || [])
+    .map((appointment) => {
+      const appointmentDateTime = formatAppointmentDateTime(appointment);
+      return appointmentDateTime ? { appointment, appointmentDateTime } : null;
+    })
+    .filter(Boolean)
+    .filter(({ appointment, appointmentDateTime }) => (
+      isActiveAppointmentStatus(appointment.status) &&
+      appointmentDateTime >= now &&
+      appointmentDateTime <= upcomingCutoff
+    ))
+    .sort((left, right) => left.appointmentDateTime.getTime() - right.appointmentDateTime.getTime())
+    .slice(0, MAX_APPOINTMENT_NOTIFICATIONS)
+    .map(({ appointment, appointmentDateTime }) => {
+      const id = `appointment-${appointment.appointmentId || `${appointment.patientId}-${appointment.appointmentDate}-${appointment.startTime}`}`;
+      return {
+        id,
+        type: "appointment",
+        title: appointmentDateTime.toDateString() === now.toDateString() ? "Today's Appointment" : "Upcoming Appointment",
+        message: `${getPatientDisplayName(appointment)} at ${formatClockTime(appointmentDateTime)} ${formatDayLabel(appointmentDateTime)}`,
+        time: formatRelativeTime(appointmentDateTime),
+        icon: "📅",
+        unread: !readIds.has(id),
+        path: "/calendar"
+      };
+    });
+
+  const inventoryNotifications = (inventoryItems || [])
+    .filter((item) => {
+      const normalizedStatus = String(item?.status || "").toLowerCase();
+      const threshold = Math.max(Number(item?.reorderLevel || 0), Number(item?.minimumStock || 0));
+      return normalizedStatus === "outofstock" || normalizedStatus === "lowstock" || Number(item?.quantityAvailable || 0) <= threshold;
+    })
+    .sort((left, right) => {
+      const leftWeight = String(left?.status || "").toLowerCase() === "outofstock" ? 0 : 1;
+      const rightWeight = String(right?.status || "").toLowerCase() === "outofstock" ? 0 : 1;
+      if (leftWeight !== rightWeight) {
+        return leftWeight - rightWeight;
+      }
+      return Number(left?.quantityAvailable || 0) - Number(right?.quantityAvailable || 0);
+    })
+    .slice(0, MAX_INVENTORY_NOTIFICATIONS)
+    .map((item) => {
+      const isOutOfStock = String(item?.status || "").toLowerCase() === "outofstock" || Number(item?.quantityAvailable || 0) <= 0;
+      const id = `inventory-${item.inventoryId || item.itemId}`;
+      return {
+        id,
+        type: "inventory",
+        title: isOutOfStock ? "Out of Stock" : "Low Stock Alert",
+        message: `${item?.itemName || `Item #${item?.itemId || "Unknown"}`} has ${Number(item?.quantityAvailable || 0)} left`,
+        time: formatRelativeTime(item?.updatedAt || item?.createdAt),
+        icon: isOutOfStock ? "🚫" : "📦",
+        unread: !readIds.has(id),
+        path: "/inventory/clinic"
+      };
+    });
+
+  const items = [...appointmentNotifications, ...inventoryNotifications].sort((left, right) => {
+    const leftUnreadWeight = left.unread ? 0 : 1;
+    const rightUnreadWeight = right.unread ? 0 : 1;
+    if (leftUnreadWeight !== rightUnreadWeight) {
+      return leftUnreadWeight - rightUnreadWeight;
+    }
+
+    return left.type.localeCompare(right.type);
+  });
+
+  if (items.length > 0) {
+    return items;
+  }
+
+  return [{
+    id: "all-clear",
+    type: "system",
+    title: "All caught up",
+    message: "No new appointment or inventory alerts for this clinic.",
+    time: "Updated just now",
+    icon: "✅",
+    unread: false,
+    path: null
+  }];
+};
 
 // Sample search data
 const SEARCH_DATA = [
@@ -77,7 +305,8 @@ export default function Header(){
   const [successMessage, setSuccessMessage] = useState("");
   const [welcomeMessage, setWelcomeMessage] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState(SAMPLE_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
@@ -87,6 +316,7 @@ export default function Header(){
   const searchRef = useRef(null);
   const notificationRef = useRef(null);
   const hasFetchedDoctorNameRef = useRef(false);
+  const notificationFetchInFlightRef = useRef(false);
 
   const unreadCount = notifications.filter(n => n.unread).length;
 
@@ -162,19 +392,109 @@ export default function Header(){
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const selectedNotificationScope = buildNotificationScopeKey(selectedAccess);
+
+    if (!isLoggedIn || !selectedAccess?.clinicId) {
+      setNotifications([]);
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    const loadNotifications = async ({ silent = false } = {}) => {
+      if (notificationFetchInFlightRef.current) {
+        return;
+      }
+
+      notificationFetchInFlightRef.current = true;
+      if (!silent && isMounted) {
+        setNotificationsLoading(true);
+      }
+
+      try {
+        const [appointmentsResult, inventoryResult] = await Promise.allSettled([
+          getCalendarAppointments(),
+          getClinicInventoryByClinicId(selectedAccess.clinicId)
+        ]);
+
+        const appointments = appointmentsResult.status === "fulfilled" ? appointmentsResult.value : [];
+        const inventoryItems = inventoryResult.status === "fulfilled" ? inventoryResult.value : [];
+        const readIds = getReadNotificationIds(selectedNotificationScope);
+        const liveNotifications = buildNotificationItems({
+          appointments,
+          inventoryItems,
+          readIds
+        });
+
+        if (isMounted) {
+          setNotifications(liveNotifications);
+        }
+      } catch (error) {
+        console.error("Failed to refresh notifications:", error);
+      } finally {
+        notificationFetchInFlightRef.current = false;
+        if (isMounted) {
+          setNotificationsLoading(false);
+        }
+      }
+    };
+
+    loadNotifications();
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        loadNotifications({ silent: true });
+      }
+    }, NOTIFICATION_POLL_INTERVAL_MS);
+
+    const handleFocusRefresh = () => loadNotifications({ silent: true });
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadNotifications({ silent: true });
+      }
+    };
+
+    window.addEventListener("focus", handleFocusRefresh);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleFocusRefresh);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isLoggedIn, selectedAccess?.enterpriseId, selectedAccess?.clinicId]);
+
   const filteredSearch = SEARCH_DATA.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     item.meta.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const markAsRead = (id) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, unread: false } : n
+    const scopeKey = buildNotificationScopeKey(selectedAccess);
+    const nextReadIds = getReadNotificationIds(scopeKey);
+    nextReadIds.add(id);
+    saveReadNotificationIds(scopeKey, nextReadIds);
+    setNotifications(currentNotifications => currentNotifications.map(notification => 
+      notification.id === id ? { ...notification, unread: false } : notification
     ));
   };
 
   const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, unread: false })));
+    const scopeKey = buildNotificationScopeKey(selectedAccess);
+    const nextReadIds = getReadNotificationIds(scopeKey);
+    notifications.forEach((notification) => nextReadIds.add(notification.id));
+    saveReadNotificationIds(scopeKey, nextReadIds);
+    setNotifications(currentNotifications => currentNotifications.map(notification => ({ ...notification, unread: false })));
+  };
+
+  const handleNotificationClick = (notification) => {
+    markAsRead(notification.id);
+    if (notification.path) {
+      setShowNotifications(false);
+      navigate(notification.path);
+    }
   };
 
   const handleSearchSelect = (path) => {
@@ -458,86 +778,104 @@ export default function Header(){
                 <div className="flex justify-end items-center gap-3">
                   {isLoggedIn && (
                     <>
-                      {/* Notification Bell */}
-                      <div ref={notificationRef} className="relative">
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => setShowNotifications(!showNotifications)}
-                          className="relative p-2 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer"
-                        >
-                          <svg className="w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                          </svg>
-                          {unreadCount > 0 && (
-                            <motion.span
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold"
+                      {!isSuperAdmin && (
+                        <>
+                          {/* Notification Bell */}
+                          <div ref={notificationRef} className="relative">
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => setShowNotifications(!showNotifications)}
+                              className="relative p-2 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer"
                             >
-                              {unreadCount}
-                            </motion.span>
-                          )}
-                        </motion.button>
+                              <svg className="w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                              </svg>
+                              {unreadCount > 0 && (
+                                <motion.span
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold"
+                                >
+                                  {unreadCount}
+                                </motion.span>
+                              )}
+                            </motion.button>
 
-                        {/* Notifications Dropdown */}
-                        <AnimatePresence>
-                          {showNotifications && (
-                            <motion.div
-                              initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                              className="fixed right-4 top-20 w-96 bg-slate-800 rounded-xl shadow-2xl border-2 border-indigo-700 overflow-hidden z-[9999]"
-                            >
-                              {/* Header */}
-                              <div className="bg-gradient-to-r from-slate-700 to-indigo-700 px-4 py-3 border-b border-indigo-600 flex items-center justify-between">
-                                <h3 className="font-bold text-cyan-300">Notifications</h3>
-                                {unreadCount > 0 && (
-                                  <button
-                                    onClick={markAllAsRead}
-                                    className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold"
-                                  >
-                                    Mark all read
-                                  </button>
-                                )}
-                              </div>
-
-                              {/* Notifications List */}
-                              <div className="max-h-96 overflow-y-auto">
-                                {notifications.map((notif) => (
-                                  <motion.div
-                                    key={notif.id}
-                                    whileHover={{ backgroundColor: "#1e293b" }}
-                                    onClick={() => markAsRead(notif.id)}
-                                    className={`px-4 py-3 border-b border-slate-700 cursor-pointer ${notif.unread ? 'bg-indigo-900/30' : ''}`}
-                                  >
-                                    <div className="flex items-start gap-3">
-                                      <span className="text-2xl">{notif.icon}</span>
-                                      <div className="flex-1">
-                                        <div className="flex items-center justify-between">
-                                          <p className="font-semibold text-sm text-cyan-300">{notif.title}</p>
-                                          {notif.unread && (
-                                            <span className="w-2 h-2 bg-cyan-400 rounded-full"></span>
-                                          )}
-                                        </div>
-                                        <p className="text-sm text-slate-400 mt-0.5">{notif.message}</p>
-                                        <p className="text-xs text-slate-500 mt-1">{notif.time}</p>
-                                      </div>
+                            {/* Notifications Dropdown */}
+                            <AnimatePresence>
+                              {showNotifications && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                                  className="fixed right-4 top-20 w-96 bg-slate-800 rounded-xl shadow-2xl border-2 border-indigo-700 overflow-hidden z-[9999]"
+                                >
+                                  {/* Header */}
+                                  <div className="bg-gradient-to-r from-slate-700 to-indigo-700 px-4 py-3 border-b border-indigo-600 flex items-center justify-between">
+                                    <div>
+                                      <h3 className="font-bold text-cyan-300">Notifications</h3>
+                                      <p className="text-[11px] text-cyan-100/70">Live updates every minute</p>
                                     </div>
-                                  </motion.div>
-                                ))}
-                              </div>
+                                    {unreadCount > 0 && (
+                                      <button
+                                        onClick={markAllAsRead}
+                                        className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold"
+                                      >
+                                        Mark all read
+                                      </button>
+                                    )}
+                                  </div>
 
-                              {/* Footer */}
-                              <div className="bg-slate-700 px-4 py-2 text-center border-t border-indigo-600">
-                                <button className="text-sm text-cyan-400 hover:text-cyan-300 font-semibold">
-                                  View All Notifications
-                                </button>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
+                                  {/* Notifications List */}
+                                  <div className="max-h-96 overflow-y-auto">
+                                    {notificationsLoading && notifications.length === 0 && (
+                                      <div className="px-4 py-4 text-sm text-slate-400">
+                                        Refreshing notifications...
+                                      </div>
+                                    )}
+                                    {notifications.map((notif) => (
+                                      <motion.div
+                                        key={notif.id}
+                                        whileHover={{ backgroundColor: "#1e293b" }}
+                                        onClick={() => handleNotificationClick(notif)}
+                                        className={`px-4 py-3 border-b border-slate-700 cursor-pointer ${notif.unread ? 'bg-indigo-900/30' : ''}`}
+                                      >
+                                        <div className="flex items-start gap-3">
+                                          <span className="text-2xl">{notif.icon}</span>
+                                          <div className="flex-1">
+                                            <div className="flex items-center justify-between">
+                                              <p className="font-semibold text-sm text-cyan-300">{notif.title}</p>
+                                              {notif.unread && (
+                                                <span className="w-2 h-2 bg-cyan-400 rounded-full"></span>
+                                              )}
+                                            </div>
+                                            <p className="text-sm text-slate-400 mt-0.5">{notif.message}</p>
+                                            <p className="text-xs text-slate-500 mt-1">{notif.time}</p>
+                                          </div>
+                                        </div>
+                                      </motion.div>
+                                    ))}
+                                  </div>
+
+                                  {/* Footer */}
+                                  <div className="bg-slate-700 px-4 py-2 text-center border-t border-indigo-600">
+                                    <button
+                                      onClick={() => {
+                                        setShowNotifications(false);
+                                        navigate("/calendar");
+                                      }}
+                                      className="text-sm text-cyan-400 hover:text-cyan-300 font-semibold"
+                                    >
+                                      Open Calendar
+                                    </button>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </>
+                      )}
 
                       {/* Doctor's Space / Admin Corner Button */}
                       <motion.button
