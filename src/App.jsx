@@ -47,15 +47,69 @@ import Footer from "./components/Footer";
 import WhatsAppChatbot from "./components/WhatsAppChatbot";
 import { useTokenExpiry } from "./context/TokenExpiryContext";
 import { ModalProvider } from "./context/ModalContext";
-import { tokenExpiryEmitter } from "./services/apiClient";
+import { tokenExpiryEmitter, refreshTokenInterceptor } from "./services/apiClient";
 import GlobalOnboardStaffModal from "./components/GlobalOnboardStaffModal";
-import { initializeTabFocusListener, startTokenRefreshHeartbeat, getAuthToken, initActivityListeners, updateLastActivity } from "./services/authService";
+import { initializeTabFocusListener, startTokenRefreshHeartbeat, getAuthToken, initActivityListeners, updateLastActivity, startProactiveRefreshTimer } from "./services/authService";
 
 export default function App(){
   const navigate = useNavigate();
   const { showTokenExpiryModal, setShowTokenExpiryModal } = useTokenExpiry();
 
   useEffect(() => {
+    // 🔄 STEP 1: PAGE RELOAD REHYDRATION
+    // If sessionStorage was cleared but refresh token cookie exists, rebuild session
+    const rehydrateSession = async () => {
+      const accessToken = sessionStorage.getItem('accessToken_session');
+      const refreshToken = sessionStorage.getItem('refreshToken_session');
+      
+      console.log('\n🔄 PAGE LOAD REHYDRATION CHECK');
+      console.log('═══════════════════════════════════════════');
+      console.log(`   Access Token in sessionStorage: ${accessToken ? '✅ FOUND' : '❌ MISSING'}`);
+      console.log(`   Refresh Token in sessionStorage: ${refreshToken ? '✅ FOUND' : '❌ MISSING'}`);
+      
+      // If access token is missing but refresh token exists, try to restore session
+      if (!accessToken && refreshToken) {
+        console.log('   ⚡ Access token cleared but refresh token available');
+        console.log('   → Attempting to restore session via auto-refresh...');
+        
+        const refreshSuccess = await refreshTokenInterceptor();
+        
+        if (refreshSuccess) {
+          console.log('✅ ✅ ✅ SESSION RESTORED! User is logged back in.');
+          console.log('   New access token saved to sessionStorage');
+          console.log('   Starting session monitoring timers...');
+          
+          // ✅ NEW: Start timers NOW that we have a valid token
+          startTokenRefreshHeartbeat();
+          startProactiveRefreshTimer();
+          initActivityListeners();
+          
+          console.log('═══════════════════════════════════════════\n');
+        } else {
+          console.error('❌ ❌ ❌ Could not restore session. Refresh failed.');
+          console.error('   User will be redirected to login.');
+          console.log('═══════════════════════════════════════════\n');
+          sessionStorage.removeItem('refreshToken_session');
+          navigate('/login');
+        }
+      } else if (accessToken && !refreshToken) {
+        console.warn('⚠️ Access token exists but refresh token missing!');
+        console.warn('   This is unusual. Token refresh will fail if access token expires.');
+        console.log('═══════════════════════════════════════════\n');
+      } else if (accessToken && refreshToken) {
+        console.log('✅ Both tokens present - session intact');
+        console.log('═══════════════════════════════════════════\n');
+      } else {
+        console.log('ℹ️ No tokens found - user not logged in');
+        console.log('═══════════════════════════════════════════\n');
+      }
+    };
+    
+    // ✅ FIXED: Properly await rehydration with async IIFE
+    (async () => {
+      await rehydrateSession();
+    })();
+    
     // Subscribe to token expiry events
     const unsubscribe = tokenExpiryEmitter.subscribe((location) => {
       console.log('🔐 Token expiry detected, showing modal');
@@ -64,15 +118,6 @@ export default function App(){
 
     // Initialize tab focus listener to ensure token refresh continues
     const removeFocusListener = initializeTabFocusListener();
-
-    // Start heartbeat if user is already logged in (e.g., after page reload)
-    const token = getAuthToken();
-    if (token) {
-      console.log('✅ User is logged in. Starting token refresh heartbeat...');
-      startTokenRefreshHeartbeat();
-      // Initialize activity listeners in App level for reliability
-      initActivityListeners();
-    }
 
     // Cleanup
     return () => {

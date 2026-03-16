@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, getUserAccess, setSelectedAccess, getSelectedAccess, getAuthToken, checkTokenExpired } from "../services/authService";
+import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, getUserAccess, setSelectedAccess, getSelectedAccess, getAuthToken, checkTokenExpired, manualRefreshToken } from "../services/authService";
 import { listDoctorProfiles } from "../services/doctorService";
 import LoginModal from "./LoginModal";
 import dhanthaLogo from "../assets/dhantha-logo-new.svg";
@@ -80,6 +80,9 @@ export default function Header(){
   const [notifications, setNotifications] = useState(SAMPLE_NOTIFICATIONS);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isRefreshingToken, setIsRefreshingToken] = useState(false);
+  const [tokenRefreshStatus, setTokenRefreshStatus] = useState(null);
+  const [showTokenRefreshToast, setShowTokenRefreshToast] = useState(false);
   const navigate = useNavigate();
   const searchRef = useRef(null);
   const notificationRef = useRef(null);
@@ -313,6 +316,39 @@ export default function Header(){
     setDoctorName("");
     
     console.log('🔓 Logged out - token cleared from all tabs');
+  };
+
+  const handleTokenRefresh = async () => {
+    setIsRefreshingToken(true);
+    setTokenRefreshStatus(null);
+    
+    try {
+      console.log('🔄 User clicked token refresh button');
+      const result = await manualRefreshToken();
+      
+      setTokenRefreshStatus(result);
+      setShowTokenRefreshToast(true);
+      
+      // Auto-hide toast after 5 seconds
+      setTimeout(() => {
+        setShowTokenRefreshToast(false);
+      }, 5000);
+      
+      console.log('✅ Token refresh completed:', result);
+    } catch (error) {
+      console.error('❌ Token refresh error:', error);
+      setTokenRefreshStatus({
+        success: false,
+        message: 'Failed to refresh token. Please try again.'
+      });
+      setShowTokenRefreshToast(true);
+      
+      setTimeout(() => {
+        setShowTokenRefreshToast(false);
+      }, 5000);
+    } finally {
+      setIsRefreshingToken(false);
+    }
   };
 
   const handleInputChange = (e) => {
@@ -624,6 +660,88 @@ export default function Header(){
             >
               💫
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Token Refresh Toast Notification */}
+      <AnimatePresence>
+        {showTokenRefreshToast && tokenRefreshStatus && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: -50, x: 100 }}
+            animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: -50, x: 100 }}
+            transition={{ type: "spring", damping: 15, stiffness: 200 }}
+            className={`fixed top-32 right-6 z-[100] px-6 py-5 rounded-2xl shadow-2xl backdrop-blur-lg border-2 max-w-md ${
+              tokenRefreshStatus.success
+                ? 'bg-gradient-to-br from-emerald-600 via-green-600 to-teal-500 text-white border-emerald-300/30'
+                : 'bg-gradient-to-br from-red-600 via-rose-600 to-pink-500 text-white border-red-300/30'
+            }`}
+          >
+            <div className="flex items-start gap-4">
+              <motion.span
+                animate={{ 
+                  rotate: [0, 10, -10, 10, 0],
+                  scale: [1, 1.2, 1, 1.2, 1]
+                }}
+                transition={{ duration: 0.6, repeat: tokenRefreshStatus.success ? 1 : 2 }}
+                className="text-4xl"
+              >
+                {tokenRefreshStatus.success ? '✅' : '❌'}
+              </motion.span>
+              <div className="flex-1">
+                <motion.p 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="text-lg font-bold mb-1"
+                >
+                  {tokenRefreshStatus.success ? 'Token Refreshed!' : 'Refresh Failed'}
+                </motion.p>
+                <motion.p 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="text-sm text-white/90"
+                >
+                  {tokenRefreshStatus.message}
+                </motion.p>
+              </div>
+            </div>
+            {/* Animated Progress bar */}
+            <motion.div
+              initial={{ width: "100%" }}
+              animate={{ width: "0%" }}
+              transition={{ duration: 5, ease: "linear" }}
+              className={`absolute bottom-0 left-0 h-1.5 rounded-full ${
+                tokenRefreshStatus.success ? 'bg-white/40' : 'bg-white/40'
+              }`}
+            />
+            {/* Sparkle effects */}
+            {tokenRefreshStatus.success && (
+              <>
+                <motion.div
+                  animate={{ 
+                    scale: [0, 1, 0],
+                    rotate: [0, 180, 360]
+                  }}
+                  transition={{ duration: 1, repeat: 2, repeatDelay: 0.3 }}
+                  className="absolute -top-2 -right-2 text-2xl"
+                >
+                  ✨
+                </motion.div>
+                <motion.div
+                  animate={{ 
+                    scale: [0, 1, 0],
+                    rotate: [360, 180, 0]
+                  }}
+                  transition={{ duration: 1, repeat: 2, repeatDelay: 0.3, delay: 0.3 }}
+                  className="absolute -bottom-2 -left-2 text-2xl"
+                >
+                  💫
+                </motion.div>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

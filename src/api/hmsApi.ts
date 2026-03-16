@@ -11,6 +11,32 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://cliniassistsapi-c
 
 console.log(`✅ HMS API initialized: ${BASE_URL}`);
 
+// ============================================
+// 🔄 AUTHENTICATION - Token Refresh (MANUAL)
+// ============================================
+export interface TokenRefreshRequest {
+  accessToken?: string;
+  refreshToken: string;
+}
+
+export interface TokenRefreshResponse {
+  accessToken: string;
+  refreshToken?: string;
+  accessTokenExpiresAt: string;
+  refreshTokenExpiresAt?: string;
+}
+
+/**
+ * Manually refresh the access token using current access token and refresh token
+ * Call this when user clicks the "Refresh Token" button in the UI
+ */
+export function manualRefreshToken(payload: TokenRefreshRequest): Promise<TokenRefreshResponse> {
+  return request<TokenRefreshResponse>("/Authentication/refresh-token", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
 // Enterprise
 export function getEnterpriseData(): Promise<EnterpriseDataModel> {
   return request<EnterpriseDataModel>("/enterprise");

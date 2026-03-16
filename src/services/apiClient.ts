@@ -49,7 +49,122 @@ export const tokenExpiryEmitter = {
   }
 };
 
-export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// ============================================
+// 🔄 AUTO-REFRESH INTERCEPTOR
+// ============================================
+/**
+ * Attempt to refresh the access token using the refresh token stored in sessionStorage
+ * This is called when a 401 Unauthorized response is received
+ */
+let isRefreshingToken = false;
+
+export async function refreshTokenInterceptor(): Promise<boolean> {
+  // Prevent multiple refresh attempts simultaneously
+  if (isRefreshingToken) {
+    console.warn('⏳ Token refresh already in progress, skipping duplicate refresh');
+    return false;
+  }
+
+  isRefreshingToken = true;
+  
+  try {
+    console.log('\n🔄 AUTO-REFRESH INTERCEPTOR TRIGGERED');
+    console.log('═══════════════════════════════════════════');
+    
+    const accessToken = getAuthToken();
+    const refreshToken = sessionStorage.getItem('refreshToken_session');
+    
+    console.log(`   Access Token: ${accessToken ? '✅ Found' : '❌ MISSING (rehydration?)'}`);
+    console.log(`   Refresh Token: ${refreshToken ? '✅ Found' : '❌ MISSING'}`);
+    
+    if (!refreshToken) {
+      console.error('❌ Cannot refresh: Refresh token missing!');
+      return false;
+    }
+    
+    // ✅ FIX: We can refresh with JUST the refresh token (in body + HttpOnly cookie)
+    // Access token might be missing during rehydration - that's OK
+    console.log('✅ Refresh token found, attempting refresh...');
+    
+    const refreshUrl = `${BASE_URL}/Authentication/refresh-token`;
+    
+    // Build request body with whatever tokens we have
+    const requestBody: any = {
+      refreshToken: refreshToken
+    };
+    
+    // Include access token if available (for when token is about to expire)
+    if (accessToken) {
+      requestBody.accessToken = accessToken;
+      console.log(`   Including access token in request body`);
+    } else {
+      console.log(`   Access token not available - refresh will use HttpOnly cookie only`);
+    }
+    
+    console.log(`   Request URL: ${refreshUrl}`);
+    console.log(`   Request Body: { refreshToken: "${refreshToken.substring(0, 20)}..." ${accessToken ? ', accessToken: "..."' : ''} }`);
+    
+    const response = await fetch(refreshUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // Only add Authorization header if we have access token
+        ...(accessToken && {
+          'Authorization': `Bearer ${accessToken}`
+        })
+      },
+      credentials: 'include',  // Send HttpOnly cookie
+      body: JSON.stringify(requestBody)
+    });
+    
+    console.log(`\n📊 API Response: ${response.status} ${response.statusText}`);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Refresh failed with status ${response.status}`);
+      console.error(`   Response: ${errorText.substring(0, 200)}`);
+      
+      if (response.status === 401) {
+        console.error('   → Refresh token is invalid or expired');
+      }
+      return false;
+    }
+    
+    const data = await response.json();
+    console.log(`\n✅ Refresh succeeded!`);
+    console.log(`   Response keys: ${Object.keys(data).join(', ')}`);
+    
+    if (data.accessToken) {
+      console.log(`✅ New access token received: ${data.accessToken.substring(0, 20)}...`);
+      console.log(`   Expires: ${data.accessTokenExpiresAt || 'N/A'}`);
+      
+      // Save new token to storage
+      sessionStorage.setItem('accessToken_session', data.accessToken);
+      if (data.accessTokenExpiresAt) {
+        sessionStorage.setItem('accessTokenExpiry', data.accessTokenExpiresAt);
+      }
+      
+      // Also update memory token via saveAccessToken if needed
+      console.log('✅ Token saved to sessionStorage');
+      console.log('═══════════════════════════════════════════\n');
+      return true;
+    } else {
+      console.error('❌ Response missing accessToken field');
+      console.error(`   Received: ${JSON.stringify(data)}`);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Refresh token error:', error);
+    console.error(`   Error message: ${(error as Error).message}`);
+    console.error(`   Error type: ${error instanceof TypeError ? 'TypeError (network?)' : 'Other'}`);
+    return false;
+  } finally {
+    isRefreshingToken = false;
+    console.log('🔓 Refresh attempt completed (finally block)');
+  }
+}
+
+export async function request<T>(path: string, options: RequestInit = {}, retryCount = 0): Promise<T> {
   // Get token from localStorage
   let token = getAuthToken();
   const selectedAccess = getSelectedAccess();
@@ -194,6 +309,35 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     const contentType = res.headers.get('content-type') || '';
     const text = await res.text();
     const snippet = text.slice(0, 300);
+    
+    // ✅ AUTO-REFRESH LOGIC: On 401, try to refresh token and retry request
+    if (res.status === 401 && retryCount === 0) {
+      console.warn('\n⚠️ Got 401 Unauthorized - Attempting automatic token refresh...');
+      
+      const refreshSuccess = await refreshTokenInterceptor();
+      
+      if (refreshSuccess) {
+        console.log('✅ Token refreshed successfully - Retrying original request...');
+        // Recursively retry the request with the new token (retryCount = 1 to prevent infinite loop)
+        return request<T>(path, options, 1);
+      } else {
+        console.error('❌ Token refresh failed - User needs to login again');
+        // Redirect to login
+        sessionStorage.removeItem('accessToken_session');
+        sessionStorage.removeItem('refreshToken_session');
+        localStorage.removeItem('userData');
+        localStorage.removeItem('userAccess');
+        localStorage.removeItem('selectedAccess');
+        
+        tokenExpiryEmitter.emit(window.location.pathname);
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 500);
+        
+        throw new Error('Session expired. Please login again.');
+      }
+    }
+    
     console.error(`❌ API ERROR: ${options.method || 'GET'} ${path} -> ${res.status} ${res.statusText} | ct=${contentType} | body: ${snippet}`);
     recordBrowserApiLog("error", `HTTP ${res.status} ${res.statusText} for ${path}`, {
       method: options.method || "GET",
@@ -212,56 +356,6 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     const error: any = new Error(`HTTP ${res.status} ${res.statusText} - ct=${contentType} body=${snippet}`);
     error.status = res.status;
     error.response = { status: res.status, statusText: res.statusText, data: text };
-    
-    // Log unauthorized errors
-    if (res.status === 401 || res.status === 403) {
-      console.error('🚫 UNAUTHORIZED/FORBIDDEN - Token may be expired or invalid');
-      
-      const token = getAuthToken();
-      const selected = getSelectedAccess();
-      if (token) {
-        try {
-          const base64Url = token.split('.')[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-          }).join(''));
-          const decoded = JSON.parse(jsonPayload);
-          console.error('🔓 Token Expiration:', decoded.exp ? new Date(decoded.exp * 1000).toISOString() : 'NOT FOUND');
-          if (decoded.exp) {
-            const now = Math.floor(Date.now() / 1000);
-            const isExpired = decoded.exp < now;
-            if (isExpired) {
-              console.error('⚠️ Token is EXPIRED - Triggering token expiry modal');
-              // Clear tokens
-              sessionStorage.removeItem('authToken');
-              sessionStorage.removeItem('selectedAccess');
-              localStorage.removeItem('authToken');
-              localStorage.removeItem('selectedAccess');
-              
-              // Store current location and trigger modal
-              const currentLocation = window.location.pathname;
-              sessionStorage.setItem('tokenExpiryLocation', currentLocation);
-              tokenExpiryEmitter.emit(currentLocation);
-              
-              // 🔒 CRITICAL: Don't redirect while token refresh is in progress
-              if (!isRefreshInProgress()) {
-                // Force redirect to login page
-                console.error('❌ TOKEN EXPIRED - Redirecting to /login');
-                setTimeout(() => {
-                  window.location.href = '/login';
-                }, 500);
-              } else {
-                console.warn('⚠️ Token appears expired BUT refresh is in progress - Will not redirect');
-                console.warn('   Refresh will complete shortly and update token');
-              }
-            }
-          }
-        } catch (e) {
-          console.error('❌ Could not decode JWT token');
-        }
-      }
-    }
     
     throw error;
   }

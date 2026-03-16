@@ -898,7 +898,8 @@ export default function Doctors() {
   const [loadingAppointments, setLoadingAppointments] = useState(false);
   const [selectedAppointmentForVisit, setSelectedAppointmentForVisit] = useState(null);
   const [showVisitInfoModal, setShowVisitInfoModal] = useState(false);
-  const [appointmentDate, setAppointmentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [appointmentStartDate, setAppointmentStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [appointmentEndDate, setAppointmentEndDate] = useState("");
   const [viewingMyAppointments, setViewingMyAppointments] = useState(false);
   const [showAppointmentDetails, setShowAppointmentDetails] = useState(false);
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
@@ -1007,7 +1008,8 @@ export default function Doctors() {
   const printRef = useRef(null);
   
   // Payment management states
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentStartDate, setPaymentStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentEndDate, setPaymentEndDate] = useState("");
   const [paymentClinicId, setPaymentClinicId] = useState('');
   const [paymentAppointments, setPaymentAppointments] = useState([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
@@ -2655,19 +2657,35 @@ export default function Doctors() {
     setViewingMyAppointments(false);
     getCalendarAppointments()
       .then(data => {
-        console.log('📅 Loaded all appointments:', data);
-        console.log('🔍 Filtering by date:', appointmentDate);
+        console.log('📅 Loaded all appointments:', data?.length || 0);
+        console.log('🔍 Filtering by date range:');
+        console.log('   Start Date:', appointmentStartDate);
+        console.log('   End Date:', appointmentEndDate || '(Optional - not set)');
         
-        // Filter by selected date - fixed date comparison
+        // Filter by selected date range
         const filteredData = data.filter(appt => {
           if (!appt.appointmentDate) return false;
+          
           // Extract just the date part from appointmentDate
           const apptDateOnly = appt.appointmentDate.split('T')[0];
-          console.log('Comparing:', apptDateOnly, 'with', appointmentDate);
-          return apptDateOnly === appointmentDate;
+          
+          // Convert dates to comparable format (YYYY-MM-DD)
+          const startDate = new Date(appointmentStartDate);
+          const apptDate = new Date(apptDateOnly);
+          
+          // Check if appointment is on or after start date
+          if (apptDate < startDate) return false;
+          
+          // Check if end date is set and appointment is before or on end date
+          if (appointmentEndDate) {
+            const endDate = new Date(appointmentEndDate);
+            if (apptDate > endDate) return false;
+          }
+          
+          return true;
         });
         
-        console.log('✅ Filtered appointments:', filteredData.length, 'out of', data.length);
+        console.log(`✅ Filtered appointments: ${filteredData.length} out of ${data.length} total`);
         
         // Always show filtered results (empty list if no matches)
         setRealAppointments(filteredData);
@@ -2677,7 +2695,7 @@ export default function Doctors() {
         setRealAppointments([]);
       })
       .finally(() => setLoadingAppointments(false));
-  }, [appointmentDate]); // FIXED: Memoized with appointmentDate dependency
+  }, [appointmentStartDate, appointmentEndDate]); // Memoized with date range dependencies
 
   // Load real appointments when appointments tab is active
   useEffect(() => {
@@ -2690,7 +2708,7 @@ export default function Doctors() {
     if (activeSection === "dashboard" && activeTab === "appointments") {
       loadAllAppointments();
     }
-  }, [activeSection, activeTab, appointmentDate, loadAllAppointments, showEditModal]); // Include showEditModal to prevent reload during edit
+  }, [activeSection, activeTab, appointmentStartDate, appointmentEndDate, loadAllAppointments, showEditModal]);
 
   // Load appointments for dashboard overview
   useEffect(() => {
@@ -2740,10 +2758,41 @@ export default function Doctors() {
 
     setLoadingAppointments(true);
     setViewingMyAppointments(true);
-    getAppointmentsByDoctorID(clinicId, doctorId.toString(), appointmentDate)
+    
+    // Get appointments and filter by date range
+    getCalendarAppointments()
       .then(data => {
-        console.log('👨‍⚕️ Loaded my appointments:', data);
-        setRealAppointments(data);
+        console.log('👨‍⚕️ Loaded all appointments for filtering:', data?.length || 0);
+        console.log('   Filtering for doctor ID:', doctorId);
+        console.log('   Date range: ', appointmentStartDate, ' to ', appointmentEndDate || '(end of time)');
+        
+        // Filter for doctor's appointments within date range
+        const filteredData = (data || []).filter(appt => {
+          // Check if appointment belongs to this doctor
+          if (appt.doctorId !== doctorId) return false;
+          if (!appt.appointmentDate) return false;
+          
+          // Extract just the date part from appointmentDate
+          const apptDateOnly = appt.appointmentDate.split('T')[0];
+          
+          // Convert dates to comparable format (YYYY-MM-DD)
+          const startDate = new Date(appointmentStartDate);
+          const apptDate = new Date(apptDateOnly);
+          
+          // Check if appointment is on or after start date
+          if (apptDate < startDate) return false;
+          
+          // Check if end date is set and appointment is before or on end date
+          if (appointmentEndDate) {
+            const endDate = new Date(appointmentEndDate);
+            if (apptDate > endDate) return false;
+          }
+          
+          return true;
+        });
+        
+        console.log('✅ Filtered my appointments: ', filteredData.length, ' out of ', data?.length || 0);
+        setRealAppointments(filteredData);
       })
       .catch(err => {
         console.error('Failed to load my appointments:', err);
@@ -2765,15 +2814,41 @@ export default function Doctors() {
 
     setLoadingPayments(true);
     try {
-      const params = {
-        clinicId: clinicId.toString(),
-        appointmentDate: paymentDate
-      };
+      console.log('💳 Loading payment appointments with date range:');
+      console.log('   Start Date:', paymentStartDate);
+      console.log('   End Date:', paymentEndDate || '(Optional - not set)');
+      console.log('   Clinic ID:', clinicId);
       
-      console.log('💳 Loading payment appointments with params:', params);
-      const data = await getAppointmentsByFilters(params);
-      console.log('💳 Loaded appointments for payments:', data);
-      setPaymentAppointments(data || []);
+      // Get all appointments and filter by date range
+      const data = await getCalendarAppointments();
+      
+      // Filter by clinic, payment status, and date range
+      const filteredData = (data || []).filter(appt => {
+        // Check clinic
+        if (appt.clinicId !== clinicId) return false;
+        if (!appt.appointmentDate) return false;
+        
+        // Extract just the date part from appointmentDate
+        const apptDateOnly = appt.appointmentDate.split('T')[0];
+        
+        // Convert dates to comparable format (YYYY-MM-DD)
+        const startDate = new Date(paymentStartDate);
+        const apptDate = new Date(apptDateOnly);
+        
+        // Check if appointment is on or after start date
+        if (apptDate < startDate) return false;
+        
+        // Check if end date is set and appointment is before or on end date
+        if (paymentEndDate) {
+          const endDate = new Date(paymentEndDate);
+          if (apptDate > endDate) return false;
+        }
+        
+        return true;
+      });
+      
+      console.log('💳 Loaded and filtered appointments for payments:', filteredData?.length || 0, 'out of', data?.length || 0);
+      setPaymentAppointments(filteredData || []);
     } catch (error) {
       console.error('Failed to load payment appointments:', error);
       alert('❌ Failed to load payments. Please try again.');
@@ -7686,15 +7761,35 @@ export default function Doctors() {
 
                 {/* Filters */}
                 <div className="px-6 py-4 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-200">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <div>
-                      <label className="text-sm font-semibold text-stone-700 mb-2 block">Date Filter:</label>
+                      <label className="text-sm font-semibold text-stone-700 mb-2 block">From Date:</label>
                       <input
                         type="date"
-                        value={paymentDate}
-                        onChange={(e) => setPaymentDate(e.target.value)}
+                        value={paymentStartDate}
+                        onChange={(e) => setPaymentStartDate(e.target.value)}
                         className="w-full px-3 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition font-medium text-stone-700"
                       />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-stone-700 mb-2 block">To Date (Optional):</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="date"
+                          value={paymentEndDate}
+                          onChange={(e) => setPaymentEndDate(e.target.value)}
+                          className="flex-1 px-3 py-2.5 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition font-medium text-stone-700"
+                        />
+                        {paymentEndDate && (
+                          <button
+                            onClick={() => setPaymentEndDate("")}
+                            className="px-2 py-2.5 text-red-600 hover:text-red-700 font-bold"
+                            title="Clear end date"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div>
                       <label className="text-sm font-semibold text-stone-700 mb-2 block">Clinic ID:</label>
@@ -7998,44 +8093,57 @@ export default function Doctors() {
                   </div>
                 </div>
                 
-                {/* Date Filter and My Appointments Controls */}
-                <div className="px-6 py-4 bg-stone-50 border-b border-stone-200 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <label className="text-sm font-semibold text-stone-700">Filter by Date:</label>
-                    <input
-                      type="date"
-                      value={appointmentDate}
-                      onChange={(e) => setAppointmentDate(e.target.value)}
-                      className="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={loadAllAppointments}
-                      className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${
-                        !viewingMyAppointments 
-                          ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md' 
-                          : 'bg-white text-stone-700 border border-stone-300 hover:bg-stone-50'
-                      }`}
-                    >
-                      <span>📋</span>
-                      <span>All Appointments</span>
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={loadMyAppointments}
-                      className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${
-                        viewingMyAppointments 
-                          ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md' 
-                          : 'bg-white text-stone-700 border border-stone-300 hover:bg-stone-50'
-                      }`}
-                    >
-                      <span>👨‍⚕️</span>
-                      <span>My Appointments</span>
-                    </motion.button>
+                {/* Date Range Filter and My Appointments Controls */}
+                <div className="px-6 py-4 bg-stone-50 border-b border-stone-200">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm font-semibold text-stone-700">From Date:</label>
+                        <input
+                          type="date"
+                          value={appointmentStartDate}
+                          onChange={(e) => setAppointmentStartDate(e.target.value)}
+                          className="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="text-sm font-semibold text-stone-700">To Date (Optional):</label>
+                        <input
+                          type="date"
+                          value={appointmentEndDate}
+                          onChange={(e) => setAppointmentEndDate(e.target.value)}
+                          className="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                        />
+                        {appointmentEndDate && (
+                          <button
+                            onClick={() => setAppointmentEndDate("")}
+                            className="text-sm text-red-600 hover:text-red-700 font-semibold"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={loadAllAppointments}
+                        className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${!viewingMyAppointments ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md' : 'bg-white text-stone-700 border border-stone-300 hover:bg-stone-50'}`}
+                      >
+                        <span>📋</span>
+                        <span>All Appointments</span>
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={loadMyAppointments}
+                        className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${viewingMyAppointments ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md' : 'bg-white text-stone-700 border border-stone-300 hover:bg-stone-50'}`}
+                      >
+                        <span>👨‍⚕️</span>
+                        <span>My Appointments</span>
+                      </motion.button>
+                    </div>
                   </div>
                   {viewingMyAppointments && (
                     <div className="text-sm text-stone-600 font-medium bg-violet-100 px-3 py-1.5 rounded-full">
