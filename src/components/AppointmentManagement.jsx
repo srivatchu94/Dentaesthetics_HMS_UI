@@ -41,6 +41,9 @@ export function AppointmentListModal({
   const [filterLastName, setFilterLastName] = useState(lastName || "");
   const [filterDoctorId, setFilterDoctorId] = useState(doctorId || "");
   const [filterAppointmentDate, setFilterAppointmentDate] = useState(appointmentDate || "");
+  const [filterFromDate, setFilterFromDate] = useState("");
+  const [filterToDate, setFilterToDate] = useState("");
+  const [dateValidationError, setDateValidationError] = useState("");
   const [filteredClinics, setFilteredClinics] = useState(clinics);
   const [filteredDoctors, setFilteredDoctors] = useState(doctors);
 
@@ -52,6 +55,9 @@ export function AppointmentListModal({
     setFilterLastName(lastName || "");
     setFilterDoctorId(doctorId || "");
     setFilterAppointmentDate(appointmentDate || "");
+    setFilterFromDate("");
+    setFilterToDate("");
+    setDateValidationError("");
     setFilterQuery(filterQuery || "");
   }, [enterpriseId, clinicId, firstName, lastName, doctorId, appointmentDate, filterQuery, show]);
 
@@ -73,6 +79,8 @@ export function AppointmentListModal({
 
   // Apply filters and fetch appointments
   const handleApplyFilters = () => {
+    setDateValidationError(""); // Clear previous errors
+    
     if (!filterClinicId) {
       alert("❌ Please select a clinic first");
       return;
@@ -81,6 +89,22 @@ export function AppointmentListModal({
     if (!filterAppointmentDate) {
       alert("❌ Please select an appointment date first");
       return;
+    }
+    
+    // Validate date range filters
+    if (filterToDate && !filterFromDate) {
+      setDateValidationError("❌ 'From Date' is required when 'To Date' is selected");
+      return;
+    }
+    
+    if (filterFromDate && filterToDate) {
+      const fromDate = new Date(filterFromDate);
+      const toDate = new Date(filterToDate);
+      
+      if (fromDate > toDate) {
+        setDateValidationError("❌ 'From Date' must be less than or equal to 'To Date'");
+        return;
+      }
     }
     
     if (onApplyFilters) {
@@ -165,6 +189,9 @@ export function AppointmentListModal({
     setFilterLastName("");
     setFilterDoctorId("");
     setFilterAppointmentDate("");
+    setFilterFromDate("");
+    setFilterToDate("");
+    setDateValidationError("");
     setFilterQuery("");
     setFilteredClinics(clinics);
     setFilteredDoctors(doctors);
@@ -317,7 +344,47 @@ export function AppointmentListModal({
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
                 />
               </div>
+
+              {/* From Date */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">📅 From Date (Range Filter)</label>
+                <input
+                  type="date"
+                  value={filterFromDate}
+                  onChange={(e) => {
+                    setFilterFromDate(e.target.value);
+                    setDateValidationError(""); // Clear error when user changes input
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-rose-400 focus:border-transparent"
+                />
+              </div>
+
+              {/* To Date */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">📅 To Date (Range Filter)</label>
+                <input
+                  type="date"
+                  value={filterToDate}
+                  onChange={(e) => {
+                    setFilterToDate(e.target.value);
+                    setDateValidationError(""); // Clear error when user changes input
+                  }}
+                  disabled={!filterFromDate}
+                  className={`w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-rose-400 focus:border-transparent ${
+                    !filterFromDate 
+                      ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' 
+                      : 'bg-white border-slate-200'
+                  }`}
+                />
+              </div>
             </div>
+
+            {/* Date Validation Error */}
+            {dateValidationError && (
+              <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 text-sm font-semibold">
+                {dateValidationError}
+              </div>
+            )}
 
             {/* Buttons Row */}
             <div className="flex gap-3">

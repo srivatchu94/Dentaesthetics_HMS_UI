@@ -481,6 +481,9 @@ export default function PatientHistory({ clinicId: propClinicId }) {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [filterFromDate, setFilterFromDate] = useState("");
+  const [filterToDate, setFilterToDate] = useState("");
+  const [dateValidationError, setDateValidationError] = useState("");
   const appointmentDetailsRef = useRef(null);
 
   // Get clinicId from token payload (from login token claims)
@@ -682,6 +685,63 @@ export default function PatientHistory({ clinicId: propClinicId }) {
     );
   }, []);
 
+  // Filter appointments by date range
+  const getFilteredAppointmentsByDateRange = () => {
+    if (!filterFromDate && !filterToDate) {
+      return appointments;
+    }
+
+    return appointments.filter(apt => {
+      const aptDate = new Date(apt.appointmentDate);
+      
+      if (filterFromDate) {
+        const fromDate = new Date(filterFromDate);
+        if (aptDate < fromDate) return false;
+      }
+
+      if (filterToDate) {
+        const toDate = new Date(filterToDate);
+        // Set toDate to end of day for inclusive comparison
+        toDate.setHours(23, 59, 59, 999);
+        if (aptDate > toDate) return false;
+      }
+
+      return true;
+    });
+  };
+
+  // Validate date range before applying
+  const validateDateRange = () => {
+    setDateValidationError("");
+
+    if (filterToDate && !filterFromDate) {
+      setDateValidationError("❌ 'From Date' is required when 'To Date' is selected");
+      return false;
+    }
+
+    if (filterFromDate && filterToDate) {
+      const fromDate = new Date(filterFromDate);
+      const toDate = new Date(filterToDate);
+
+      if (fromDate > toDate) {
+        setDateValidationError("❌ 'From Date' must be less than or equal to 'To Date'");
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  // Handle clearing date filters
+  const handleClearDateFilters = () => {
+    setFilterFromDate("");
+    setFilterToDate("");
+    setDateValidationError("");
+  };
+
+  const filteredAppointmentsByDate = getFilteredAppointmentsByDateRange();
+  }, []);
+
   return (
     <div className="w-full space-y-6">
       {/* Patients List */}
@@ -728,6 +788,7 @@ export default function PatientHistory({ clinicId: propClinicId }) {
                 setSelectedPatient(null);
                 setAppointments([]);
                 setSelectedAppointment(null);
+                handleClearDateFilters();
               }}
               className="px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition font-semibold"
             >
@@ -735,8 +796,65 @@ export default function PatientHistory({ clinicId: propClinicId }) {
             </button>
           </div>
 
+          {/* Date Range Filter */}
+          <div className="mb-6 bg-white rounded-lg p-4 border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-slate-800">📅 Filter by Date Range</h4>
+              {(filterFromDate || filterToDate) && (
+                <button
+                  onClick={handleClearDateFilters}
+                  className="text-xs px-2 py-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300 transition"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* From Date */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">📅 From Date</label>
+                <input
+                  type="date"
+                  value={filterFromDate}
+                  onChange={(e) => {
+                    setFilterFromDate(e.target.value);
+                    validateDateRange();
+                  }}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-purple-400 focus:border-transparent"
+                />
+              </div>
+
+              {/* To Date */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">📅 To Date</label>
+                <input
+                  type="date"
+                  value={filterToDate}
+                  onChange={(e) => {
+                    setFilterToDate(e.target.value);
+                    validateDateRange();
+                  }}
+                  disabled={!filterFromDate}
+                  className={`w-full px-3 py-2 rounded-lg border focus:ring-2 focus:ring-purple-400 focus:border-transparent ${
+                    !filterFromDate 
+                      ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed' 
+                      : 'bg-white border-slate-200'
+                  }`}
+                />
+              </div>
+            </div>
+
+            {/* Date Validation Error */}
+            {dateValidationError && (
+              <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 text-xs font-semibold">
+                {dateValidationError}
+              </div>
+            )}
+          </div>
+
           <AppointmentTabsView
-            appointments={appointments}
+            appointments={filteredAppointmentsByDate}
             selectedAppointment={selectedAppointment}
             onSelectAppointment={handleSelectAppointment}
             loading={appointmentsLoading}
