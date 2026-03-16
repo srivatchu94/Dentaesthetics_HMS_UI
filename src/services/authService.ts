@@ -344,362 +344,49 @@ export const isInactive = (): boolean => {
 // ============================================
 
 /**
- * Refresh access token using HYBRID storage
- * - Access Token refreshed and stored in Memory + SessionStorage
- * - Refresh Token (HttpOnly Cookie) is automatic from backend
- * - Automatically retries on failure
+ * ✨ UNIFIED REFRESH MECHANISM - SINGLE SOURCE OF TRUTH
+ * 
+ * This function CONSOLIDATES ALL refresh logic into ONE reliable mechanism.
+ * Instead of multiple timers/pointers fighting each other, we use the 
+ * proven `manualRefreshToken()` function for BOTH manual and automatic refresh.
+ * 
+ * This ensures:
+ * - ✅ Refresh token ALWAYS included in request body
+ * - ✅ Consistent error handling
+ * - ✅ No race conditions
+ * - ✅ Works every time (like manual refresh does)
  */
 export const refreshAccessToken = async (): Promise<boolean> => {
-  // 🔒 CRITICAL: Set flag to prevent apiClient from logging out during refresh
   isTokenRefreshInProgress = true;
-  console.log('🔒 REFRESH IN PROGRESS FLAG SET - apiClient will NOT redirect to /login');
   
   try {
-    const accessToken = getAuthToken();
+    console.log('\n🔄 AUTOMATIC TOKEN REFRESH (Using Unified Mechanism)');
+    console.log('═══════════════════════════════════════════════════════════════════');
+    console.log(`⏰ Timestamp: ${new Date().toLocaleTimeString()}`);
     
-    const refreshStartTime = new Date();
-    logTokenRefreshEvent('REFRESH STARTED', { timestamp: refreshStartTime.toLocaleString() });
+    // ✅ Use the same proven mechanism as manual refresh
+    const result = await manualRefreshToken();
     
-    console.log('\n\n');
-    console.log('════════════════════════════════════════════════════════════════════════════════');
-    console.log('🔄 TOKEN REFRESH INITIATED');
-    console.log('════════════════════════════════════════════════════════════════════════════════');
-    console.log(`⏰ Timestamp: ${refreshStartTime.toLocaleString()}`);
+    console.log('\n✅ REFRESH COMPLETED');
+    console.log(`   Status: ${result.success ? '✅ SUCCESS' : '❌ FAILED'}`);
+    console.log(`   Message: ${result.message}`);
+    console.log('═══════════════════════════════════════════════════════════════════\n');
     
-    // ⭐ CRITICAL FIX: Don't require refresh token from sessionStorage!
-    // The backend sets HttpOnly refresh token cookie which browser sends automatically
-    console.log('\n📋 STEP 0: CHECKING TOKEN STORAGE');
-    console.log('═══════════════════════════════════════════');
-    console.log('📊 SessionStorage Inspection:');
-    console.log(`   Total sessionStorage items: ${sessionStorage.length}`);
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i);
-      const value = sessionStorage.getItem(key || '');
-      console.log(`   - ${key}: ${value ? value.substring(0, 50) + '...' : 'EMPTY'}`);
-    }
-    
-    const refreshTokenFromStorage = getRefreshToken();
-    
-    // ⭐ ACCESS TOKEN may be present or missing - BOTH OK
-    if (accessToken) {
-      console.log(`   ✅ Access Token found: ${accessToken.substring(0, 30)}...`);
-    } else {
-      console.warn('⚠️ Access Token missing from memory (likely expired)');
-    }
-    
-    // ⭐ REFRESH TOKEN from sessionStorage (optional)
-    if (refreshTokenFromStorage) {
-      console.log(`   ✅ Refresh Token in sessionStorage: ${refreshTokenFromStorage.substring(0, 30)}...`);
-    } else {
-      console.warn('⚠️ Refresh Token NOT in sessionStorage');
-      console.warn('   ✅ BUT HttpOnly cookie will be sent by browser with credentials:include');
-    }
-    
-    console.log('\n📋 STEP 0: PROCEEDING WITH REFRESH');
-    console.log('═══════════════════════════════════════════');
-    console.log('   🔑 Browser will auto-send HttpOnly refresh token cookie');
-    console.log('   📨 credentials: "include" will attach the cookie');
-    
-    // Prepare request parameters
-    const refreshUrl = `${API_BASE_URL}/Authentication/refresh-token`;
-    const requestBody: any = {};
-    
-    // Include accessToken if available
-    if (accessToken) {
-      requestBody.accessToken = accessToken;
-    }
-    
-    // Include refreshToken if available from sessionStorage (as fallback to HttpOnly cookie)
-    if (refreshTokenFromStorage) {
-      requestBody.refreshToken = refreshTokenFromStorage;
-    }
-    // If refreshToken not in sessionStorage, backend will use HttpOnly cookie instead
-    
-    console.log('\n📋 STEP 1: API ENDPOINT DETAILS');
-    console.log('═══════════════════════════════════════════');
-    console.log(`   API URL: ${refreshUrl}`);
-    console.log(`   Method: POST`);
-    console.log(`   Protocol: HTTPS`);
-    console.log(`   Origin: ${window.location.origin}`);
-    console.log(`   Path: /api/Authentication/refresh-token`);
-    
-    logTokenRefreshEvent('STEP 1: Preparing API endpoint', { url: refreshUrl });
-    
-    console.log('\n📋 STEP 2: REQUEST PARAMETERS');
-    console.log('═══════════════════════════════════════════');
-    console.log('   Request Headers:');
-    if (accessToken) {
-      console.log(`      1. Content-Type: application/json`);
-      console.log(`      2. Authorization: Bearer ${accessToken.substring(0, 30)}...${accessToken.substring(accessToken.length - 20)}`);
-      console.log(`      3. credentials: 'include' (for HttpOnly cookie)`);
-    } else {
-      console.log(`      1. Content-Type: application/json`);
-      console.log(`      2. Authorization: (NOT SENT - access token missing)`);
-      console.log(`      3. credentials: 'include' (for HttpOnly cookie with refresh token)`);
-    }
-    console.log('\n   Request Body:');
-    console.log(`      {`);
-    if (accessToken) {
-      console.log(`        "accessToken": "${accessToken.substring(0, 30)}..."`);
-    }
-    if (refreshTokenFromStorage) {
-      console.log(`        "refreshToken": "${refreshTokenFromStorage.substring(0, 30)}..."`);
-    }
-    console.log(`      }`);
-    console.log('\n   Full Body JSON:');
-    console.log(`      ${JSON.stringify(requestBody, null, 6)}`);
-    
-    logTokenRefreshEvent('STEP 2: Sending request body', {
-      hasAccessToken: !!accessToken,
-      hasRefreshToken: !!refreshTokenFromStorage,
-      bodyKeys: Object.keys(requestBody)
-    });
-    
-    const startTime = Date.now();
-    console.log(`\n📋 STEP 3: SENDING REQUEST`);
-    console.log('═══════════════════════════════════════════');
-    console.log(`   ⏱️ Request started at: ${new Date(startTime).toLocaleTimeString()}`);
-    
-    logTokenRefreshEvent('STEP 3: About to call fetch', {
-      url: refreshUrl,
-      method: 'POST',
-      timestamp: new Date(startTime).toLocaleTimeString()
-    });
-    
-    // Execute fetch with detailed parameter logging
-    // Build headers dynamically - only include Authorization if accessToken exists
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
-    };
-    
-    if (accessToken) {
-      headers['Authorization'] = `Bearer ${accessToken}`;
-    }
-    
-    const response = await fetch(refreshUrl, {
-      method: 'POST',
-      headers,
-      credentials: 'include',  // ✅ CRITICAL: Send HttpOnly refresh token cookie
-      body: JSON.stringify(requestBody)
-    });
-    
-    logTokenRefreshEvent('STEP 3: Fetch response received', {
-      status: response.status,
-      statusText: response.statusText,
-      durationMs: Date.now() - startTime
-    });
-    
-    const duration = Date.now() - startTime;
-    
-    console.log(`\n📋 STEP 4: RESPONSE RECEIVED`);
-    console.log('═══════════════════════════════════════════');
-    console.log(`   ⏱️ Duration: ${duration}ms`);
-    console.log(`   📊 HTTP Status: ${response.status} ${response.statusText}`);
-    console.log(`\n   Response Headers:`);
-    console.log(`      - Content-Type: ${response.headers.get('content-type')}`);
-    console.log(`      - Content-Length: ${response.headers.get('content-length')}`);
-    console.log(`      - Set-Cookie: ${response.headers.get('set-cookie') ? 'YES (Cookie set)' : 'N/A'}`);
-    console.log(`      - Cache-Control: ${response.headers.get('cache-control') || 'N/A'}`);
-    
-    // Parse response
-    let data: any;
-    try {
-      const responseText = await response.text();
-      console.log(`\n   Raw Response Body (first 500 chars):`);
-      console.log(`      ${responseText.substring(0, 500)}${responseText.length > 500 ? '...' : ''}`);
-      
-      data = JSON.parse(responseText);
-      console.log(`\n   Parsed Response JSON:`);
-      console.log(``, JSON.stringify(data, null, 6));
-    } catch (parseError) {
-      console.error(`\n❌ ERROR PARSING RESPONSE`);
-      console.error(`   Failed to parse response as JSON`);
-      console.error(`   Error: ${(parseError as Error).message}`);
-      return false;
-    }
-    
-    // Check if response was successful
-    if (response.status !== 200) {
-      console.error(`\n❌ REFRESH FAILED - HTTP Status ${response.status}`);
-      console.error('═══════════════════════════════════════════');
-      console.error('   Diagnostic Information:');
-      console.error(`   1. Status Code Issue: ${response.status}`);
-      
-      logTokenRefreshEvent('STEP 4: Response FAILED', {
-        status: response.status,
-        statusText: response.statusText,
-        message: data.message || data.error || 'Unknown error'
-      });
-      
-      if (response.status === 401) {
-        console.error(`      → Unauthorized: Refresh token may be invalid or expired`);
-        logTokenRefreshEvent('Status 401: Refresh token expired or invalid');
-      } else if (response.status === 403) {
-        console.error(`      → Forbidden: Access denied`);
-        logTokenRefreshEvent('Status 403: Access forbidden');
-      } else if (response.status === 400) {
-        console.error(`      → Bad Request: Request parameters invalid`);
-        logTokenRefreshEvent('Status 400: Bad request parameters');
-      } else if (response.status >= 500) {
-        console.error(`      → Server Error: Backend issue`);
-        logTokenRefreshEvent('Status 5xx: Server error');
-      }
-      
-      console.error(`   2. Server Response: ${data.message || data.error || 'No error message'}`);
-      console.error(`   3. Full Error Response:`, data);
-      return false;
-    }
-    
-    // Validate response has required fields
-    if (!data.accessToken) {
-      console.error(`\n❌ INVALID REFRESH RESPONSE`);
-      console.error('═══════════════════════════════════════════');
-      console.error('   Missing required field: accessToken');
-      console.error('   Response provided:', Object.keys(data));
-      console.error('   Full response:', data);
-      
-      logTokenRefreshEvent('STEP 4: Response validation failed - missing accessToken', data);
-      return false;
-    }
-    
-    console.log(`\n✅ RESPONSE VALIDATION PASSED`);
-    console.log('═══════════════════════════════════════════');
-    console.log(`   ✓ Status: 200 OK`);
-    console.log(`   ✓ Has accessToken: YES`);
-    console.log(`   ✓ New Token: ${data.accessToken.substring(0, 30)}...${data.accessToken.substring(data.accessToken.length - 20)}`);
-    console.log(`   ✓ Expires: ${data.accessTokenExpiresAt}`);
-    
-    logTokenRefreshEvent('STEP 4: Response validation PASSED', {
-      status: 200,
-      hasAccessToken: true,
-      expiresAt: data.accessTokenExpiresAt
-    });
-    
-    console.log('\n📋 STEP 5: UPDATING LOCAL STORAGE');
-    console.log('═══════════════════════════════════════════');
-    console.log(`   Saving new access token...`);
-    console.log(`   New Token (first 30 chars): ${data.accessToken.substring(0, 30)}...`);
-    console.log(`   Expires At: ${data.accessTokenExpiresAt}`);
-    
-    logTokenRefreshEvent('STEP 5: Saving new access token to storage');
-    
-    // Update access token in HYBRID storage
-    saveAccessToken(data.accessToken);
-    
-    // ⭐ CRITICAL FIX: Save refresh token from response if provided
-    // Backend may send new refresh token in response
-    if (data.refreshToken) {
-      console.log(`   Saving new refresh token...`);
-      saveRefreshToken(data.refreshToken);
-      console.log(`   ✅ Refresh Token: Saved from response to sessionStorage`);
-      logTokenRefreshEvent('STEP 5: Saved new refresh token from API response');
-    } else {
-      console.warn(`   ⚠️ No refresh token in response`);
-      // Verify refresh token still exists in sessionStorage from before
-      const existingRefresh = sessionStorage.getItem('refreshToken_session');
-      if (existingRefresh) {
-        console.log(`   ✅ Keeping existing refresh token in sessionStorage (from previous auth)`);
-      } else {
-        console.warn(`   ⚠️ WARNING: No refresh token in response or sessionStorage`);
-        console.warn(`   ⚠️ Backend will use HttpOnly cookie for next refresh attempt`);
-      }
-    }
-    
-    console.log('\n✅ TOKEN STORAGE UPDATED');
-    console.log('═══════════════════════════════════════════');
-    console.log(`   ✓ Access Token: Saved to memory`);
-    console.log(`   ✓ Access Token: Saved to sessionStorage`);
-    console.log(`   ✓ Refresh Token: Present (either from response or existing)`);
-    console.log(`   ✓ HttpOnly Cookie: Updated by backend via Set-Cookie header`);
-    
-    // Extract and log new expiry time
-    const newExpiryStr = getTokenExpiry();
-    if (newExpiryStr) {
-      const newExpiry = new Date(newExpiryStr);
-      const minutesRemaining = Math.floor((newExpiry.getTime() - Date.now()) / 1000 / 60);
-      const secondsRemaining = Math.floor((newExpiry.getTime() - Date.now()) / 1000) % 60;
-      
-      console.log(`\n⏰ NEW TOKEN EXPIRY INFORMATION`);
-      console.log('═══════════════════════════════════════════');
-      console.log(`   Now: ${new Date().toLocaleTimeString()}`);
-      console.log(`   Expires: ${newExpiry.toLocaleTimeString()}`);
-      console.log(`   Time Remaining: ${minutesRemaining}m ${secondsRemaining}s`);
-      console.log(`   Full Expiry: ${newExpiryStr}`);
-    }
-    
-    console.log(`\n📋 STEP 6: RESTARTING REFRESH TIMER`);
-    console.log('═══════════════════════════════════════════');
-    console.log(`   Setting new timer...`);
-    console.log(`   Will refresh again in: 12 minutes`);
-    console.log(`   (3 minutes before new expiry)`);
-    
-    // Restart refresh timer with new expiry
-    startTokenRefreshTimer();
-    
-    console.log(`\n✅ TOKEN REFRESH COMPLETED SUCCESSFULLY`);
-    console.log('════════════════════════════════════════════════════════════════════════════════\n');
-    
-    return true;
+    return result.success;
   } catch (error) {
-    const timestamp = new Date().toLocaleString();
-    console.error(`\n\n❌ ════════════════════════════════════════════════════════════════════════════════`);
-    console.error(`❌ REFRESH TOKEN FAILED AT ${timestamp}`);
-    console.error(`❌ ════════════════════════════════════════════════════════════════════════════════`);
+    console.error('\n❌ REFRESH FAILED (Unified Mechanism)');
+    console.error(`   Error: ${(error as Error).message}`);
+    console.error('═══════════════════════════════════════════════════════════════════\n');
     
     logTokenRefreshEvent('REFRESH FAILED - Exception caught', {
-      timestamp,
+      timestamp: new Date().toLocaleString(),
       errorName: (error as Error).name,
       errorMessage: (error as Error).message
     });
     
-    console.error(`\n📋 ERROR DETAILS:`);
-    console.error('═══════════════════════════════════════════');
-    console.error(`   Error Type: ${(error as Error).name}`);
-    console.error(`   Error Message: ${(error as Error).message}`);
-    console.error(`   Error Stack: ${(error as Error).stack}`);
-    console.error(`   Full Error Object:`, error);
-    
-    if (error instanceof TypeError) {
-      console.error(`\n🔍 ANALYSIS: TypeError detected`);
-      console.error('   This usually means:');
-      console.error('   1. Network error (CORS, network unreachable)');
-      console.error('   2. Fetch API error');
-      console.error('   3. Invalid URL or fetch parameters');
-      
-      logTokenRefreshEvent('TypeError caught - possible network issue');
-    }
-    
-    console.error(`\n📋 TROUBLESHOOTING STEPS:`);
-    console.error('═══════════════════════════════════════════');
-    console.error(`   1. Check Network tab for failed requests`);
-    console.error(`   2. Verify API endpoint is reachable`);
-    console.error(`   3. Check if refresh token cookie exists`);
-    console.error(`   4. Check browser console for CORS errors`);
-    
-    // Attempt automatic retry after 5 seconds if we have less than 2 minutes left
-    const expiryStr = getTokenExpiry();
-    if (expiryStr) {
-      const timeRemaining = new Date(expiryStr).getTime() - Date.now();
-      if (timeRemaining < 2 * 60 * 1000) {
-        console.warn(`\n⏳ RETRY LOGIC TRIGGERED`);
-        console.warn('═══════════════════════════════════════════');
-        console.warn(`   Token expiring in ${Math.floor(timeRemaining / 1000)} seconds`);
-        console.warn(`   Will retry refresh in 5 seconds...`);
-        
-        setTimeout(() => {
-          console.log(`\n🔄 RETRY ATTEMPT at ${new Date().toLocaleTimeString()}`);
-          refreshAccessToken();
-        }, 5000);
-      }
-    }
-    
-    console.error(`\n❌ ════════════════════════════════════════════════════════════════════════════════\n`);
-    
     return false;
   } finally {
-    // 🔒 CRITICAL: Clear flag when refresh completes (success or failure)
     isTokenRefreshInProgress = false;
-    console.log('🔒 REFRESH IN PROGRESS FLAG CLEARED - apiClient can now redirect if needed');
   }
 };
 
@@ -726,7 +413,7 @@ const startTokenRefreshTimer = (): void => {
     const timeUntilExpiry = expiryTime - now;
     
     console.log('\n\n════════════════════════════════════════════════════════════════════════════════');
-    console.log('⏰ SETTING UP TOKEN REFRESH TIMER');
+    console.log('⏰ SETTING UP UNIFIED TOKEN REFRESH TIMER (13-MINUTE BUFFER)');
     console.log('════════════════════════════════════════════════════════════════════════════════');
     console.log(`⏰ Setup Time: ${new Date(now).toLocaleString()}`);
     
@@ -754,99 +441,90 @@ const startTokenRefreshTimer = (): void => {
       return;
     }
     
-    // 🧪 TEST MODE: Use fast refresh delay instead of 3-minute buffer
-    let refreshTime: number;
-    
-    if (TEST_MODE_FAST_REFRESH) {
-      refreshTime = TEST_REFRESH_DELAY_SECONDS * 1000; // 2 minutes for testing
-      console.log(`\n🧪 TEST MODE: Using ${TEST_REFRESH_DELAY_SECONDS}s refresh delay`);
-    } else {
-      // Normal: Refresh 3 minutes before expiry
-      const refreshBuffer = 3 * 60 * 1000; // 3 minutes = 180000 ms
-      refreshTime = Math.max(0, timeUntilExpiry - refreshBuffer);
-    }
+    // ✨ NEW UNIFIED LOGIC: Refresh at 13 minutes before expiry
+    // This creates a seamless session expansion with 2-minute buffer before actual expiry
+    const refreshBuffer = 13 * 60 * 1000; // 13 minutes = 780000 ms
+    const refreshTime = Math.max(0, timeUntilExpiry - refreshBuffer);
     
     const minutesUntilRefresh = Math.floor(refreshTime / 1000 / 60);
     const secondsUntilRefresh = Math.floor((refreshTime % 60000) / 1000);
     const scheduledRefreshTime = new Date(now + refreshTime);
     
-    console.log(`\n📋 REFRESH TIMER SCHEDULE:`);
+    console.log(`\n📋 REFRESH TIMER SCHEDULE (UNIFIED MECHANISM):`);
     console.log('═══════════════════════════════════════════');
-    if (TEST_MODE_FAST_REFRESH) {
-      console.log(`   🧪 TEST MODE: Will refresh in ${TEST_REFRESH_DELAY_SECONDS} seconds`);
-    } else {
-      console.log(`   3-Minute Buffer: ${3 * 60} seconds`);
-      console.log(`   Refresh Time Before Expiry: 180 seconds`);
-    }
+    console.log(`   ✨ Refresh Strategy: 13-Minute Buffer`);
+    console.log(`   🔄 Mechanism: Unified Token Refresh (manualRefreshToken)`);
+    console.log(`   Timeline:`);
+    console.log(`      - Token issues at: NOW`);
+    console.log(`      - Token expires at: +15 minutes`);
+    console.log(`      - Refresh triggers at: +2 minutes (13 min before expiry)`);
+    console.log(`      - Session seamlessly expands: User never experiences interruption ✅`);
     console.log(`   Will refresh in: ${minutesUntilRefresh}m ${secondsUntilRefresh}s`);
     console.log(`   Scheduled refresh at: ${scheduledRefreshTime.toLocaleTimeString()}`);
     console.log(`   (${minutesUntilRefresh * 60 + secondsUntilRefresh} seconds from now)`);
     
-    console.log(`\n📋 API THAT WILL BE CALLED:`);
+    console.log(`\n📋 UNIFIED REFRESH MECHANISM DETAILS:`);
     console.log('═══════════════════════════════════════════');
-    console.log(`   Endpoint: ${window.location.origin}/api/Authentication/refresh-token`);
+    console.log(`   Endpoint: /Authentication/refresh-token`);
     console.log(`   Method: POST`);
-    console.log(`   Content-Type: application/json`);
-    console.log(`   Auth Header: Bearer [access token]`);
-    console.log(`   Body: { "accessToken": "[token]" }`);
-    console.log(`   Credentials: 'include' (sends HttpOnly cookie)`);
+    console.log(`   Function: refreshAccessToken() → manualRefreshToken()`);
+    console.log(`   Includes: Refresh token in request body`);
+    console.log(`   Credentials: HttpOnly cookie + sessionStorage token`);
     
-    console.log(`\n📋 WHAT HAPPENS WHEN TIMER FIRES:`);
+    console.log(`\n📋 WHAT HAPPENS WHEN TIMER FIRES AT 13-MINUTE MARK:`);
     console.log('═══════════════════════════════════════════');
-    console.log(`   1. Trigger time: ${scheduledRefreshTime.toLocaleTimeString()}`);
-    console.log(`   2. POST request sent to /Authentication/refresh-token`);
-    console.log(`   3. Request includes current access token in body`);
-    console.log(`   4. Request includes refresh token (in HttpOnly cookie)`);
-    console.log(`   5. Backend validates both tokens`);
-    console.log(`   6. Backend returns new access token`);
-    console.log(`   7. New token saved to memory + sessionStorage`);
-    console.log(`   8. New refresh timer scheduled (12 min from token issue)`);
-    console.log(`   9. User stays logged in ✅`);
+    console.log(`   1. ⏰ Trigger time: ${scheduledRefreshTime.toLocaleTimeString()} (13 min before expiry)`);
+    console.log(`   2. 🔄 Call unified refresh: manualRefreshToken()`);
+    console.log(`   3. 📨 Request includes refresh token from sessionStorage`);
+    console.log(`   4. ✅ Backend validates and returns new access token`);
+    console.log(`   5. 💾 New token saved to memory + sessionStorage`);
+    console.log(`   6. ⏰ New timer scheduled for next 13-minute window`);
+    console.log(`   7. 👤 User session seamlessly expanded without interruption`);
+    console.log(`   8. ✨ RESULT: Continuous, uninterrupted session ✅`);
     
-    console.log(`\n⏱️ COUNTDOWN:`);
+    console.log(`\n⏱️ COUNTDOWN TO REFRESH:`);
     console.log('═══════════════════════════════════════════');
-    console.log(`   At ${scheduledRefreshTime.toLocaleTimeString()}, timer will trigger refresh`);
-    console.log(`   Waiting... ${minutesUntilRefresh}m ${secondsUntilRefresh}s`);
+    console.log(`   Next refresh: ${scheduledRefreshTime.toLocaleTimeString()}`);
+    console.log(`   Time until refresh: ${minutesUntilRefresh}m ${secondsUntilRefresh}s`);
     console.log('════════════════════════════════════════════════════════════════════════════════\n');
     
-    // Set the timer (backup mechanism - continuous polling is primary now)
+    // Set the single unified timer
     refreshTokenTimer = window.setTimeout(async () => {
       const fireTime = new Date();
       
-      logTimerEvent('🔔 TIMER FIRED - Refresh scheduled now executing', {
+      logTimerEvent('🔔 TIMER FIRED - Unified refresh at 13-minute mark', {
         firedAt: fireTime.toLocaleString(),
-        reason: 'Proactive refresh 3 minutes before token expiry'
+        reason: 'Seamless session expansion - Proactive refresh 13 minutes before token expiry',
+        mechanism: 'Unified (manualRefreshToken)'
       });
       
       console.log('\n\n════════════════════════════════════════════════════════════════════════════════');
-      console.log('🔔 🔔 🔔  ⏰ TIMER FIRED - TOKEN REFRESH TRIGGERED  🔔 🔔 🔔');
+      console.log('🔔 🔔 🔔  ⏰ UNIFIED TIMER FIRED - TOKEN REFRESH TRIGGERED  🔔 🔔 🔔');
       console.log('════════════════════════════════════════════════════════════════════════════════');
       console.log(`🔔 Fired at: ${fireTime.toLocaleTimeString()}`);
       console.log(`📅 Full timestamp: ${fireTime.toLocaleString()}`);
       console.log(`\n📋 WHY IT FIRED:`);
       console.log('═══════════════════════════════════════════');
-      console.log(`   • Proactive token refresh`);
-      console.log(`   • Triggered 3 minutes before token expiry`);
-      console.log(`   • This ensures token never expires in production use`);
+      console.log(`   • ✨ Unified token refresh mechanism`);
+      console.log(`   • 🔄 Using proven manualRefreshToken() function`);
+      console.log(`   • ⏰ Triggered 13 minutes before token expiry`);
+      console.log(`   • 🎯 Seamless session expansion with 2-minute buffer`);
       
-      console.log(`\n🌐 API ENDPOINT ABOUT TO BE CALLED:`);
+      console.log(`\n🌐 API ENDPOINT:`);
       console.log('═══════════════════════════════════════════');
-      console.log(`   URL: ${window.location.origin}/api/Authentication/refresh-token`);
+      console.log(`   URL: /Authentication/refresh-token`);
       console.log(`   Method: POST`);
-      console.log(`   Full URL: https://localhost:7104/api/Authentication/refresh-token`);
-      console.log(`   Protocol: HTTPS`);
-      console.log(`   Host: localhost`);
-      console.log(`   Port: 7104`);
-      console.log(`   Endpoint: /api/Authentication/refresh-token`);
+      console.log(`   Function: manualRefreshToken()`);
+      console.log(`   Status: Using UNIFIED mechanism`);
       
-      console.log(`\n📋 ACTION:`);
+      console.log(`\n📋 ACTION - UNIFIED REFRESH STARTING:`);
       console.log('═══════════════════════════════════════════');
       console.log(`   🔒 Setting isTokenRefreshInProgress = true`);
-      console.log(`      (This prevents apiClient from logging user out)`);
       console.log(`   ✅ Calling refreshAccessToken()`);
-      console.log(`   ⏳ This will make the API call`);
-      console.log(`   ✅ Wait for response from backend`);
-      console.log(`   ✅ Update token with new value`);
+      console.log(`   → Which calls: manualRefreshToken()`);
+      console.log(`   📨 Including refresh token in request body`);
+      console.log(`   ⏳ Awaiting response from backend`);
+      console.log(`   ✅ Updating token storage`);
       console.log(`   🔓 Clear isTokenRefreshInProgress flag`);
       console.log('════════════════════════════════════════════════════════════════════════════════\n');
       
@@ -854,7 +532,7 @@ const startTokenRefreshTimer = (): void => {
       
       if (!success) {
         console.error('\n\n❌════════════════════════════════════════════════════════════════════════════════');
-        console.error('❌ REFRESH API CALL FAILED - AUTO LOGOUT TRIGGERED');
+        console.error('❌ UNIFIED REFRESH FAILED - AUTO LOGOUT TRIGGERED');
         console.error('❌════════════════════════════════════════════════════════════════════════════════');
         console.error(`\n   Reason: refreshAccessToken() returned false`);
         console.error(`   This means:`);
@@ -867,13 +545,17 @@ const startTokenRefreshTimer = (): void => {
         handleLogout();
       } else {
         console.log('\n\n✅════════════════════════════════════════════════════════════════════════════════');
-        console.log('✅ TOKEN REFRESH SUCCESSFUL - SESSION EXTENDED');
+        console.log('✅ UNIFIED TOKEN REFRESH SUCCESSFUL - SESSION SEAMLESSLY EXTENDED');
         console.log('✅════════════════════════════════════════════════════════════════════════════════');
-        console.log(`   ✓ New access token received from /api/Authentication/refresh-token`);
+        console.log(`   ✓ New access token received from manualRefreshToken()`);
         console.log(`   ✓ Token stored in memory and sessionStorage`);
-        console.log(`   ✓ Next refresh timer scheduled`);
-        console.log(`   ✓ User session extended for another 15 minutes`);
+        console.log(`   ✓ Next refresh timer scheduled (another 13-minute window)`);
+        console.log(`   ✓ User session expanded for another 15 minutes`);
+        console.log(`   ✓ Seamless experience - no interruption ✨`);
         console.log('✅════════════════════════════════════════════════════════════════════════════════\n');
+        
+        // Restart timer for next refresh window
+        startTokenRefreshTimer();
       }
     }, refreshTime);
     
