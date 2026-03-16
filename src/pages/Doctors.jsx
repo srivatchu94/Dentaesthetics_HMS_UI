@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { getCalendarAppointments, getAppointmentsByDoctorID, getAppointmentsByFilters, createPrescription, getPrescriptionsByAppointment, updateAppointment, addPrescription, updatePrescriptionData, getPrescriptionById, addPatientVisit, getAppointment } from "../services/appointmentService";
+import { getCalendarAppointments, getAppointmentsByDoctorID, getAppointmentsByFilters, getAppointmentsByClinicAndDate, createPrescription, getPrescriptionsByAppointment, updateAppointment, addPrescription, updatePrescriptionData, getPrescriptionById, addPatientVisit, getAppointment } from "../services/appointmentService";
 import { visitService, prescriptionService } from "../services/visitService";
 import { createInventoryMaster, listInventoryMasters, getClinicInventoryByClinicId, createClinicInventory, updateClinicInventory, deleteClinicInventory, addInventoryMasterItemsBulk } from "../services/inventoryService";
 import { getClinic, getClinicByClinicId } from "../services/clinicService";
@@ -900,6 +900,7 @@ export default function Doctors() {
   const [showVisitInfoModal, setShowVisitInfoModal] = useState(false);
   const [appointmentStartDate, setAppointmentStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [appointmentEndDate, setAppointmentEndDate] = useState("");
+  const [appointmentDateValidationError, setAppointmentDateValidationError] = useState("");
   const [viewingMyAppointments, setViewingMyAppointments] = useState(false);
   const [showAppointmentDetails, setShowAppointmentDetails] = useState(false);
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
@@ -2649,6 +2650,77 @@ export default function Doctors() {
       "Critical": "bg-rose-100 text-rose-700 border-rose-200"
     };
     return colors[status] || "bg-stone-100 text-stone-600 border-stone-200";
+  };
+
+  // Validate date range for appointments
+  const validateAppointmentDateRange = () => {
+    setAppointmentDateValidationError("");
+
+    // If To Date is set, From Date is required (From Date should always be set by default)
+    if (appointmentEndDate && !appointmentStartDate) {
+      setAppointmentDateValidationError("❌ 'From Date' is required when 'To Date' is selected");
+      return false;
+    }
+
+    // To Date must be >= From Date
+    if (appointmentStartDate && appointmentEndDate) {
+      const fromDate = new Date(appointmentStartDate);
+      const toDate = new Date(appointmentEndDate);
+
+      if (toDate < fromDate) {
+        setAppointmentDateValidationError("❌ 'To Date' must be greater than or equal to 'From Date'");
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  // Search appointments by date range using API
+  const searchAppointmentsByDateRange = async () => {
+    // Validate before searching
+    if (!validateAppointmentDateRange()) {
+      return; // Validation failed, error message already set
+    }
+
+    try {
+      setLoadingAppointments(true);
+      setViewingMyAppointments(false);
+      const selectedAccess = JSON.parse(localStorage.getItem('selectedAccess') || '{}');
+      const clinicId = selectedAccess.clinicId;
+
+      if (!clinicId) {
+        alert('❌ Clinic ID not found. Please ensure you are logged in.');
+        setLoadingAppointments(false);
+        return;
+      }
+
+      console.log("🔍 Searching appointments with date range:");
+      console.log("   Clinic ID:", clinicId);
+      console.log("   From Date:", appointmentStartDate);
+      console.log("   To Date:", appointmentEndDate || "(not set)");
+
+      // Call the API with date range parameters
+      const results = await getAppointmentsByClinicAndDate(
+        clinicId,
+        null,  // No specific appointmentDate, using range instead
+        appointmentStartDate,
+        appointmentEndDate
+      );
+
+      console.log("✅ Search results:", results?.length || 0, "appointments found");
+      setRealAppointments(results || []);
+
+      if (!results || results.length === 0) {
+        alert("ℹ️ No appointments found for the selected date range");
+      }
+    } catch (error) {
+      console.error("❌ Error searching appointments:", error);
+      alert("❌ Failed to search appointments. Please try again.");
+      setRealAppointments([]);
+    } finally {
+      setLoadingAppointments(false);
+    }
   };
 
   // Define loadAllAppointments before the useEffect that uses it
@@ -8095,61 +8167,118 @@ export default function Doctors() {
                 
                 {/* Date Range Filter and My Appointments Controls */}
                 <div className="px-6 py-4 bg-stone-50 border-b border-stone-200">
-                  <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-3">
-                        <label className="text-sm font-semibold text-stone-700">From Date:</label>
-                        <input
-                          type="date"
-                          value={appointmentStartDate}
-                          onChange={(e) => setAppointmentStartDate(e.target.value)}
-                          className="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                        />
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <label className="text-sm font-semibold text-stone-700">To Date (Optional):</label>
-                        <input
-                          type="date"
-                          value={appointmentEndDate}
-                          onChange={(e) => setAppointmentEndDate(e.target.value)}
-                          className="px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
-                        />
-                        {appointmentEndDate && (
-                          <button
-                            onClick={() => setAppointmentEndDate("")}
-                            className="text-sm text-red-600 hover:text-red-700 font-semibold"
-                          >
-                            Clear
-                          </button>
-                        )}
-                      </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-4">
+                    {/* From Date */}
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-2">📅 From Date *</label>
+                      <input
+                        type="date"
+                        value={appointmentStartDate}
+                        onChange={(e) => {
+                          setAppointmentStartDate(e.target.value);
+                          setAppointmentDateValidationError("");
+                        }}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                      />
+                      <p className="text-xs text-stone-500 mt-1">Default: Today</p>
                     </div>
-                    <div className="flex items-center gap-3">
+
+                    {/* To Date */}
+                    <div>
+                      <label className="block text-sm font-semibold text-stone-700 mb-2">📅 To Date (Range)</label>
+                      <input
+                        type="date"
+                        value={appointmentEndDate}
+                        onChange={(e) => {
+                          setAppointmentEndDate(e.target.value);
+                          setAppointmentDateValidationError("");
+                        }}
+                        disabled={!appointmentStartDate}
+                        className={`w-full px-3 py-2 rounded-lg transition ${
+                          !appointmentStartDate
+                            ? 'bg-stone-200 border border-stone-300 text-stone-500 cursor-not-allowed'
+                            : 'border border-stone-300 focus:ring-2 focus:ring-violet-500 focus:border-transparent'
+                        }`}
+                      />
+                      <p className="text-xs mt-1 text-stone-500">
+                        {!appointmentStartDate ? '⏳ Select From Date first' : '(Optional)'}
+                      </p>
+                    </div>
+
+                    {/* Search Button */}
+                    <div className="flex items-end">
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={loadAllAppointments}
-                        className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${!viewingMyAppointments ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md' : 'bg-white text-stone-700 border border-stone-300 hover:bg-stone-50'}`}
+                        onClick={searchAppointmentsByDateRange}
+                        disabled={!appointmentStartDate || appointmentDateValidationError !== ""}
+                        className={`w-full px-4 py-2 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+                          !appointmentStartDate || appointmentDateValidationError !== ""
+                            ? 'bg-stone-300 text-stone-500 cursor-not-allowed opacity-50'
+                            : 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md hover:shadow-lg'
+                        }`}
                       >
-                        <span>📋</span>
-                        <span>All Appointments</span>
+                        <span>🔍</span>
+                        <span>Search</span>
                       </motion.button>
+                    </div>
+
+                    {/* Clear Button */}
+                    <div className="flex items-end">
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={loadMyAppointments}
-                        className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${viewingMyAppointments ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md' : 'bg-white text-stone-700 border border-stone-300 hover:bg-stone-50'}`}
+                        onClick={() => {
+                          setAppointmentEndDate("");
+                          setAppointmentDateValidationError("");
+                        }}
+                        className="w-full px-4 py-2 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
                       >
-                        <span>👨‍⚕️</span>
-                        <span>My Appointments</span>
+                        <span>×</span>
+                        <span>Clear To Date</span>
                       </motion.button>
                     </div>
                   </div>
-                  {viewingMyAppointments && (
-                    <div className="text-sm text-stone-600 font-medium bg-violet-100 px-3 py-1.5 rounded-full">
-                      Showing your appointments only
-                    </div>
+
+                  {/* Date Validation Error */}
+                  {appointmentDateValidationError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 mb-4 text-rose-700 text-sm font-semibold flex items-start gap-2"
+                    >
+                      <span className="text-lg">⚠️</span>
+                      <span>{appointmentDateValidationError}</span>
+                    </motion.div>
                   )}
+
+                  {/* Appointment View Toggle Buttons */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-sm font-semibold text-stone-700">View:</span>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={loadAllAppointments}
+                      className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${!viewingMyAppointments ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md' : 'bg-white text-stone-700 border border-stone-300 hover:bg-stone-50'}`}
+                    >
+                      <span>📋</span>
+                      <span>All Appointments</span>
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={loadMyAppointments}
+                      className={`px-4 py-2 rounded-lg font-semibold transition-all flex items-center gap-2 ${viewingMyAppointments ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-md' : 'bg-white text-stone-700 border border-stone-300 hover:bg-stone-50'}`}
+                    >
+                      <span>👨‍⚕️</span>
+                      <span>My Appointments</span>
+                    </motion.button>
+                    {viewingMyAppointments && (
+                      <div className="text-sm text-stone-600 font-medium bg-violet-100 px-3 py-1.5 rounded-full ml-auto">
+                        Showing your appointments only
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
