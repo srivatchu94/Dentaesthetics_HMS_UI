@@ -365,8 +365,9 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.log('════════════════════════════════════════════════════════════════════════════════');
     console.log(`⏰ Timestamp: ${refreshStartTime.toLocaleString()}`);
     
-    // Get BOTH tokens needed for refresh
-    console.log('\n📋 STEP 0: RETRIEVING TOKENS FROM STORAGE');
+    // ⭐ CRITICAL FIX: Don't require refresh token from sessionStorage!
+    // The backend sets HttpOnly refresh token cookie which browser sends automatically
+    console.log('\n📋 STEP 0: CHECKING TOKEN STORAGE');
     console.log('═══════════════════════════════════════════');
     console.log('📊 SessionStorage Inspection:');
     console.log(`   Total sessionStorage items: ${sessionStorage.length}`);
@@ -376,58 +377,42 @@ export const refreshAccessToken = async (): Promise<boolean> => {
       console.log(`   - ${key}: ${value ? value.substring(0, 50) + '...' : 'EMPTY'}`);
     }
     
-    const refreshToken = getRefreshToken();
+    const refreshTokenFromStorage = getRefreshToken();
     
-    // ⭐ CRITICAL: Log EXACTLY why refresh token might be missing
-    if (!refreshToken) {
-      console.error('❌ CRITICAL ERROR: Refresh token not found in sessionStorage!');
-      console.error('   This is why the API call is NOT happening');
-      console.error('   Expected key: refreshToken_session');
-      console.error(`   Actual sessionStorage contents:`);
-      for (let i = 0; i < sessionStorage.length; i++) {
-        console.error(`   - ${sessionStorage.key(i)}: ${sessionStorage.getItem(sessionStorage.key(i) || '')?.substring(0, 50)}...`);
-      }
-      
-      // ⭐ NEW: Temporary workaround - try to get refresh token from cookies
-      // (though we can't actually read HttpOnly cookies, we can infer it's there if user is logged in)
-      console.error('   ⚠️ Attempting to determine if refresh token exists in HttpOnly cookie...');
-      const hasValidAccess = !!accessToken;
-      const hasPreviousActivity = sessionStorage.getItem('lastActivity');
-      
-      if (hasValidAccess && hasPreviousActivity) {
-        console.error('   ⚠️ Access token + recent activity exists, reload page to try to recover...');
-        console.error('   📍 DIAGNOSIS: SessionStorage may have been cleared due to:');
-        console.error('      1. Tab/browser closed and reopened');
-        console.error('      2. Page refresh');
-        console.error('      3. SessionStorage manually cleared');
-        console.error('      4. Cross-site navigation');
-        console.error('      5. Browser privacy/security settings');
-      }
-      
-      logTokenRefreshEvent('STEP 0: FAILED - Refresh token missing from storage');
-      return false;
-    }
-    
-    // ✅ ACCESS TOKEN MAY BE MISSING (expired or cleared from memory)
-    // This is OK! We still have the refresh token in HttpOnly cookie
+    // ⭐ ACCESS TOKEN may be present or missing - BOTH OK
     if (accessToken) {
       console.log(`   ✅ Access Token found: ${accessToken.substring(0, 30)}...`);
     } else {
-      console.warn('⚠️ Access Token missing from memory (likely expired or cleared)');
-      console.log('   ✅ But RefreshToken exists - will proceed with refresh using HttpOnly cookie');
+      console.warn('⚠️ Access Token missing from memory (likely expired)');
     }
-    console.log(`   ✅ Refresh Token found: ${refreshToken.substring(0, 30)}...`);
     
-    // Prepare request parameters - access token is optional if missing
+    // ⭐ REFRESH TOKEN from sessionStorage (optional)
+    if (refreshTokenFromStorage) {
+      console.log(`   ✅ Refresh Token in sessionStorage: ${refreshTokenFromStorage.substring(0, 30)}...`);
+    } else {
+      console.warn('⚠️ Refresh Token NOT in sessionStorage');
+      console.warn('   ✅ BUT HttpOnly cookie will be sent by browser with credentials:include');
+    }
+    
+    console.log('\n📋 STEP 0: PROCEEDING WITH REFRESH');
+    console.log('═══════════════════════════════════════════');
+    console.log('   🔑 Browser will auto-send HttpOnly refresh token cookie');
+    console.log('   📨 credentials: "include" will attach the cookie');
+    
+    // Prepare request parameters
     const refreshUrl = `${window.location.origin}/api/Authentication/refresh-token`;
-    const requestBody: any = {
-      refreshToken: refreshToken    // ✅ camelCase (matches backend expectation)
-    };
+    const requestBody: any = {};
     
-    // Only include accessToken if it exists
+    // Include accessToken if available
     if (accessToken) {
       requestBody.accessToken = accessToken;
     }
+    
+    // Include refreshToken if available from sessionStorage (as fallback to HttpOnly cookie)
+    if (refreshTokenFromStorage) {
+      requestBody.refreshToken = refreshTokenFromStorage;
+    }
+    // If refreshToken not in sessionStorage, backend will use HttpOnly cookie instead
     
     console.log('\n📋 STEP 1: API ENDPOINT DETAILS');
     console.log('═══════════════════════════════════════════');
@@ -456,14 +441,16 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     if (accessToken) {
       console.log(`        "accessToken": "${accessToken.substring(0, 30)}..."`);
     }
-    console.log(`        "refreshToken": "${refreshToken.substring(0, 30)}..."`);
+    if (refreshTokenFromStorage) {
+      console.log(`        "refreshToken": "${refreshTokenFromStorage.substring(0, 30)}..."`);
+    }
     console.log(`      }`);
     console.log('\n   Full Body JSON:');
     console.log(`      ${JSON.stringify(requestBody, null, 6)}`);
     
     logTokenRefreshEvent('STEP 2: Sending request body', {
       hasAccessToken: !!accessToken,
-      hasRefreshToken: !!refreshToken,
+      hasRefreshToken: !!refreshTokenFromStorage,
       bodyKeys: Object.keys(requestBody)
     });
     
@@ -598,23 +585,31 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     // Update access token in HYBRID storage
     saveAccessToken(data.accessToken);
     
-    // ⭐ CRITICAL FIX: Also save refresh token from response
-    // The backend sends back a new refresh token - we MUST persist it to sessionStorage
+    // ⭐ CRITICAL FIX: Save refresh token from response if provided
+    // Backend may send new refresh token in response
     if (data.refreshToken) {
       console.log(`   Saving new refresh token...`);
       saveRefreshToken(data.refreshToken);
-      console.log(`   ✓ Refresh Token: Saved to sessionStorage`);
-      logTokenRefreshEvent('STEP 5: Saved new refresh token from response');
+      console.log(`   ✅ Refresh Token: Saved from response to sessionStorage`);
+      logTokenRefreshEvent('STEP 5: Saved new refresh token from API response');
     } else {
-      console.warn(`   ⚠️ No refresh token in response - keeping existing refresh token`);
+      console.warn(`   ⚠️ No refresh token in response`);
+      // Verify refresh token still exists in sessionStorage from before
+      const existingRefresh = sessionStorage.getItem('refreshToken_session');
+      if (existingRefresh) {
+        console.log(`   ✅ Keeping existing refresh token in sessionStorage (from previous auth)`);
+      } else {
+        console.warn(`   ⚠️ WARNING: No refresh token in response or sessionStorage`);
+        console.warn(`   ⚠️ Backend will use HttpOnly cookie for next refresh attempt`);
+      }
     }
     
     console.log('\n✅ TOKEN STORAGE UPDATED');
     console.log('═══════════════════════════════════════════');
     console.log(`   ✓ Access Token: Saved to memory`);
     console.log(`   ✓ Access Token: Saved to sessionStorage`);
-    console.log(`   ✓ Refresh Token: Saved to sessionStorage`);
-    console.log(`   ✓ Refresh Token: HttpOnly Cookie updated by backend`);
+    console.log(`   ✓ Refresh Token: Present (either from response or existing)`);
+    console.log(`   ✓ HttpOnly Cookie: Updated by backend via Set-Cookie header`);
     
     // Extract and log new expiry time
     const newExpiryStr = getTokenExpiry();
@@ -952,7 +947,7 @@ const startContinuousTokenRefreshPolling = (): void => {
       console.log('║ STEP 2️⃣ : PREPARE TOKEN REFRESH REQUEST                                         ║');
       console.log('║   Building request payload with:                                              ║');
       console.log(`║   • Access Token: ${accessToken ? '✅ Including' : '⚠️ Not including'}                                                 ║`);
-      console.log(`║   • Refresh Token: ${refreshToken ? '✅ Including' : '❌ ERROR - Missing!'}                                              ║`);
+      console.log(`║   • Refresh Token: ${refreshToken ? '✅ From sessionStorage' : '⚠️ Will use HttpOnly cookie'}                               ║`);
       console.log('║                                                                                ║');
       console.log('║ STEP 3️⃣ : CALLING MANUAL REFRESH FUNCTION                                       ║');
       console.log('║   Endpoint: /Authentication/refresh-token                                     ║');
