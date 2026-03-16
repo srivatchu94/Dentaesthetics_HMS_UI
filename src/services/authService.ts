@@ -28,6 +28,7 @@ import {
   exportDebugLogs,
   getStoredLogs
 } from '../utils/persistentDebugLogger';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const AUTH_BASE_URL = '/Authentication';
 
@@ -400,7 +401,7 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.log('   📨 credentials: "include" will attach the cookie');
     
     // Prepare request parameters
-    const refreshUrl = `${window.location.origin}/api/Authentication/refresh-token`;
+    const refreshUrl = `${API_BASE_URL}/Authentication/refresh-token`;
     const requestBody: any = {};
     
     // Include accessToken if available
