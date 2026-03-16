@@ -218,12 +218,11 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
     console.log('💾 User Data: localStorage (non-sensitive)');
     console.log('🔐 ======================================================================\n');
     
-    // Start timers
+    // Start timers - UNIFIED MECHANISM ONLY
+    // ✨ Single refresh timer at 13-minute mark for seamless session expansion
     startTokenRefreshTimer();
-    startContinuousTokenRefreshPolling();     // Polling every 60 sec (backup)
-    startProactiveRefreshTimer();             // Proactive refresh when < 2 min left
-    startTokenRefreshHeartbeat();
-    startPollingGuardian();                   // 🛡️ Guardian: Ensures polling NEVER stops
+    
+    // Session inactivity timeout (30 minutes default)
     startSessionExpiryTimer(refreshTokenExpiresAt);
     
   } catch (error) {
@@ -1463,20 +1462,10 @@ export const handleTabFocus = (): void => {
 
     // Token is still valid, but make sure refresh timer is running
     if (!refreshTokenTimer) {
-      console.warn('⚠️ Refresh timer not running. Restarting...');
+      console.warn('⚠️ ⏰ Unified refresh timer not running. Restarting...');
       startTokenRefreshTimer();
-    }
-    
-    // Also ensure continuous polling is running
-    if (!continuousRefreshPollingTimer) {
-      console.warn('⚠️ Continuous polling not running. Restarting...');
-      startContinuousTokenRefreshPolling();
-    }
-
-    // 🛡️ Ensure polling guardian is running
-    if (!pollingGuardianTimer) {
-      console.warn('⚠️ Polling guardian not running. Restarting...');
-      startPollingGuardian();
+    } else {
+      console.log('✅ ⏰ Unified refresh timer is running correctly');
     }
   } catch (error) {
     console.error('❌ Error handling tab focus:', error);
@@ -1533,23 +1522,16 @@ export const startTokenRefreshHeartbeat = (): void => {
       }
 
       // Also ensure continuous polling is running
-      if (!continuousRefreshPollingTimer) {
-        console.warn(`⚠️ [Heartbeat] Continuous polling not running. Restarting...`);
-        startContinuousTokenRefreshPolling();
-        return;
-      }
-
-      // 🛡️ Also ensure polling guardian is running
-      if (!pollingGuardianTimer) {
-        console.warn(`⚠️ [Heartbeat] Polling guardian not running. Restarting...`);
-        startPollingGuardian();
+      if (!refreshTokenTimer) {
+        console.warn(`⚠️ [Heartbeat] Unified refresh timer not running. Restarting...`);
+        startTokenRefreshTimer();
         return;
       }
 
       // Log heartbeat status periodically (every 2 minutes)
       const minutesLeft = Math.floor(timeUntilExpiry / 1000 / 60);
       if (minutesLeft > 0 && timeUntilExpiry % 120000 < 15000) { // Log every 2 minutes
-        console.log(`💓 [Heartbeat OK] Token valid for ${minutesLeft}m ${Math.floor((timeUntilExpiry % 60000) / 1000)}s`);
+        console.log(`💓 [Heartbeat OK] Token valid for ${minutesLeft}m ${Math.floor((timeUntilExpiry % 60000) / 1000)}s (Unified Timer Active)`);
       }
     } catch (error) {
       console.error('❌ [Heartbeat] error:', error);
