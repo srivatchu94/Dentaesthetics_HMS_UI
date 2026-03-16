@@ -191,7 +191,7 @@ export function getAppointmentsByDate(enterpriseId: number, clinicId: number, da
   return request<AppointmentsModel[]>(`/Appointments/CalendarAppointments?enterpriseId=${enterpriseId}&clinicId=${clinicId}&date=${date}`);
 }
 
-// Get appointment by ID with filters
+// Get appointment by ID with filters (NOW USING GetAppointmentByIdwithDateRange with date range support)
 export function getAppointmentById(params: {
   clinicId?: number;
   firstName?: string;
@@ -199,6 +199,8 @@ export function getAppointmentById(params: {
   doctorId?: number;
   patientId?: number;
   appointmentDate?: string;
+  fromDate?: string;
+  toDate?: string;
   mobilenumber?: string;
 }): Promise<AppointmentsModel> {
   const queryString = new URLSearchParams();
@@ -208,18 +210,22 @@ export function getAppointmentById(params: {
   if (params.doctorId) queryString.append('doctorId', params.doctorId.toString());
   if (params.patientId) queryString.append('patientId', params.patientId.toString());
   if (params.appointmentDate) queryString.append('appointmentDate', params.appointmentDate);
+  if (params.fromDate) queryString.append('fromDate', params.fromDate);
+  if (params.toDate) queryString.append('toDate', params.toDate);
   if (params.mobilenumber) queryString.append('mobilenumber', params.mobilenumber);
   
-  const endpoint = `/Appointments/GetAppointmentById?${queryString.toString()}`;
+  // NEW API ENDPOINT: GetAppointmentByIdwithDateRange
+  const endpoint = `/Appointments/GetAppointmentByIdwithDateRange?${queryString.toString()}`;
   console.log("🔍 DEBUG: getAppointmentById called");
   console.log("📊 Input params:", params);
   console.log("📤 Query string:", queryString.toString());
   console.log("🔗 Full endpoint:", endpoint);
+  console.log("✨ Using NEW API: GetAppointmentByIdwithDateRange");
   
   return request<AppointmentsModel>(endpoint);
 }
 
-// Get appointments with filters
+// Get appointments with filters (NOW USING GetAppointmentByIdwithDateRange with date range support)
 export interface AppointmentFilterParams {
   clinicId: string;
   firstName?: string;
@@ -227,6 +233,8 @@ export interface AppointmentFilterParams {
   doctorId?: string;
   patientId?: number;
   appointmentDate?: string;
+  fromDate?: string;
+  toDate?: string;
   mobilenumber?: string;
 }
 
@@ -241,34 +249,82 @@ export function getAppointmentsByFilters(params: AppointmentFilterParams): Promi
   if (params.doctorId) queryParams.append('doctorId', params.doctorId);
   if (params.patientId) queryParams.append('patientId', params.patientId.toString());
   if (params.appointmentDate) queryParams.append('appointmentDate', params.appointmentDate);
+  if (params.fromDate) queryParams.append('fromDate', params.fromDate);
+  if (params.toDate) queryParams.append('toDate', params.toDate);
   if (params.mobilenumber) queryParams.append('mobilenumber', params.mobilenumber);
   
-  const endpoint = `/Appointments/GetAppointmentById?${queryParams.toString()}`;
+  // NEW API ENDPOINT: GetAppointmentByIdwithDateRange
+  const endpoint = `/Appointments/GetAppointmentByIdwithDateRange?${queryParams.toString()}`;
   console.log("🔍 DEBUG: getAppointmentsByFilters called");
   console.log("📊 Input params:", params);
   console.log("📤 Query string:", queryParams.toString());
   console.log("🔗 Full endpoint:", endpoint);
+  console.log("✨ Using NEW API: GetAppointmentByIdwithDateRange");
   
   return request<AppointmentsModel[]>(endpoint);
 }
 
-// Get appointments by clinic and date (simple filters)
-export function getAppointmentsByClinicAndDate(clinicId: number, appointmentDate: string): Promise<AppointmentsModel[]> {
+// Get appointments by clinic and date (simple filters) - NOW USING GetAppointmentByIdwithDateRange
+export function getAppointmentsByClinicAndDate(clinicId: number, appointmentDate?: string, fromDate?: string, toDate?: string): Promise<AppointmentsModel[]> {
   const queryParams = new URLSearchParams();
   queryParams.append('clinicId', clinicId.toString());
-  queryParams.append('appointmentDate', appointmentDate);
   
-  const endpoint = `/Appointments/GetAppointmentById?${queryParams.toString()}`;
+  if (appointmentDate) {
+    queryParams.append('appointmentDate', appointmentDate);
+  }
+  if (fromDate) {
+    queryParams.append('fromDate', fromDate);
+  }
+  if (toDate) {
+    queryParams.append('toDate', toDate);
+  }
+  
+  // NEW API ENDPOINT: GetAppointmentByIdwithDateRange
+  const endpoint = `/Appointments/GetAppointmentByIdwithDateRange?${queryParams.toString()}`;
   console.log("════════════════════════════════════════════════════════════════");
   console.log("🔥🔥🔥 getAppointmentsByClinicAndDate FUNCTION CALLED 🔥🔥🔥");
   console.log("════════════════════════════════════════════════════════════════");
-  console.log("✅ API ENDPOINT: /Appointments/GetAppointmentById");
+  console.log("✅ API ENDPOINT: /Appointments/GetAppointmentByIdwithDateRange (NEW)");
   console.log("✅ METHOD: GET");
-  console.log("✅ QUERY PARAMS: clinicId=" + clinicId + ", appointmentDate=" + appointmentDate);
   console.log("🏥 Clinic ID:", clinicId);
-  console.log("📅 Appointment Date:", appointmentDate);
+  if (appointmentDate) console.log("📅 Appointment Date:", appointmentDate);
+  if (fromDate) console.log("📅 From Date:", fromDate);
+  if (toDate) console.log("📅 To Date:", toDate);
   console.log("🔗 Full URL:", endpoint);
   console.log("════════════════════════════════════════════════════════════════");
+  
+  return request<AppointmentsModel[]>(endpoint);
+}
+
+/**
+ * NEW: Get appointments by clinic with date range filtering (from GetAppointmentByIdwithDateRange API)
+ * Supports filtering by clinic and optional date range
+ */
+export function getAppointmentsByDateRange(params: {
+  clinicId: number;
+  fromDate: string;
+  toDate: string;
+  firstName?: string;
+  lastName?: string;
+  doctorId?: string;
+  patientId?: number;
+}): Promise<AppointmentsModel[]> {
+  const queryParams = new URLSearchParams();
+  queryParams.append('clinicId', params.clinicId.toString());
+  queryParams.append('fromDate', params.fromDate);
+  queryParams.append('toDate', params.toDate);
+  
+  if (params.firstName) queryParams.append('firstName', params.firstName);
+  if (params.lastName) queryParams.append('lastName', params.lastName);
+  if (params.doctorId) queryParams.append('doctorId', params.doctorId);
+  if (params.patientId) queryParams.append('patientId', params.patientId.toString());
+  
+  // NEW API ENDPOINT: GetAppointmentByIdwithDateRange
+  const endpoint = `/Appointments/GetAppointmentByIdwithDateRange?${queryParams.toString()}`;
+  console.log("📅 getAppointmentsByDateRange called with date range filter");
+  console.log("🚀 Using NEW API: /Appointments/GetAppointmentByIdwithDateRange");
+  console.log("📊 Params:", params);
+  console.log("🔗 Endpoint:", endpoint);
   
   return request<AppointmentsModel[]>(endpoint);
 }

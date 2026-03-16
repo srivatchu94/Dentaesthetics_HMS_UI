@@ -1,0 +1,28 @@
+// Appointments API Service - BACKUP (Created before switching to GetAppointmentByIdwithDateRange)
+// This is a backup of the original appointmentService.ts
+// Date: 2026-03-16
+// New API: GetAppointmentByIdwithDateRange
+
+import { request } from './apiClient';
+import { getSelectedAccess } from './authService';
+import type { AppointmentsModel } from '../Interfaces/AppointmentsModel';
+
+export function createAppointment(appointment: AppointmentsModel): Promise<AppointmentsModel> {
+  return request<AppointmentsModel>("/Appointments/CreateAppointment", {
+    method: "POST",
+    body: JSON.stringify(appointment)
+  });
+}
+
+export function listAppointments(): Promise<AppointmentsModel[]> {
+  return request<AppointmentsModel[]>("/Appointments/GetAllAppointments");
+}
+
+export function getAppointment(appointmentId: number): Promise<AppointmentsModel> {
+  return request<AppointmentsModel>(`/Appointments/GetAppointmentById?id=${appointmentId}`);
+}
+
+// Original functions (DEPRECATED - use new GetAppointmentByIdwithDateRange instead)
+// getAppointmentsByFilters - OLD: Used /Appointments/GetAppointmentById
+// getAppointmentsByClinicAndDate - OLD: Used /Appointments/GetAppointmentById
+// These are now replaced with functions using /Appointments/GetAppointmentByIdwithDateRange
