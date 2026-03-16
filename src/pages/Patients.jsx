@@ -506,9 +506,12 @@ export default function Patients() {
     patientId: "",
     mobilenumber: "",
     appointmentDate: "",
+    fromDate: "",
+    toDate: "",
     status: "All",
     appointmentType: "All"
   });
+  const [appointmentDateValidationError, setAppointmentDateValidationError] = useState("");
   const [filteredAppointmentsList, setFilteredAppointmentsList] = useState([]);
   const [distinctStatuses, setDistinctStatuses] = useState([]);
   const [distinctAppointmentTypes, setDistinctAppointmentTypes] = useState([]);
@@ -632,6 +635,22 @@ export default function Patients() {
     if (!validateMobileNumber(appointmentFilter.mobilenumber)) {
       return;
     }
+
+    // Validate date range
+    if (appointmentFilter.toDate && !appointmentFilter.fromDate) {
+      setAppointmentDateValidationError("❌ 'From Date' is required when 'To Date' is selected");
+      return;
+    }
+
+    if (appointmentFilter.fromDate && appointmentFilter.toDate) {
+      const fromDate = new Date(appointmentFilter.fromDate);
+      const toDate = new Date(appointmentFilter.toDate);
+      
+      if (fromDate > toDate) {
+        setAppointmentDateValidationError("❌ 'From Date' must be less than or equal to 'To Date'");
+        return;
+      }
+    }
     
     setLoadingAppointments(true);
     try {
@@ -642,7 +661,9 @@ export default function Patients() {
         doctorId: appointmentFilter.doctorId || undefined,
         patientId: appointmentFilter.patientId ? parseInt(appointmentFilter.patientId) : undefined,
         mobilenumber: appointmentFilter.mobilenumber || undefined,
-        appointmentDate: appointmentFilter.appointmentDate || undefined
+        appointmentDate: appointmentFilter.appointmentDate || undefined,
+        fromDate: appointmentFilter.fromDate || undefined,
+        toDate: appointmentFilter.toDate || undefined
       };
       
       let results = await getAppointmentsByFilters(filterParams);
@@ -681,10 +702,13 @@ export default function Patients() {
       patientId: "",
       mobilenumber: "",
       appointmentDate: "",
+      fromDate: "",
+      toDate: "",
       status: "All",
       appointmentType: "All"
     });
     setMobileNumberError("");
+    setAppointmentDateValidationError("");
     setFilteredAppointmentsList(appointmentsList);
   };
 
@@ -6700,7 +6724,51 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
                       />
                     </div>
+
+                    {/* From Date (Date Range Filter) */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
+                        <span>📅</span> From Date (Range)
+                      </label>
+                      <input
+                        type="date"
+                        value={appointmentFilter.fromDate}
+                        onChange={(e) => {
+                          setAppointmentFilter({ ...appointmentFilter, fromDate: e.target.value });
+                          setAppointmentDateValidationError("");
+                        }}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                      />
+                    </div>
+
+                    {/* To Date (Date Range Filter) */}
+                    <div>
+                      <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
+                        <span>📅</span> To Date (Range)
+                      </label>
+                      <input
+                        type="date"
+                        value={appointmentFilter.toDate}
+                        onChange={(e) => {
+                          setAppointmentFilter({ ...appointmentFilter, toDate: e.target.value });
+                          setAppointmentDateValidationError("");
+                        }}
+                        disabled={!appointmentFilter.fromDate}
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${
+                          !appointmentFilter.fromDate
+                            ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                            : "border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100"
+                        }`}
+                      />
+                    </div>
                   </div>
+
+                  {/* Date Validation Error */}
+                  {appointmentDateValidationError && (
+                    <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 text-sm font-semibold mb-4">
+                      {appointmentDateValidationError}
+                    </div>
+                  )}
 
                   {/* Filter Buttons */}
                   <div className="flex gap-3">
