@@ -740,7 +740,6 @@ export default function PatientHistory({ clinicId: propClinicId }) {
   };
 
   const filteredAppointmentsByDate = getFilteredAppointmentsByDateRange();
-  }, []);
 
   return (
     <div className="w-full space-y-6">
