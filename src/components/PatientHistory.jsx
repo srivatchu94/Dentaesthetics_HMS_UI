@@ -557,9 +557,26 @@ export default function PatientHistory({ clinicId: propClinicId }) {
           setAppointmentsLoading(false);
           return;
         }
-        const url = `${API_BASE_URL}/Appointment/GetAppointmentsByPatientID?patientId=${selectedPatient.patientId}`;
+        
+        // Build query parameters for GetAppointmentByIdwithDateRange API
+        const queryParams = new URLSearchParams();
+        queryParams.append('patientId', selectedPatient.patientId);
+        
+        if (filterFromDate) {
+          queryParams.append('FromDate', filterFromDate);
+        }
+        if (filterToDate) {
+          queryParams.append('ToDate', filterToDate);
+        }
+        
+        const url = `${API_BASE_URL}/Appointments/GetAppointmentByIdwithDateRange?${queryParams.toString()}`;
         console.log('🔗 PatientHistory Appointments URL:', url);
         console.log('🔐 Using token from tokenManager:', token.substring(0, 30) + '...');
+        console.log('📊 Query Params:', {
+          patientId: selectedPatient.patientId,
+          fromDate: filterFromDate || 'null',
+          toDate: filterToDate || 'null'
+        });
         
         const response = await fetch(url, {
           headers: {
@@ -588,7 +605,7 @@ export default function PatientHistory({ clinicId: propClinicId }) {
     };
 
     fetchAppointments();
-  }, [selectedPatient]);
+  }, [selectedPatient, filterFromDate, filterToDate]);
 
   // Fetch appointment details when modal opens
   const handleSelectAppointment = useCallback(async (appointment) => {

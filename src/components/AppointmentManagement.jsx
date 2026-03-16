@@ -113,7 +113,9 @@ export function AppointmentListModal({
         firstName: filterFirstName || null,
         lastName: filterLastName || null,
         doctorId: filterDoctorId || null,
-        appointmentDate: filterAppointmentDate || null
+        appointmentDate: filterAppointmentDate || null,
+        fromDate: filterFromDate || null,
+        toDate: filterToDate || null
       });
     }
   };

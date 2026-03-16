@@ -2158,28 +2158,38 @@ export default function SuperAdmin() {
 
   // ============ APPOINTMENT CRUD FUNCTIONS ============
 
-  const fetchAppointments = async (clinicId = null, firstName = null, lastName = null, doctorId = null, appointmentDate = null) => {
+  const fetchAppointments = async (clinicId = null, firstName = null, lastName = null, doctorId = null, appointmentDate = null, fromDate = null, toDate = null) => {
     try {
       setAppointmentLoading(true);
       setAppointmentError("");
       
-      // Clinic ID and Appointment Date are required
+      // Clinic ID is required
       if (!clinicId) {
         setAppointmentError("Please select a clinic to filter appointments");
         setAppointmentLoading(false);
         return;
       }
       
-      if (!appointmentDate) {
-        setAppointmentError("Please select an appointment date to filter appointments");
+      // Either appointmentDate or date range (fromDate/toDate) must be provided
+      if (!appointmentDate && !fromDate && !toDate) {
+        setAppointmentError("Please select an appointment date or date range to filter appointments");
         setAppointmentLoading(false);
         return;
       }
       
-      // Build query parameters
+      // Build query parameters using GetAppointmentByIdwithDateRange API
       const queryParams = new URLSearchParams();
       queryParams.append("clinicId", clinicId);
-      queryParams.append("appointmentDate", appointmentDate);
+      
+      if (appointmentDate) {
+        queryParams.append("appointmentDate", appointmentDate);
+      }
+      if (fromDate) {
+        queryParams.append("FromDate", fromDate);
+      }
+      if (toDate) {
+        queryParams.append("ToDate", toDate);
+      }
       if (firstName) {
         queryParams.append("firstName", firstName);
       }
@@ -2191,11 +2201,14 @@ export default function SuperAdmin() {
       }
 
       const queryString = queryParams.toString();
-      const url = `${API_BASE_URL}/Appointments/GetAppointmentsSuperAdmin?${queryString}`;
+      const url = `${API_BASE_URL}/Appointments/GetAppointmentByIdwithDateRange?${queryString}`;
 
-      console.log("📋 Fetching appointments from:", url);
+      console.log("📋 Fetching appointments from NEW API:", url);
+      console.log("   🔗 Endpoint: /Appointments/GetAppointmentByIdwithDateRange");
       console.log("   Clinic ID:", clinicId);
-      console.log("   Appointment Date:", appointmentDate);
+      if (appointmentDate) console.log("   Appointment Date:", appointmentDate);
+      if (fromDate) console.log("   From Date:", fromDate);
+      if (toDate) console.log("   To Date:", toDate);
       console.log("   First Name:", firstName || "null");
       console.log("   Last Name:", lastName || "null");
       console.log("   Doctor ID:", doctorId || "null");
@@ -7927,7 +7940,9 @@ export default function SuperAdmin() {
               filters.firstName,
               filters.lastName,
               filters.doctorId,
-              filters.appointmentDate
+              filters.appointmentDate,
+              filters.fromDate,
+              filters.toDate
             );
           }, [fetchAppointments])}
         />
