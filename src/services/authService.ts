@@ -1479,15 +1479,168 @@ export const logoutUser = async (): Promise<void> => {
 };
 
 /**
+ * 📊 COMPREHENSIVE STATE LOGGER
+ * Captures all app state data before logout to prevent data loss
+ * Saves to localStorage for export
+ */
+export const captureCompleteAppState = (): string => {
+  try {
+    const state = {
+      timestamp: new Date().toISOString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      
+      // Token Information
+      tokens: {
+        accessToken: sessionStorage.getItem('accessToken_session') ? '✅ EXISTS (first 50 chars: ' + sessionStorage.getItem('accessToken_session')?.substring(0, 50) + '...)' : '❌ MISSING',
+        refreshToken: sessionStorage.getItem('refreshToken_session') ? '✅ EXISTS' : '❌ MISSING',
+        tokenExpiry: sessionStorage.getItem('accessTokenExpiry') || '❌ NOT FOUND',
+      },
+      
+      // User Information
+      user: {
+        userId: localStorage.getItem('userId'),
+        username: localStorage.getItem('username'),
+        userRole: localStorage.getItem('userRole'),
+        clinicId: localStorage.getItem('clinicId'),
+        enterpriseId: localStorage.getItem('enterpriseId'),
+      },
+      
+      // Session Metadata
+      session: {
+        lastActivity: localStorage.getItem('lastActivity'),
+        sessionStart: localStorage.getItem('sessionStartTime'),
+        inactivityTimeout: sessionStorage.getItem('inactivityTimeout_ls'),
+      },
+      
+      // All sessionStorage keys
+      sessionStorageKeys: Array.from({length: sessionStorage.length}, (_, i) => {
+        const key = sessionStorage.key(i);
+        const value = sessionStorage.getItem(key || '');
+        return `${key}: ${value ? value.substring(0, 100) + (value.length > 100 ? '...' : '') : 'EMPTY'}`;
+      }),
+      
+      // All localStorage keys
+      localStorageKeys: Array.from({length: localStorage.length}, (_, i) => {
+        const key = localStorage.key(i);
+        const value = localStorage.getItem(key || '');
+        return `${key}: ${value ? value.substring(0, 100) + (value.length > 100 ? '...' : '') : 'EMPTY'}`;
+      }),
+      
+      // Stored logs
+      debugLogs: getStoredLogs(),
+    };
+    
+    const stateJson = JSON.stringify(state, null, 2);
+    localStorage.setItem('APP_STATE_BEFORE_LOGOUT', stateJson);
+    return stateJson;
+  } catch (error) {
+    console.error('❌ Error capturing app state:', error);
+    return 'ERROR: Could not capture app state';
+  }
+};
+
+/**
+ * 💾 EXPORT LOGS TO FILE
+ * Creates a downloadable text file with all diagnostic information
+ * File saved to: C:\Users\{username}\Desktop\app-logs-{timestamp}.txt
+ */
+export const exportLogsToFile = async (): Promise<void> => {
+  try {
+    // Capture current state
+    const appState = captureCompleteAppState();
+    const exportedLogs = exportDebugLogs();
+    
+    // Create comprehensive log content
+    const logContent = `
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                      APPLICATION DIAGNOSTIC LOGS                            ║
+║                    Generated: ${new Date().toLocaleString()}                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📊 CURRENT APPLICATION STATE
+════════════════════════════════════════════════════════════════════════════════
+${appState}
+
+📋 EXPORTED DEBUG LOGS
+════════════════════════════════════════════════════════════════════════════════
+${exportedLogs}
+
+📱 Browser Information
+════════════════════════════════════════════════════════════════════════════════
+User Agent: ${navigator.userAgent}
+Language: ${navigator.language}
+Online: ${navigator.onLine ? '✅ YES' : '❌ NO'}
+Storage Available: ${navigator.storage ? '✅ YES' : '❌ NO'}
+
+🖼️ Window Information
+════════════════════════════════════════════════════════════════════════════════
+URL: ${window.location.href}
+Hostname: ${window.location.hostname}
+Protocol: ${window.location.protocol}
+Screen Size: ${window.innerWidth}x${window.innerHeight}
+
+⏰ Session Timeline
+════════════════════════════════════════════════════════════════════════════════
+Report Generated: ${new Date().toISOString()}
+Timezone: ${Intl.DateTimeFormat().resolvedOptions().timeZone}
+
+════════════════════════════════════════════════════════════════════════════════
+End of Log File
+════════════════════════════════════════════════════════════════════════════════
+`;
+
+    // Create blob and download
+    const blob = new Blob([logContent], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + new Date().toLocaleTimeString().replace(/[:.]/g, '-');
+    link.download = `HMS-Diagnostic-Logs_${timestamp}.txt`;
+    
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    console.log('✅ Logs exported to file:', link.download);
+    console.log('📁 File saved to your Downloads folder');
+    console.log('📄 You can also find logs at: localStorage.getItem("APP_STATE_BEFORE_LOGOUT")');
+  } catch (error) {
+    console.error('❌ Error exporting logs:', error);
+  }
+};
+
+/**
  * Handle logout (clear session and cleanup)
  * Uses hybrid storage clearance for complete session termination
  * IMPORTANT: Prints all debug logs before clearing to preserve diagnosis info
  */
 const handleLogout = (): void => {
-  // ⭐ CRITICAL: Print all debug logs BEFORE logout clears everything
+  // ⭐ CRITICAL: Capture app state BEFORE logout clears everything
   console.log('\n\n🔵 ════════════════════════════════════════════════════════════════');
-  console.log('🔵 LOGOUT INITIATED - PRINTING DEBUG LOGS BEFORE CLEAR');
+  console.log('🔵 LOGOUT INITIATED - CAPTURING APP STATE');
   console.log('🔵 ════════════════════════════════════════════════════════════════\n');
+  
+  try {
+    const appState = captureCompleteAppState();
+    console.log('✅ App state captured and saved to localStorage');
+    console.log('📊 State saved under key: APP_STATE_BEFORE_LOGOUT');
+  } catch (error) {
+    console.error('❌ Error capturing app state:', error);
+  }
+  
+  // ⭐ EXPORT LOGS TO FILE
+  try {
+    exportLogsToFile().catch(err => console.error('❌ Failed to export logs:', err));
+  } catch (error) {
+    console.error('⚠️ Could not export logs:', error);
+  }
+
+  // ⭐ Print all debug logs
+  console.log('\n🔵 PRINTING DEBUG LOGS BEFORE CLEAR\n');
   
   try {
     printDebugLogs();
@@ -1520,6 +1673,7 @@ const handleLogout = (): void => {
   
   console.log('🔓 Complete logout - All tokens cleared from memory, sessionStorage, and localStorage');
   console.log('🔐 Refresh token in HttpOnly cookie will be invalidated by server on next request');
+  console.log('📁 Logs have been exported to your Downloads folder as HMS-Diagnostic-Logs_*.txt');
   console.log('\n🔵 ════════════════════════════════════════════════════════════════\n');
 };
 
@@ -1856,5 +2010,10 @@ document.head.appendChild(style);
 // Expose debug function to window for easy console access
 if (typeof window !== 'undefined') {
   (window as any).debugAuth = debugAuthState;
-  console.log('💡 Tip: Type debugAuth() in console to check authentication state');
+  (window as any).exportLogs = exportLogsToFile;
+  (window as any).captureState = captureCompleteAppState;
+  console.log('💡 Debug Functions Available:');
+  console.log('   • debugAuth() - Check authentication state');
+  console.log('   • exportLogs() - Export diagnostic logs to file');
+  console.log('   • captureState() - Capture current app state to console');
 }
