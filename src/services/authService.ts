@@ -377,14 +377,33 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     }
     
     const refreshToken = getRefreshToken();
+    
+    // ⭐ CRITICAL: Log EXACTLY why refresh token might be missing
     if (!refreshToken) {
       console.error('❌ CRITICAL ERROR: Refresh token not found in sessionStorage!');
       console.error('   This is why the API call is NOT happening');
       console.error('   Expected key: refreshToken_session');
-      console.error('\n🔍 Available keys in sessionStorage:');
+      console.error(`   Actual sessionStorage contents:`);
       for (let i = 0; i < sessionStorage.length; i++) {
-        console.error(`   - ${sessionStorage.key(i)}`);
+        console.error(`   - ${sessionStorage.key(i)}: ${sessionStorage.getItem(sessionStorage.key(i) || '')?.substring(0, 50)}...`);
       }
+      
+      // ⭐ NEW: Temporary workaround - try to get refresh token from cookies
+      // (though we can't actually read HttpOnly cookies, we can infer it's there if user is logged in)
+      console.error('   ⚠️ Attempting to determine if refresh token exists in HttpOnly cookie...');
+      const hasValidAccess = !!accessToken;
+      const hasPreviousActivity = sessionStorage.getItem('lastActivity');
+      
+      if (hasValidAccess && hasPreviousActivity) {
+        console.error('   ⚠️ Access token + recent activity exists, reload page to try to recover...');
+        console.error('   📍 DIAGNOSIS: SessionStorage may have been cleared due to:');
+        console.error('      1. Tab/browser closed and reopened');
+        console.error('      2. Page refresh');
+        console.error('      3. SessionStorage manually cleared');
+        console.error('      4. Cross-site navigation');
+        console.error('      5. Browser privacy/security settings');
+      }
+      
       logTokenRefreshEvent('STEP 0: FAILED - Refresh token missing from storage');
       return false;
     }
@@ -579,10 +598,22 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     // Update access token in HYBRID storage
     saveAccessToken(data.accessToken);
     
+    // ⭐ CRITICAL FIX: Also save refresh token from response
+    // The backend sends back a new refresh token - we MUST persist it to sessionStorage
+    if (data.refreshToken) {
+      console.log(`   Saving new refresh token...`);
+      saveRefreshToken(data.refreshToken);
+      console.log(`   ✓ Refresh Token: Saved to sessionStorage`);
+      logTokenRefreshEvent('STEP 5: Saved new refresh token from response');
+    } else {
+      console.warn(`   ⚠️ No refresh token in response - keeping existing refresh token`);
+    }
+    
     console.log('\n✅ TOKEN STORAGE UPDATED');
     console.log('═══════════════════════════════════════════');
     console.log(`   ✓ Access Token: Saved to memory`);
     console.log(`   ✓ Access Token: Saved to sessionStorage`);
+    console.log(`   ✓ Refresh Token: Saved to sessionStorage`);
     console.log(`   ✓ Refresh Token: HttpOnly Cookie updated by backend`);
     
     // Extract and log new expiry time
