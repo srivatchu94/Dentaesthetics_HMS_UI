@@ -538,7 +538,20 @@ export const isTokenExpired = (): boolean => {
 };
 
 /**
- * SECURE LOGOUT - Clear all tokens and data
+ * SECURE LOGOUT - Clear all tokens but PRESERVE user roles/access for re-login
+ * 
+ * CLEAR (sensitive data):
+ * - Access tokens (both memory and sessionStorage)
+ * - Token expiry times
+ * - Session metadata
+ * - HttpOnly refreshToken cookie (backend responsibility)
+ * 
+ * PRESERVE (user convenience):
+ * - User access rights (enterprises/clinics they can access)
+ * - Selected access (last selected clinic/role)
+ * - User email (for faster re-login)
+ * 
+ * This allows users to re-login faster without losing their role/access context
  */
 export const clearAllTokens = (): void => {
   try {
@@ -546,26 +559,32 @@ export const clearAllTokens = (): void => {
     memoryAccessToken = null;
     memoryTokenExpiry = null;
     
-    // Clear sessionStorage
+    // Clear sessionStorage (session-specific, temporary data)
     sessionStorage.removeItem(ACCESS_TOKEN_SS_KEY);
     sessionStorage.removeItem(TOKEN_EXPIRY_SS_KEY);
     sessionStorage.removeItem(LAST_ACTIVITY_SS_KEY);
     sessionStorage.removeItem(SESSION_ID_SS_KEY);
+    sessionStorage.removeItem(REFRESH_TOKEN_SS_KEY);  // ⭐ Also clear refresh token from sessionStorage
     
-    // Clear localStorage
-    localStorage.removeItem(USER_DATA_LS_KEY);
-    localStorage.removeItem(USER_ACCESS_LS_KEY);
-    localStorage.removeItem(SELECTED_ACCESS_LS_KEY);
+    // Clear localStorage - but PRESERVE user access/roles
+    localStorage.removeItem(USER_DATA_LS_KEY);  // ❌ Clear: username/userId (session-specific)
+    // ✅ PRESERVE: USER_ACCESS_LS_KEY - user should keep their role/clinic options
+    // ✅ PRESERVE: SELECTED_ACCESS_LS_KEY - remember their last selection for re-login
+    // ✅ PRESERVE: email - for faster re-login next time
     localStorage.removeItem(INACTIVITY_TIMEOUT_LS_KEY);
+    localStorage.removeItem('APP_STATE_BEFORE_LOGOUT');  // Clear diagnostic state
     
     // Refresh token (HttpOnly cookie) is cleared by backend on logout endpoint
     // Frontend cannot clear it, so make sure backend handles it
     
-    console.log('✅ All tokens and data cleared');
+    console.log('✅ All tokens and session data cleared');
     console.log('   🧠 Memory: Cleared');
     console.log('   📋 SessionStorage: Cleared');
-    console.log('   💾 localStorage: User data cleared');
-    console.log('   🍪 HttpOnly Cookie: Backend clears this (frontend cannot access)');
+    console.log('   💾 localStorage:');
+    console.log('      ❌ User data cleared (username, userId)');
+    console.log('      ✅ PRESERVED: User access rights');
+    console.log('      ✅ PRESERVED: Selected clinic/role');
+    console.log('   🍪 HttpOnly Cookie: Backend clears this');
   } catch (error) {
     console.error('❌ Failed to clear tokens:', error);
   }
