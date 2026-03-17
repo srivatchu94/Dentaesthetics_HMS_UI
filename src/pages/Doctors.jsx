@@ -901,7 +901,7 @@ export default function Doctors() {
   const [appointmentStartDate, setAppointmentStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [appointmentEndDate, setAppointmentEndDate] = useState("");
   const [appointmentDateValidationError, setAppointmentDateValidationError] = useState("");
-  const [viewingMyAppointments, setViewingMyAppointments] = useState(false);
+  const [selectedAppointmentStatus, setSelectedAppointmentStatus] = useState("All");
   const [showAppointmentDetails, setShowAppointmentDetails] = useState(false);
   const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -2729,15 +2729,15 @@ export default function Doctors() {
   // Define loadAllAppointments before the useEffect that uses it
   const loadAllAppointments = useCallback(() => {
     setLoadingAppointments(true);
-    setViewingMyAppointments(false);
     getCalendarAppointments()
       .then(data => {
         console.log('📅 Loaded all appointments:', data?.length || 0);
         console.log('🔍 Filtering by date range:');
         console.log('   Start Date:', appointmentStartDate);
         console.log('   End Date:', appointmentEndDate || '(Optional - not set)');
+        console.log('   Status Filter:', selectedAppointmentStatus);
         
-        // Filter by selected date range
+        // Filter by selected date range and status
         const filteredData = data.filter(appt => {
           if (!appt.appointmentDate) return false;
           
@@ -2756,6 +2756,12 @@ export default function Doctors() {
             const endDate = new Date(appointmentEndDate);
             if (apptDate > endDate) return false;
           }
+
+          // Filter by status
+          if (selectedAppointmentStatus !== "All") {
+            const appointmentStatus = appt.status || "Scheduled";
+            if (appointmentStatus !== selectedAppointmentStatus) return false;
+          }
           
           return true;
         });
@@ -2770,7 +2776,7 @@ export default function Doctors() {
         setRealAppointments([]);
       })
       .finally(() => setLoadingAppointments(false));
-  }, [appointmentStartDate, appointmentEndDate]); // Memoized with date range dependencies
+  }, [appointmentStartDate, appointmentEndDate, selectedAppointmentStatus]); // Memoized with date range and status dependencies
 
   // Load real appointments when appointments tab is active
   useEffect(() => {
@@ -2783,9 +2789,9 @@ export default function Doctors() {
     if (activeSection === "dashboard" && activeTab === "appointments") {
       loadAllAppointments();
     }
-  }, [activeSection, activeTab, appointmentStartDate, appointmentEndDate, loadAllAppointments, showEditModal]);
+  }, [activeSection, activeTab, appointmentStartDate, appointmentEndDate, selectedAppointmentStatus, loadAllAppointments, showEditModal]);
 
-  // Load appointments for dashboard overview
+  // Load appointments for dashboard overview (with status filter if applied)
   useEffect(() => {
     if (activeSection === "dashboard" && activeTab === "overview") {
       console.log("📊 Loading all appointments for dashboard overview");
@@ -2793,8 +2799,12 @@ export default function Doctors() {
       getCalendarAppointments()
         .then(data => {
           console.log('📅 Loaded all appointments for dashboard:', data?.length || 0);
-          // Load ALL appointments without date filtering for dashboard metrics
-          setRealAppointments(data || []);
+          // Filter by status if one is selected
+          let filteredData = data || [];
+          if (selectedAppointmentStatus !== "All") {
+            filteredData = filteredData.filter(appt => (appt.status || 'Scheduled') === selectedAppointmentStatus);
+          }
+          setRealAppointments(filteredData);
         })
         .catch(err => {
           console.error('Failed to load appointments for dashboard:', err);
@@ -2877,6 +2887,12 @@ export default function Doctors() {
       })
       .finally(() => setLoadingAppointments(false));
   };
+
+  // Get unique appointment statuses for filter buttons
+  const getAppointmentStatuses = useCallback(() => {
+    const statuses = new Set(realAppointments.map(appt => appt.status || 'Scheduled'));
+    return ['All', ...Array.from(statuses).sort()];
+  }, [realAppointments]);
 
   // Payment management functions
   const loadPaymentAppointments = async () => {
@@ -8234,42 +8250,42 @@ export default function Doctors() {
                     )}
                   </div>
 
-                  {/* View Toggle and Info */}
-                  <div className="flex items-center justify-between gap-4 flex-wrap bg-white px-4 py-3 rounded-lg border border-stone-200">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-semibold text-stone-600 uppercase tracking-wide">📊 View:</span>
-                      <div className="flex items-center gap-2">
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={loadAllAppointments}
-                          className={`px-3.5 py-1.5 rounded-md font-medium text-sm transition-all flex items-center gap-1.5 ${
-                            !viewingMyAppointments 
-                              ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-sm' 
-                              : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                          }`}
-                        >
-                          <span>📋</span>
-                          <span>All</span>
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={loadMyAppointments}
-                          className={`px-3.5 py-1.5 rounded-md font-medium text-sm transition-all flex items-center gap-1.5 ${
-                            viewingMyAppointments 
-                              ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-sm' 
-                              : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-                          }`}
-                        >
-                          <span>👨‍⚕️</span>
-                          <span>Mine</span>
-                        </motion.button>
-                      </div>
+                  {/* Status Filter Buttons */}
+                  <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl border border-violet-200 p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-sm font-bold text-stone-700 uppercase tracking-widest">🎯 Filter by Status:</span>
+                      <div className="h-0.5 flex-1 bg-gradient-to-r from-violet-300 to-transparent"></div>
                     </div>
-                    {viewingMyAppointments && (
-                      <div className="text-xs text-stone-600 font-medium bg-violet-100 px-3 py-1 rounded-full">
-                        Showing your appointments
+                    <div className="flex flex-wrap gap-2">
+                      {getAppointmentStatuses().map((status) => (
+                        <motion.button
+                          key={status}
+                          whileHover={{ scale: 1.05, y: -2 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => setSelectedAppointmentStatus(status)}
+                          className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 whitespace-nowrap ${
+                            selectedAppointmentStatus === status
+                              ? 'bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg scale-105'
+                              : 'bg-white text-stone-700 border-2 border-violet-200 hover:border-violet-400 shadow-sm'
+                          }`}
+                        >
+                          <span>{status === 'Scheduled' ? '📅' : status === 'Confirmed' ? '✅' : status === 'Cancelled' ? '❌' : status === 'Pending' ? '⏳' : '📌'}</span>
+                          <span>{status}</span>
+                          {status !== 'All' && (
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                              selectedAppointmentStatus === status
+                                ? 'bg-white bg-opacity-30 text-white'
+                                : 'bg-violet-100 text-violet-700'
+                            }`}>
+                              {realAppointments.filter(a => (a.status || 'Scheduled') === status).length}
+                            </span>
+                          )}
+                        </motion.button>
+                      ))}
+                    </div>
+                    {selectedAppointmentStatus !== 'All' && (
+                      <div className="mt-3 text-sm text-stone-600 font-medium">
+                        Showing <span className="font-bold text-violet-600">{realAppointments.length}</span> {selectedAppointmentStatus} appointments
                       </div>
                     )}
                   </div>
@@ -8301,61 +8317,70 @@ export default function Doctors() {
                           <div className="absolute inset-0 bg-gradient-to-br from-violet-300 via-purple-300 to-pink-300 rounded-2xl blur-lg opacity-40 group-hover:opacity-70 transition-all duration-300"></div>
                           
                           {/* Card Content */}
-                          <div className="relative bg-white rounded-2xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 border-2 border-violet-200 hover:border-violet-400">
-                            {/* Status Badge */}
-                            <div className="absolute top-3 right-3">
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(appt.status || 'Scheduled')}`}>
-                                {appt.status || 'Scheduled'}
-                              </span>
+                          <div className="relative bg-white rounded-2xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 border-2 border-violet-200 hover:border-violet-400 overflow-hidden">
+                            {/* Status Badge - Enhanced */}
+                            <div className="absolute top-0 right-0">
+                              <div className="bg-gradient-to-br from-violet-600 to-purple-600 text-white px-4 py-2 rounded-bl-xl font-bold text-sm shadow-lg flex items-center gap-2">
+                                <span>{(appt.status || 'Scheduled') === 'Confirmed' ? '✅' : (appt.status || 'Scheduled') === 'Cancelled' ? '❌' : (appt.status || 'Scheduled') === 'Pending' ? '⏳' : '📅'}</span>
+                                <span>{appt.status || 'Scheduled'}</span>
+                              </div>
                             </div>
                             
                             {/* Patient Info */}
-                            <div className="mb-4 pr-20">
+                            <div className="mb-4 pt-2">
                               <div className="flex items-center gap-3 mb-2">
                                 <div className="w-12 h-12 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-md">
                                   {appt.firstName?.charAt(0)}{appt.lastName?.charAt(0)}
                                 </div>
-                                <div>
+                                <div className="flex-1">
                                   <h3 className="font-bold text-lg text-stone-800">
                                     {appt.firstName} {appt.lastName}
                                   </h3>
-                                  <p className="text-xs text-stone-500">Patient ID: {appt.patientId}</p>
+                                  <p className="text-xs text-stone-500">ID: {appt.patientId}</p>
                                 </div>
                               </div>
                             </div>
                             
                             {/* Appointment Details */}
-                            <div className="space-y-2 mb-4">
-                              <div className="flex items-center gap-2 text-sm">
+                            <div className="space-y-3 mb-4">
+                              <div className="flex items-center gap-2 text-sm bg-stone-50 p-2 rounded-lg">
                                 <span className="text-lg">📅</span>
-                                <span className="font-semibold text-stone-700">Date:</span>
-                                <span className="text-stone-600">
-                                  {appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString('en-US', { 
-                                    weekday: 'short', 
-                                    month: 'short', 
-                                    day: 'numeric',
-                                    year: 'numeric'
-                                  }) : 'N/A'}
-                                </span>
+                                <div>
+                                  <span className="font-semibold text-stone-700">Date:</span>
+                                  <span className="text-stone-600 ml-2">
+                                    {appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString('en-US', { 
+                                      weekday: 'short', 
+                                      month: 'short', 
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    }) : 'N/A'}
+                                  </span>
+                                </div>
                               </div>
                               
-                              <div className="flex items-center gap-2 text-sm">
+                              <div className="flex items-center gap-2 text-sm bg-stone-50 p-2 rounded-lg">
                                 <span className="text-lg">⏰</span>
-                                <span className="font-semibold text-stone-700">Time:</span>
-                                <span className="text-stone-600">{appt.startTime || 'N/A'}</span>
+                                <div>
+                                  <span className="font-semibold text-stone-700">Time:</span>
+                                  <span className="text-stone-600 ml-2">{appt.startTime || 'N/A'}</span>
+                                </div>
                               </div>
                               
-                              <div className="flex items-center gap-2 text-sm">
+                              <div className="flex items-center gap-2 text-sm bg-stone-50 p-2 rounded-lg">
                                 <span className="text-lg">🏥</span>
-                                <span className="font-semibold text-stone-700">Type:</span>
-                                <span className="text-stone-600">{appt.appointmentType || 'General'}</span>
+                                <div>
+                                  <span className="font-semibold text-stone-700">Type:</span>
+                                  <span className="text-stone-600 ml-2">{appt.appointmentType || 'General'}</span>
+                                </div>
                               </div>
                               
                               {appt.attendingPhysician && (
-                                <div className="flex items-center gap-2 text-sm">
+                                <div className="flex items-center gap-2 text-sm bg-stone-50 p-2 rounded-lg">
                                   <span className="text-lg">👨‍⚕️</span>
-                                  <span className="font-semibold text-stone-700">Doctor:</span>
-                                  <span className="text-stone-600">{appt.attendingPhysician}</span>
+                                  <div>
+                                    <span className="font-semibold text-stone-700">Doctor:</span>
+                                    <span className="text-stone-600 ml-2">{appt.attendingPhysician}</span>
+                                  </div>
                                 </div>
                               )}
                             </div>
