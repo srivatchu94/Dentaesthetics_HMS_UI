@@ -6,7 +6,7 @@ import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatien
 import { visitService } from "../services/visitService";
 import { getDoctorsByClinicID } from "../api/hmsApi";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
-import { createAppointment, listAppointments, getAppointmentsByFilters, updateAppointment, getAppointmentTypes, getAppointmentStatuses, getDoctorAppointmentsWithCount } from "../services/appointmentService";
+import { createAppointment, listAppointments, getAppointmentsByFilters, getCalendarAppointments, updateAppointment, getAppointmentTypes, getAppointmentStatuses, getDoctorAppointmentsWithCount } from "../services/appointmentService";
 import { sendPrescriptionEmail, sendEmail } from "../services/emailService";
 import ViewPatients from "./ViewPatients";
 import FancyDatePicker from "../components/FancyDatePicker";
@@ -646,27 +646,79 @@ export default function Patients() {
       const fromDate = new Date(appointmentFilter.fromDate);
       const toDate = new Date(appointmentFilter.toDate);
       
-      if (fromDate > toDate) {
-        setAppointmentDateValidationError("❌ 'From Date' must be less than or equal to 'To Date'");
+      if (toDate < fromDate) {
+        setAppointmentDateValidationError("❌ 'To Date' must be greater than or equal to 'From Date'");
         return;
       }
     }
     
     setLoadingAppointments(true);
     try {
-      const filterParams = {
-        clinicId: appointmentFilter.clinicId,
-        firstName: appointmentFilter.firstName || undefined,
-        lastName: appointmentFilter.lastName || undefined,
-        doctorId: appointmentFilter.doctorId || undefined,
-        patientId: appointmentFilter.patientId ? parseInt(appointmentFilter.patientId) : undefined,
-        mobilenumber: appointmentFilter.mobilenumber || undefined,
-        appointmentDate: appointmentFilter.appointmentDate || undefined,
-        fromDate: appointmentFilter.fromDate || undefined,
-        toDate: appointmentFilter.toDate || undefined
-      };
+      // Use getCalendarAppointments to fetch all appointments (same as Doctors space)
+      let allAppointments = await getCalendarAppointments();
+      console.log("📅 Loaded all appointments from getCalendarAppointments:", allAppointments?.length || 0);
       
-      let results = await getAppointmentsByFilters(filterParams);
+      // Filter by clinic ID
+      let results = (allAppointments || []).filter(appt => 
+        appt.clinicId === parseInt(appointmentFilter.clinicId)
+      );
+      console.log(`✅ Filtered by clinic: ${results.length} appointments`);
+      
+      // Filter by first name if provided
+      if (appointmentFilter.firstName) {
+        results = results.filter(appt => 
+          appt.firstName?.toLowerCase().includes(appointmentFilter.firstName.toLowerCase())
+        );
+      }
+      
+      // Filter by last name if provided
+      if (appointmentFilter.lastName) {
+        results = results.filter(appt => 
+          appt.lastName?.toLowerCase().includes(appointmentFilter.lastName.toLowerCase())
+        );
+      }
+      
+      // Filter by doctor ID if provided
+      if (appointmentFilter.doctorId) {
+        results = results.filter(appt => 
+          appt.doctorId === parseInt(appointmentFilter.doctorId)
+        );
+      }
+      
+      // Filter by patient ID if provided
+      if (appointmentFilter.patientId) {
+        results = results.filter(appt => 
+          appt.patientId === parseInt(appointmentFilter.patientId)
+        );
+      }
+      
+      // Filter by mobile number if provided
+      if (appointmentFilter.mobilenumber) {
+        results = results.filter(appt => 
+          appt.mobileNumber?.includes(appointmentFilter.mobilenumber)
+        );
+      }
+      
+      // Filter by date range if provided (same logic as Doctors space)
+      if (appointmentFilter.fromDate) {
+        const fromDate = new Date(appointmentFilter.fromDate);
+        results = results.filter(appt => {
+          if (!appt.appointmentDate) return false;
+          const apptDateOnly = appt.appointmentDate.split('T')[0];
+          const apptDate = new Date(apptDateOnly);
+          return apptDate >= fromDate;
+        });
+      }
+      
+      if (appointmentFilter.toDate) {
+        const toDate = new Date(appointmentFilter.toDate);
+        results = results.filter(appt => {
+          if (!appt.appointmentDate) return false;
+          const apptDateOnly = appt.appointmentDate.split('T')[0];
+          const apptDate = new Date(apptDateOnly);
+          return apptDate <= toDate;
+        });
+      }
       
       // Apply status filter
       if (appointmentFilter.status && appointmentFilter.status !== 'All') {
@@ -6728,7 +6780,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     {/* From Date (Date Range Filter) */}
                     <div>
                       <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
-                        <span>📅</span> From Date (Range)
+                        <span>📅</span> From Date *
                       </label>
                       <input
                         type="date"
@@ -6736,15 +6788,20 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         onChange={(e) => {
                           setAppointmentFilter({ ...appointmentFilter, fromDate: e.target.value });
                           setAppointmentDateValidationError("");
+                          // Auto-clear To Date if it becomes invalid
+                          if (appointmentFilter.toDate && new Date(e.target.value) > new Date(appointmentFilter.toDate)) {
+                            setAppointmentFilter(prev => ({ ...prev, toDate: "" }));
+                          }
                         }}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all font-medium"
                       />
+                      <p className="text-xs text-purple-600 mt-1">✓ Default: Today</p>
                     </div>
 
                     {/* To Date (Date Range Filter) */}
                     <div>
                       <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
-                        <span>📅</span> To Date (Range)
+                        <span>📅</span> To Date <span className="text-purple-500 font-normal">(optional)</span>
                       </label>
                       <input
                         type="date"
@@ -6753,8 +6810,9 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                           setAppointmentFilter({ ...appointmentFilter, toDate: e.target.value });
                           setAppointmentDateValidationError("");
                         }}
+                        min={appointmentFilter.fromDate}
                         disabled={!appointmentFilter.fromDate}
-                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${
+                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all font-medium ${
                           !appointmentFilter.fromDate
                             ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
                             : "border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100"
