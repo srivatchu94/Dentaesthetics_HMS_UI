@@ -2888,6 +2888,35 @@ export default function Doctors() {
       .finally(() => setLoadingAppointments(false));
   };
 
+  // Cancel appointment
+  const cancelAppointment = async (appt) => {
+    // Show confirmation dialog
+    if (!window.confirm(`Are you sure you want to cancel this appointment for ${appt.firstName} ${appt.lastName}?`)) {
+      return;
+    }
+
+    try {
+      const cancelledAppointment = {
+        ...appt,
+        status: "Cancelled"
+      };
+
+      console.log("❌ Cancelling appointment:", appt.appointmentId);
+      console.log("📤 Sending update request with status: Cancelled");
+
+      await updateAppointment(cancelledAppointment);
+
+      console.log("✅ Appointment cancelled successfully");
+      alert(`✅ Appointment for ${appt.firstName} ${appt.lastName} has been cancelled.`);
+
+      // Reload appointments to reflect the change
+      loadAllAppointments();
+    } catch (error) {
+      console.error("❌ Error cancelling appointment:", error);
+      alert(`❌ Failed to cancel appointment: ${error.message || 'Unknown error'}`);
+    }
+  };
+
   // Get unique appointment statuses for filter buttons
   const getAppointmentStatuses = useCallback(() => {
     const statuses = new Set(realAppointments.map(appt => appt.status || 'Scheduled'));
@@ -8385,21 +8414,36 @@ export default function Doctors() {
                               )}
                             </div>
                             
-                            {/* Action Button */}
-                            <motion.button
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              onClick={async () => {
-                                // Open details only after hydration to avoid double render/flicker.
-                                const hydrated = await fetchAppointmentDetails(appt);
-                                setSelectedAppointmentDetails(hydrated);
-                                setShowAppointmentDetails(true);
-                              }}
-                              className="w-full mt-3 py-2.5 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 text-white rounded-xl font-semibold shadow-md hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
-                            >
-                              <span>📋</span>
-                              <span>View Details</span>
-                            </motion.button>
+                            {/* Action Buttons */}
+                            <div className="grid grid-cols-2 gap-3 mt-4">
+                              {/* View Details Button */}
+                              <motion.button
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                onClick={async () => {
+                                  const hydrated = await fetchAppointmentDetails(appt);
+                                  setSelectedAppointmentDetails(hydrated);
+                                  setShowAppointmentDetails(true);
+                                }}
+                                className="py-2.5 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 text-white rounded-xl font-semibold shadow-md hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
+                              >
+                                <span>📋</span>
+                                <span>Details</span>
+                              </motion.button>
+
+                              {/* Cancel Button - Only show if not already cancelled */}
+                              {(appt.status || 'Scheduled') !== 'Cancelled' && (
+                                <motion.button
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                  onClick={() => cancelAppointment(appt)}
+                                  className="py-2.5 bg-gradient-to-r from-rose-600 to-red-600 text-white rounded-xl font-semibold shadow-md hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-2"
+                                >
+                                  <span>❌</span>
+                                  <span>Cancel</span>
+                                </motion.button>
+                              )}
+                            </div>
                           </div>
                         </motion.div>
                       ))}
