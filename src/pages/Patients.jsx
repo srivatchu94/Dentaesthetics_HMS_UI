@@ -505,7 +505,6 @@ export default function Patients() {
     doctorId: "",
     patientId: "",
     mobilenumber: "",
-    appointmentDate: "",
     fromDate: "",
     toDate: "",
     status: "All",
@@ -753,7 +752,6 @@ export default function Patients() {
       doctorId: "",
       patientId: "",
       mobilenumber: "",
-      appointmentDate: "",
       fromDate: "",
       toDate: "",
       status: "All",
@@ -1186,7 +1184,6 @@ export default function Patients() {
         firstName: "",
         lastName: "",
         doctorId: "",
-        appointmentDate: "",
         status: "All",
         appointmentType: "All"
       });
@@ -6762,19 +6759,6 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       {mobileNumberError && (
                         <p className="text-sm text-red-600 mt-1">{mobileNumberError}</p>
                       )}
-                    </div>
-
-                    {/* Appointment Date */}
-                    <div>
-                      <label className="block text-sm font-bold mb-2 text-slate-700 flex items-center gap-2">
-                        <span>📅</span> Appointment Date
-                      </label>
-                      <input
-                        type="date"
-                        value={appointmentFilter.appointmentDate}
-                        onChange={(e) => setAppointmentFilter({ ...appointmentFilter, appointmentDate: e.target.value })}
-                        className="w-full px-4 py-3 rounded-xl border-2 border-purple-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-100 outline-none transition-all"
-                      />
                     </div>
 
                     {/* From Date (Date Range Filter) */}
