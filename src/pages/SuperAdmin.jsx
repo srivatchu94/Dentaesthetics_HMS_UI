@@ -75,6 +75,34 @@ const toInputDate = (value) => {
 
 const toIsoOrNull = (value) => (value ? new Date(value).toISOString() : null);
 
+const CITY_LOCATION_MAP = {
+  bangalore: { state: "Karnataka", country: "India" },
+  bengaluru: { state: "Karnataka", country: "India" },
+  mumbai: { state: "Maharashtra", country: "India" },
+  delhi: { state: "Delhi", country: "India" },
+  "new delhi": { state: "Delhi", country: "India" },
+  chennai: { state: "Tamil Nadu", country: "India" },
+  hyderabad: { state: "Telangana", country: "India" },
+  kolkata: { state: "West Bengal", country: "India" },
+  pune: { state: "Maharashtra", country: "India" },
+  ahmedabad: { state: "Gujarat", country: "India" },
+  jaipur: { state: "Rajasthan", country: "India" },
+  lucknow: { state: "Uttar Pradesh", country: "India" },
+  kochi: { state: "Kerala", country: "India" },
+  "cochin": { state: "Kerala", country: "India" },
+  coimbatore: { state: "Tamil Nadu", country: "India" },
+  visakhapatnam: { state: "Andhra Pradesh", country: "India" },
+  surat: { state: "Gujarat", country: "India" },
+  indore: { state: "Madhya Pradesh", country: "India" },
+  bhubaneswar: { state: "Odisha", country: "India" },
+  patna: { state: "Bihar", country: "India" }
+};
+
+const inferLocationFromCity = (city) => {
+  const normalizedCity = (city || "").trim().toLowerCase().replace(/\s+/g, " ");
+  return CITY_LOCATION_MAP[normalizedCity] || null;
+};
+
 export default function SuperAdmin() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -108,7 +136,7 @@ export default function SuperAdmin() {
   const [enterpriseEditSuccess, setEnterpriseEditSuccess] = useState("");
   // Enterprise Create Modal state
   const [showCreateEnterpriseModal, setShowCreateEnterpriseModal] = useState(false);
-  const [createEnterpriseActiveTab, setCreateEnterpriseActiveTab] = useState("details");
+  const [createEnterpriseActiveTab, setCreateEnterpriseActiveTab] = useState("basic");
   const [enterpriseForm, setEnterpriseForm] = useState({
     name: "",
     registrationNumber: "",
@@ -248,7 +276,7 @@ export default function SuperAdmin() {
     rolesAssigned: "Reception"
   });
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successData, setSuccessData] = useState({ name: "", isEdit: false, type: "superAdmin", isDeleted: false });
+  const [successData, setSuccessData] = useState({ name: "", isEdit: false, type: "superAdmin", isDeleted: false, entityId: "" });
 
   // View Staff States
   const [showViewStaffModal, setShowViewStaffModal] = useState(false);
@@ -763,7 +791,20 @@ export default function SuperAdmin() {
       });
 
       if (!response.ok && response.status !== 204) {
-        const message = await response.text();
+        const rawMessage = await response.text();
+        let message = rawMessage;
+
+        try {
+          const parsedMessage = JSON.parse(rawMessage);
+          message = parsedMessage?.message || parsedMessage?.error || parsedMessage?.title || rawMessage;
+        } catch {
+          // Keep raw response text when it is not a JSON payload.
+        }
+
+        if ((message || "").toLowerCase().includes("email already exists as a username in usercredentials table")) {
+          message = "Check email id or give alter email id";
+        }
+
         throw new Error(message || "Unable to save super admin");
       }
 
@@ -779,7 +820,14 @@ export default function SuperAdmin() {
       setActiveCard("view");
       fetchSuperAdmins();
     } catch (err) {
-      setError(err.message || "Something went wrong while saving");
+      const fallbackMessage = err?.message || "Something went wrong while saving";
+      const userMessage = fallbackMessage
+        .toLowerCase()
+        .includes("email already exists as a username in usercredentials table")
+        ? "Check email id or give alter email id"
+        : fallbackMessage;
+
+      setError(userMessage);
     } finally {
       setLoading(false);
     }
@@ -3700,7 +3748,10 @@ export default function SuperAdmin() {
           description: "Create new enterprise",
           icon: "➕",
           color: "from-cyan-500 to-blue-500",
-          action: () => setShowCreateEnterpriseModal(true)
+          action: () => {
+            setCreateEnterpriseActiveTab("basic");
+            setShowCreateEnterpriseModal(true);
+          }
         },
         {
           id: 'view-enterprises',
@@ -5828,9 +5879,13 @@ export default function SuperAdmin() {
                     transition={{ delay: 0.3 }}
                   >
                     <h2 className="text-4xl font-bold text-white mb-3">
-                      {successData.type === "clinic" && successData.isDeleted 
-                        ? "Deleted Successfully!" 
-                        : successData.isEdit ? "Updated Successfully!" : "Welcome Aboard!"}
+                      {successData.type === "clinic" && successData.isDeleted
+                        ? "Deleted Successfully!"
+                        : successData.type === "enterprise"
+                          ? "Created Successfully!"
+                          : successData.isEdit
+                            ? "Updated Successfully!"
+                            : "Welcome Aboard!"}
                     </h2>
                     <p className="text-xl text-white/90 mb-2">
                       <span className="font-semibold">{successData.name}</span>
@@ -5842,12 +5897,20 @@ export default function SuperAdmin() {
                           : successData.isEdit 
                             ? "Clinic details have been updated" 
                             : "Clinic has been successfully created"
+                      ) : successData.type === "enterprise" ? (
+                        "Enterprise has been successfully created"
                       ) : (
                         successData.isEdit 
                           ? "Super admin details have been updated" 
                           : "has been successfully onboarded as a Super Admin"
                       )}
                     </p>
+
+                    {successData.type === "enterprise" && successData.entityId && (
+                      <p className="text-white text-lg font-semibold mb-6">
+                        Enterprise ID: {successData.entityId}
+                      </p>
+                    )}
 
                     {/* Decorative Stars */}
                     <div className="flex justify-center gap-3 mb-8">
@@ -6155,7 +6218,16 @@ export default function SuperAdmin() {
                           <input
                             type="text"
                             value={enterpriseForm.city}
-                            onChange={(e) => setEnterpriseForm({...enterpriseForm, city: e.target.value})}
+                            onChange={(e) => {
+                              const nextCity = e.target.value;
+                              const inferredLocation = inferLocationFromCity(nextCity);
+                              setEnterpriseForm((prev) => ({
+                                ...prev,
+                                city: nextCity,
+                                state: inferredLocation?.state || prev.state,
+                                country: inferredLocation?.country || prev.country
+                              }));
+                            }}
                             className="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-cyan-400 focus:border-transparent"
                             placeholder="City"
                           />
@@ -6214,77 +6286,162 @@ export default function SuperAdmin() {
                 {/* Footer with Actions */}
                 <div className="relative z-10 px-8 py-4 border-t border-slate-200 bg-white">
                   <div className="flex gap-3">
-                    <button
-                      onClick={async () => {
-                        setError("");
-                        setSuccess("");
+                    {createEnterpriseActiveTab !== "basic" && (
+                      <button
+                        onClick={() => {
+                          if (createEnterpriseActiveTab === "contact") {
+                            setCreateEnterpriseActiveTab("basic");
+                            return;
+                          }
+                          if (createEnterpriseActiveTab === "address") {
+                            setCreateEnterpriseActiveTab("contact");
+                          }
+                        }}
+                        disabled={enterpriseFormLoading}
+                        className="px-6 py-3 rounded-xl border border-slate-200 text-slate-700 bg-white hover:border-slate-300 font-semibold disabled:opacity-60 transition-all"
+                      >
+                        Previous
+                      </button>
+                    )}
 
-                        if (!enterpriseForm.enterpriseName || !enterpriseForm.contactEmail) {
-                          setError("Enterprise name and contact email are required");
-                          return;
-                        }
+                    {createEnterpriseActiveTab !== "address" ? (
+                      <button
+                        onClick={() => {
+                          if (createEnterpriseActiveTab === "basic") {
+                            setCreateEnterpriseActiveTab("contact");
+                            return;
+                          }
+                          if (createEnterpriseActiveTab === "contact") {
+                            setCreateEnterpriseActiveTab("address");
+                          }
+                        }}
+                        disabled={enterpriseFormLoading}
+                        className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all"
+                      >
+                        Next
+                      </button>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          setError("");
+                          setSuccess("");
 
-                        // Validate email format
-                        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                        if (!emailRegex.test(enterpriseForm.contactEmail.trim())) {
-                          setError("Please enter a valid email address");
-                          return;
-                        }
-
-                        // Validate phone number if provided
-                        if (enterpriseForm.contactPhone && enterpriseForm.contactPhone.replace(/\D/g, "").length !== 10) {
-                          setError("Phone number must be exactly 10 digits");
-                          return;
-                        }
-
-                        try {
-                          setEnterpriseFormLoading(true);
-                          const now = new Date().toISOString();
-                          const payload = {
-                            EnterpriseName: enterpriseForm.enterpriseName,
-                            RegistrationNumber: enterpriseForm.registrationNumber,
-                            ContactEmail: enterpriseForm.contactEmail,
-                            ContactPhone: enterpriseForm.contactPhone,
-                            AddressLine1: enterpriseForm.addressLine1,
-                            AddressLine2: enterpriseForm.addressLine2,
-                            City: enterpriseForm.city,
-                            State: enterpriseForm.state,
-                            Country: enterpriseForm.country,
-                            PostalCode: enterpriseForm.postalCode,
-                            IsActive: !!enterpriseForm.isActive,
-                            CreatedAt: now,
-                            UpdatedAt: now
-                          };
-
-                          const response = await fetch(ENTERPRISE_ENDPOINTS.create, {
-                            method: "POST",
-                            headers: {
-                              "Content-Type": "application/json",
-                              Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
-                            },
-                            body: JSON.stringify(payload)
-                          });
-
-                          if (!response.ok && response.status !== 200 && response.status !== 201 && response.status !== 204) {
-                            const message = await response.text();
-                            throw new Error(message || "Unable to create enterprise");
+                          if (!enterpriseForm.enterpriseName || !enterpriseForm.contactEmail) {
+                            setError("Enterprise name and contact email are required");
+                            return;
                           }
 
-                          console.log("✅ Enterprise created successfully");
-                          setSuccess("Enterprise created successfully!");
-                          setError(""); // Clear any previous errors
-                          
-                          // Refresh enterprises list
+                          // Validate email format
+                          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                          if (!emailRegex.test(enterpriseForm.contactEmail.trim())) {
+                            setError("Please enter a valid email address");
+                            return;
+                          }
+
+                          // Validate phone number if provided
+                          if (enterpriseForm.contactPhone && enterpriseForm.contactPhone.replace(/\D/g, "").length !== 10) {
+                            setError("Phone number must be exactly 10 digits");
+                            return;
+                          }
+
                           try {
-                            await fetchEnterprises();
-                            console.log("✅ Enterprises list refreshed");
-                          } catch (fetchErr) {
-                            console.error("Failed to refresh enterprises after creation:", fetchErr);
-                            // Don't show error to user, enterprise was created successfully
-                          }
+                            setEnterpriseFormLoading(true);
+                            const now = new Date().toISOString();
+                            const payload = {
+                              EnterpriseName: enterpriseForm.enterpriseName,
+                              RegistrationNumber: enterpriseForm.registrationNumber,
+                              ContactEmail: enterpriseForm.contactEmail,
+                              ContactPhone: enterpriseForm.contactPhone,
+                              AddressLine1: enterpriseForm.addressLine1,
+                              AddressLine2: enterpriseForm.addressLine2,
+                              City: enterpriseForm.city,
+                              State: enterpriseForm.state,
+                              Country: enterpriseForm.country,
+                              PostalCode: enterpriseForm.postalCode,
+                              IsActive: !!enterpriseForm.isActive,
+                              CreatedAt: now,
+                              UpdatedAt: now
+                            };
 
-                          // Close modal after a short delay
-                          setTimeout(() => {
+                            const response = await fetch(ENTERPRISE_ENDPOINTS.create, {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`
+                              },
+                              body: JSON.stringify(payload)
+                            });
+
+                            const responseText = await response.text();
+
+                            if (!response.ok && response.status !== 200 && response.status !== 201 && response.status !== 204) {
+                              let message = responseText;
+                              try {
+                                const parsedError = JSON.parse(responseText);
+                                message = parsedError?.message || parsedError?.error || parsedError?.title || responseText;
+                              } catch {
+                                // Use raw text when error payload is not JSON.
+                              }
+                              throw new Error(message || "Unable to create enterprise");
+                            }
+
+                            let createdEnterpriseId = "";
+                            if (responseText) {
+                              try {
+                                const parsed = JSON.parse(responseText);
+                                if (typeof parsed === "number" || typeof parsed === "string") {
+                                  createdEnterpriseId = String(parsed);
+                                } else {
+                                  createdEnterpriseId = String(
+                                    parsed?.enterpriseId ||
+                                    parsed?.EnterpriseId ||
+                                    parsed?.id ||
+                                    parsed?.data?.enterpriseId ||
+                                    parsed?.data?.EnterpriseId ||
+                                    parsed?.data?.id ||
+                                    ""
+                                  );
+                                }
+                              } catch {
+                                // Keep empty id when response body is not JSON.
+                              }
+                            }
+
+                            if (!createdEnterpriseId) {
+                              const locationHeader = response.headers.get("location") || "";
+                              const idMatch = locationHeader.match(/(?:id=|\/)(\d+)(?:$|\b)/i);
+                              if (idMatch?.[1]) {
+                                createdEnterpriseId = idMatch[1];
+                              }
+                            }
+
+                            console.log("✅ Enterprise created successfully");
+                            setSuccess(
+                              createdEnterpriseId
+                                ? `Enterprise created successfully! Enterprise ID: ${createdEnterpriseId}`
+                                : "Enterprise created successfully!"
+                            );
+                            setError(""); // Clear any previous errors
+
+                            setSuccessData({
+                              name: enterpriseForm.enterpriseName,
+                              isEdit: false,
+                              type: "enterprise",
+                              isDeleted: false,
+                              entityId: createdEnterpriseId
+                            });
+                            setShowSuccessModal(true);
+                            
+                            // Refresh enterprises list
+                            try {
+                              await fetchEnterprises();
+                              console.log("✅ Enterprises list refreshed");
+                            } catch (fetchErr) {
+                              console.error("Failed to refresh enterprises after creation:", fetchErr);
+                              // Don't show error to user, enterprise was created successfully
+                            }
+
+                            // Close modal and reset form after success.
                             setShowCreateEnterpriseModal(false);
                             setCreateEnterpriseActiveTab("basic");
                             setEnterpriseForm({
@@ -6302,18 +6459,18 @@ export default function SuperAdmin() {
                             });
                             setError("");
                             setSuccess("");
-                          }, 1500);
-                        } catch (err) {
-                          setError(err.message || "Failed to create enterprise");
-                        } finally {
-                          setEnterpriseFormLoading(false);
-                        }
-                      }}
-                      disabled={enterpriseFormLoading}
-                      className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all"
-                    >
-                      {enterpriseFormLoading ? "Creating..." : "Create Enterprise"}
-                    </button>
+                          } catch (err) {
+                            setError(err.message || "Failed to create enterprise");
+                          } finally {
+                            setEnterpriseFormLoading(false);
+                          }
+                        }}
+                        disabled={enterpriseFormLoading}
+                        className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold shadow-lg hover:shadow-xl disabled:opacity-60 transition-all"
+                      >
+                        {enterpriseFormLoading ? "Creating..." : "Create Enterprise"}
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setShowCreateEnterpriseModal(false);
@@ -6482,7 +6639,20 @@ export default function SuperAdmin() {
                       <div className="space-y-1">
                         <p className="text-xs font-semibold text-slate-500 uppercase">City</p>
                         {enterpriseEditMode ? (
-                          <input className="w-full px-3 py-2 rounded-lg border border-slate-200" value={enterpriseEditData.city} onChange={(e)=>setEnterpriseEditData({...enterpriseEditData,city:e.target.value})} />
+                          <input
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200"
+                            value={enterpriseEditData.city}
+                            onChange={(e) => {
+                              const nextCity = e.target.value;
+                              const inferredLocation = inferLocationFromCity(nextCity);
+                              setEnterpriseEditData({
+                                ...enterpriseEditData,
+                                city: nextCity,
+                                state: inferredLocation?.state || enterpriseEditData.state,
+                                country: inferredLocation?.country || enterpriseEditData.country
+                              });
+                            }}
+                          />
                         ) : (
                           <p className="text-slate-800">{viewingEnterprise.city || 'N/A'}</p>
                         )}
