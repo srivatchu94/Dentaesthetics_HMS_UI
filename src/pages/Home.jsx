@@ -49,7 +49,7 @@ export default function Home() {
               transition={{ duration: 0.6, type: "spring" }}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full mb-4 shadow-lg"
             >
-              <span className="text-sm font-bold text-white">✨ Dhantha - The Dental Company</span>
+              <span className="text-sm font-bold text-white">✨ Dentaesthetics - Your Dental Partner</span>
             </motion.div>
 
             {/* Main Title */}

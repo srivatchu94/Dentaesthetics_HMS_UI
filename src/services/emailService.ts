@@ -63,8 +63,8 @@ export const sendPrescriptionEmail = async (
   doctorId?: string | number
 ): Promise<{ success: boolean; message: string }> => {
   try {
-    // Use provided clinic name or default to Dhantha
-    const displayClinicName = clinicName || 'Dhantha - The Dental Company';
+    // Use provided clinic name or default to Dentaesthetics
+    const displayClinicName = clinicName || 'Dentaesthetics';
     const medicationsList = medications
       .map((med, idx) => `
         <tr style="border-bottom: 1px solid #e5e7eb;">
@@ -136,7 +136,7 @@ export const sendPrescriptionEmail = async (
   <div class="container">
     <!-- Header with Clinic Name -->
     <div class="header">
-      <div class="clinic-name">${clinicName || 'Dhantha - The Dental Company'}</div>
+      <div class="clinic-name">${clinicName || 'Dentaesthetics'}</div>
       <div class="header-separator"></div>
       <div style="font-size: 20px; font-weight: 600; letter-spacing: 0.3px;">💊 Medical Prescription</div>
     </div>
@@ -206,7 +206,7 @@ export const sendPrescriptionEmail = async (
       <p class="footer-text">
         <strong style="color: #1f2937;">Dr. ${doctorName}</strong><br>
         ${doctorId ? `Medical License: ${doctorId}<br>` : ''}
-        ${clinicName || 'Dhantha - The Dental Company'}
+        ${clinicName || 'Dentaesthetics'}
       </p>
       <p class="footer-text">
         This is a confidential medical document. If you received this email in error, please delete it immediately and notify us.
@@ -224,7 +224,7 @@ export const sendPrescriptionEmail = async (
 
     return await sendEmail({
       Email: patientEmail,
-      Subject: `Prescription from Dr. ${doctorName} - ${clinicName || 'Dhantha - The Dental Company'}`,
+      Subject: `Prescription from Dr. ${doctorName} - ${clinicName || 'Dentaesthetics'}`,
       HtmlBody: htmlBody
     });
   } catch (error) {
