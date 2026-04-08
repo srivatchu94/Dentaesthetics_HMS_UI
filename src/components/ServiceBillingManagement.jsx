@@ -12,7 +12,9 @@ const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassists
 
 export default function ServiceBillingManagement({ onPaymentClick, refreshTrigger }) {
   // Existing states
-  const [billingDate, setBillingDate] = useState(new Date().toISOString().split('T')[0]);
+  const today = new Date().toISOString().split('T')[0];
+  const [fromDate, setFromDate] = useState(today);
+  const [toDate, setToDate] = useState(today);
   const [billingClinicId, setBillingClinicId] = useState('');
   const [clinicsList, setClinicsList] = useState([]);
   const [billingAppointments, setBillingAppointments] = useState([]);
@@ -77,7 +79,8 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
 
       const params = {
         clinicId: clinicId.toString(),
-        appointmentDate: billingDate
+        fromDate: fromDate,
+        toDate: toDate
       };
       
       console.log('🏥 Loading service billing appointments with params:', params);
@@ -85,7 +88,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
       console.log('🏥 Loaded appointments for service billing:', data);
       
       if (!data || data.length === 0) {
-        setErrorMessage('No appointments booked for the selected day.');
+        setErrorMessage('No appointments booked for the selected date range.');
         setBillingAppointments([]);
       } else {
         setBillingAppointments(data);
@@ -98,20 +101,27 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
     } finally {
       setLoadingBilling(false);
     }
-  }, [billingClinicId, billingDate]);
+  }, [billingClinicId, fromDate, toDate]);
 
-  // Auto-load appointments when clinic or date changes
+  // Auto-load appointments on initial mount with today's date
   useEffect(() => {
     if (billingClinicId) {
+      // Only load once when clinic is selected for the first time
       loadBillingAppointments();
     }
-  }, [billingClinicId, billingDate, refreshTrigger, loadBillingAppointments]);
+  }, [billingClinicId]); // Only on clinic change
 
   // Clear invoice cache when refreshTrigger changes (after update)
   useEffect(() => {
     console.log("🔄 Refresh triggered - clearing invoice cache");
     setInvoicesByAppointment({});
+    // Reload appointments after payment update
+    if (billingClinicId) {
+      loadBillingAppointments();
+    }
   }, [refreshTrigger]);
+
+
 
   // Validate mobile number
   const validateMobileNumber = (mobileNumber) => {
@@ -402,7 +412,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
           <>
             {/* Filters for Appointments Tab */}
             <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
                 <div>
                   <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Clinic:</label>
                   <select
@@ -419,11 +429,20 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Date:</label>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">From Date:</label>
                   <input
                     type="date"
-                    value={billingDate}
-                    onChange={(e) => setBillingDate(e.target.value)}
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">To Date:</label>
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
                     className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
                   />
                 </div>
