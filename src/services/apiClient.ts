@@ -202,34 +202,37 @@ export async function request<T>(path: string, options: RequestInit = {}, retryC
         if (decoded.exp < now) {
           console.error('❌ TOKEN IS EXPIRED!');
           console.error(`   Expired ${Math.abs(timeRemaining)} seconds ago`);
-          console.error('⚠️ Token is EXPIRED - User needs to login again');
           
-          // Clear expired token
-          sessionStorage.removeItem('authToken');
-          sessionStorage.removeItem('selectedAccess');
-          sessionStorage.removeItem('accessToken_session');
-          sessionStorage.removeItem('accessTokenExpiry');
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('selectedAccess');
-          
-          // Trigger expiry event
-          const currentLocation = window.location.pathname;
-          sessionStorage.setItem('tokenExpiryLocation', currentLocation);
-          tokenExpiryEmitter.emit(currentLocation);
-          
-          // 🔒 CRITICAL: Don't redirect while token refresh is in progress
+          // 🔒 CRITICAL: Don't throw error or redirect while token refresh is in progress
           if (!isRefreshInProgress()) {
+            console.error('⚠️ Token is EXPIRED - User needs to login again');
+            
+            // Clear expired token
+            sessionStorage.removeItem('authToken');
+            sessionStorage.removeItem('selectedAccess');
+            sessionStorage.removeItem('accessToken_session');
+            sessionStorage.removeItem('accessTokenExpiry');
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('selectedAccess');
+            
+            // Trigger expiry event
+            const currentLocation = window.location.pathname;
+            sessionStorage.setItem('tokenExpiryLocation', currentLocation);
+            tokenExpiryEmitter.emit(currentLocation);
+            
             // Force redirect to login page
             console.error('❌ TOKEN EXPIRED - Redirecting to /login');
             setTimeout(() => {
               window.location.href = '/login';
             }, 500);
+            
+            throw new Error('Token has expired. Please login again.');
           } else {
-            console.warn('⚠️ Token appears expired BUT refresh is in progress - Will not redirect');
-            console.warn('   Refresh will complete shortly and update token');
+            console.warn('⚠️ Token appears expired BUT refresh is in progress');
+            console.warn('   🔄 NOT throwing error - continuing with request');
+            console.warn('   📨 Sending expired token to refresh endpoint');
+            console.warn('   Refresh will complete shortly and update token with new one');
           }
-          
-          throw new Error('Token has expired. Please login again.');
         } else {
           console.log(`✅ TOKEN IS VALID - ${timeRemaining} seconds remaining`);
         }

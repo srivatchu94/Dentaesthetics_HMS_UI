@@ -6,7 +6,7 @@ import { listDoctorProfiles } from "../services/doctorService";
 import { getCalendarAppointments } from "../services/appointmentService";
 import { getClinicInventoryByClinicId } from "../services/inventoryService";
 import LoginModal from "./LoginModal";
-import dhanthaLogo from "../assets/dhantha-logo-new.svg";
+import dentaestheticsLogo from "../assets/dhantha-logo-new.svg";
 
 const TABS = [
   { key: "home", path: "/", label: "Home", icon: "🏠" },
@@ -731,8 +731,8 @@ export default function Header(){
                 <Link to="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
                   <motion.img 
                     whileHover={{ scale: 1.1, rotate: 5 }}
-                    src={dhanthaLogo}
-                    alt="Dhantha Logo"
+                    src={dentaestheticsLogo}
+                    alt="Dentaesthetics Logo"
                     className="w-12 h-12 cursor-pointer drop-shadow-lg"
                   />
                 </Link>
@@ -757,7 +757,7 @@ export default function Header(){
                         filter: 'drop-shadow(0 0 12px rgba(0, 212, 255, 0.2))'
                       }}
                     >
-                      DHANTHA
+                      DENTAESTHETICS
                     </h1>
                     {/* Subtitle */}
                     <p 
