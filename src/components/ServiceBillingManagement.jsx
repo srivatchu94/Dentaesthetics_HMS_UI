@@ -767,9 +767,11 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                   whileHover={{ scale: 1.02, y: -2 }}
                   className="bg-gradient-to-br from-cyan-50 to-teal-100 rounded-xl p-4 border-2 border-cyan-200 shadow-md"
                 >
-                  <p className="text-xs font-bold text-cyan-700 uppercase mb-1">Date</p>
-                  <p className="text-lg font-bold text-cyan-900">
-                    {new Date(billingDate).toLocaleDateString('en-US', { 
+                  <p className="text-xs font-bold text-cyan-700 uppercase mb-1">Date Range</p>
+                  <p className="text-sm font-bold text-cyan-900">
+                    {new Date(fromDate).toLocaleDateString('en-US', { 
+                      month: 'short', day: 'numeric'
+                    })} - {new Date(toDate).toLocaleDateString('en-US', { 
                       month: 'short', day: 'numeric', year: 'numeric'
                     })}
                   </p>

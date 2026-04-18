@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { searchPatients } from "../services/patientService";
 import { getFullPatientProfile, updateFullPatientProfile, listClinics } from "../api/hmsApi";
 import { getUserAccess, getSelectedAccess } from "../services/authService";
+import { getAppointmentsByFilters } from "../services/appointmentService";
 import FancyDatePicker from "../components/FancyDatePicker";
 
 // Reusable InputField component (similar to RegisterPatient)
@@ -190,6 +191,13 @@ export default function ViewPatients() {
     isPrimaryInsurance: true,
     copayAmount: ""
   });
+
+  // Appointments viewing state
+  const [appointmentsList, setAppointmentsList] = useState([]);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+  const [appointmentsError, setAppointmentsError] = useState("");
+  const [appointmentFromDate, setAppointmentFromDate] = useState("");
+  const [appointmentToDate, setAppointmentToDate] = useState("");
 
   const genderOptions = [
     { value: "Male", label: "Male" },
@@ -587,6 +595,61 @@ export default function ViewPatients() {
     }
   };
 
+  const loadAppointments = async () => {
+    setAppointmentsLoading(true);
+    setAppointmentsError("");
+    setAppointmentsList([]);
+    
+    try {
+      // Get clinic ID from current context or use the patient's clinic
+      const selectedAccess = getSelectedAccess();
+      const clinicId = selectedAccess?.clinicId || editPatientData.clinicID;
+      
+      if (!clinicId) {
+        setAppointmentsError("Clinic ID not found. Please ensure you are logged in with clinic access.");
+        setAppointmentsLoading(false);
+        return;
+      }
+
+      console.log('🔍 LOADING APPOINTMENTS for patient:', {
+        patientId: editPatientData.patientId,
+        firstName: editPatientData.patientFirstName,
+        lastName: editPatientData.patientLastName,
+        clinicId: clinicId,
+        fromDate: appointmentFromDate,
+        toDate: appointmentToDate
+      });
+
+      // Build filter params for API call
+      const appointmentParams = {
+        clinicId: clinicId.toString(),
+        patientId: editPatientData.patientId,
+        firstName: editPatientData.patientFirstName || undefined,
+        lastName: editPatientData.patientLastName || undefined,
+        fromDate: appointmentFromDate || undefined,
+        toDate: appointmentToDate || undefined
+      };
+
+      // Remove undefined values
+      Object.keys(appointmentParams).forEach(
+        key => appointmentParams[key] === undefined && delete appointmentParams[key]
+      );
+
+      console.log('📤 Calling getAppointmentsByFilters with params:', appointmentParams);
+      
+      const appointments = await getAppointmentsByFilters(appointmentParams);
+      console.log('✅ APPOINTMENTS FETCHED:', appointments);
+      
+      setAppointmentsList(appointments || []);
+    } catch (error) {
+      console.error("❌ Failed to load appointments:", error);
+      setAppointmentsError(error.message || "Failed to load appointments. Please try again.");
+      setAppointmentsList([]);
+    } finally {
+      setAppointmentsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-stone-50 py-8">
       {/* Header */}
@@ -862,6 +925,19 @@ export default function ViewPatients() {
                 }`}
               >
                 Insurance
+              </button>
+              <button
+                onClick={() => {
+                  setEditActiveTab("appointments");
+                  loadAppointments();
+                }}
+                className={`px-6 py-3 font-semibold transition-all ${
+                  editActiveTab === "appointments"
+                    ? "text-amber-700 border-b-2 border-amber-600"
+                    : "text-stone-500 hover:text-amber-600"
+                }`}
+              >
+                📅 Appointments
               </button>
             </div>
 
@@ -1219,6 +1295,104 @@ export default function ViewPatients() {
                     placeholder="Enter copay amount"
                     disabled={!isEditMode}
                   />
+                </div>
+              )}
+
+              {editActiveTab === "appointments" && (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <p className="text-blue-800 text-sm">
+                      📅 View appointments for {editPatientData.patientFirstName} {editPatientData.patientLastName}
+                    </p>
+                  </div>
+
+                  {/* Date Range Filters */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-stone-50 rounded-lg border border-stone-200">
+                    <InputField
+                      label="From Date (Optional)"
+                      name="appointmentFromDate"
+                      type="date"
+                      value={appointmentFromDate}
+                      onChange={(e) => setAppointmentFromDate(e.target.value)}
+                      placeholder="Leave empty for all dates"
+                    />
+                    <InputField
+                      label="To Date (Optional)"
+                      name="appointmentToDate"
+                      type="date"
+                      value={appointmentToDate}
+                      onChange={(e) => setAppointmentToDate(e.target.value)}
+                      placeholder="Leave empty for all dates"
+                    />
+                    <button
+                      onClick={loadAppointments}
+                      disabled={appointmentsLoading}
+                      className="col-span-1 md:col-span-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-blue-400"
+                    >
+                      {appointmentsLoading ? "Loading..." : "Search Appointments"}
+                    </button>
+                  </div>
+
+                  {appointmentsError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                      <p className="font-semibold">❌ Error</p>
+                      <p className="text-sm">{appointmentsError}</p>
+                    </div>
+                  )}
+
+                  {/* Appointments List */}
+                  {appointmentsLoading ? (
+                    <div className="text-center py-8">
+                      <p className="text-stone-600">Loading appointments...</p>
+                    </div>
+                  ) : appointmentsList.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr className="bg-blue-50 border-b-2 border-blue-200">
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Appointment ID</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Date</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Time</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Doctor</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Service</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Status</th>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {appointmentsList.map((appointment, idx) => (
+                            <tr key={appointment.appointmentId} className={`border-b border-stone-200 ${idx % 2 === 0 ? 'bg-white' : 'bg-blue-50'}`}>
+                              <td className="px-4 py-3 text-sm text-stone-700">{appointment.appointmentId}</td>
+                              <td className="px-4 py-3 text-sm text-stone-700">
+                                {appointment.appointmentDate 
+                                  ? new Date(appointment.appointmentDate).toLocaleDateString() 
+                                  : "N/A"}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-stone-700">{appointment.appointmentTime || "N/A"}</td>
+                              <td className="px-4 py-3 text-sm text-stone-700">{appointment.doctorName || `Dr. ID: ${appointment.doctorId}` || "N/A"}</td>
+                              <td className="px-4 py-3 text-sm text-stone-700">{appointment.serviceName || appointment.appointmentType || "N/A"}</td>
+                              <td className="px-4 py-3 text-sm">
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  appointment.appointmentStatus === "Completed" ? "bg-green-100 text-green-800" :
+                                  appointment.appointmentStatus === "Cancelled" ? "bg-red-100 text-red-800" :
+                                  appointment.appointmentStatus === "Scheduled" ? "bg-blue-100 text-blue-800" :
+                                  "bg-yellow-100 text-yellow-800"
+                                }`}>
+                                  {appointment.appointmentStatus || "Pending"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-sm text-stone-700">{appointment.notes || appointment.remarks || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 bg-stone-50 rounded-lg border border-stone-200">
+                      <p className="text-stone-600">No appointments found</p>
+                      <p className="text-stone-400 text-sm mt-2">Click "Search Appointments" to load data</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

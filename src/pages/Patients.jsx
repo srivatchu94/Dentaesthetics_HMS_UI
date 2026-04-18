@@ -653,89 +653,37 @@ export default function Patients() {
     
     setLoadingAppointments(true);
     try {
-      // Use getCalendarAppointments to fetch all appointments (same as Doctors space)
-      let allAppointments = await getCalendarAppointments();
-      console.log("📅 Loaded all appointments from getCalendarAppointments:", allAppointments?.length || 0);
-      
-      // Filter by clinic ID
-      let results = (allAppointments || []).filter(appt => 
-        appt.clinicId === parseInt(appointmentFilter.clinicId)
+      // Build filter params for GetAppointmentByIdwithDateRange API
+      const apiFilterParams = {
+        clinicId: appointmentFilter.clinicId,
+        firstName: appointmentFilter.firstName || undefined,
+        lastName: appointmentFilter.lastName || undefined,
+        doctorId: appointmentFilter.doctorId || undefined,
+        patientId: appointmentFilter.patientId ? parseInt(appointmentFilter.patientId) : undefined,
+        mobilenumber: appointmentFilter.mobilenumber || undefined,
+        fromDate: appointmentFilter.fromDate || undefined,
+        toDate: appointmentFilter.toDate || undefined
+      };
+
+      // Remove undefined values
+      Object.keys(apiFilterParams).forEach(key => 
+        apiFilterParams[key] === undefined && delete apiFilterParams[key]
       );
-      console.log(`✅ Filtered by clinic: ${results.length} appointments`);
+
+      console.log('🔍 SEARCHING APPOINTMENTS with filters:', apiFilterParams);
+      console.log('📡 Calling GetAppointmentByIdwithDateRange API...');
       
-      // Filter by first name if provided
-      if (appointmentFilter.firstName) {
-        results = results.filter(appt => 
-          appt.firstName?.toLowerCase().includes(appointmentFilter.firstName.toLowerCase())
-        );
-      }
+      // Call the proper API endpoint: GetAppointmentByIdwithDateRange
+      const results = await getAppointmentsByFilters(apiFilterParams);
+      console.log('✅ API RESULTS from GetAppointmentByIdwithDateRange:', results?.length || 0, 'appointments found');
       
-      // Filter by last name if provided
-      if (appointmentFilter.lastName) {
-        results = results.filter(appt => 
-          appt.lastName?.toLowerCase().includes(appointmentFilter.lastName.toLowerCase())
-        );
-      }
+      setFilteredAppointmentsList(results || []);
       
-      // Filter by doctor ID if provided
-      if (appointmentFilter.doctorId) {
-        results = results.filter(appt => 
-          appt.doctorId === parseInt(appointmentFilter.doctorId)
-        );
-      }
-      
-      // Filter by patient ID if provided
-      if (appointmentFilter.patientId) {
-        results = results.filter(appt => 
-          appt.patientId === parseInt(appointmentFilter.patientId)
-        );
-      }
-      
-      // Filter by mobile number if provided
-      if (appointmentFilter.mobilenumber) {
-        results = results.filter(appt => 
-          appt.mobileNumber?.includes(appointmentFilter.mobilenumber)
-        );
-      }
-      
-      // Filter by date range if provided (same logic as Doctors space)
-      if (appointmentFilter.fromDate) {
-        const fromDate = new Date(appointmentFilter.fromDate);
-        results = results.filter(appt => {
-          if (!appt.appointmentDate) return false;
-          const apptDateOnly = appt.appointmentDate.split('T')[0];
-          const apptDate = new Date(apptDateOnly);
-          return apptDate >= fromDate;
-        });
-      }
-      
-      if (appointmentFilter.toDate) {
-        const toDate = new Date(appointmentFilter.toDate);
-        results = results.filter(appt => {
-          if (!appt.appointmentDate) return false;
-          const apptDateOnly = appt.appointmentDate.split('T')[0];
-          const apptDate = new Date(apptDateOnly);
-          return apptDate <= toDate;
-        });
-      }
-      
-      // Apply status filter
-      if (appointmentFilter.status && appointmentFilter.status !== 'All') {
-        results = results.filter(apt => apt.status === appointmentFilter.status);
-      }
-      
-      // Apply appointment type filter
-      if (appointmentFilter.appointmentType && appointmentFilter.appointmentType !== 'All') {
-        results = results.filter(apt => apt.appointmentType === appointmentFilter.appointmentType);
-      }
-      
-      setFilteredAppointmentsList(results);
-      
-      if (results.length === 0) {
+      if (!results || results.length === 0) {
         alert('ℹ️ No appointments found matching the search criteria');
       }
     } catch (error) {
-      console.error('Failed to filter appointments:', error);
+      console.error('❌ Failed to filter appointments:', error);
       alert('❌ Failed to search appointments. Please try again.');
       setFilteredAppointmentsList([]);
     } finally {
