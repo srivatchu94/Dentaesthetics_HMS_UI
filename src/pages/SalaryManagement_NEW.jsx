@@ -1,257 +1,30 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { listClinics, getClinicsByEnterpriseId } from '../services/clinicService';
-import { getDoctorsByEnterpriseId, getDoctorClinicMappings } from '../services/doctorService';
+import { getClinicsByEnterpriseId } from '../services/clinicService';
+import { getDoctorsByEnterpriseId } from '../services/doctorService';
 import { getSelectedAccess } from '../services/authService';
 import FancyDatePicker from '../components/FancyDatePicker';
 
-// Real data arrays - will be populated from API
-const SAMPLE_DOCTORS = [
-  // Mumbai Central - Clinic 101
-  {
-    doctorId: 1,
-    doctorName: "Dr. Rajesh Kumar",
-    specialty: "Orthodontist",
-    registrationNumber: "MCI-A-12345-MH",
-    clinicId: 101,
-    clinicName: "VitalsVille Healthcare Center",
-    staffType: "doctor",
-    fixedSalary: 150000,
-    totalPatientsThisMonth: 42,
-    totalRevenueGenerated: 8350000,
-    salaryHistory: [
-      {
-        historyId: 1,
-        doctorId: 1,
-        fixedSalary: 150000,
-        effectiveDate: "2025-01-01",
-        endDate: null,
-        remarks: "Annual increment 2025",
-        updatedBy: "Admin",
-        updatedAt: "2025-01-01T10:00:00"
-      },
-      {
-        historyId: 2,
-        doctorId: 1,
-        fixedSalary: 135000,
-        effectiveDate: "2024-01-01",
-        endDate: "2024-12-31",
-        remarks: "Annual increment 2024",
-        updatedBy: "Admin",
-        updatedAt: "2024-01-01T10:00:00"
-      },
-      {
-        historyId: 3,
-        doctorId: 1,
-        fixedSalary: 120000,
-        effectiveDate: "2023-01-01",
-        endDate: "2023-12-31",
-        remarks: "Initial salary on joining",
-        updatedBy: "HR Manager",
-        updatedAt: "2023-01-01T09:00:00"
-      }
-    ]
-  },
-  {
-    doctorId: 2,
-    doctorName: "Dr. Priya Sharma",
-    specialty: "Endodontist",
-    registrationNumber: "MCI-A-23456-MH",
-    clinicId: 101,
-    clinicName: "VitalsVille Healthcare Center",
-    staffType: "doctor",
-    fixedSalary: 135000,
-    totalPatientsThisMonth: 38,
-    totalRevenueGenerated: 6825000
-  },
-  {
-    doctorId: 3,
-    doctorName: "Kavya Menon",
-    specialty: "Dental Hygienist",
-    registrationNumber: "DH-101-MH",
-    clinicId: 101,
-    clinicName: "VitalsVille Healthcare Center",
-    staffType: "hygienist",
-    fixedSalary: 45000,
-    totalPatientsThisMonth: 65,
-    totalRevenueGenerated: 1950000
-  },
-  // Bangalore - Clinic 102
-  {
-    doctorId: 4,
-    doctorName: "Dr. Arjun Patel",
-    specialty: "Oral Surgeon",
-    registrationNumber: "MCI-A-34567-KA",
-    clinicId: 102,
-    clinicName: "VitalsVille Bangalore Center",
-    staffType: "doctor",
-    fixedSalary: 175000,
-    totalPatientsThisMonth: 35,
-    totalRevenueGenerated: 10450000,
-    salaryHistory: [
-      {
-        historyId: 10,
-        doctorId: 4,
-        fixedSalary: 175000,
-        effectiveDate: "2024-07-01",
-        endDate: null,
-        remarks: "Promotion to Senior Oral Surgeon",
-        updatedBy: "Admin",
-        updatedAt: "2024-07-01T11:30:00"
-      },
-      {
-        historyId: 11,
-        doctorId: 4,
-        fixedSalary: 150000,
-        effectiveDate: "2023-07-01",
-        endDate: "2024-06-30",
-        remarks: "Starting salary",
-        updatedBy: "HR Manager",
-        updatedAt: "2023-07-01T10:00:00"
-      }
-    ]
-  },
-  {
-    doctorId: 5,
-    doctorName: "Dr. Sneha Iyer",
-    specialty: "Periodontist",
-    registrationNumber: "MCI-A-45678-KA",
-    clinicId: 102,
-    clinicName: "Smile Care Bangalore",
-    staffType: "doctor",
-    fixedSalary: 140000,
-    totalPatientsThisMonth: 35,
-    totalRevenueGenerated: 5950000
-  },
-  {
-    doctorId: 6,
-    doctorName: "Aditya Gupta",
-    specialty: "Dental Assistant",
-    registrationNumber: "DA-102-KA",
-    clinicId: 102,
-    clinicName: "Smile Care Bangalore",
-    staffType: "assistant",
-    fixedSalary: 35000,
-    totalPatientsThisMonth: 70,
-    totalRevenueGenerated: 0
-  },
-  // Delhi - Clinic 103
-  {
-    doctorId: 7,
-    doctorName: "Dr. Anjali Reddy",
-    specialty: "Prosthodontist",
-    registrationNumber: "MCI-A-56789-DL",
-    clinicId: 103,
-    clinicName: "Pearl Dental Clinic Delhi",
-    staffType: "doctor",
-    fixedSalary: 145000,
-    totalPatientsThisMonth: 31,
-    totalRevenueGenerated: 7225000
-  },
-  {
-    doctorId: 8,
-    doctorName: "Dr. Vikram Singh",
-    specialty: "Endodontist",
-    registrationNumber: "MCI-A-67890-DL",
-    clinicId: 103,
-    clinicName: "Pearl Dental Clinic Delhi",
-    staffType: "doctor",
-    fixedSalary: 138000,
-    totalPatientsThisMonth: 29,
-    totalRevenueGenerated: 6380000
-  },
-  // Pune - Clinic 104
-  {
-    doctorId: 9,
-    doctorName: "Dr. Meera Nair",
-    specialty: "Cosmetic Dentist",
-    registrationNumber: "MCI-A-78901-MH",
-    clinicId: 104,
-    clinicName: "Sunshine Dental Care Pune",
-    staffType: "doctor",
-    fixedSalary: 160000,
-    totalPatientsThisMonth: 25,
-    totalRevenueGenerated: 8750000
-  },
-  {
-    doctorId: 10,
-    doctorName: "Rahul Verma",
-    specialty: "Dental Hygienist",
-    registrationNumber: "DH-104-MH",
-    clinicId: 104,
-    clinicName: "Sunshine Dental Care Pune",
-    staffType: "hygienist",
-    fixedSalary: 42000,
-    totalPatientsThisMonth: 58,
-    totalRevenueGenerated: 1740000
-  },
-  // Hyderabad - Clinic 105
-  {
-    doctorId: 11,
-    doctorName: "Dr. Karthik Reddy",
-    specialty: "Orthodontist",
-    registrationNumber: "MCI-A-89012-TS",
-    clinicId: 105,
-    clinicName: "Bright Smiles Hyderabad",
-    staffType: "doctor",
-    fixedSalary: 148000,
-    totalPatientsThisMonth: 37,
-    totalRevenueGenerated: 7400000
-  },
-  // Chennai - Clinic 106
-  {
-    doctorId: 12,
-    doctorName: "Dr. Lakshmi Krishnan",
-    specialty: "Pediatric Dentist",
-    registrationNumber: "MCI-A-90123-TN",
-    clinicId: 106,
-    clinicName: "Elite Dental Care Chennai",
-    staffType: "doctor",
-    fixedSalary: 142000,
-    totalPatientsThisMonth: 44,
-    totalRevenueGenerated: 6248000
-  }
-];
-
-// Clinic data
-const SAMPLE_CLINICS = [
-  {
-    clinicId: 101,
-    clinicName: "Dentaesthetics Mumbai Central",
-    city: "Mumbai"
-  },
-  {
-    clinicId: 102,
-    clinicName: "Smile Care Bangalore",
-    city: "Bangalore"
-  },
-  {
-    clinicId: 103,
-    clinicName: "Pearl Dental Clinic Delhi",
-    city: "Delhi"
-  },
-  {
-    clinicId: 104,
-    clinicName: "VitalsVille Healthcare Center",
-    city: "Hyderabad"
-  },
-  {
-    clinicId: 105,
-    clinicName: "Smile Care Pune",
-    city: "Pune"
-  }
-];
-
 export default function SalaryManagement() {
   const navigate = useNavigate();
+  const selectedAccess = getSelectedAccess();
+  const enterpriseId = selectedAccess?.enterpriseId?.toString() || "";
+  
+  // State - Data
+  const [clinics, setClinics] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // State - Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedClinic, setSelectedClinic] = useState("all");
   const [selectedPeriod, setSelectedPeriod] = useState("current");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  
-  // Edit salary modal state
+
+  // State - Modal
   const [showEditSalaryModal, setShowEditSalaryModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [editSalaryForm, setEditSalaryForm] = useState({
@@ -260,19 +33,65 @@ export default function SalaryManagement() {
     remarks: ""
   });
 
+  // Load clinics and doctors on mount
+  useEffect(() => {
+    const loadData = async () => {
+      if (!enterpriseId) {
+        setError("No enterprise selected");
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError("");
+
+        // Fetch clinics for enterprise
+        const clinicData = await getClinicsByEnterpriseId(parseInt(enterpriseId));
+        setClinics(Array.isArray(clinicData) ? clinicData : []);
+
+        // Fetch doctors for enterprise
+        const doctorData = await getDoctorsByEnterpriseId({
+          enterpriseId: parseInt(enterpriseId)
+        });
+        const mappedDoctors = Array.isArray(doctorData)
+          ? doctorData.map((doc) => ({
+              doctorId: doc.doctorId || doc.profileId || doc.staffId || doc.id,
+              doctorName: `${doc.firstName || ""} ${doc.lastName || ""}`.trim(),
+              specialty: doc.specialtyName || doc.specialty || "Healthcare Professional",
+              registrationNumber: doc.registrationNumber || "N/A",
+              clinicId: doc.clinicId || null,
+              clinicName: doc.clinicName || "Unassigned",
+              staffType: doc.staffType || "doctor",
+              fixedSalary: doc.fixedSalary || doc.salary || 0,
+              totalPatientsThisMonth: doc.totalPatientsThisMonth || 0,
+              totalRevenueGenerated: doc.totalRevenueGenerated || 0
+            }))
+          : [];
+        setDoctors(mappedDoctors);
+      } catch (err) {
+        console.error("Error loading salary data:", err);
+        setError("Failed to load salary data. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [enterpriseId]);
+
   // Filter doctors based on clinic and search term
   const filteredDoctors = useMemo(() => {
-    let filtered = SAMPLE_DOCTORS;
+    let filtered = doctors;
 
     // Filter by clinic
     if (selectedClinic !== "all") {
-      filtered = filtered.filter(doctor => doctor.clinicId === parseInt(selectedClinic));
+      filtered = filtered.filter((doctor) => doctor.clinicId === parseInt(selectedClinic));
     }
 
     // Filter by search term
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(doctor => 
+      filtered = filtered.filter((doctor) =>
         doctor.doctorName.toLowerCase().includes(term) ||
         doctor.specialty.toLowerCase().includes(term) ||
         doctor.registrationNumber.toLowerCase().includes(term) ||
@@ -281,7 +100,7 @@ export default function SalaryManagement() {
     }
 
     return filtered;
-  }, [searchTerm, selectedClinic]);
+  }, [searchTerm, selectedClinic, doctors]);
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -290,7 +109,7 @@ export default function SalaryManagement() {
 
   const handleDoctorClick = (doctor) => {
     navigate(`/salary/doctor/${doctor.doctorId}`, {
-      state: { 
+      state: {
         doctor,
         month: selectedMonth,
         year: selectedYear
@@ -299,19 +118,20 @@ export default function SalaryManagement() {
   };
 
   const totalDoctors = filteredDoctors.length;
-  const totalRevenue = filteredDoctors.reduce((sum, d) => sum + d.totalRevenueGenerated, 0);
-  const totalPatients = filteredDoctors.reduce((sum, d) => sum + d.totalPatientsThisMonth, 0);
-  const totalFixedSalary = filteredDoctors.reduce((sum, d) => sum + d.fixedSalary, 0);
+  const totalRevenue = filteredDoctors.reduce((sum, d) => sum + (d.totalRevenueGenerated || 0), 0);
+  const totalPatients = filteredDoctors.reduce((sum, d) => sum + (d.totalPatientsThisMonth || 0), 0);
+  const totalFixedSalary = filteredDoctors.reduce((sum, d) => sum + (d.fixedSalary || 0), 0);
 
-  const selectedClinicName = selectedClinic === "all" 
-    ? "All Clinics" 
-    : SAMPLE_CLINICS.find(c => c.clinicId === parseInt(selectedClinic))?.clinicName || "Unknown";
+  const selectedClinicName =
+    selectedClinic === "all"
+      ? "All Clinics"
+      : clinics.find((c) => c.clinicId === parseInt(selectedClinic))?.clinicName || "Unknown";
 
   const handleEditSalary = (e, doctor) => {
     e.stopPropagation();
     setSelectedStaff(doctor);
     setEditSalaryForm({
-      newSalary: doctor.fixedSalary.toString(),
+      newSalary: (doctor.fixedSalary || 0).toString(),
       effectiveDate: new Date().toISOString().split('T')[0],
       remarks: ""
     });
@@ -323,9 +143,44 @@ export default function SalaryManagement() {
       alert("Please enter a valid salary amount");
       return;
     }
-    alert(`Salary updated for ${selectedStaff.doctorName}\nNew Salary: ₹${parseFloat(editSalaryForm.newSalary).toLocaleString('en-IN')}\nEffective Date: ${editSalaryForm.effectiveDate}\nRemarks: ${editSalaryForm.remarks || 'None'}`);
+    alert(
+      `Salary updated for ${selectedStaff.doctorName}\nNew Salary: ₹${parseFloat(
+        editSalaryForm.newSalary
+      ).toLocaleString('en-IN')}\nEffective Date: ${editSalaryForm.effectiveDate}\nRemarks: ${
+        editSalaryForm.remarks || 'None'
+      }`
+    );
     setShowEditSalaryModal(false);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50/30 flex items-center justify-center p-6">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          className="w-16 h-16 border-4 border-indigo-300 border-t-indigo-600 rounded-full"
+        />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50/30 flex items-center justify-center p-6">
+        <div className="bg-red-50 border-2 border-red-300 rounded-xl p-8 max-w-md w-full">
+          <h2 className="text-2xl font-bold text-red-700 mb-2">⚠️ Error</h2>
+          <p className="text-red-600">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50/30 p-6">
@@ -341,11 +196,6 @@ export default function SalaryManagement() {
               💰 Salary Management
             </h1>
             <p className="text-slate-600">Calculate staff salaries with fixed components and patient-based incentives</p>
-            {selectedClinic !== "all" && (
-              <div className="mt-2 inline-flex items-center gap-2 px-4 py-2 bg-teal-100 border border-teal-300 rounded-lg">
-                <span className="text-sm font-semibold text-teal-700">📍 {selectedClinicName}</span>
-              </div>
-            )}
           </div>
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -370,7 +220,7 @@ export default function SalaryManagement() {
                 className="w-full px-4 py-3 rounded-lg border border-indigo-200 focus:ring-2 focus:ring-indigo-400 focus:border-transparent outline-none bg-white font-semibold"
               >
                 <option value="all">All Clinics</option>
-                {SAMPLE_CLINICS.map(clinic => (
+                {clinics.map((clinic) => (
                   <option key={clinic.clinicId} value={clinic.clinicId}>
                     {clinic.clinicName}
                   </option>
@@ -405,7 +255,9 @@ export default function SalaryManagement() {
                     className="w-full px-4 py-3 rounded-lg border border-teal-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent outline-none bg-white"
                   >
                     {months.map((month, index) => (
-                      <option key={index} value={index + 1}>{month}</option>
+                      <option key={index} value={index + 1}>
+                        {month}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -419,8 +271,10 @@ export default function SalaryManagement() {
                     onChange={(e) => setSelectedYear(parseInt(e.target.value))}
                     className="w-full px-4 py-3 rounded-lg border border-teal-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent outline-none bg-white"
                   >
-                    {[2024, 2025, 2026].map(year => (
-                      <option key={year} value={year}>{year}</option>
+                    {[2024, 2025, 2026].map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -557,8 +411,8 @@ export default function SalaryManagement() {
             <div className="text-6xl mb-4">🔍</div>
             <h3 className="text-xl font-bold text-slate-700 mb-2">No Staff Found</h3>
             <p className="text-slate-500">
-              {selectedClinic !== "all" 
-                ? `No staff members found in ${selectedClinicName}` 
+              {selectedClinic !== "all"
+                ? `No staff members found in ${selectedClinicName}`
                 : "Try a different search term or select a specific clinic"}
             </p>
           </motion.div>
@@ -578,17 +432,26 @@ export default function SalaryManagement() {
                 {/* Staff Avatar */}
                 <div className="flex items-center gap-4 mb-4">
                   <div className="w-16 h-16 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-                    {doctor.doctorName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    {doctor.doctorName
+                      .split(' ')
+                      .map((n) => n[0])
+                      .join('')
+                      .slice(0, 2)}
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-bold text-slate-800">{doctor.doctorName}</h3>
                     <p className="text-sm text-teal-600 font-semibold">{doctor.specialty}</p>
-                    <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-bold ${
-                      doctor.staffType === 'doctor' ? 'bg-violet-100 text-violet-700' :
-                      doctor.staffType === 'dentist' ? 'bg-blue-100 text-blue-700' :
-                      doctor.staffType === 'hygienist' ? 'bg-emerald-100 text-emerald-700' :
-                      'bg-amber-100 text-amber-700'
-                    }`}>
+                    <span
+                      className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                        doctor.staffType === 'doctor'
+                          ? 'bg-violet-100 text-violet-700'
+                          : doctor.staffType === 'dentist'
+                          ? 'bg-blue-100 text-blue-700'
+                          : doctor.staffType === 'hygienist'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}
+                    >
                       {doctor.staffType.charAt(0).toUpperCase() + doctor.staffType.slice(1)}
                     </span>
                   </div>
@@ -614,7 +477,9 @@ export default function SalaryManagement() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-600">Fixed Salary</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-emerald-600">₹{doctor.fixedSalary.toLocaleString('en-IN')}</span>
+                      <span className="text-sm font-bold text-emerald-600">
+                        ₹{(doctor.fixedSalary || 0).toLocaleString('en-IN')}
+                      </span>
                       <motion.button
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
@@ -632,7 +497,9 @@ export default function SalaryManagement() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-slate-600">Revenue Generated</span>
-                    <span className="text-sm font-bold text-amber-600">₹{doctor.totalRevenueGenerated.toLocaleString('en-IN')}</span>
+                    <span className="text-sm font-bold text-amber-600">
+                      ₹{(doctor.totalRevenueGenerated || 0).toLocaleString('en-IN')}
+                    </span>
                   </div>
                 </div>
 
@@ -689,7 +556,9 @@ export default function SalaryManagement() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-slate-600">Current Fixed Salary</p>
-                    <p className="text-2xl font-bold text-slate-800">₹{selectedStaff.fixedSalary.toLocaleString('en-IN')}</p>
+                    <p className="text-2xl font-bold text-slate-800">
+                      ₹{(selectedStaff.fixedSalary || 0).toLocaleString('en-IN')}
+                    </p>
                     <p className="text-xs text-slate-500 mt-1">{selectedStaff.specialty} • {selectedStaff.clinicName}</p>
                   </div>
                   <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white w-12 h-12 rounded-lg flex items-center justify-center text-2xl">
@@ -708,7 +577,7 @@ export default function SalaryManagement() {
                     min="0"
                     step="1000"
                     value={editSalaryForm.newSalary}
-                    onChange={(e) => setEditSalaryForm({...editSalaryForm, newSalary: e.target.value})}
+                    onChange={(e) => setEditSalaryForm({ ...editSalaryForm, newSalary: e.target.value })}
                     placeholder="Enter new salary amount"
                     className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent outline-none text-lg"
                   />
@@ -718,14 +587,25 @@ export default function SalaryManagement() {
                         ₹{parseFloat(editSalaryForm.newSalary).toLocaleString('en-IN')} per month
                       </p>
                       {parseFloat(editSalaryForm.newSalary) !== selectedStaff.fixedSalary && (
-                        <p className={`text-sm font-bold ${
-                          parseFloat(editSalaryForm.newSalary) > selectedStaff.fixedSalary 
-                            ? 'text-emerald-600' 
-                            : 'text-red-600'
-                        }`}>
-                          {parseFloat(editSalaryForm.newSalary) > selectedStaff.fixedSalary ? '↑' : '↓'} 
-                          {' '}₹{Math.abs(parseFloat(editSalaryForm.newSalary) - selectedStaff.fixedSalary).toLocaleString('en-IN')}
-                          {' '}({((Math.abs(parseFloat(editSalaryForm.newSalary) - selectedStaff.fixedSalary) / selectedStaff.fixedSalary) * 100).toFixed(1)}%)
+                        <p
+                          className={`text-sm font-bold ${
+                            parseFloat(editSalaryForm.newSalary) > selectedStaff.fixedSalary
+                              ? 'text-emerald-600'
+                              : 'text-red-600'
+                          }`}
+                        >
+                          {parseFloat(editSalaryForm.newSalary) > selectedStaff.fixedSalary ? '↑' : '↓'}{' '}
+                          ₹
+                          {Math.abs(
+                            parseFloat(editSalaryForm.newSalary) - selectedStaff.fixedSalary
+                          ).toLocaleString('en-IN')}{' '}
+                          (
+                          {(
+                            (Math.abs(parseFloat(editSalaryForm.newSalary) - selectedStaff.fixedSalary) /
+                              selectedStaff.fixedSalary) *
+                            100
+                          ).toFixed(1)}
+                          %)
                         </p>
                       )}
                     </div>
@@ -736,7 +616,12 @@ export default function SalaryManagement() {
                   <label className="block text-sm font-semibold text-slate-700 mb-2">
                     Effective From Date *
                   </label>
-                  <FancyDatePicker label="" value={editSalaryForm.effectiveDate} onChange={(date) => setEditSalaryForm({...editSalaryForm, effectiveDate: date})} required />
+                  <FancyDatePicker
+                    label=""
+                    value={editSalaryForm.effectiveDate}
+                    onChange={(date) => setEditSalaryForm({ ...editSalaryForm, effectiveDate: date })}
+                    required
+                  />
                   <p className="text-xs text-slate-500 mt-1">
                     New salary will be effective from this date. Previous salary will be recorded in history.
                   </p>
@@ -748,7 +633,7 @@ export default function SalaryManagement() {
                   </label>
                   <textarea
                     value={editSalaryForm.remarks}
-                    onChange={(e) => setEditSalaryForm({...editSalaryForm, remarks: e.target.value})}
+                    onChange={(e) => setEditSalaryForm({ ...editSalaryForm, remarks: e.target.value })}
                     placeholder="e.g., Annual increment, Promotion, Performance bonus..."
                     rows={3}
                     className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-emerald-400 focus:border-transparent outline-none resize-none"

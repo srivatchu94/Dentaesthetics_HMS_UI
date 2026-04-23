@@ -35,6 +35,7 @@ import VisitInformation from "./pages/VisitInformation";
 import ClinicAnalytics from "./pages/ClinicAnalytics";
 import ReportsAnalytics from "./pages/ReportsAnalytics";
 import SalaryManagement from "./pages/SalaryManagement";
+import ManageSalaries from "./pages/ManageSalaries";
 import DoctorSalaryDetails from "./pages/DoctorSalaryDetails";
 import Inventory from "./pages/Inventory.jsx";
 import AddMasterInventory from "./pages/AddMasterInventory.jsx";
@@ -194,6 +195,7 @@ export default function App(){
           <Route path="/clinics/analytics" element={<ClinicAnalytics />} />
           <Route path="/reports" element={<ReportsAnalytics />} />
           <Route path="/salary" element={<SalaryManagement />} />
+          <Route path="/salary/manage" element={<ManageSalaries />} />
           <Route path="/salary/doctor/:doctorId" element={<DoctorSalaryDetails />} />
           <Route path="/inventory" element={<Inventory />} />
           <Route path="/inventory/add-master" element={<AddMasterInventory />} />

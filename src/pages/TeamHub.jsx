@@ -6,6 +6,7 @@ import { bulkAssignRoles } from '../services/accessControlService';
 import { listRoles } from '../services/roleService';
 import { createStaffDetail, searchStaff } from '../services/staffService';
 import { getSelectedAccess } from '../services/authService';
+import SalaryManagementModal from '../components/SalaryManagementModal';
 
 const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
@@ -117,6 +118,26 @@ const TeamHub = () => {
   const [freezeEnterprise, setFreezeEnterprise] = useState(false);
   const [freezeCredentialEnterprise, setFreezeCredentialEnterprise] = useState(false);
   const [freezeAccessControlEnterprise, setFreezeAccessControlEnterprise] = useState(false);
+  
+  // Salary Management Modal State
+  const [showSalaryManagementModal, setShowSalaryManagementModal] = useState(false);
+  
+  // Salary Details States (for individual doctor view)
+  const [selectedSalaryDoctor, setSelectedSalaryDoctor] = useState(null);
+  const [salaryDetails, setSalaryDetails] = useState(null);
+  const [salaryDetailsLoading, setSalaryDetailsLoading] = useState(false);
+  const [salaryDetailsError, setSalaryDetailsError] = useState("");
+  
+  // Salary Calculation States
+  const [salaryCalcDateFrom, setSalaryCalcDateFrom] = useState("");
+  const [salaryCalcDateTo, setSalaryCalcDateTo] = useState("");
+  const [salaryCalcRecords, setSalaryCalcRecords] = useState([]);
+  const [salaryCalcLoading, setSalaryCalcLoading] = useState(false);
+  const [salaryCalcError, setSalaryCalcError] = useState("");
+  const [globalIncentivePercent, setGlobalIncentivePercent] = useState("");
+  const [individualIncentives, setIndividualIncentives] = useState({});
+  const [showSalaryCalcSummary, setShowSalaryCalcSummary] = useState(false);
+  
   // Today's date (YYYY-MM-DD) for date validation and max attribute
   const today = new Date();
   const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -443,6 +464,148 @@ const TeamHub = () => {
     }
   }, [credentialClinics, freezeCredentialEnterprise]);
 
+  // Function to navigate to doctor salary details page
+  const handleViewDoctorSalaryDetails = (doctor) => {
+    // Navigate to the doctor salary details page with doctor data as state
+    navigate(`/salary/doctor/${doctor.doctorId}`, {
+      state: { doctor: doctor }
+    });
+  };
+
+  // Function to close salary details view and return to search
+  const handleBackToSalarySearch = () => {
+    setSelectedSalaryDoctor(null);
+    setSalaryDetails(null);
+    setSalaryDetailsError("");
+  };
+
+  // Function to fetch salary calculation records (appointment details for incentive calculation)
+  const handleFetchSalaryCalculationRecords = async () => {
+    if (!salaryCalcDateFrom || !salaryCalcDateTo) {
+      setSalaryCalcError("⚠️ Please select both from and to dates");
+      return;
+    }
+
+    if (new Date(salaryCalcDateFrom) > new Date(salaryCalcDateTo)) {
+      setSalaryCalcError("⚠️ From date cannot be later than to date");
+      return;
+    }
+
+    setSalaryCalcLoading(true);
+    setSalaryCalcError("");
+    
+    try {
+      // Format dates properly for API (YYYY-MM-DD format)
+      const fromDateStr = new Date(salaryCalcDateFrom).toISOString().split('T')[0];
+      const toDateStr = new Date(salaryCalcDateTo).toISOString().split('T')[0];
+      
+      console.log("📡 Calling API: GetDoctorSalaryCalculationSummary with DoctorID=", selectedSalaryDoctor.doctorId, "FromDate=", fromDateStr, "ToDate=", toDateStr);
+      const response = await fetch(
+        `${API_BASE_URL}/DoctorProfile/salary-calculation-summary/${selectedSalaryDoctor.doctorId}?fromDate=${fromDateStr}&toDate=${toDateStr}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          }
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ Salary calculation records loaded:", data);
+        
+        // Use data directly from API - no filtering or fake data
+        let appointments = Array.isArray(data) ? data : data.appointments || data.data || [];
+        
+        // Initialize records from actual API data
+        const records = appointments.map((apt, idx) => ({
+          id: apt.appointmentId || apt.id || idx,
+          date: apt.appointmentDate || apt.date,
+          patientName: apt.patientName || `${apt.firstName || ''} ${apt.lastName || ''}`.trim() || "N/A",
+          treatment: apt.treatment || apt.serviceName || apt.treatmentName || "General Consultation",
+          amount: apt.amount || apt.treatmentAmount || 0,
+          status: apt.status || "Completed",
+          paid: apt.paid || apt.paidAmount || 0,
+          pending: (apt.amount || 0) - (apt.paid || 0),
+          incentivePercent: individualIncentives[apt.appointmentId || idx] || 0,
+        }));
+
+        setSalaryCalcRecords(records);
+        setIndividualIncentives({});
+        setGlobalIncentivePercent("");
+        setShowSalaryCalcSummary(true);
+        
+        if (records.length === 0) {
+          setSalaryCalcError("ℹ️ No appointments found for the selected date range");
+        }
+      } else {
+        setSalaryCalcError("❌ Failed to fetch salary calculation records. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error fetching salary calculation records:", error);
+      setSalaryCalcError("❌ Error fetching records: " + error.message);
+    } finally {
+      setSalaryCalcLoading(false);
+    }
+  };
+
+  // Function to apply incentive percentage to all treatments
+  const handleApplyIncentiveToAll = () => {
+    if (!globalIncentivePercent || isNaN(globalIncentivePercent)) {
+      setSalaryCalcError("⚠️ Please enter a valid incentive percentage");
+      return;
+    }
+
+    const newIncentives = {};
+    salaryCalcRecords.forEach((record) => {
+      newIncentives[record.id] = parseFloat(globalIncentivePercent);
+    });
+    setIndividualIncentives(newIncentives);
+    setSalaryCalcError("");
+  };
+
+  // Function to update individual incentive percentage
+  const handleUpdateIndividualIncentive = (recordId, percentage) => {
+    setIndividualIncentives(prev => ({
+      ...prev,
+      [recordId]: parseFloat(percentage) || 0
+    }));
+  };
+
+  // Calculate incentive amount for a record
+  const calculateIncentiveAmount = (amount, incentivePercent) => {
+    return (amount * (incentivePercent || 0)) / 100;
+  };
+
+  // Calculate summary totals
+  const calculateSalaryTotals = () => {
+    let totalAmount = 0;
+    let totalPaid = 0;
+    let totalPending = 0;
+    let totalIncentive = 0;
+
+    salaryCalcRecords.forEach((record) => {
+      const incentivePercent = individualIncentives[record.id] || 0;
+      totalAmount += record.amount || 0;
+      totalPaid += record.paid || 0;
+      totalPending += record.pending || 0;
+      totalIncentive += calculateIncentiveAmount(record.amount, incentivePercent);
+    });
+
+    const fixedSalary = parseFloat(salaryDetails?.fixedSalary || selectedSalaryDoctor?.fixedSalary || 0);
+    const grandTotal = fixedSalary + totalIncentive;
+
+    return {
+      totalAmount,
+      totalPaid,
+      totalPending,
+      totalIncentive,
+      fixedSalary,
+      grandTotal
+    };
+  };
+
   const sections = [
     {
       id: 'doctors-lounge',
@@ -526,6 +689,31 @@ const TeamHub = () => {
           path: "#",
           icon: "❓",
           color: "from-red-500 to-rose-500"
+        }
+      ]
+    },
+    {
+      id: 'salary-management',
+      title: "💰 Salary Management",
+      description: "Manage associate salaries and payroll",
+      gradient: "from-emerald-500 via-teal-500 to-cyan-600",
+      bgGradient: "from-emerald-50 to-teal-50",
+      options: [
+        {
+          id: 'manage-salaries',
+          title: "💵 Manage Salaries",
+          description: "Manage salaries across clinics",
+          path: "#",
+          icon: "💼",
+          color: "from-emerald-500 to-teal-500"
+        },
+        {
+          id: 'associate-payroll',
+          title: "📊 Associate Payroll",
+          description: "View payroll information",
+          path: "#",
+          icon: "📋",
+          color: "from-teal-500 to-cyan-500"
         }
       ]
     }
@@ -615,6 +803,10 @@ const TeamHub = () => {
     if (optionId === 'security-questions') {
       setShowSecurityQuestionsModal(true);
       loadEnterprises();
+      return;
+    }
+    if (optionId === 'manage-salaries' || optionId === 'associate-payroll') {
+      setShowSalaryManagementModal(true);
       return;
     }
     navigate(path);
@@ -999,6 +1191,7 @@ const TeamHub = () => {
   // Handle security questions setup
   const handleSecurityQuestionsSubmit = async (e) => {
     e.preventDefault();
+    // Implementation for security questions
 
     // Validate selection step
     if (securityQuestionStep === 'selection') {
@@ -3970,10 +4163,14 @@ const TeamHub = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Salary Management Modal */}
+      <SalaryManagementModal 
+        isOpen={showSalaryManagementModal} 
+        onClose={() => setShowSalaryManagementModal(false)} 
+      />
     </div>
   );
 };
 
 export default TeamHub;
-
-
