@@ -199,6 +199,38 @@ export default function ViewPatients() {
   const [appointmentFromDate, setAppointmentFromDate] = useState("");
   const [appointmentToDate, setAppointmentToDate] = useState("");
 
+  // Billing viewing state
+  const [billingAppointments, setBillingAppointments] = useState([]);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState("");
+  
+  // Invoice details state
+  const [selectedAppointmentForInvoices, setSelectedAppointmentForInvoices] = useState(null);
+  const [invoicesList, setInvoicesList] = useState([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [invoicesError, setInvoicesError] = useState("");
+  
+  // Invoice line items modal state
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [lineItemsList, setLineItemsList] = useState([]);
+  const [lineItemsLoading, setLineItemsLoading] = useState(false);
+  const [showLineItemsModal, setShowLineItemsModal] = useState(false);
+
+  // Appointment Detail Modal state
+  const [selectedAppointmentDetail, setSelectedAppointmentDetail] = useState(null);
+  const [showAppointmentDetailModal, setShowAppointmentDetailModal] = useState(false);
+  const [appointmentDetailLoading, setAppointmentDetailLoading] = useState(false);
+  const [appointmentDetailError, setAppointmentDetailError] = useState("");
+  const [showDetailInvoices, setShowDetailInvoices] = useState(false);
+  const [detailInvoices, setDetailInvoices] = useState([]);
+  const [detailInvoicesLoading, setDetailInvoicesLoading] = useState(false);
+  
+  // Diagnostics Modal state
+  const [diagnosticsData, setDiagnosticsData] = useState(null);
+  const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const [diagnosticsError, setDiagnosticsError] = useState("");
+
   const genderOptions = [
     { value: "Male", label: "Male" },
     { value: "Female", label: "Female" },
@@ -273,6 +305,19 @@ export default function ViewPatients() {
     
     loadClinics();
   }, []);
+
+  // Prevent page scroll when modal is open
+  useEffect(() => {
+    if (showEditModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showEditModal]);
 
   // Validate mobile number
   const validateMobileNumber = (mobileNumber) => {
@@ -641,12 +686,251 @@ export default function ViewPatients() {
       console.log('✅ APPOINTMENTS FETCHED:', appointments);
       
       setAppointmentsList(appointments || []);
+      // If no appointments, don't show error - just show empty state
+      if (!appointments || appointments.length === 0) {
+        setAppointmentsError("");
+      }
     } catch (error) {
       console.error("❌ Failed to load appointments:", error);
-      setAppointmentsError(error.message || "Failed to load appointments. Please try again.");
-      setAppointmentsList([]);
+      // Check if it's a 404 error - if so, treat as "no data found" instead of error
+      if (error.status === 404 || error.message?.includes('404')) {
+        setAppointmentsError("");
+        setAppointmentsList([]);
+      } else {
+        setAppointmentsError("Unable to load appointments at this time.");
+        setAppointmentsList([]);
+      }
     } finally {
       setAppointmentsLoading(false);
+    }
+  };
+
+  const loadBilling = async () => {
+    setBillingLoading(true);
+    setBillingError("");
+    setBillingAppointments([]);
+    
+    try {
+      const selectedAccess = getSelectedAccess();
+      const clinicId = selectedAccess?.clinicId || editPatientData.clinicID;
+      
+      if (!clinicId) {
+        setBillingError("Clinic ID not found. Please ensure you are logged in with clinic access.");
+        setBillingLoading(false);
+        return;
+      }
+
+      console.log('💳 LOADING APPOINTMENTS for billing:', {
+        patientId: editPatientData.patientId,
+        clinicId: clinicId
+      });
+
+      const billingParams = {
+        clinicId: clinicId.toString(),
+        patientId: editPatientData.patientId
+      };
+
+      const appointments = await getAppointmentsByFilters(billingParams);
+      console.log('✅ APPOINTMENTS FOR BILLING FETCHED:', appointments);
+      setBillingAppointments(appointments || []);
+      // If no appointments, don't show error
+      if (!appointments || appointments.length === 0) {
+        setBillingError("");
+      }
+    } catch (error) {
+      console.error("❌ Failed to load appointments for billing:", error);
+      // Check if it's a 404 error - if so, treat as "no data found"
+      if (error.status === 404 || error.message?.includes('404')) {
+        setBillingError("");
+        setBillingAppointments([]);
+      } else {
+        setBillingError("Unable to load appointments at this time.");
+        setBillingAppointments([]);
+      }
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const loadInvoicesForAppointment = async (appointmentId) => {
+    setInvoicesLoading(true);
+    setInvoicesError("");
+    setInvoicesList([]);
+    setSelectedAppointmentForInvoices(appointmentId);
+    
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+      
+      console.log('🧾 FETCHING INVOICES for appointment:', appointmentId);
+      
+      const response = await fetch(`${API_BASE_URL}/Services/GetInvoiceByAppointment?appointmentId=${appointmentId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+
+      if (response.ok) {
+        const invoices = await response.json();
+        console.log('✅ INVOICES FETCHED:', invoices);
+        setInvoicesList(invoices || []);
+      } else if (response.status === 404) {
+        // No invoices found - treat as empty, not error
+        setInvoicesList([]);
+        setInvoicesError("");
+      } else {
+        setInvoicesError("Unable to load invoices at this time.");
+      }
+    } catch (error) {
+      console.error("❌ Failed to load invoices:", error);
+      // Check if it's a 404 - if so, treat as "no data found"
+      if (error.message?.includes('404')) {
+        setInvoicesList([]);
+        setInvoicesError("");
+      } else {
+        setInvoicesError("Unable to load invoices at this time.");
+      }
+    } finally {
+      setInvoicesLoading(false);
+    }
+  };
+
+  const loadLineItems = async (invoiceNumber) => {
+    setLineItemsLoading(true);
+    
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+      
+      console.log('📋 FETCHING LINE ITEMS for invoice:', invoiceNumber);
+      
+      const response = await fetch(`${API_BASE_URL}/Services/invoice/${invoiceNumber}/lineitems`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+
+      if (response.ok) {
+        const lineItems = await response.json();
+        console.log('✅ LINE ITEMS FETCHED:', lineItems);
+        setLineItemsList(lineItems || []);
+        setSelectedInvoice(invoiceNumber);
+        setShowLineItemsModal(true);
+      } else {
+        console.error('Failed to fetch line items:', response.status);
+      }
+    } catch (error) {
+      console.error("❌ Failed to load line items:", error);
+    } finally {
+      setLineItemsLoading(false);
+    }
+  };
+
+  const loadAppointmentDetail = async (appointmentId) => {
+    setAppointmentDetailLoading(true);
+    setAppointmentDetailError("");
+    setSelectedAppointmentDetail(null);
+    setShowDetailInvoices(false);
+    setDetailInvoices([]);
+    
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+      
+      console.log('📋 FETCHING APPOINTMENT DETAIL:', appointmentId);
+      
+      const response = await fetch(`${API_BASE_URL}/Appointments/GetAppointmentbyAppointmentID?appointmentId=${appointmentId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+
+      if (response.ok) {
+        const appointmentDetail = await response.json();
+        console.log('✅ APPOINTMENT DETAIL FETCHED:', appointmentDetail);
+        setSelectedAppointmentDetail(appointmentDetail);
+        setShowAppointmentDetailModal(true);
+      } else {
+        setAppointmentDetailError("Failed to load appointment details.");
+      }
+    } catch (error) {
+      console.error("❌ Failed to load appointment detail:", error);
+      setAppointmentDetailError("Unable to load appointment details.");
+    } finally {
+      setAppointmentDetailLoading(false);
+    }
+  };
+
+  const loadDetailInvoices = async (appointmentId) => {
+    setDetailInvoicesLoading(true);
+    setDetailInvoices([]);
+    
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+      
+      console.log('🧾 FETCHING INVOICES for appointment detail:', appointmentId);
+      
+      const response = await fetch(`${API_BASE_URL}/Services/GetInvoiceByAppointment?appointmentId=${appointmentId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        }
+      });
+
+      if (response.ok) {
+        const invoices = await response.json();
+        console.log('✅ INVOICES FETCHED for detail:', invoices);
+        setDetailInvoices(invoices || []);
+        setShowDetailInvoices(true);
+      } else if (response.status === 404) {
+        setDetailInvoices([]);
+        setShowDetailInvoices(true);
+      }
+    } catch (error) {
+      console.error("❌ Failed to load invoices for detail:", error);
+      setDetailInvoices([]);
+      setShowDetailInvoices(true);
+    } finally {
+      setDetailInvoicesLoading(false);
+    }
+  };
+
+  const loadDiagnostics = async (appointmentId) => {
+    setDiagnosticsLoading(true);
+    setDiagnosticsError("");
+    setDiagnosticsData(null);
+    
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+      
+      console.log('📋 FETCHING DIAGNOSTICS/PATIENT VISIT:', appointmentId);
+      
+      const response = await fetch(`${API_BASE_URL}/Patients/GetPatientVisit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: JSON.stringify({ AppointmentID: appointmentId })
+      });
+
+      if (response.ok) {
+        const diagnostics = await response.json();
+        console.log('✅ DIAGNOSTICS/PATIENT VISIT FETCHED:', diagnostics);
+        setDiagnosticsData(diagnostics);
+        setShowDiagnosticsModal(true);
+      } else {
+        setDiagnosticsError("Failed to load diagnostic information.");
+      }
+    } catch (error) {
+      console.error("❌ Failed to load diagnostics:", error);
+      setDiagnosticsError("Unable to load diagnostic information.");
+    } finally {
+      setDiagnosticsLoading(false);
     }
   };
 
@@ -938,6 +1222,19 @@ export default function ViewPatients() {
                 }`}
               >
                 📅 Appointments
+              </button>
+              <button
+                onClick={() => {
+                  setEditActiveTab("billing");
+                  loadBilling();
+                }}
+                className={`px-6 py-3 font-semibold transition-all ${
+                  editActiveTab === "billing"
+                    ? "text-amber-700 border-b-2 border-amber-600"
+                    : "text-stone-500 hover:text-amber-600"
+                }`}
+              >
+                💳 Billing & Invoices
               </button>
             </div>
 
@@ -1340,57 +1637,201 @@ export default function ViewPatients() {
                     </div>
                   )}
 
-                  {/* Appointments List */}
+                  {/* Appointments Tiles */}
                   {appointmentsLoading ? (
                     <div className="text-center py-8">
                       <p className="text-stone-600">Loading appointments...</p>
                     </div>
                   ) : appointmentsList.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr className="bg-blue-50 border-b-2 border-blue-200">
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Appointment ID</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Date</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Time</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Doctor</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Service</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Status</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-blue-900">Notes</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {appointmentsList.map((appointment, idx) => (
-                            <tr key={appointment.appointmentId} className={`border-b border-stone-200 ${idx % 2 === 0 ? 'bg-white' : 'bg-blue-50'}`}>
-                              <td className="px-4 py-3 text-sm text-stone-700">{appointment.appointmentId}</td>
-                              <td className="px-4 py-3 text-sm text-stone-700">
-                                {appointment.appointmentDate 
-                                  ? new Date(appointment.appointmentDate).toLocaleDateString() 
-                                  : "N/A"}
-                              </td>
-                              <td className="px-4 py-3 text-sm text-stone-700">{appointment.appointmentTime || "N/A"}</td>
-                              <td className="px-4 py-3 text-sm text-stone-700">{appointment.doctorName || `Dr. ID: ${appointment.doctorId}` || "N/A"}</td>
-                              <td className="px-4 py-3 text-sm text-stone-700">{appointment.serviceName || appointment.appointmentType || "N/A"}</td>
-                              <td className="px-4 py-3 text-sm">
-                                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                  appointment.appointmentStatus === "Completed" ? "bg-green-100 text-green-800" :
-                                  appointment.appointmentStatus === "Cancelled" ? "bg-red-100 text-red-800" :
-                                  appointment.appointmentStatus === "Scheduled" ? "bg-blue-100 text-blue-800" :
-                                  "bg-yellow-100 text-yellow-800"
-                                }`}>
-                                  {appointment.appointmentStatus || "Pending"}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-sm text-stone-700">{appointment.notes || appointment.remarks || "-"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {appointmentsList.map((appointment, idx) => (
+                        <motion.div
+                          key={appointment.appointmentId}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          onClick={() => loadAppointmentDetail(appointment.appointmentId)}
+                          className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-lg p-5 hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer"
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <span className="text-2xl">📅</span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              appointment.appointmentStatus === "Completed" ? "bg-green-100 text-green-800" :
+                              appointment.appointmentStatus === "Cancelled" ? "bg-red-100 text-red-800" :
+                              appointment.appointmentStatus === "Scheduled" ? "bg-blue-100 text-blue-800" :
+                              "bg-yellow-100 text-yellow-800"
+                            }`}>
+                              {appointment.appointmentStatus || "Pending"}
+                            </span>
+                          </div>
+                          <h3 className="font-bold text-slate-800 mb-2">Appointment #{appointment.appointmentId}</h3>
+                          <div className="space-y-2 text-sm">
+                            <p className="text-slate-700"><span className="font-semibold">Date:</span> {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString() : "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Time:</span> {appointment.appointmentTime || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Doctor:</span> {appointment.doctorName || `Dr. ID: ${appointment.doctorId}` || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Service:</span> {appointment.serviceName || appointment.appointmentType || "N/A"}</p>
+                            {appointment.notes && <p className="text-slate-600 italic mt-3">💬 {appointment.notes}</p>}
+                          </div>
+                        </motion.div>
+                      ))}
                     </div>
                   ) : (
                     <div className="text-center py-8 bg-stone-50 rounded-lg border border-stone-200">
                       <p className="text-stone-600">No appointments found</p>
                       <p className="text-stone-400 text-sm mt-2">Click "Search Appointments" to load data</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {editActiveTab === "billing" && (
+                <div className="space-y-4">
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+                    <p className="text-purple-800 text-sm">
+                      💳 View appointments and invoices for {editPatientData.patientFirstName} {editPatientData.patientLastName}
+                    </p>
+                  </div>
+
+                  {/* Load Billing Button */}
+                  {billingAppointments.length === 0 && !selectedAppointmentForInvoices && (
+                    <button
+                      onClick={loadBilling}
+                      disabled={billingLoading}
+                      className="mb-6 px-6 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition disabled:bg-purple-400"
+                    >
+                      {billingLoading ? "Loading..." : "Load Appointments for Billing"}
+                    </button>
+                  )}
+
+                  {billingError && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+                      <p className="font-semibold">⚠️ Info</p>
+                      <p className="text-sm">{billingError || "No appointments found"}</p>
+                    </div>
+                  )}
+
+                  {/* Show Appointments List or Invoices List */}
+                  {billingLoading ? (
+                    <div className="text-center py-8">
+                      <p className="text-stone-600">Loading appointments...</p>
+                    </div>
+                  ) : selectedAppointmentForInvoices ? (
+                    // Show Invoices for Selected Appointment
+                    <div className="space-y-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex justify-between items-center">
+                        <div>
+                          <p className="text-blue-800 font-semibold text-sm">Invoices for Appointment #{selectedAppointmentForInvoices}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedAppointmentForInvoices(null);
+                            setInvoicesList([]);
+                            setInvoicesError("");
+                          }}
+                          className="text-blue-600 hover:text-blue-800 font-semibold"
+                        >
+                          ← Back to Appointments
+                        </button>
+                      </div>
+
+                      {invoicesError && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+                          <p>{invoicesError || "No invoices found for this appointment"}</p>
+                        </div>
+                      )}
+
+                      {invoicesLoading ? (
+                        <div className="text-center py-8">
+                          <p className="text-stone-600">Loading invoices...</p>
+                        </div>
+                      ) : invoicesList.length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {invoicesList.map((invoice, idx) => (
+                            <motion.div
+                              key={invoice.invoiceNumber || idx}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: idx * 0.05 }}
+                              className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-lg p-5 hover:shadow-lg transition-all"
+                            >
+                              <div className="flex items-start justify-between mb-4">
+                                <span className="text-2xl">🧾</span>
+                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                  invoice.paymentStatus === "Paid" ? "bg-green-100 text-green-800" :
+                                  invoice.paymentStatus === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                                  "bg-red-100 text-red-800"
+                                }`}>
+                                  {invoice.paymentStatus || "Pending"}
+                                </span>
+                              </div>
+                              <h3 className="font-bold text-slate-800 mb-2">Invoice #{invoice.invoiceNumber}</h3>
+                              <div className="space-y-2 text-sm mb-4">
+                                <p className="text-slate-700"><span className="font-semibold">Date:</span> {invoice.invoiceDate ? new Date(invoice.invoiceDate).toLocaleDateString() : "N/A"}</p>
+                                {invoice.invoiceAmount && (
+                                  <div className="mt-3 pt-3 border-t border-purple-300">
+                                    <p className="text-lg font-bold text-purple-700">Amount: ₹{typeof invoice.invoiceAmount === 'number' ? invoice.invoiceAmount.toLocaleString('en-IN') : invoice.invoiceAmount}</p>
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => loadLineItems(invoice.invoiceNumber)}
+                                disabled={lineItemsLoading}
+                                className="w-full px-3 py-2 bg-purple-600 text-white rounded font-semibold hover:bg-purple-700 transition disabled:bg-purple-400 text-sm"
+                              >
+                                {lineItemsLoading ? "Loading..." : "View Details"}
+                              </button>
+                            </motion.div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 bg-stone-50 rounded-lg border border-stone-200">
+                          <p className="text-stone-600">No invoices found for this appointment</p>
+                        </div>
+                      )}
+                    </div>
+                  ) : billingAppointments.length > 0 ? (
+                    // Show Appointments List
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {billingAppointments.map((appointment, idx) => (
+                        <motion.div
+                          key={appointment.appointmentId}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-lg p-5 hover:shadow-lg transition-all hover:scale-[1.02]"
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <span className="text-2xl">📅</span>
+                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                              appointment.appointmentStatus === "Completed" ? "bg-green-100 text-green-800" :
+                              appointment.appointmentStatus === "Cancelled" ? "bg-red-100 text-red-800" :
+                              appointment.appointmentStatus === "Scheduled" ? "bg-blue-100 text-blue-800" :
+                              "bg-yellow-100 text-yellow-800"
+                            }`}>
+                              {appointment.appointmentStatus || "Pending"}
+                            </span>
+                          </div>
+                          <h3 className="font-bold text-slate-800 mb-2">Appointment #{appointment.appointmentId}</h3>
+                          <div className="space-y-2 text-sm mb-4">
+                            <p className="text-slate-700"><span className="font-semibold">Date:</span> {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString() : "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Time:</span> {appointment.appointmentTime || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Doctor:</span> {appointment.doctorName || `Dr. ID: ${appointment.doctorId}` || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Service:</span> {appointment.serviceName || appointment.appointmentType || "N/A"}</p>
+                          </div>
+                          <button
+                            onClick={() => loadInvoicesForAppointment(appointment.appointmentId)}
+                            disabled={invoicesLoading && selectedAppointmentForInvoices === appointment.appointmentId}
+                            className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition disabled:bg-purple-400"
+                          >
+                            {invoicesLoading && selectedAppointmentForInvoices === appointment.appointmentId ? "Loading..." : "Show Invoices"}
+                          </button>
+                        </motion.div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 bg-stone-50 rounded-lg border border-stone-200">
+                      <p className="text-stone-600">No appointments found</p>
+                      <p className="text-stone-400 text-sm mt-2">Click "Load Appointments for Billing" to fetch data</p>
                     </div>
                   )}
                 </div>
@@ -1403,6 +1844,13 @@ export default function ViewPatients() {
                 onClick={() => {
                   setShowEditModal(false);
                   setIsEditMode(false);
+                  // Reset all invoice-related states
+                  setSelectedAppointmentForInvoices(null);
+                  setInvoicesList([]);
+                  setInvoicesError("");
+                  setLineItemsList([]);
+                  setSelectedInvoice(null);
+                  setShowLineItemsModal(false);
                 }}
                 disabled={editIsLoading}
                 className="px-6 py-2 bg-stone-200 text-stone-700 rounded-lg font-semibold hover:bg-stone-300 transition disabled:opacity-50"
@@ -1418,6 +1866,417 @@ export default function ViewPatients() {
                   {editIsLoading ? "Saving..." : "Save Changes"}
                 </button>
               )}
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Line Items Modal */}
+      {showLineItemsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto"
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-purple-600 to-purple-700 sticky top-0 p-6 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-white">📋 Invoice Line Items</h2>
+              <button
+                onClick={() => {
+                  setShowLineItemsModal(false);
+                  setLineItemsList([]);
+                  setSelectedInvoice(null);
+                }}
+                className="text-white hover:bg-purple-700 rounded-full p-2 transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="text-stone-700"><span className="font-semibold">Invoice Number:</span> {selectedInvoice}</p>
+              </div>
+
+              {lineItemsLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-stone-600">Loading line items...</p>
+                </div>
+              ) : lineItemsList.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-stone-100 border-b border-stone-300">
+                        <th className="px-4 py-3 text-left font-semibold text-stone-700">Item Description</th>
+                        <th className="px-4 py-3 text-center font-semibold text-stone-700">Quantity</th>
+                        <th className="px-4 py-3 text-right font-semibold text-stone-700">Unit Price</th>
+                        <th className="px-4 py-3 text-right font-semibold text-stone-700">Total Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lineItemsList.map((item, idx) => (
+                        <tr key={idx} className="border-b border-stone-200 hover:bg-stone-50">
+                          <td className="px-4 py-3 text-stone-800">{item.itemDescription || item.serviceName || "Service"}</td>
+                          <td className="px-4 py-3 text-center text-stone-700">{item.quantity || 1}</td>
+                          <td className="px-4 py-3 text-right text-stone-700">₹{typeof item.unitPrice === 'number' ? item.unitPrice.toLocaleString('en-IN') : item.unitPrice || "0"}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-purple-700">₹{typeof item.totalAmount === 'number' ? item.totalAmount.toLocaleString('en-IN') : item.totalAmount || "0"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 bg-stone-50 rounded-lg">
+                  <p className="text-stone-600">No line items found</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-stone-50 p-4 border-t border-stone-200 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowLineItemsModal(false);
+                  setLineItemsList([]);
+                  setSelectedInvoice(null);
+                }}
+                className="px-6 py-2 bg-stone-300 text-stone-700 rounded-lg font-semibold hover:bg-stone-400 transition"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Appointment Detail Modal */}
+      {showAppointmentDetailModal && selectedAppointmentDetail && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 sticky top-0 p-6 flex items-center justify-between z-10">
+              <div>
+                <h2 className="text-2xl font-bold text-white">📅 Appointment Details</h2>
+                <p className="text-blue-100 text-sm mt-1">Appointment #{selectedAppointmentDetail.appointmentId}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAppointmentDetailModal(false);
+                  setSelectedAppointmentDetail(null);
+                  setShowDetailInvoices(false);
+                  setDetailInvoices([]);
+                }}
+                className="text-white hover:bg-blue-700 rounded-full p-2 transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6">
+              {appointmentDetailError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 mb-6">
+                  <p className="font-semibold">⚠️ Error</p>
+                  <p className="text-sm">{appointmentDetailError}</p>
+                </div>
+              )}
+
+              {/* Appointment Information */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-bold text-blue-900 mb-4">Basic Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Appointment Date</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.appointmentDate ? new Date(selectedAppointmentDetail.appointmentDate).toLocaleDateString() : "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Appointment Time</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.appointmentTime || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Doctor Name</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.doctorName || `Dr. ID: ${selectedAppointmentDetail.doctorId}` || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Service</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.serviceName || selectedAppointmentDetail.appointmentType || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Status</p>
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
+                      selectedAppointmentDetail.appointmentStatus === "Completed" ? "bg-green-100 text-green-800" :
+                      selectedAppointmentDetail.appointmentStatus === "Cancelled" ? "bg-red-100 text-red-800" :
+                      selectedAppointmentDetail.appointmentStatus === "Scheduled" ? "bg-blue-100 text-blue-800" :
+                      "bg-yellow-100 text-yellow-800"
+                    }`}>
+                      {selectedAppointmentDetail.appointmentStatus || "Pending"}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Clinic</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.clinicName || `Clinic ID: ${selectedAppointmentDetail.clinicId}` || "N/A"}</p>
+                  </div>
+                </div>
+                
+                {selectedAppointmentDetail.notes && (
+                  <div className="mt-4 pt-4 border-t border-blue-300">
+                    <p className="text-sm text-blue-600 font-semibold mb-2">Notes</p>
+                    <p className="text-stone-700 italic">💬 {selectedAppointmentDetail.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Invoices Section */}
+              {showDetailInvoices ? (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-bold text-purple-900">🧾 Invoices</h3>
+                    <button
+                      onClick={() => {
+                        setShowDetailInvoices(false);
+                        setDetailInvoices([]);
+                      }}
+                      className="text-purple-600 hover:text-purple-800 font-semibold text-sm"
+                    >
+                      ← Back
+                    </button>
+                  </div>
+
+                  {detailInvoicesLoading ? (
+                    <div className="text-center py-6">
+                      <p className="text-stone-600">Loading invoices...</p>
+                    </div>
+                  ) : detailInvoices.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-purple-100 border-b border-purple-300">
+                            <th className="px-4 py-3 text-left font-semibold text-purple-900">Invoice #</th>
+                            <th className="px-4 py-3 text-left font-semibold text-purple-900">Invoice Date</th>
+                            <th className="px-4 py-3 text-right font-semibold text-purple-900">Amount</th>
+                            <th className="px-4 py-3 text-center font-semibold text-purple-900">Status</th>
+                            <th className="px-4 py-3 text-center font-semibold text-purple-900">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detailInvoices.map((invoice, idx) => (
+                            <tr key={idx} className="border-b border-purple-200 hover:bg-purple-100">
+                              <td className="px-4 py-3 text-stone-800 font-semibold">{invoice.invoiceNumber}</td>
+                              <td className="px-4 py-3 text-stone-700">{invoice.invoiceDate ? new Date(invoice.invoiceDate).toLocaleDateString() : "N/A"}</td>
+                              <td className="px-4 py-3 text-right text-stone-800 font-semibold">₹{typeof invoice.invoiceAmount === 'number' ? invoice.invoiceAmount.toLocaleString('en-IN') : invoice.invoiceAmount || "0"}</td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                  invoice.paymentStatus === "Paid" ? "bg-green-100 text-green-800" :
+                                  invoice.paymentStatus === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                                  "bg-red-100 text-red-800"
+                                }`}>
+                                  {invoice.paymentStatus || "Pending"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={() => loadLineItems(invoice.invoiceNumber)}
+                                  disabled={lineItemsLoading}
+                                  className="text-blue-600 hover:text-blue-800 font-semibold text-sm disabled:text-blue-400"
+                                >
+                                  View Details
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <p className="text-stone-600">No invoices found for this appointment</p>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <button
+                  onClick={() => loadDetailInvoices(selectedAppointmentDetail.appointmentId)}
+                  disabled={detailInvoicesLoading || showDetailInvoices}
+                  className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition disabled:bg-purple-400"
+                >
+                  {detailInvoicesLoading ? "Loading..." : "💳 View Invoices"}
+                </button>
+                <button
+                  onClick={() => loadDiagnostics(selectedAppointmentDetail.appointmentId)}
+                  disabled={diagnosticsLoading}
+                  className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:bg-green-400"
+                >
+                  {diagnosticsLoading ? "Loading..." : "📋 View Diagnostics"}
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-stone-50 p-4 border-t border-stone-200 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowAppointmentDetailModal(false);
+                  setSelectedAppointmentDetail(null);
+                  setShowDetailInvoices(false);
+                  setDetailInvoices([]);
+                }}
+                className="px-6 py-2 bg-stone-300 text-stone-700 rounded-lg font-semibold hover:bg-stone-400 transition"
+              >
+                Close
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Diagnostics Modal */}
+      {showDiagnosticsModal && diagnosticsData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-green-600 to-green-700 sticky top-0 p-6 flex items-center justify-between z-10">
+              <div>
+                <h2 className="text-2xl font-bold text-white">📋 Diagnostic Information</h2>
+                <p className="text-green-100 text-sm mt-1">Patient Visit Details</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowDiagnosticsModal(false);
+                  setDiagnosticsData(null);
+                }}
+                className="text-white hover:bg-green-700 rounded-full p-2 transition"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6">
+              {diagnosticsError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 mb-6">
+                  <p className="font-semibold">⚠️ Error</p>
+                  <p className="text-sm">{diagnosticsError}</p>
+                </div>
+              )}
+
+              {diagnosticsLoading ? (
+                <div className="text-center py-12">
+                  <p className="text-stone-600">Loading diagnostic information...</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Chief Complaint */}
+                  {diagnosticsData.chiefComplaint && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <h3 className="text-sm font-bold text-green-900 mb-2">Chief Complaint</h3>
+                      <p className="text-stone-800">{diagnosticsData.chiefComplaint}</p>
+                    </div>
+                  )}
+
+                  {/* Diagnosis */}
+                  {diagnosticsData.diagnosis && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <h3 className="text-sm font-bold text-blue-900 mb-2">Diagnosis</h3>
+                      <p className="text-stone-800">{diagnosticsData.diagnosis}</p>
+                    </div>
+                  )}
+
+                  {/* Treatment Plan */}
+                  {diagnosticsData.treatmentPlan && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                      <h3 className="text-sm font-bold text-amber-900 mb-2">Treatment Plan</h3>
+                      <p className="text-stone-800">{diagnosticsData.treatmentPlan}</p>
+                    </div>
+                  )}
+
+                  {/* Prescription */}
+                  {diagnosticsData.prescription && (
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <h3 className="text-sm font-bold text-purple-900 mb-2">💊 Prescription</h3>
+                      <div className="text-stone-800 whitespace-pre-wrap">{diagnosticsData.prescription}</div>
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  {diagnosticsData.notes && (
+                    <div className="bg-stone-100 border border-stone-300 rounded-lg p-4">
+                      <h3 className="text-sm font-bold text-stone-900 mb-2">Additional Notes</h3>
+                      <p className="text-stone-800 italic">{diagnosticsData.notes}</p>
+                    </div>
+                  )}
+
+                  {/* If no diagnostic data available */}
+                  {!diagnosticsData.chiefComplaint && !diagnosticsData.diagnosis && !diagnosticsData.treatmentPlan && !diagnosticsData.prescription && !diagnosticsData.notes && (
+                    <div className="text-center py-8 bg-stone-50 rounded-lg">
+                      <p className="text-stone-600">No diagnostic information available for this appointment</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer with Download/Email Options */}
+            <div className="bg-stone-50 p-6 border-t border-stone-200 flex flex-wrap gap-3 justify-end">
+              <button
+                onClick={() => {
+                  // Download as PDF functionality
+                  const element = document.createElement('div');
+                  element.innerHTML = `
+                    <h2>Diagnostic Information</h2>
+                    ${diagnosticsData.chiefComplaint ? `<h3>Chief Complaint</h3><p>${diagnosticsData.chiefComplaint}</p>` : ''}
+                    ${diagnosticsData.diagnosis ? `<h3>Diagnosis</h3><p>${diagnosticsData.diagnosis}</p>` : ''}
+                    ${diagnosticsData.treatmentPlan ? `<h3>Treatment Plan</h3><p>${diagnosticsData.treatmentPlan}</p>` : ''}
+                    ${diagnosticsData.prescription ? `<h3>Prescription</h3><p>${diagnosticsData.prescription}</p>` : ''}
+                    ${diagnosticsData.notes ? `<h3>Notes</h3><p>${diagnosticsData.notes}</p>` : ''}
+                  `;
+                  
+                  // For now, we'll alert - in production, use a library like jspdf
+                  alert('Download as PDF functionality would require jsPDF library integration');
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+              >
+                📥 Download as PDF
+              </button>
+              <button
+                onClick={() => {
+                  // Email functionality - would require backend integration
+                  alert('Email functionality would require backend integration with email service');
+                }}
+                className="px-4 py-2 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition"
+              >
+                📧 Email
+              </button>
+              <button
+                onClick={() => {
+                  setShowDiagnosticsModal(false);
+                  setDiagnosticsData(null);
+                }}
+                className="px-4 py-2 bg-stone-300 text-stone-700 rounded-lg font-semibold hover:bg-stone-400 transition"
+              >
+                Close
+              </button>
             </div>
           </motion.div>
         </div>

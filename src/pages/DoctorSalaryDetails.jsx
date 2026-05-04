@@ -50,6 +50,9 @@ export default function DoctorSalaryDetails() {
       return;
     }
 
+    // Scroll to top when page loads
+    window.scrollTo(0, 0);
+
     const loadSalaryDetails = async () => {
       setSalaryDetailsLoading(true);
       setSalaryDetailsError("");
