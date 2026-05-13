@@ -4,6 +4,7 @@ import { createStaffDetail } from '../services/staffService';
 import { getSelectedAccess, getAuthToken } from '../services/authService';
 import { listRoles } from '../services/roleService';
 import { useModal } from '../context/ModalContext';
+import '../styles/fieldAnimations.css';
 
 const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
@@ -13,6 +14,7 @@ const GlobalOnboardStaffModal = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [validationErrors, setValidationErrors] = useState([]);
+  const [fieldErrors, setFieldErrors] = useState({}); // Track per-field errors
   const [emailError, setEmailError] = useState("");
   const [onboardedRoleName, setOnboardedRoleName] = useState("");
   const [isReceptionistMode, setIsReceptionistMode] = useState(false);
@@ -96,6 +98,75 @@ const GlobalOnboardStaffModal = () => {
     return /^\d{4}$/.test(yearPart);
   };
 
+  // Validate individual field and return error message
+  const validateField = (fieldName, fieldValue) => {
+    let error = "";
+
+    switch (fieldName) {
+      case "clinicId":
+        if (!fieldValue) error = "Clinic is mandatory";
+        break;
+      case "firstName":
+        if (!fieldValue?.trim()) error = "First name is required";
+        break;
+      case "lastName":
+        if (!fieldValue?.trim()) error = "Last name is required";
+        break;
+      case "dateOfBirth":
+        if (!fieldValue) error = "Date of birth is mandatory";
+        else if (fieldValue > todayISO) error = "Date of birth cannot be in the future";
+        break;
+      case "gender":
+        if (!fieldValue) error = "Gender selection is required";
+        break;
+      case "roleId":
+        if (!fieldValue || fieldValue === "") error = "Role assignment is mandatory";
+        break;
+      case "email":
+        if (!fieldValue?.trim()) error = "Email address is required";
+        else if (!isValidEmailWithDomain(fieldValue)) error = "Valid email with proper domain is required";
+        break;
+      case "phone":
+        if (!fieldValue) error = "Phone number is required";
+        else if (fieldValue.length !== 10) error = "Phone number must be 10 digits";
+        break;
+      case "address":
+        if (!fieldValue?.trim()) error = "Address is mandatory";
+        break;
+      case "emergencyContact":
+        if (!fieldValue) error = "Emergency contact is required";
+        else if (fieldValue.length !== 10) error = "Emergency contact must be 10 digits";
+        break;
+      case "licenseNumber":
+        if (!fieldValue?.trim()) error = "License number is required for clinical roles";
+        break;
+      case "licenseExpiry":
+        if (!fieldValue) error = "License expiry date is required";
+        else if (!hasValidFourDigitYear(fieldValue)) error = "License expiry must have valid year";
+        break;
+      case "specialtyId":
+        if (!fieldValue) error = "Specialty is required for clinical roles";
+        break;
+      case "yearsExperience":
+        if (!fieldValue || fieldValue === "") error = "Years of experience is mandatory";
+        break;
+      case "education":
+        if (!fieldValue?.trim()) error = "Education information is required";
+        break;
+      case "joiningDate":
+        if (!fieldValue) error = "Joining date is mandatory";
+        else if (!hasValidFourDigitYear(fieldValue)) error = "Joining date must have valid year";
+        break;
+      case "employmentStatus":
+        if (!fieldValue?.trim()) error = "Employment status is required";
+        break;
+      default:
+        break;
+    }
+
+    return error;
+  };
+
   // Load initial data when modal opens
   useEffect(() => {
     if (showOnboardStaffModal) {
@@ -168,8 +239,10 @@ const GlobalOnboardStaffModal = () => {
       }));
       if (value && !isValidEmailWithDomain(value)) {
         setEmailError("Please enter a valid email with a valid domain");
+        setFieldErrors(prev => ({ ...prev, [name]: "Valid email with proper domain is required" }));
       } else {
         setEmailError("");
+        setFieldErrors(prev => ({ ...prev, [name]: "" }));
       }
       return;
     }
@@ -181,6 +254,9 @@ const GlobalOnboardStaffModal = () => {
         ...prev,
         [name]: digitsOnly
       }));
+      // Validate the field
+      const error = validateField(name, digitsOnly);
+      setFieldErrors(prev => ({ ...prev, [name]: error }));
       return;
     }
 
@@ -194,6 +270,9 @@ const GlobalOnboardStaffModal = () => {
           ...prev,
           [name]: normalizedValue
         }));
+        // Validate the field
+        const error = validateField(name, normalizedValue);
+        setFieldErrors(prev => ({ ...prev, [name]: error }));
         return;
       }
 
@@ -201,6 +280,9 @@ const GlobalOnboardStaffModal = () => {
         ...prev,
         [name]: value
       }));
+      // Validate the field
+      const error = validateField(name, value);
+      setFieldErrors(prev => ({ ...prev, [name]: error }));
       return;
     }
 
@@ -209,6 +291,10 @@ const GlobalOnboardStaffModal = () => {
       ...prev,
       [name]: value
     }));
+    
+    // Validate the field
+    const error = validateField(name, value);
+    setFieldErrors(prev => ({ ...prev, [name]: error }));
   };
 
   const validateTab = (tab) => {
@@ -519,6 +605,7 @@ const GlobalOnboardStaffModal = () => {
     setActiveTab("personal");
     setShowPreview(false);
     setValidationErrors([]);
+    setFieldErrors({});
   };
 
   if (!showOnboardStaffModal) return null;
@@ -634,14 +721,14 @@ const GlobalOnboardStaffModal = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        Clinic ID <span className="text-red-500">*</span>
+                        Clinic ID <span className="mandatory-indicator">*</span>
                       </label>
                       <select
                         name="clinicId"
                         value={doctorFormData.clinicId}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("clinicId") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          fieldErrors.clinicId ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                         }`}
                       >
                         <option value="">Select clinic</option>
@@ -654,10 +741,19 @@ const GlobalOnboardStaffModal = () => {
                           );
                         })}
                       </select>
+                      {fieldErrors.clinicId && (
+                        <motion.p 
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-xs text-red-600 mt-1 field-error-message"
+                        >
+                          ⚠️ {fieldErrors.clinicId}
+                        </motion.p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        Assign Role <span className="text-red-500">*</span>
+                        Assign Role <span className="mandatory-indicator">*</span>
                       </label>
                       <select
                         name="roleId"
@@ -671,9 +767,11 @@ const GlobalOnboardStaffModal = () => {
                             role: selectedRole?.roleName || "",
                             rolesAssigned: selectedRoleId
                           }));
+                          const error = validateField("roleId", selectedRoleId);
+                          setFieldErrors(prev => ({ ...prev, roleId: error }));
                         }}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("roleId") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          fieldErrors.roleId ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                         }`}
                       >
                         <option value="">{loadingRoles ? "Loading roles..." : "Select role"}</option>
@@ -683,43 +781,70 @@ const GlobalOnboardStaffModal = () => {
                           </option>
                         ))}
                       </select>
+                      {fieldErrors.roleId && (
+                        <motion.p 
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-xs text-red-600 mt-1 field-error-message"
+                        >
+                          ⚠️ {fieldErrors.roleId}
+                        </motion.p>
+                      )}
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        First Name <span className="text-red-500">*</span>
+                        First Name <span className="mandatory-indicator">*</span>
                       </label>
                       <input
                         type="text"
                         name="firstName"
                         value={doctorFormData.firstName}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("firstName") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          fieldErrors.firstName ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                         }`}
                         placeholder="Enter first name"
                       />
+                      {fieldErrors.firstName && (
+                        <motion.p 
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-xs text-red-600 mt-1 field-error-message"
+                        >
+                          ⚠️ {fieldErrors.firstName}
+                        </motion.p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        Last Name <span className="text-red-500">*</span>
+                        Last Name <span className="mandatory-indicator">*</span>
                       </label>
                       <input
                         type="text"
                         name="lastName"
                         value={doctorFormData.lastName}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("lastName") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          fieldErrors.lastName ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                         }`}
                         placeholder="Enter last name"
                       />
+                      {fieldErrors.lastName && (
+                        <motion.p 
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-xs text-red-600 mt-1 field-error-message"
+                        >
+                          ⚠️ {fieldErrors.lastName}
+                        </motion.p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        Date of Birth <span className="text-red-500">*</span>
+                        Date of Birth <span className="mandatory-indicator">*</span>
                       </label>
                       <input
                         type="date"
@@ -727,21 +852,30 @@ const GlobalOnboardStaffModal = () => {
                         value={doctorFormData.dateOfBirth}
                         onChange={handleInputChange}
                         max={todayISO}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("dateOfBirth") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          fieldErrors.dateOfBirth ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                         }`}
                       />
+                      {fieldErrors.dateOfBirth && (
+                        <motion.p 
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-xs text-red-600 mt-1 field-error-message"
+                        >
+                          ⚠️ {fieldErrors.dateOfBirth}
+                        </motion.p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        Gender <span className="text-red-500">*</span>
+                        Gender <span className="mandatory-indicator">*</span>
                       </label>
                       <select
                         name="gender"
                         value={doctorFormData.gender}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("gender") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          fieldErrors.gender ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                         }`}
                       >
                         <option value="">Select gender</option>
@@ -749,6 +883,15 @@ const GlobalOnboardStaffModal = () => {
                         <option value="Female">Female</option>
                         <option value="Other">Other</option>
                       </select>
+                      {fieldErrors.gender && (
+                        <motion.p 
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-xs text-red-600 mt-1 field-error-message"
+                        >
+                          ⚠️ {fieldErrors.gender}
+                        </motion.p>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -764,23 +907,31 @@ const GlobalOnboardStaffModal = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        Email <span className="text-red-500">*</span>
+                        Email <span className="mandatory-indicator">*</span>
                       </label>
                       <input
                         type="email"
                         name="email"
                         value={doctorFormData.email}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          (validationErrors.includes("email") || emailError) ? "border-red-500 bg-red-50" : "border-purple-300"
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          fieldErrors.email ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                         }`}
                         placeholder="doctor@example.com"
                       />
-                      {emailError && <p className="text-xs text-red-600 mt-1">{emailError}</p>}
+                      {fieldErrors.email && (
+                        <motion.p 
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-xs text-red-600 mt-1 field-error-message"
+                        >
+                          ⚠️ {fieldErrors.email}
+                        </motion.p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        Phone <span className="text-red-500">*</span>
+                        Phone <span className="mandatory-indicator">*</span>
                       </label>
                       <div className="flex gap-2">
                         <select
@@ -793,39 +944,59 @@ const GlobalOnboardStaffModal = () => {
                             <option key={code} value={code}>{code}</option>
                           ))}
                         </select>
-                        <input
-                          type="tel"
-                          name="phone"
-                          value={doctorFormData.phone}
-                          onChange={handleInputChange}
-                          inputMode="numeric"
-                          pattern="[0-9]{10}"
-                          maxLength={10}
-                          className={`flex-1 px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            validationErrors.includes("phone") ? "border-red-500 bg-red-50" : "border-purple-300"
-                          }`}
-                          placeholder="Enter 10-digit phone number"
-                        />
+                        <div className="flex-1">
+                          <input
+                            type="tel"
+                            name="phone"
+                            value={doctorFormData.phone}
+                            onChange={handleInputChange}
+                            inputMode="numeric"
+                            pattern="[0-9]{10}"
+                            maxLength={10}
+                            className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                              fieldErrors.phone ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
+                            }`}
+                            placeholder="Enter 10-digit phone number"
+                          />
+                          {fieldErrors.phone && (
+                            <motion.p 
+                              initial={{ opacity: 0, y: -5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="text-xs text-red-600 mt-1 field-error-message"
+                            >
+                              ⚠️ {fieldErrors.phone}
+                            </motion.p>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        Address <span className="text-red-500">*</span>
+                        Address <span className="mandatory-indicator">*</span>
                       </label>
                       <textarea
                         name="address"
                         value={doctorFormData.address}
                         onChange={handleInputChange}
                         rows={3}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("address") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          fieldErrors.address ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                         }`}
                         placeholder="Enter full address"
                       />
+                      {fieldErrors.address && (
+                        <motion.p 
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-xs text-red-600 mt-1 field-error-message"
+                        >
+                          ⚠️ {fieldErrors.address}
+                        </motion.p>
+                      )}
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        Emergency Contact <span className="text-red-500">*</span>
+                        Emergency Contact <span className="mandatory-indicator">*</span>
                       </label>
                       <div className="flex gap-2">
                         <select
@@ -838,19 +1009,30 @@ const GlobalOnboardStaffModal = () => {
                             <option key={code} value={code}>{code}</option>
                           ))}
                         </select>
-                        <input
-                          type="tel"
-                          name="emergencyContact"
-                          value={doctorFormData.emergencyContact}
-                          onChange={handleInputChange}
-                          inputMode="numeric"
-                          pattern="[0-9]{10}"
-                          maxLength={10}
-                          className={`flex-1 px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                            validationErrors.includes("emergencyContact") ? "border-red-500 bg-red-50" : "border-purple-300"
-                          }`}
-                          placeholder="Enter 10-digit emergency contact number"
-                        />
+                        <div className="flex-1">
+                          <input
+                            type="tel"
+                            name="emergencyContact"
+                            value={doctorFormData.emergencyContact}
+                            onChange={handleInputChange}
+                            inputMode="numeric"
+                            pattern="[0-9]{10}"
+                            maxLength={10}
+                            className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                              fieldErrors.emergencyContact ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
+                            }`}
+                            placeholder="Enter 10-digit emergency contact number"
+                          />
+                          {fieldErrors.emergencyContact && (
+                            <motion.p 
+                              initial={{ opacity: 0, y: -5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="text-xs text-red-600 mt-1 field-error-message"
+                            >
+                              ⚠️ {fieldErrors.emergencyContact}
+                            </motion.p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -897,7 +1079,7 @@ const GlobalOnboardStaffModal = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-semibold text-purple-900 mb-2">
-                              License Number {requiresAcademic && !isAdmin ? <span className="text-red-500">*</span> : null}
+                              License Number {requiresAcademic && !isAdmin ? <span className="mandatory-indicator">*</span> : null}
                             </label>
                             <input
                               type="text"
@@ -905,15 +1087,24 @@ const GlobalOnboardStaffModal = () => {
                               value={doctorFormData.licenseNumber}
                               onChange={handleInputChange}
                               disabled={disableClinicalFields}
-                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                                disableClinicalFields ? "border-gray-200 " + disabledClass : validationErrors.includes("licenseNumber") ? "border-red-500 bg-red-50" : "border-purple-300"
+                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                                disableClinicalFields ? "border-gray-200 " + disabledClass : fieldErrors.licenseNumber ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                               }`}
                               placeholder="Medical license number"
                             />
+                            {!disableClinicalFields && fieldErrors.licenseNumber && (
+                              <motion.p 
+                                initial={{ opacity: 0, y: -5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="text-xs text-red-600 mt-1 field-error-message"
+                              >
+                                ⚠️ {fieldErrors.licenseNumber}
+                              </motion.p>
+                            )}
                           </div>
                           <div>
                             <label className="block text-sm font-semibold text-purple-900 mb-2">
-                              License Expiry {requiresAcademic && !isAdmin ? <span className="text-red-500">*</span> : null}
+                              License Expiry {requiresAcademic && !isAdmin ? <span className="mandatory-indicator">*</span> : null}
                             </label>
                             <input
                               type="date"
@@ -923,14 +1114,23 @@ const GlobalOnboardStaffModal = () => {
                               min="1000-01-01"
                               max="9999-12-31"
                               disabled={disableClinicalFields}
-                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                                disableClinicalFields ? "border-gray-200 " + disabledClass : validationErrors.includes("licenseExpiry") ? "border-red-500 bg-red-50" : "border-purple-300"
+                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                                disableClinicalFields ? "border-gray-200 " + disabledClass : fieldErrors.licenseExpiry ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                               }`}
                             />
+                            {!disableClinicalFields && fieldErrors.licenseExpiry && (
+                              <motion.p 
+                                initial={{ opacity: 0, y: -5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="text-xs text-red-600 mt-1 field-error-message"
+                              >
+                                ⚠️ {fieldErrors.licenseExpiry}
+                              </motion.p>
+                            )}
                           </div>
                           <div>
                             <label className="block text-sm font-semibold text-purple-900 mb-2">
-                              Specialty ID {requiresAcademic && !isAdmin ? <span className="text-red-500">*</span> : null}
+                              Specialty ID {requiresAcademic && !isAdmin ? <span className="mandatory-indicator">*</span> : null}
                             </label>
                             <input
                               type="text"
@@ -938,41 +1138,68 @@ const GlobalOnboardStaffModal = () => {
                               value={doctorFormData.specialtyId}
                               onChange={handleInputChange}
                               disabled={disableClinicalFields}
-                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                                disableClinicalFields ? "border-gray-200 " + disabledClass : validationErrors.includes("specialtyId") ? "border-red-500 bg-red-50" : "border-purple-300"
+                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                                disableClinicalFields ? "border-gray-200 " + disabledClass : fieldErrors.specialtyId ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                               }`}
                               placeholder="Specialty ID"
                             />
+                            {!disableClinicalFields && fieldErrors.specialtyId && (
+                              <motion.p 
+                                initial={{ opacity: 0, y: -5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="text-xs text-red-600 mt-1 field-error-message"
+                              >
+                                ⚠️ {fieldErrors.specialtyId}
+                              </motion.p>
+                            )}
                           </div>
                           <div>
                             <label className="block text-sm font-semibold text-purple-900 mb-2">
-                              Years of Experience <span className="text-red-500">*</span>
+                              Years of Experience <span className="mandatory-indicator">*</span>
                             </label>
                             <input
                               type="number"
                               name="yearsExperience"
                               value={doctorFormData.yearsExperience}
                               onChange={handleInputChange}
-                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                                validationErrors.includes("yearsExperience") ? "border-red-500 bg-red-50" : "border-purple-300"
+                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                                fieldErrors.yearsExperience ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                               }`}
                               placeholder="Years"
                             />
+                            {fieldErrors.yearsExperience && (
+                              <motion.p 
+                                initial={{ opacity: 0, y: -5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="text-xs text-red-600 mt-1 field-error-message"
+                              >
+                                ⚠️ {fieldErrors.yearsExperience}
+                              </motion.p>
+                            )}
                           </div>
                           <div className="md:col-span-2">
                             <label className="block text-sm font-semibold text-purple-900 mb-2">
-                              Education <span className="text-red-500">*</span>
+                              Education <span className="mandatory-indicator">*</span>
                             </label>
                             <textarea
                               name="education"
                               value={doctorFormData.education}
                               onChange={handleInputChange}
                               rows={2}
-                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                                validationErrors.includes("education") ? "border-red-500 bg-red-50" : "border-purple-300"
+                              className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                                fieldErrors.education ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                               }`}
                               placeholder="Educational qualifications"
                             />
+                            {fieldErrors.education && (
+                              <motion.p 
+                                initial={{ opacity: 0, y: -5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="text-xs text-red-600 mt-1 field-error-message"
+                              >
+                                ⚠️ {fieldErrors.education}
+                              </motion.p>
+                            )}
                           </div>
                           <div className="md:col-span-2">
                             <label className="block text-sm font-semibold text-purple-900 mb-2">
@@ -1017,7 +1244,7 @@ const GlobalOnboardStaffModal = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        Joining Date <span className="text-red-500">*</span>
+                        Joining Date <span className="mandatory-indicator">*</span>
                       </label>
                       <input
                         type="date"
@@ -1026,21 +1253,30 @@ const GlobalOnboardStaffModal = () => {
                         onChange={handleInputChange}
                         min="1000-01-01"
                         max="9999-12-31"
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("joiningDate") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          fieldErrors.joiningDate ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                         }`}
                       />
+                      {fieldErrors.joiningDate && (
+                        <motion.p 
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-xs text-red-600 mt-1 field-error-message"
+                        >
+                          ⚠️ {fieldErrors.joiningDate}
+                        </motion.p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-purple-900 mb-2">
-                        Employment Status <span className="text-red-500">*</span>
+                        Employment Status <span className="mandatory-indicator">*</span>
                       </label>
                       <select
                         name="employmentStatus"
                         value={doctorFormData.employmentStatus}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${
-                          validationErrors.includes("employmentStatus") ? "border-red-500 bg-red-50" : "border-purple-300"
+                        className={`w-full px-4 py-2 border-2 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${
+                          fieldErrors.employmentStatus ? "border-red-500 bg-red-50 field-shake field-invalid" : "border-purple-300"
                         }`}
                       >
                         <option value="">Select status</option>
@@ -1048,6 +1284,15 @@ const GlobalOnboardStaffModal = () => {
                         <option value="Part-Time">Part-Time</option>
                         <option value="Contract">Contract</option>
                       </select>
+                      {fieldErrors.employmentStatus && (
+                        <motion.p 
+                          initial={{ opacity: 0, y: -5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-xs text-red-600 mt-1 field-error-message"
+                        >
+                          ⚠️ {fieldErrors.employmentStatus}
+                        </motion.p>
+                      )}
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-semibold text-purple-900 mb-2">

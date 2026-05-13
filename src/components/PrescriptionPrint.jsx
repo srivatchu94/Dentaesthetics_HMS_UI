@@ -70,6 +70,18 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
     });
   };
 
+  const calculateAge = (dob) => {
+    if (!dob || dob === "0001-01-01T00:00:00") return "-";
+    const today = new Date();
+    const birthDate = new Date(dob);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const month = today.getMonth() - birthDate.getMonth();
+    if (month < 0 || (month === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age > 0 ? age : "-";
+  };
+
   // Safely extract and parse medications
   const getMedications = () => {
     if (!prescription) return [];
@@ -158,195 +170,97 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
         }
         if (node) {
           console.log('%c✅ Prescription container DOM assigned to ref', 'color: green; font-weight: bold');
-          console.log('  - Element:', node.tagName);
-          console.log('  - ID:', node.id);
-          console.log('  - Classes:', node.className);
-          console.log('  - HTML Length:', node.outerHTML.length, 'chars');
         }
       }}
-      className="prescription-print-container bg-white p-8 w-full max-w-4xl mx-auto"
+      className="prescription-print-container bg-white p-10 w-full max-w-2xl mx-auto"
       style={{ pageBreakAfter: 'always' }}
       id="prescription-print-main"
     >
-      {/* Header with Clinic Info */}
-      <div className="border-b-4 border-stone-800 pb-6 mb-6">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h1 className="text-4xl font-bold text-stone-900">
-              {clinicInfo?.clinicName || "Dentaesthetics Dental Clinic"}
-            </h1>
-            <p className="text-sm text-stone-600 mt-1">
-              {clinicInfo?.address || "Address"}
-            </p>
-          </div>
-          <div className="text-right text-stone-700">
-            <p className="font-semibold">📞 {clinicInfo?.phone || "Phone"}</p>
-            <p className="text-sm">📧 {clinicInfo?.email || "Email"}</p>
-          </div>
-        </div>
-        <div className="bg-gradient-to-r from-stone-100 to-stone-200 rounded-lg p-4">
-          <h2 className="text-2xl font-bold text-stone-800 text-center">💊 PRESCRIPTION</h2>
-        </div>
+      {/* Clinic Header */}
+      <div className="text-center mb-10 pb-4 border-b-2 border-stone-400">
+        <h1 className="text-2xl font-bold text-stone-900">
+          {clinicInfo?.clinicName || "Dental Clinic"}
+        </h1>
       </div>
 
-      {/* Doctor and Date Info */}
-      <div className="grid grid-cols-2 gap-6 mb-8 pb-4 border-b border-stone-300">
-        <div>
-          <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold mb-1">
-            Prescribed By
+      {/* Patient and Doctor Info Panel */}
+      <div className="grid grid-cols-2 gap-6 mb-10 bg-stone-50 p-6 rounded-lg border border-stone-300">
+        {/* Patient Info */}
+        <div className="border-l-4 border-stone-900 pl-4">
+          <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold mb-2">👤 Patient Name</p>
+          <p className="text-lg font-bold text-stone-900 mb-4">
+            {(patientInfo?.firstName && patientInfo?.lastName) 
+              ? `${patientInfo.firstName} ${patientInfo.lastName}` 
+              : (patientInfo?.patientName || "Patient Name")}
           </p>
-          <p className="text-lg font-bold text-stone-900">
+          <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold mb-2">📅 Age</p>
+          <p className="text-base font-semibold text-stone-800">
+            {patientInfo?.dateOfBirth ? calculateAge(patientInfo.dateOfBirth) : "-"} years
+          </p>
+        </div>
+
+        {/* Doctor Info */}
+        <div className="border-l-4 border-stone-900 pl-4">
+          <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold mb-2">👨‍⚕️ Doctor Name</p>
+          <p className="text-lg font-bold text-stone-900 mb-4">
             Dr. {doctorInfo?.doctorName || "Doctor Name"}
           </p>
-          <p className="text-sm text-stone-600">
-            Reg. No: {doctorInfo?.registrationNumber || "N/A"}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold mb-1">
-            Date
-          </p>
-          <p className="text-lg font-bold text-stone-900">
-            {formatDate(prescription?.prescriptionDate || new Date())}
+          <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold mb-2">📋 Registration Number</p>
+          <p className="text-base font-semibold text-stone-800">
+            {doctorInfo?.registrationNumber || "N/A"}
           </p>
         </div>
       </div>
 
-      {/* Patient Information */}
-      <div className="bg-stone-50 rounded-lg p-4 mb-8 border border-stone-300">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold">Patient Name</p>
-            <p className="text-sm font-bold text-stone-900 mt-1">
-              {(patientInfo?.firstName && patientInfo?.lastName) 
-                ? `${patientInfo.firstName} ${patientInfo.lastName}` 
-                : (patientInfo?.patientName || "Patient Name")}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold">Age / Sex</p>
-            <p className="text-sm font-bold text-stone-900 mt-1">
-              {patientInfo?.age || "-"} / {patientInfo?.gender || "-"}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold">Patient ID</p>
-            <p className="text-sm font-bold text-stone-900 mt-1">
-              {patientInfo?.patientId || patientInfo?.id || "-"}
-            </p>
-          </div>
-        </div>
+      {/* Prescription Date */}
+      <div className="mb-8 pb-4 border-b border-stone-300">
+        <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold">📅 Date</p>
+        <p className="text-lg font-bold text-stone-900">
+          {formatDate(prescription?.prescriptionDate || new Date())}
+        </p>
       </div>
 
-      {/* Medications Section - Grid Layout */}
-      <div className="mb-8">
-        <h3 className="text-lg font-bold text-stone-900 mb-4 pb-2 border-b-2 border-stone-400">
-          ✓ PRESCRIBED MEDICATIONS
+      {/* RX Header - Before Medications */}
+      <div className="text-center mb-8 py-6">
+        <div className="text-5xl font-bold text-stone-900">℞</div>
+      </div>
+
+      {/* Medications Section */}
+      <div className="mb-10">
+        <h3 className="text-sm uppercase font-bold text-stone-900 mb-6 pb-3 border-b-2 border-stone-900 tracking-wider">
+          Prescription
         </h3>
         
         {medications && medications.length > 0 ? (
-          <div className="border-2 border-stone-300 rounded-lg overflow-hidden">
-            {/* Table Header */}
-            <div className="grid grid-cols-12 gap-2 bg-stone-800 text-white p-3 font-bold text-xs">
-              <div className="col-span-1 text-center">#</div>
-              <div className="col-span-4">Medicine Name</div>
-              <div className="col-span-2">Dosage</div>
-              <div className="col-span-2">Frequency</div>
-              <div className="col-span-2">Duration</div>
-              <div className="col-span-1 text-center">Qty</div>
-            </div>
-            
-            {/* Table Body */}
-            {(() => {
-              try {
-                const prescriptionData = typeof prescription?.prescriptionContent === 'string'
-                  ? JSON.parse(prescription.prescriptionContent)
-                  : (Array.isArray(medications) ? medications : []);
-                
-                if (Array.isArray(prescriptionData) && prescriptionData[0]?.medicineName) {
-                  return prescriptionData.map((med, index) => (
-                    <div key={index}>
-                      <div className={`grid grid-cols-12 gap-2 p-3 text-xs ${
-                        index % 2 === 0 ? 'bg-stone-50' : 'bg-white'
-                      }`}>
-                        <div className="col-span-1 text-center font-bold text-stone-700">{index + 1}</div>
-                        <div className="col-span-4 font-semibold text-stone-900">{med.medicineName || 'N/A'}</div>
-                        <div className="col-span-2 text-stone-700">{med.dosage || '-'}</div>
-                        <div className="col-span-2 text-stone-700">{med.frequency || '-'}</div>
-                        <div className="col-span-2 text-stone-700">{med.duration || '-'}</div>
-                        <div className="col-span-1 text-center text-stone-700">-</div>
-                      </div>
-                      {med.specialInstructions && (
-                        <div className="px-3 py-2 bg-amber-50 border-t border-amber-200">
-                          <span className="text-xs font-semibold text-amber-800">⚠️ Instructions: </span>
-                          <span className="text-xs text-amber-900">{med.specialInstructions}</span>
-                        </div>
-                      )}
-                    </div>
-                  ));
-                }
-              } catch (e) {
-                console.error('Error parsing prescription:', e);
-              }
-              
-              // Fallback for simple text format
-              return medications.map((med, index) => (
-                <div key={index} className={`grid grid-cols-12 gap-2 p-3 text-xs ${
-                  index % 2 === 0 ? 'bg-stone-50' : 'bg-white'
-                }`}>
-                  <div className="col-span-1 text-center font-bold text-stone-700">{index + 1}</div>
-                  <div className="col-span-11 text-stone-700">{med}</div>
-                </div>
-              ));
-            })()}
-            
-            {/* General Notes Row */}
-            {(() => {
-              try {
-                const prescriptionData = typeof prescription?.prescriptionContent === 'string'
-                  ? JSON.parse(prescription.prescriptionContent)
-                  : null;
-                if (prescriptionData && prescriptionData[0]?.generalPrescriptionNotes) {
-                  return (
-                    <div className="bg-blue-50 p-3 border-t-2 border-blue-300">
-                      <span className="text-xs font-semibold text-blue-800">📝 General Instructions: </span>
-                      <span className="text-xs text-blue-900">{prescriptionData[0].generalPrescriptionNotes}</span>
-                    </div>
-                  );
-                }
-              } catch (e) {}
-              return null;
-            })()}
-          </div>
+          <ul className="space-y-3">
+            {medications.map((med, index) => (
+              <li key={index} className="flex items-start bg-stone-50 p-4 rounded border-l-4 border-stone-700">
+                <span className="font-bold text-stone-900 mr-4 min-w-fit">{index + 1}.</span>
+                <span className="text-stone-800 text-sm">{med}</span>
+              </li>
+            ))}
+          </ul>
         ) : (
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-stone-600">
-            <p className="text-sm">📝 No medications prescribed in this prescription.</p>
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded text-stone-600">
+            <p className="text-sm">No medications prescribed in this prescription.</p>
           </div>
         )}
       </div>
 
-      {/* Signature Section */}
-      <div className="mt-12 pt-8 border-t-2 border-stone-300 flex justify-between items-end">
-        <div>
-          <p className="text-xs text-stone-600 mb-8">Signature</p>
-          <div className="w-32 h-16 border-t border-stone-400"></div>
-          <p className="text-xs font-semibold text-stone-700 mt-2">Doctor Name</p>
-        </div>
-        <div className="text-right text-xs text-stone-600">
-          <p>Printed on: {formatDate(new Date())}</p>
-          <p className="text-xs text-stone-500 mt-2">
-            This is a computer-generated prescription. Valid without signature.
-          </p>
-        </div>
+      {/* Important Note */}
+      <div className="mb-10 p-4 bg-yellow-50 border-l-4 border-yellow-600 rounded">
+        <p className="text-xs font-bold text-yellow-800 mb-1">⚠️ IMPORTANT:</p>
+        <p className="text-xs text-yellow-900">
+          Please follow the dosage and frequency as prescribed. If you experience any adverse effects, consult your doctor immediately.
+        </p>
       </div>
 
-      {/* Footer Info */}
-      <div className="mt-12 pt-4 border-t border-stone-300 text-center">
-        <p className="text-xs text-stone-600">
-          ⚕️ This prescription is valid for <span className="font-semibold">90 days</span> from the date of issue.
-        </p>
-        <p className="text-xs text-stone-500 mt-2">
-          Patient should follow doctor's instructions carefully. Keep away from children and pets.
+      {/* Footer */}
+      <div className="pt-8 border-t border-stone-300 text-center text-xs text-stone-600">
+        <p className="font-semibold text-stone-700 mb-2">{clinicInfo?.clinicName}</p>
+        <p>📞 {clinicInfo?.phone || "Phone"} | 📧 {clinicInfo?.email || "Email"}</p>
+        <p className="text-stone-500 mt-4">
+          This is an electronically generated prescription.
         </p>
       </div>
     </div>

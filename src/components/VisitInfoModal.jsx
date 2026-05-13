@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { addPatientVisit } from "../services/appointmentService";
 import { editPatientVisit } from "../services/patientService";
 import { sendPrescriptionEmail, sendEmail } from "../services/emailService";
+import { getClinic, getDoctorById } from "../api/hmsApi";
 import PrescriptionPrint from "./PrescriptionPrint";
 import PrescriptionEmailTemplate from "./PrescriptionEmailTemplate";
 import jsPDF from "jspdf";
@@ -77,6 +78,7 @@ const VisitInfoModal = ({
   const [printPrescriptionData, setPrintPrescriptionData] = useState(null);
   const [showPrintPreviewModal, setShowPrintPreviewModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showEmailSuccessModal, setShowEmailSuccessModal] = useState(false);
   
   const localMedicineInputRef = useRef(null);
   const loadedAppointmentRef = useRef(null);
@@ -551,10 +553,10 @@ const VisitInfoModal = ({
     
     try {
       setSendingEmail(true);
-      
       const patientEmail = selectedAppointment.email || '';
       if (!patientEmail) {
         alert('Patient email not available');
+        setSendingEmail(false);
         return;
       }
 
@@ -575,19 +577,91 @@ const VisitInfoModal = ({
         patientId: selectedAppointment.patientId
       };
 
-      const doctorInfo = {
+      // Fetch doctor details from API
+      let doctorInfo = {
+        doctorId: selectedAppointment.doctorId,
         doctorName: selectedAppointment.doctorName || userData.username || 'Doctor',
         registrationNumber: selectedAppointment.registrationNumber || 'N/A'
       };
 
-      const clinicInfo = {
-        clinicName: userData.clinicName || selectedAccess.clinicName || 'My Dental Clinic',
-        address: userData.clinicAddress || selectedAccess.address || 'Clinic Address',
-        phone: userData.clinicPhone || selectedAccess.phone || '+1-555-1234',
-        email: userData.clinicEmail || selectedAccess.email || 'clinic@example.com'
+      try {
+        if (selectedAppointment.doctorId) {
+          console.log('👨‍⚕️ DOCTOR FETCH - doctorId:', selectedAppointment.doctorId);
+          const doctorDetails = await getDoctorById(selectedAppointment.doctorId.toString());
+          console.log('👨‍⚕️ DOCTOR RESPONSE OBJECT:', doctorDetails);
+          
+          if (doctorDetails) {
+            // Build doctor name from firstName and lastName
+            const doctorFirstName = doctorDetails.firstName || '';
+            const doctorLastName = doctorDetails.lastName || '';
+            const fullDoctorName = `${doctorFirstName} ${doctorLastName}`.trim() || doctorInfo.doctorName;
+            
+            doctorInfo = {
+              doctorId: doctorDetails.doctorId || selectedAppointment.doctorId,
+              doctorName: fullDoctorName,
+              registrationNumber: doctorDetails.licenseNumber || doctorInfo.registrationNumber
+            };
+            console.log('✅ Doctor info built from API:', doctorInfo);
+          } else {
+            console.warn('⚠️ Doctor API returned empty, using defaults');
+          }
+        } else {
+          console.warn('⚠️ No doctorId in appointment:', selectedAppointment.doctorId);
+        }
+      } catch (doctorError) {
+        console.error('❌ ERROR fetching doctor details:', doctorError);
+      }
+
+      // Fetch actual clinic details from API
+      let clinicInfo = {
+        clinicName: userData?.clinicName || 'Clinic Name',
+        address: userData?.clinicAddress || 'Clinic Address',
+        phone: userData?.clinicPhone || '+1-555-0000',
+        email: userData?.clinicEmail || 'clinic@dental.com'
       };
 
+      try {
+        const clinicIdFromToken = selectedAccess?.clinicId;
+        console.log('🏥 ===== CLINIC FETCH START =====');
+        console.log('🏥 clinicId from token payload:', clinicIdFromToken);
+        console.log('🏥 Full selectedAccess object:', selectedAccess);
+        console.log('🏥 userData clinic info:', {
+          clinicName: userData?.clinicName,
+          clinicAddress: userData?.clinicAddress,
+          clinicPhone: userData?.clinicPhone,
+          clinicEmail: userData?.clinicEmail
+        });
+        
+        if (clinicIdFromToken && clinicIdFromToken > 0) {
+          console.log('🏥 Calling API: getClinic(' + clinicIdFromToken + ')');
+          const clinicDetails = await getClinic(clinicIdFromToken);
+          console.log('🏥 CLINIC DETAILS AFTER PROCESSING:', clinicDetails);
+          
+          if (clinicDetails) {
+            // Extract clinic data with proper property mapping
+            clinicInfo = {
+              clinicName: clinicDetails.clinicName || clinicInfo.clinicName,
+              address: clinicDetails.clinicAddress || clinicInfo.address,
+              phone: clinicDetails.clinicPhone || clinicInfo.phone,
+              email: clinicDetails.clinicEmail || clinicInfo.email
+            };
+            console.log('✅ Clinic info from API:', clinicInfo);
+          } else {
+            console.warn('⚠️ API returned null/undefined response');
+          }
+        } else {
+          console.warn('⚠️ Invalid clinicId from token:', clinicIdFromToken, 'using userData fallback');
+        }
+      } catch (clinicError) {
+        console.error('❌ ERROR fetching clinic - will use userData fallback:', clinicError);
+      }
+
       // Use the email template
+      console.log('📧 PASSING TO EMAIL TEMPLATE:');
+      console.log('   patientInfo:', patientInfo);
+      console.log('   doctorInfo:', doctorInfo);
+      console.log('   clinicInfo:', clinicInfo);
+      
       const emailTemplate = PrescriptionEmailTemplate({ 
         prescription: prescriptionData, 
         patientInfo, 
@@ -596,18 +670,7 @@ const VisitInfoModal = ({
       });
       const emailHTML = emailTemplate.getHTML();
 
-      console.log('📧 PRESCRIPTION EMAIL DEBUG:', {
-        patientEmail,
-        subject: `Prescription from Dr. ${doctorInfo.doctorName} - ${clinicInfo.clinicName}`,
-        htmlLength: emailHTML?.length,
-        medicationCount: inlineMedications.length,
-        hasPatientEmail: !!patientEmail
-      });
-
-      // Show user which email will receive the prescription
-      alert(`📧 Sending prescription to:\n${patientEmail}`);
-
-      // Send email
+      // Send email directly
       const response = await sendEmail({
         Email: patientEmail,
         Subject: `Prescription from Dr. ${doctorInfo.doctorName} - ${clinicInfo.clinicName}`,
@@ -617,8 +680,13 @@ const VisitInfoModal = ({
       console.log('📧 EMAIL SEND RESPONSE:', response);
 
       if (response.success) {
-        alert('✅ Prescription email sent successfully!');
-        setShowEmailModal(false);
+        // Show success modal
+        setShowEmailSuccessModal(true);
+        // Auto-close modals after 2 seconds
+        setTimeout(() => {
+          setShowEmailModal(false);
+          setShowEmailSuccessModal(false);
+        }, 2000);
       } else {
         alert(`❌ Failed to send email: ${response.message || 'Unknown error'}`);
       }
@@ -1538,6 +1606,40 @@ const VisitInfoModal = ({
                     {sendingEmail ? '📤 Sending...' : '📤 Send Email'}
                   </motion.button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Email Success Modal */}
+      <AnimatePresence>
+        {showEmailSuccessModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-[80] p-4"
+          >
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 0, rotate: 180 }}
+              transition={{ type: "spring", damping: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-green-300"
+            >
+              <div className="bg-gradient-to-r from-green-600 to-green-700 p-6 text-white">
+                <h3 className="text-xl font-bold">✅ Email Sent Successfully!</h3>
+              </div>
+              <div className="p-6 space-y-4 text-center">
+                <div className="text-5xl mb-4">✉️</div>
+                <p className="text-lg font-bold text-slate-800">
+                  Prescription sent successfully!
+                </p>
+                <p className="text-sm text-slate-600">
+                  The prescription email has been sent to the patient. Closing in a moment...
+                </p>
               </div>
             </motion.div>
           </motion.div>

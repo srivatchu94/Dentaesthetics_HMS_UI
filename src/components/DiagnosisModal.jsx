@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getPatientVisit, getMedicalInfoSummary } from '../api/hmsApi';
+import { getPatientVisit, getMedicalInfoSummary, getClinic, getDoctorById } from '../api/hmsApi';
 import { sendEmail } from '../services/emailService';
 import PrescriptionPrint from './PrescriptionPrint';
 import PrescriptionEmailTemplate from './PrescriptionEmailTemplate';
@@ -80,6 +80,8 @@ const PrintPreviewModal = ({ isOpen, onClose, prescription, patientInfo, doctorI
 const EmailModal = ({ isOpen, onClose, prescription, patientInfo, doctorInfo, clinicInfo, onSend }) => {
   const [isSending, setIsSending] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState(patientInfo?.email || patientInfo?.patientEmail || '');
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleSendEmail = async () => {
     if (!recipientEmail) {
@@ -87,21 +89,58 @@ const EmailModal = ({ isOpen, onClose, prescription, patientInfo, doctorInfo, cl
       return;
     }
 
+    // Show confirmation modal
+    setShowConfirmation(true);
+  };
+
+  const handleConfirmSend = async () => {
+    setShowConfirmation(false);
     setIsSending(true);
+    
     try {
-      const emailTemplate = PrescriptionEmailTemplate({ prescription, patientInfo, doctorInfo, clinicInfo });
+      // Fetch updated doctor details from API if we have doctorId
+      let finalDoctorInfo = { ...doctorInfo };
+      try {
+        if (doctorInfo?.doctorId) {
+          const doctorDetails = await getDoctorById(doctorInfo.doctorId.toString());
+          if (doctorDetails) {
+            // Build doctor name from firstName and lastName
+            const doctorFirstName = doctorDetails.firstName || '';
+            const doctorLastName = doctorDetails.lastName || '';
+            const fullDoctorName = `${doctorFirstName} ${doctorLastName}`.trim() || doctorInfo.doctorName;
+            
+            finalDoctorInfo = {
+              doctorId: doctorDetails.doctorId || doctorInfo.doctorId,
+              doctorName: fullDoctorName,
+              registrationNumber: doctorDetails.licenseNumber || doctorInfo.registrationNumber
+            };
+            console.log('✅ Doctor details fetched successfully:', { 
+              doctorId: finalDoctorInfo.doctorId, 
+              doctorName: finalDoctorInfo.doctorName 
+            });
+          }
+        }
+      } catch (doctorError) {
+        console.warn('⚠️ Failed to fetch doctor details, using existing info:', doctorError);
+      }
+
+      const emailTemplate = PrescriptionEmailTemplate({ prescription, patientInfo, doctorInfo: finalDoctorInfo, clinicInfo });
       const emailHTML = emailTemplate.getHTML();
 
       const response = await sendEmail({
         Email: recipientEmail,
-        Subject: `Prescription from Dr. ${doctorInfo?.doctorName || 'Your Doctor'} - ${clinicInfo?.clinicName || 'Clinic'}`,
+        Subject: `Prescription from Dr. ${finalDoctorInfo?.doctorName || 'Your Doctor'} - ${clinicInfo?.clinicName || 'Clinic'}`,
         HtmlBody: emailHTML
       });
 
       if (response.success) {
-        alert('✅ Prescription email sent successfully!');
-        onClose();
-        if (onSend) onSend();
+        setShowSuccess(true);
+        // Auto-close after 2 seconds
+        setTimeout(() => {
+          setShowSuccess(false);
+          onClose();
+          if (onSend) onSend();
+        }, 2000);
       } else {
         alert('❌ Failed to send email. Please try again.');
       }
@@ -113,85 +152,182 @@ const EmailModal = ({ isOpen, onClose, prescription, patientInfo, doctorInfo, cl
     }
   };
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
-          onClick={onClose}
-        >
-          <motion.div
-            initial={{ scale: 0.95, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.95, y: 20 }}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl shadow-2xl max-w-md w-full border-2 border-green-200"
-          >
-            {/* Header */}
-            <div className="bg-gradient-to-r from-green-600 to-green-700 p-6 flex items-center justify-between text-white">
-              <h2 className="text-2xl font-bold">📧 Send Email</h2>
-              <button
-                onClick={onClose}
-                className="text-2xl hover:bg-white/20 p-2 rounded-full transition"
-              >
-                ✕
-              </button>
-            </div>
+  const handleCancelConfirmation = () => {
+    setShowConfirmation(false);
+  };
 
-            {/* Content */}
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-bold text-slate-800 mb-2">
-                  Recipient Email Address
-                </label>
-                <input
-                  type="email"
-                  value={recipientEmail}
-                  onChange={(e) => setRecipientEmail(e.target.value)}
-                  placeholder="patient@example.com"
-                  className="w-full p-3 border-2 border-green-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                />
+  return (
+    <>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4"
+            onClick={onClose}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl shadow-2xl max-w-md w-full border-2 border-green-200"
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-green-600 to-green-700 p-6 flex items-center justify-between text-white">
+                <h2 className="text-2xl font-bold">📧 Send Email</h2>
+                <button
+                  onClick={onClose}
+                  className="text-2xl hover:bg-white/20 p-2 rounded-full transition"
+                >
+                  ✕
+                </button>
               </div>
 
-              <div className="bg-green-50 p-4 rounded-xl border border-green-200">
-                <p className="text-sm text-green-800">
-                  <strong>📧 Email will include:</strong>
-                  <ul className="mt-2 space-y-1 ml-4">
-                    <li>✓ Clinic name & details</li>
-                    <li>✓ Doctor information</li>
-                    <li>✓ Prescription details</li>
-                    <li>✓ Medications list</li>
-                  </ul>
+              {/* Content */}
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-800 mb-2">
+                    Recipient Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
+                    placeholder="patient@example.com"
+                    className="w-full p-3 border-2 border-green-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+                  <p className="text-sm text-green-800">
+                    <strong>📧 Email will include:</strong>
+                    <ul className="mt-2 space-y-1 ml-4">
+                      <li>✓ Clinic name & details</li>
+                      <li>✓ Doctor information</li>
+                      <li>✓ Prescription details</li>
+                      <li>✓ Medications list</li>
+                    </ul>
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t-2 border-green-200">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={onClose}
+                    className="flex-1 px-4 py-3 bg-slate-200 text-slate-800 rounded-lg font-bold hover:bg-slate-300 transition text-sm"
+                  >
+                    ✕ Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleSendEmail}
+                    disabled={isSending}
+                    className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 text-sm"
+                  >
+                    {isSending ? '📤 Sending...' : '📤 Send Email'}
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirmation && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-[80] p-4"
+            onClick={handleCancelConfirmation}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 30 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-blue-300"
+            >
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
+                <h3 className="text-xl font-bold">📧 Confirm Email</h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    <strong>Sending prescription to:</strong>
+                  </p>
+                  <p className="text-lg font-bold text-blue-900 mt-2">
+                    {patientInfo?.patientFirstName} {patientInfo?.patientLastName}
+                  </p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    📧 {recipientEmail}
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleCancelConfirmation}
+                    className="flex-1 px-4 py-2 bg-slate-300 text-slate-800 rounded-lg font-bold hover:bg-slate-400 transition text-sm"
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleConfirmSend}
+                    disabled={isSending}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 text-sm"
+                  >
+                    {isSending ? 'Sending...' : 'Send Now'}
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-[80] p-4"
+          >
+            <motion.div
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              exit={{ scale: 0, rotate: 180 }}
+              transition={{ type: "spring", damping: 10 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-green-300"
+            >
+              <div className="bg-gradient-to-r from-green-600 to-green-700 p-6 text-white">
+                <h3 className="text-xl font-bold">✅ Email Sent Successfully!</h3>
+              </div>
+              <div className="p-6 space-y-4 text-center">
+                <div className="text-5xl mb-4">✉️</div>
+                <p className="text-lg font-bold text-slate-800">
+                  Prescription sent successfully!
+                </p>
+                <p className="text-sm text-slate-600">
+                  The prescription email has been sent to the patient. Closing in a moment...
                 </p>
               </div>
-
-              <div className="flex gap-3 pt-4 border-t-2 border-green-200">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={onClose}
-                  className="flex-1 px-4 py-3 bg-slate-200 text-slate-800 rounded-lg font-bold hover:bg-slate-300 transition text-sm"
-                >
-                  ✕ Cancel
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleSendEmail}
-                  disabled={isSending}
-                  className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 text-sm"
-                >
-                  {isSending ? '📤 Sending...' : '📤 Send Email'}
-                </motion.button>
-              </div>
-            </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+    </>
   );
 };
 
@@ -368,25 +504,47 @@ export default function DiagnosisModal({ isOpen, onClose, appointmentId, initial
               }
               
               // Extract clinic info from appointment or user data
+              let clinicData = null;
               if (appointmentDetails.clinic) {
-                setClinicInfo(appointmentDetails.clinic);
+                clinicData = appointmentDetails.clinic;
               } else {
                 const userData = localStorage.getItem('userData');
                 if (userData) {
                   try {
                     const parsed = JSON.parse(userData);
-                    setClinicInfo({
+                    clinicData = {
                       clinicName: parsed.clinicName || 'My Dental Clinic',
                       clinicId: parsed.clinicId,
                       address: parsed.clinicAddress || 'Clinic Address',
                       phone: parsed.clinicPhone || '+1-555-1234',
                       email: parsed.clinicEmail || 'clinic@example.com'
-                    });
+                    };
                   } catch (e) {
                     console.warn('Error parsing user data');
                   }
                 }
               }
+
+              // Fetch actual clinic details from API if we have a clinic ID
+              if (clinicData?.clinicId) {
+                try {
+                  const clinicDetails = await getClinic(clinicData.clinicId);
+                  if (clinicDetails) {
+                    clinicData = {
+                      clinicName: clinicDetails.clinicName || clinicData.clinicName,
+                      clinicId: clinicDetails.clinicId || clinicData.clinicId,
+                      address: clinicDetails.clinicAddress || clinicData.address,
+                      phone: clinicDetails.clinicPhone || clinicData.phone,
+                      email: clinicDetails.clinicEmail || clinicData.email
+                    };
+                    console.log('✅ Clinic details fetched successfully:', clinicData);
+                  }
+                } catch (clinicError) {
+                  console.warn('⚠️ Failed to fetch clinic details from API:', clinicError);
+                }
+              }
+
+              setClinicInfo(clinicData);
             }
           } catch (err) {
             console.warn('⚠️ Could not fetch appointment details:', err);

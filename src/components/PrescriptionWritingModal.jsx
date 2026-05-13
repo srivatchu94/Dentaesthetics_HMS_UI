@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { listInventoryMasters, createInventoryMaster } from "../services/inventoryService";
 import { addPrescription } from "../services/appointmentService";
+import { sendEmail } from "../services/emailService";
+import { getClinic, getDoctorById } from "../api/hmsApi";
 import PrescriptionEmailTemplate from "./PrescriptionEmailTemplate";
 import InventoryAutoComplete from "./InventoryAutoComplete";
 
@@ -32,6 +34,7 @@ const PrescriptionWritingModal = ({
   const [savingPrescription, setSavingPrescription] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [medicationToAdd, setMedicationToAdd] = useState(null);
+  const [showEmailSuccessModal, setShowEmailSuccessModal] = useState(false);
 
   const categoryOptions = {
     Medicines: ["General", "Antibiotic", "Analgesic", "Anti-inflammatory", "Steroid", "Antiseptic"],
@@ -307,31 +310,21 @@ const PrescriptionWritingModal = ({
 
   const handleSendEmail = async () => {
     try {
-      setSendingEmail(true);
+      const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+      const selectedAccess = JSON.parse(localStorage.getItem("selectedAccess") || "{}");
       
-      // ===== COMPREHENSIVE LOGGING =====
-      console.log('🔍 ===== PRESCRIPTION EMAIL SEND CALLED =====');
-      console.log('📋 Full patientInfo object:', patientInfo);
-      console.log('📧 patientInfo?.patientEmail:', patientInfo?.patientEmail);
-      console.log('📧 patientInfo?.email:', patientInfo?.email);
-      console.log('📧 patientInfo?.patientContact:', patientInfo?.patientContact);
-      console.log('📧 patientInfo?.patientContact?.patientEmail:', patientInfo?.patientContact?.patientEmail);
-      
-      // Validate email exists with multiple fallback options
-      const patientEmail = (patientInfo?.patientContact?.patientEmail 
+      // Get patient email
+      const patientEmail = patientInfo?.patientContact?.patientEmail 
         || patientInfo?.patientEmail 
         || patientInfo?.email 
-        || '').trim() ? 
-        (patientInfo?.patientContact?.patientEmail 
-          || patientInfo?.patientEmail 
-          || patientInfo?.email).trim()
-        : 'srivatchu94@gmail.com';
+        || '';
       
-      console.log('✅ Final patientEmail being used for prescription:', patientEmail);
-      
-      if (!patientEmail || patientEmail === 'srivatchu94@gmail.com') {
-        console.warn('⚠️ Using fallback email: srivatchu94@gmail.com');
+      if (!patientEmail) {
+        alert("❌ Patient email not available");
+        return;
       }
+
+      setSendingEmail(true);
       
       // Validate medications
       const validMeds = medications.filter(med => med.name && med.dosage && med.frequency && med.duration);
@@ -351,24 +344,83 @@ const PrescriptionWritingModal = ({
         medicationsList: validMeds
       };
 
-      // Ensure complete doctor info - extract from multiple sources
-      const completeDoctorInfo = {
+      // Ensure complete doctor info
+      let completeDoctorInfo = {
         doctorId: doctorInfo?.doctorId || appointmentDetails?.doctorId || userData?.doctorId,
         doctorName: doctorInfo?.doctorName || doctorInfo?.doctor_name || appointmentDetails?.doctorName || userData?.username || "Dr. Physician",
-        specialization: doctorInfo?.specialization || doctorInfo?.specialty || appointmentDetails?.specialty || "General Dentistry",
-        registrationNumber: doctorInfo?.registrationNumber || doctorInfo?.registration_number || appointmentDetails?.registrationNumber || "LIC-001",
-        clinicName: doctorInfo?.clinicName || appointmentDetails?.clinicName || "Dental Clinic",
-        clinicAddress: doctorInfo?.clinicAddress || appointmentDetails?.address || "Clinic Address",
-        clinicPhone: doctorInfo?.clinicPhone || appointmentDetails?.phone || "Contact"
+        registrationNumber: doctorInfo?.registrationNumber || doctorInfo?.registration_number || appointmentDetails?.registrationNumber || "LIC-001"
       };
 
-      // Ensure complete clinic info
-      const completeClinicInfo = {
-        clinicName: appointmentDetails?.clinicName || completeDoctorInfo.clinicName || "Dental Clinic",
-        address: appointmentDetails?.address || completeDoctorInfo.clinicAddress || "Address",
-        phone: appointmentDetails?.phone || completeDoctorInfo.clinicPhone || "Contact",
-        email: appointmentDetails?.clinicEmail || "clinic@example.com"
+      // Fetch actual doctor details from API
+      try {
+        const doctorId = doctorInfo?.doctorId || appointmentDetails?.doctorId;
+        if (doctorId) {
+          console.log('👨‍⚕️ DOCTOR FETCH - doctorId:', doctorId);
+          const doctorDetails = await getDoctorById(doctorId.toString());
+          console.log('👨‍⚕️ DOCTOR RESPONSE OBJECT:', doctorDetails);
+          
+          if (doctorDetails) {
+            // Build doctor name from firstName and lastName
+            const doctorFirstName = doctorDetails.firstName || '';
+            const doctorLastName = doctorDetails.lastName || '';
+            const fullDoctorName = `${doctorFirstName} ${doctorLastName}`.trim() || completeDoctorInfo.doctorName;
+            
+            completeDoctorInfo = {
+              doctorId: doctorDetails.doctorId || doctorId,
+              doctorName: fullDoctorName,
+              registrationNumber: doctorDetails.licenseNumber || completeDoctorInfo.registrationNumber
+            };
+            console.log('✅ Doctor info built from API:', completeDoctorInfo);
+          } else {
+            console.warn('⚠️ Doctor API returned empty, using defaults');
+          }
+        }
+      } catch (doctorError) {
+        console.warn('⚠️ Failed to fetch doctor details, using defaults:', doctorError);
+      }
+
+      // Default clinic info with fallbacks
+      let completeClinicInfo = {
+        clinicName: appointmentDetails?.clinicName || userData?.clinicName || "Dental Clinic",
+        address: appointmentDetails?.address || userData?.clinicAddress || "Address",
+        phone: "Contact clinic for information",
+        email: "clinic@example.com"
       };
+
+      // Fetch actual clinic details from API
+      try {
+        const clinicIdFromAppointment = appointmentDetails?.clinicId;
+        const clinicIdFromToken = selectedAccess?.clinicId;
+        const clinicIdToUse = clinicIdFromAppointment || clinicIdFromToken;
+        
+        console.log('🏥 ===== CLINIC FETCH START =====');
+        console.log('🏥 clinicId from appointmentDetails:', clinicIdFromAppointment);
+        console.log('🏥 clinicId from token:', clinicIdFromToken);
+        console.log('🏥 Using clinicId:', clinicIdToUse);
+        
+        if (clinicIdToUse && clinicIdToUse > 0) {
+          console.log('🏥 Calling API: getClinic(' + clinicIdToUse + ')');
+          const clinicDetails = await getClinic(clinicIdToUse);
+          console.log('🏥 CLINIC DETAILS AFTER PROCESSING:', clinicDetails);
+          
+          if (clinicDetails) {
+            // Extract clinic data with proper property mapping
+            completeClinicInfo = {
+              clinicName: clinicDetails.clinicName || completeClinicInfo.clinicName,
+              address: clinicDetails.clinicAddress || completeClinicInfo.address,
+              phone: clinicDetails.clinicPhone || completeClinicInfo.phone,
+              email: clinicDetails.clinicEmail || completeClinicInfo.email
+            };
+            console.log('✅ Clinic info from API:', completeClinicInfo);
+          } else {
+            console.warn('⚠️ API returned null/undefined response');
+          }
+        } else {
+          console.warn('⚠️ Invalid clinicId:', clinicIdToUse, 'using defaults from appointmentDetails or userData');
+        }
+      } catch (clinicError) {
+        console.error('❌ ERROR fetching clinic - will use defaults:', clinicError);
+      }
       
       // Generate email template with complete information
       const emailTemplate = PrescriptionEmailTemplate({
@@ -379,29 +431,31 @@ const PrescriptionWritingModal = ({
       });
       
       const emailHTML = emailTemplate.getHTML();
-      
-      console.log('📧 Sending email with template:', {
-        to: patientEmail,
-        subject: `Prescription from Dr. ${completeDoctorInfo.doctorName || 'Physician'}`,
-        medications: validMeds.length,
-        patientName: `${patientInfo?.patientFirstName} ${patientInfo?.patientLastName}`,
-        doctorName: completeDoctorInfo.doctorName,
-        doctorId: completeDoctorInfo.doctorId,
-        clinicName: completeClinicInfo.clinicName
+
+      // Send email directly
+      const response = await sendEmail({
+        Email: patientEmail,
+        Subject: `Prescription from Dr. ${completeDoctorInfo.doctorName || 'Physician'}`,
+        HtmlBody: emailHTML
       });
-      
-      // Copy email HTML to clipboard
-      navigator.clipboard.writeText(emailHTML).then(() => {
-        alert(`✅ Email template generated and copied!\\n\\nRecipient: ${patientEmail}\\n\\nYou can now paste this into your email client to send to the patient.`);
-        console.log('✅ Email HTML copied to clipboard');
-      }).catch(err => {
-        console.error('Failed to copy to clipboard:', err);
-        alert(`✅ Email template generated!\\n\\nRecipient: ${patientEmail}\\n\\nPlease check the browser console for the email content.`);
-      });
+
+      console.log('📧 EMAIL SEND RESPONSE:', response);
+
+      if (response.success) {
+        // Show success modal
+        setShowEmailSuccessModal(true);
+        // Auto-close modals after 2 seconds
+        setTimeout(() => {
+          setShowEmailSuccessModal(false);
+          onClose();
+        }, 2000);
+      } else {
+        alert(`❌ Failed to send email: ${response.message || 'Unknown error'}`);
+      }
       
     } catch (error) {
-      console.error('Error sending email:', error);
-      alert(`❌ Error preparing email: ${error.message}`);
+      console.error('❌ Error sending email:', error);
+      alert(`❌ Error sending email: ${error.message || 'Please try again.'}`);
     } finally {
       setSendingEmail(false);
     }
@@ -875,6 +929,40 @@ const PrescriptionWritingModal = ({
 
           {/* Add Medication Modal */}
           <AddMedicationModal />
+
+          {/* Email Success Modal */}
+          <AnimatePresence>
+            {showEmailSuccessModal && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/60 flex items-center justify-center z-[80] p-4"
+              >
+                <motion.div
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  exit={{ scale: 0, rotate: 180 }}
+                  transition={{ type: "spring", damping: 10 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white rounded-2xl shadow-2xl max-w-md w-full border-2 border-green-300"
+                >
+                  <div className="bg-gradient-to-r from-green-600 to-green-700 p-6 text-white">
+                    <h3 className="text-xl font-bold">✅ Email Sent Successfully!</h3>
+                  </div>
+                  <div className="p-6 space-y-4 text-center">
+                    <div className="text-5xl mb-4">✉️</div>
+                    <p className="text-lg font-bold text-slate-800">
+                      Prescription sent successfully!
+                    </p>
+                    <p className="text-sm text-slate-600">
+                      The prescription email has been sent to the patient. Closing in a moment...
+                    </p>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </motion.div>
     </AnimatePresence>

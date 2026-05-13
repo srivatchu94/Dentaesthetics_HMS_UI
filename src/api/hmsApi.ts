@@ -56,8 +56,33 @@ export function listClinics(): Promise<ClinicModel[]> {
   return request<ClinicModel[]>("/Clinic");
 }
 
-export function getClinic(clinicId: number): Promise<ClinicModel> {
-  return request<ClinicModel>(`/Clinic/GetClinicByID?id=${clinicId}`);
+export async function getClinic(clinicId: number): Promise<ClinicModel> {
+  console.log('🏥 API CALL: getClinic with clinicId:', clinicId);
+  try {
+    const response = await request<any>(`/Clinic/GetClinicByClinicId?id=${clinicId}`);
+    console.log('🏥 CLINIC API RAW RESPONSE:', response);
+    
+    // Handle array response - API returns array of clinics
+    const data = Array.isArray(response) ? response[0] : response;
+    console.log('🏥 CLINIC API PROCESSED (first element):', data);
+    console.log('🏥 Response properties:', Object.keys(data || {}));
+    console.log('🏥 Extracted values:');
+    console.log('   clinicName:', data?.clinicName);
+    console.log('   clinicAddress:', data?.clinicAddress);
+    console.log('   clinicPhone:', data?.clinicPhone);
+    console.log('   clinicEmail:', data?.clinicEmail);
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Failed to fetch clinic:', error);
+    throw error;
+  }
+}
+
+// Get clinic details passing list of clinic IDs (newer API version)
+export function getClinicsByIds(clinicIds: number[]): Promise<ClinicModel[]> {
+  const ids = clinicIds.map(id => `id=${id}`).join('&');
+  return request<ClinicModel[]>(`/Clinic/GetClinicByClinicId?${ids}`);
 }
 
 export interface CreateClinicDto {
@@ -642,4 +667,29 @@ export function getMedicalInfoSummary(patientId: number): Promise<any> {
       console.error('❌ FAILED TO FETCH MEDICAL INFO SUMMARY:', error);
       throw error;
     });
+}
+
+// ============================================
+// DOCTOR PROFILE ENDPOINTS
+// ============================================
+
+export async function getDoctorById(doctorId: string): Promise<any> {
+  console.log('�‍⚕️ API CALL: getDoctorById with doctorId:', doctorId);
+  try {
+    const data = await request<any>(`/DoctorProfile/GetDoctorById?id=${doctorId}`);
+    console.log('👨‍⚕️ DOCTOR API FULL RESPONSE:', data);
+    console.log('👨‍⚕️ Response properties:', Object.keys(data || {}));
+    console.log('👨‍⚕️ Extracted values:');
+    console.log('   doctorId:', data?.doctorId);
+    console.log('   firstName:', data?.firstName);
+    console.log('   lastName:', data?.lastName);
+    console.log('   email:', data?.email);
+    console.log('   licenseNumber:', data?.licenseNumber);
+    console.log('   phone:', data?.phone);
+    
+    return data;
+  } catch (error) {
+    console.error('❌ Failed to fetch doctor details:', error);
+    throw error;
+  }
 }
