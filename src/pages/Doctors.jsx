@@ -9335,12 +9335,12 @@ export default function Doctors() {
                     <h3 className="font-bold text-stone-800 mb-4">Service Fee Schedule</h3>
                     <div className="space-y-2">
                       {[
-                        { service: "General Consultation", fee: "€50" },
-                        { service: "Teeth Cleaning", fee: "€80" },
-                        { service: "Tooth Extraction", fee: "€120" },
-                        { service: "Dental Filling", fee: "€90" },
-                        { service: "Root Canal", fee: "€350" },
-                        { service: "Teeth Whitening", fee: "€200" }
+                        { service: "General Consultation", fee: "₹50" },
+                        { service: "Teeth Cleaning", fee: "₹80" },
+                        { service: "Tooth Extraction", fee: "₹120" },
+                        { service: "Dental Filling", fee: "₹90" },
+                        { service: "Root Canal", fee: "₹350" },
+                        { service: "Teeth Whitening", fee: "₹200" }
                       ].map((item, idx) => (
                         <div key={idx} className="flex items-center justify-between p-3 bg-rose-50 rounded-lg">
                           <span className="font-medium text-stone-800">{item.service}</span>
@@ -9402,7 +9402,7 @@ export default function Doctors() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200">
                       <p className="text-sm text-stone-600 mb-1">Monthly Revenue</p>
-                      <p className="text-3xl font-bold text-amber-700">€45,280</p>
+                      <p className="text-3xl font-bold text-amber-700">₹45,280</p>
                       <p className="text-xs text-emerald-600 mt-2">↑ 12.5% from last month</p>
                     </div>
                     <div className="p-6 bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl border border-teal-200">
@@ -9570,7 +9570,7 @@ export default function Doctors() {
                                 <p className="text-xs text-stone-500">minimum</p>
                               </td>
                               <td className="px-6 py-4 text-right">
-                                <span className="text-lg font-bold text-green-700">€{parseFloat(item.unitCost || item.cost || 0).toFixed(2)}</span>
+                                <span className="text-lg font-bold text-green-700">₹{parseFloat(item.unitCost || item.cost || 0).toFixed(2)}</span>
                               </td>
                               <td className="px-6 py-4 text-center">
                                 <span className={`inline-block px-3 py-1.5 rounded-full text-xs font-semibold ${statusColor}`}>
@@ -9841,7 +9841,7 @@ export default function Doctors() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-stone-700 mb-2">Unit Cost (€) *</label>
+                  <label className="block text-sm font-semibold text-stone-700 mb-2">Unit Cost (₹) *</label>
                   <input
                     type="number"
                     value={inventoryFormData.unitCost}
