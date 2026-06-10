@@ -379,7 +379,6 @@ const FullEditAppointmentModal = ({
               {[
                 { id: 'patient', label: ' Patient Info', icon: '👤' },
                 { id: 'appointment', label: ' Appointment', icon: '📅' },
-                { id: 'billing', label: ' Billing', icon: '💰' },
                 { id: 'other', label: ' Other Details', icon: '📝' }
               ].map(tab => (
                 <motion.button
@@ -635,92 +634,6 @@ const FullEditAppointmentModal = ({
                           rows="3"
                           placeholder="Additional notes"
                         />
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* BILLING TAB */}
-              {activeEditSection === 'billing' && (
-                <motion.div
-                  key="billing"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.2 }}
-                  className="space-y-6"
-                >
-                  <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-6 border-2 border-yellow-200 shadow-md">
-                    <h3 className="text-xl font-bold text-yellow-900 mb-4 flex items-center gap-2">
-                      <span>💰</span> Payment Information
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-bold text-stone-700 mb-2">Billable Amount (₹)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={editFormData.billableAmount || ""}
-                          onChange={(e) => handleLocalInputChange("billableAmount", e.target.value)}
-                          className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 transition ${
-                            fieldErrors.billableAmount
-                              ? 'border-red-400 focus:ring-red-400 focus:border-red-400 bg-red-50'
-                              : 'border-yellow-300 focus:ring-yellow-500 focus:border-yellow-500'
-                          }`}
-                          placeholder="0.00"
-                        />
-                        {fieldErrors.billableAmount && (
-                          <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                            <span>⚠️</span> {fieldErrors.billableAmount}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-stone-700 mb-2">Paid Amount (₹)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={editFormData.paidAmount || ""}
-                          onChange={(e) => handleLocalInputChange("paidAmount", e.target.value)}
-                          className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 transition ${
-                            fieldErrors.paidAmount
-                              ? 'border-red-400 focus:ring-red-400 focus:border-red-400 bg-red-50'
-                              : 'border-yellow-300 focus:ring-yellow-500 focus:border-yellow-500'
-                          }`}
-                          placeholder="0.00"
-                        />
-                        {fieldErrors.paidAmount && (
-                          <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                            <span>⚠️</span> {fieldErrors.paidAmount}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-stone-700 mb-2">Pending Amount (₹)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={(parseFloat(editFormData.billableAmount || 0) - parseFloat(editFormData.paidAmount || 0)).toFixed(2)}
-                          disabled
-                          className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl bg-gray-100 text-gray-700 cursor-not-allowed"
-                          placeholder="0.00"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-stone-700 mb-2">Payment Status</label>
-                        <select
-                          value={editFormData.paymentStatus || "Pending"}
-                          onChange={(e) => handleLocalInputChange("paymentStatus", e.target.value)}
-                          className="w-full px-4 py-3 border-2 border-yellow-300 rounded-xl focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 transition"
-                        >
-                          <option value="Pending">Pending</option>
-                          <option value="Paid">Paid</option>
-                          <option value="Partial">Partial</option>
-                          <option value="Invoice">Invoice</option>
-                        </select>
                       </div>
                     </div>
                   </div>
@@ -4822,38 +4735,6 @@ export default function Doctors() {
                       <span className="text-stone-600 font-medium">Status:</span>
                       <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${getStatusColor(selectedAppointmentDetails.status || 'Scheduled')}`}>
                         {selectedAppointmentDetails.status || 'Scheduled'}
-                      </span>
-                    </div>
-                  </div>
-                </motion.div>
-
-                {/* Billing & Payment Card */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="bg-gradient-to-br from-emerald-50 via-green-50 to-lime-50 rounded-2xl p-6 border-2 border-emerald-200 shadow-md h-fit"
-                >
-                  <h3 className="text-lg font-bold text-emerald-900 mb-4 flex items-center gap-2">
-                    <span className="text-2xl">💳</span> Billing
-                  </h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between pb-2 border-b border-emerald-100">
-                      <span className="text-stone-600 font-medium">Billable:</span>
-                      <span className="font-bold text-stone-800">₹{selectedAppointmentDetails.billableAmount ?? '0'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-stone-600 font-medium">Paid:</span>
-                      <span className="font-bold text-green-700">₹{selectedAppointmentDetails.paidAmount ?? '0'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-stone-600 font-medium">Pending:</span>
-                      <span className="font-bold text-amber-700">₹{selectedAppointmentDetails.pendingAmount ?? '0'}</span>
-                    </div>
-                    <div className="flex justify-between pt-2 border-t border-emerald-100">
-                      <span className="text-stone-600 font-medium">Status:</span>
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${getStatusColor(selectedAppointmentDetails.paymentStatus || 'Pending')}`}>
-                        {selectedAppointmentDetails.paymentStatus || 'Pending'}
                       </span>
                     </div>
                   </div>
