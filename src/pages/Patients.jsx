@@ -7643,10 +7643,6 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         <p className="text-base font-bold text-slate-800 px-4 py-2">{selectedAppointmentDetails.visitId || 'N/A'}</p>
                       </div>
                       <div>
-                        <label className="block text-sm text-slate-500 font-medium mb-1">Billable Amount</label>
-                        <p className="text-base font-bold text-slate-800 px-4 py-2">₹{selectedAppointmentDetails.billableAmount || 0}</p>
-                      </div>
-                      <div>
                         <label className="block text-sm text-slate-500 font-medium mb-1">Appointment Status</label>
                         <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold ${
                           selectedAppointmentDetails.status === 'Completed' ? 'bg-green-100 text-green-700 border border-green-300' :
@@ -7660,96 +7656,25 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </div>
                   </div>
 
-                  {/* Billing Information */}
-                  <div className="bg-white rounded-2xl p-6 shadow-lg">
-                    <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                      <span>💰</span>
-                      Billing Information
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm text-slate-500 font-medium mb-1">Billable Amount</label>
-                        {isEditingAppointment ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={editAppointmentForm?.billableAmount || ''}
-                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, billableAmount: e.target.value})}
-                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
-                            placeholder="0.00"
-                          />
-                        ) : (
-                          <p className="text-xl font-bold text-slate-800 px-4 py-2">₹{selectedAppointmentDetails.billableAmount || 0}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm text-slate-500 font-medium mb-1">Paid Amount</label>
-                        {isEditingAppointment ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={editAppointmentForm?.paidAmount || ''}
-                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, paidAmount: e.target.value})}
-                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
-                            placeholder="0.00"
-                          />
-                        ) : (
-                          <p className="text-xl font-bold text-green-600 px-4 py-2">₹{selectedAppointmentDetails.paidAmount || 0}</p>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm text-slate-500 font-medium mb-1">Pending Amount</label>
-                        {isEditingAppointment ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={editAppointmentForm?.pendingAmount || ''}
-                            onChange={(e) => setEditAppointmentForm({...editAppointmentForm, pendingAmount: e.target.value})}
-                            className="w-full px-4 py-2 border-2 border-blue-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none"
-                            placeholder="0.00"
-                          />
-                        ) : (
-                          <p className="text-xl font-bold text-amber-600 px-4 py-2">₹{selectedAppointmentDetails.pendingAmount || 0}</p>
-                        )}
-                      </div>
-                      <div className="md:col-span-3">
-                        <label className="block text-sm text-slate-500 font-medium mb-2">Payment Status (read-only)</label>
-                        <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
-                          selectedAppointmentDetails.paymentStatus === 'Paid'
-                            ? 'bg-green-100 text-green-700 border border-green-300'
-                            : selectedAppointmentDetails.paymentStatus === 'Partial'
-                            ? 'bg-yellow-100 text-yellow-700 border border-yellow-300'
-                            : 'bg-amber-100 text-amber-700 border-amber-300 border'
-                        }`}>
-                          <span className="text-base">
-                            {selectedAppointmentDetails.paymentStatus === 'Paid' ? '💚' :
-                             selectedAppointmentDetails.paymentStatus === 'Partial' ? '💛' :
-                             selectedAppointmentDetails.paymentStatus === 'Invoice' ? '📄' : '⏳'}
-                          </span>
-                          {selectedAppointmentDetails.paymentStatus || 'Pending'}
+                  {isEditingAppointment && (
+                    <div className="bg-white rounded-2xl p-6 shadow-lg">
+                      <motion.label
+                        whileHover={{ scale: 1.02 }}
+                        className="flex items-center gap-3 cursor-pointer p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 hover:border-blue-400 transition-all"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editAppointmentForm?.isConfirmed || false}
+                          onChange={(e) => setEditAppointmentForm({...editAppointmentForm, isConfirmed: e.target.checked})}
+                          className="w-6 h-6 rounded-lg border-2 border-blue-300 text-blue-600 focus:ring-4 focus:ring-blue-100 cursor-pointer"
+                        />
+                        <span className="text-base font-bold text-slate-700 flex items-center gap-2">
+                          <span className="text-xl">✅</span>
+                          <span>Confirmed Appointment</span>
                         </span>
-                      </div>
-                      {isEditingAppointment && (
-                        <div className="md:col-span-3 mt-4">
-                          <motion.label 
-                            whileHover={{ scale: 1.02 }}
-                            className="flex items-center gap-3 cursor-pointer p-4 rounded-xl bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-200 hover:border-blue-400 transition-all"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={editAppointmentForm?.isConfirmed || false}
-                              onChange={(e) => setEditAppointmentForm({...editAppointmentForm, isConfirmed: e.target.checked})}
-                              className="w-6 h-6 rounded-lg border-2 border-blue-300 text-blue-600 focus:ring-4 focus:ring-blue-100 cursor-pointer"
-                            />
-                            <span className="text-base font-bold text-slate-700 flex items-center gap-2">
-                              <span className="text-xl">✅</span>
-                              <span>Confirmed Appointment</span>
-                            </span>
-                          </motion.label>
-                        </div>
-                      )}
+                      </motion.label>
                     </div>
-                  </div>
+                  )}
                 </form>
               </div>
 
