@@ -505,22 +505,6 @@ export function AppointmentListModal({
                         </div>
                       )}
 
-                      {apt.billableAmount && (
-                        <div className="grid grid-cols-3 gap-4 mb-3 text-sm bg-amber-50 p-3 rounded-lg">
-                          <div>
-                            <span className="text-slate-600 text-xs font-semibold">💰 Billable</span>
-                            <p className="font-bold text-slate-800">₹{apt.billableAmount}</p>
-                          </div>
-                          <div>
-                            <span className="text-slate-600 text-xs font-semibold">✅ Paid</span>
-                            <p className="font-bold text-green-700">₹{apt.paidAmount || 0}</p>
-                          </div>
-                          <div>
-                            <span className="text-slate-600 text-xs font-semibold">⏳ Pending</span>
-                            <p className="font-bold text-red-700">₹{apt.pendingAmount || apt.billableAmount}</p>
-                          </div>
-                        </div>
-                      )}
                     </div>
 
                     {/* Action Buttons */}
@@ -1642,52 +1626,6 @@ export const EditAppointmentModal = React.memo(({
             </div>
           )}
 
-          {activeTab === "billing" && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Billable Amount</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.billableAmount || ""}
-                  onChange={(e) => handleFormChange("billableAmount", e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Paid Amount</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.paidAmount || ""}
-                  onChange={(e) => handleFormChange("paidAmount", e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Pending Amount</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.pendingAmount || ""}
-                  onChange={(e) => handleFormChange("pendingAmount", e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Payment Status</label>
-                <select
-                  value={form.paymentStatus || ""}
-                  onChange={(e) => handleFormChange("paymentStatus", e.target.value)}
-                  className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400"
-                >
-                  <option value="Pending">Pending</option>
-                  <option value="Paid">Paid</option>
-                  <option value="Partial">Partial</option>
-                </select>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
@@ -2627,36 +2565,6 @@ export function CreatePatientModal({
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Copay Amount</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-2 text-slate-500 font-semibold">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={form.copayAmount}
-                        onChange={(e) => setForm({ ...form, copayAmount: e.target.value })}
-                        className="w-full px-4 py-2 pl-8 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Deductible Amount</label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-2 text-slate-500 font-semibold">$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={form.deductibleAmount}
-                        onChange={(e) => setForm({ ...form, deductibleAmount: e.target.value })}
-                        className="w-full px-4 py-2 pl-8 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 focus:border-transparent"
-                        placeholder="0.00"
-                      />
-                    </div>
-                  </div>
                   <div className="flex items-end">
                     <label className="flex items-center gap-3 w-full">
                       <input
@@ -4086,17 +3994,6 @@ export function ViewEditPatientModal({
                       value={toDateInputValue(editedData.coverageEndDate || editedData.CoverageEndDate)}
                       onChange={(e) => isEditing && setEditedData({ ...editedData, coverageEndDate: e.target.value })}
                       disabled={!isEditing}
-                      className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-slate-700">Copay Amount</label>
-                    <input
-                      type="text"
-                      value={editedData.copayAmount || editedData.CopayAmount || ''}
-                      onChange={(e) => isEditing && setEditedData({ ...editedData, copayAmount: e.target.value })}
-                      disabled={!isEditing}
-                      placeholder="Enter copay amount"
                       className={`w-full mt-1 px-3 py-2 rounded border ${isEditing ? 'bg-white border-teal-300' : 'bg-gray-50 border-slate-200'}`}
                     />
                   </div>
