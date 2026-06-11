@@ -301,6 +301,7 @@ export default function Patients() {
   const [searchedPatient, setSearchedPatient] = useState(null);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
   const [patientNotFound, setPatientNotFound] = useState(false);
+  const [patientSearchResults, setPatientSearchResults] = useState([]);
   const [bookingWithoutRegistration, setBookingWithoutRegistration] = useState(false);
   const [clinicsList, setClinicsList] = useState([]);
   const [clinicPatientsList, setClinicPatientsList] = useState([]);
@@ -491,6 +492,7 @@ export default function Patients() {
       setPatientSearchForm({ clinicId: "", patientId: "", firstName: "", lastName: "", mobileNumber: "" });
       setSearchedPatient(null);
       setPatientNotFound(false);
+      setPatientSearchResults([]);
       setBookingWithoutRegistration(false);
       setAppointmentForm({
         firstName: "", lastName: "", phoneNumber: "", email: "", dateOfBirth: "", age: "",
@@ -5774,7 +5776,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                           type="text"
                           placeholder="Enter patient ID..."
                           value={patientSearchForm.patientId}
-                          onChange={(e) => setPatientSearchForm({ ...patientSearchForm, patientId: e.target.value })}
+                          onChange={(e) => { setPatientSearchForm({ ...patientSearchForm, patientId: e.target.value }); setPatientSearchResults([]); setPatientNotFound(false); }}
                           className="w-full px-4 py-2 rounded-lg border-2 border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                         />
                       </div>
@@ -5784,7 +5786,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                           type="text"
                           placeholder="Enter mobile number..."
                           value={patientSearchForm.mobileNumber}
-                          onChange={(e) => setPatientSearchForm({ ...patientSearchForm, mobileNumber: e.target.value })}
+                          onChange={(e) => { setPatientSearchForm({ ...patientSearchForm, mobileNumber: e.target.value }); setPatientSearchResults([]); setPatientNotFound(false); }}
                           className="w-full px-4 py-2 rounded-lg border-2 border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                         />
                       </div>
@@ -5794,7 +5796,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                           type="text"
                           placeholder="Enter first name..."
                           value={patientSearchForm.firstName}
-                          onChange={(e) => setPatientSearchForm({ ...patientSearchForm, firstName: e.target.value })}
+                          onChange={(e) => { setPatientSearchForm({ ...patientSearchForm, firstName: e.target.value }); setPatientSearchResults([]); setPatientNotFound(false); }}
                           className="w-full px-4 py-2 rounded-lg border-2 border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                         />
                       </div>
@@ -5804,11 +5806,60 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                           type="text"
                           placeholder="Enter last name..."
                           value={patientSearchForm.lastName}
-                          onChange={(e) => setPatientSearchForm({ ...patientSearchForm, lastName: e.target.value })}
+                          onChange={(e) => { setPatientSearchForm({ ...patientSearchForm, lastName: e.target.value }); setPatientSearchResults([]); setPatientNotFound(false); }}
                           className="w-full px-4 py-2 rounded-lg border-2 border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                         />
                       </div>
                     </div>
+
+                    {/* Multiple results dropdown */}
+                    {patientSearchResults.length > 1 && (
+                      <div className="mb-4 border-2 border-blue-300 rounded-xl overflow-hidden bg-white shadow-lg">
+                        <div className="px-4 py-2 bg-blue-100 border-b border-blue-200">
+                          <p className="text-sm font-bold text-blue-800">
+                            {patientSearchResults.length} patients found — select the correct one:
+                          </p>
+                        </div>
+                        <ul className="divide-y divide-blue-100 max-h-48 overflow-y-auto">
+                          {patientSearchResults.map((p) => {
+                            const dob = p.patientDOB || p.dateOfBirth;
+                            const age = dob
+                              ? Math.floor((new Date() - new Date(dob)) / (365.25 * 24 * 60 * 60 * 1000))
+                              : null;
+                            return (
+                              <li
+                                key={p.patientId}
+                                onClick={() => {
+                                  setSearchedPatient(p);
+                                  setPatientSearchResults([]);
+                                  setAppointmentForm({
+                                    ...appointmentForm,
+                                    firstName: p.patientFirstName || '',
+                                    lastName: p.patientLastName || '',
+                                    phoneNumber: p.patientPhone || '',
+                                    email: p.patientEmail || ''
+                                  });
+                                }}
+                                className="flex items-center justify-between px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center text-blue-700 font-bold text-sm">
+                                    {(p.patientFirstName || '?')[0].toUpperCase()}
+                                  </div>
+                                  <span className="font-semibold text-slate-800">
+                                    {p.patientFirstName} {p.patientLastName}
+                                    {age !== null && <span className="text-slate-500 font-normal"> ({age} yrs)</span>}
+                                  </span>
+                                </div>
+                                <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                                  ID: {p.patientId}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    )}
 
                     <div className="flex gap-3">
                       <motion.button
@@ -5817,6 +5868,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         whileTap={patientSearchForm.patientId.trim() || patientSearchForm.mobileNumber.trim() || patientSearchForm.firstName.trim() || patientSearchForm.lastName.trim() ? { scale: 0.95 } : {}}
                         disabled={!patientSearchForm.patientId.trim() && !patientSearchForm.mobileNumber.trim() && !patientSearchForm.firstName.trim() && !patientSearchForm.lastName.trim()}
                         onClick={async () => {
+                          setPatientSearchResults([]);
+                          setPatientNotFound(false);
                           try {
                             const selectedAccessStr = localStorage.getItem('selectedAccess');
                             const selectedAccess = selectedAccessStr ? JSON.parse(selectedAccessStr) : null;
@@ -5834,7 +5887,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
 
                             const results = await searchPatients(searchParams);
 
-                            if (results && results.length > 0) {
+                            if (results && results.length === 1) {
                               setSearchedPatient(results[0]);
                               setAppointmentForm({
                                 ...appointmentForm,
@@ -5843,6 +5896,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                                 phoneNumber: results[0].patientPhone || '',
                                 email: results[0].patientEmail || ''
                               });
+                            } else if (results && results.length > 1) {
+                              setPatientSearchResults(results);
                             } else {
                               setPatientNotFound(true);
                             }
@@ -5868,6 +5923,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         onClick={() => {
                           setBookingWithoutRegistration(true);
                           setPatientSearchForm({ clinicId: "", patientId: "", firstName: "", lastName: "", mobileNumber: "" });
+                          setPatientSearchResults([]);
                         }}
                         className="px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2"
                       >
