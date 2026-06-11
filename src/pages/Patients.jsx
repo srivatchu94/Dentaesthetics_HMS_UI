@@ -295,7 +295,8 @@ export default function Patients() {
     clinicId: "",
     patientId: "",
     firstName: "",
-    lastName: ""
+    lastName: "",
+    mobileNumber: ""
   });
   const [searchedPatient, setSearchedPatient] = useState(null);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
@@ -487,6 +488,16 @@ export default function Patients() {
       setShowBookingConflictMessage(false);
       setBookingConflictCount(0);
       setAllowConflictBooking(false);
+      setPatientSearchForm({ clinicId: "", patientId: "", firstName: "", lastName: "", mobileNumber: "" });
+      setSearchedPatient(null);
+      setPatientNotFound(false);
+      setBookingWithoutRegistration(false);
+      setAppointmentForm({
+        firstName: "", lastName: "", phoneNumber: "", email: "", dateOfBirth: "", age: "",
+        date: "", startTime: "", endTime: "", durationMinutes: "",
+        appointmentType: "", reasonForVisit: "", notes: "", telehealthLink: "",
+        attendingPhysician: "", doctorId: "", isWalkIn: false
+      });
     }
   }, [showNewAppointmentModal]);
   
@@ -5755,27 +5766,45 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     <h3 className="text-lg font-bold text-blue-900 mb-6 flex items-center gap-2">
                       <span>🔍</span> Search Patient
                     </h3>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">
-                          First Name
-                        </label>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Patient ID</label>
                         <input
                           type="text"
-                          placeholder="Enter first name..."
-                          id="patientFirstNameSearch"
+                          placeholder="Enter patient ID..."
+                          value={patientSearchForm.patientId}
+                          onChange={(e) => setPatientSearchForm({ ...patientSearchForm, patientId: e.target.value })}
                           className="w-full px-4 py-2 rounded-lg border-2 border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">
-                          Last Name
-                        </label>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Mobile Number</label>
+                        <input
+                          type="text"
+                          placeholder="Enter mobile number..."
+                          value={patientSearchForm.mobileNumber}
+                          onChange={(e) => setPatientSearchForm({ ...patientSearchForm, mobileNumber: e.target.value })}
+                          className="w-full px-4 py-2 rounded-lg border-2 border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">First Name</label>
+                        <input
+                          type="text"
+                          placeholder="Enter first name..."
+                          value={patientSearchForm.firstName}
+                          onChange={(e) => setPatientSearchForm({ ...patientSearchForm, firstName: e.target.value })}
+                          className="w-full px-4 py-2 rounded-lg border-2 border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Last Name</label>
                         <input
                           type="text"
                           placeholder="Enter last name..."
-                          id="patientLastNameSearch"
+                          value={patientSearchForm.lastName}
+                          onChange={(e) => setPatientSearchForm({ ...patientSearchForm, lastName: e.target.value })}
                           className="w-full px-4 py-2 rounded-lg border-2 border-blue-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all"
                         />
                       </div>
@@ -5784,37 +5813,27 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     <div className="flex gap-3">
                       <motion.button
                         type="button"
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                        whileHover={patientSearchForm.patientId.trim() || patientSearchForm.mobileNumber.trim() || patientSearchForm.firstName.trim() || patientSearchForm.lastName.trim() ? { scale: 1.05 } : {}}
+                        whileTap={patientSearchForm.patientId.trim() || patientSearchForm.mobileNumber.trim() || patientSearchForm.firstName.trim() || patientSearchForm.lastName.trim() ? { scale: 0.95 } : {}}
+                        disabled={!patientSearchForm.patientId.trim() && !patientSearchForm.mobileNumber.trim() && !patientSearchForm.firstName.trim() && !patientSearchForm.lastName.trim()}
                         onClick={async () => {
-                          const firstName = document.getElementById('patientFirstNameSearch')?.value || '';
-                          const lastName = document.getElementById('patientLastNameSearch')?.value || '';
-                          
-                          if (!firstName.trim() && !lastName.trim()) {
-                            alert('Please enter at least one of: First Name or Last Name');
-                            return;
-                          }
-                          
                           try {
-                            // Get clinic ID and enterprise ID from selectedAccess (token payload)
                             const selectedAccessStr = localStorage.getItem('selectedAccess');
                             const selectedAccess = selectedAccessStr ? JSON.parse(selectedAccessStr) : null;
-                            
+
                             if (!selectedAccess || !selectedAccess.enterpriseId || !selectedAccess.clinicId) {
                               alert('❌ Session error: Please login again to get clinic information.');
                               return;
                             }
-                            
-                            const searchParams = {
-                              clinicId: selectedAccess.clinicId,
-                              enterpriseId: selectedAccess.enterpriseId
-                            };
-                            
-                            if (firstName.trim()) searchParams.firstName = firstName;
-                            if (lastName.trim()) searchParams.lastName = lastName;
-                            
+
+                            const searchParams = { clinicId: selectedAccess.clinicId };
+                            if (patientSearchForm.patientId.trim()) searchParams.patientId = Number(patientSearchForm.patientId);
+                            if (patientSearchForm.mobileNumber.trim()) searchParams.mobilenumber = patientSearchForm.mobileNumber;
+                            if (patientSearchForm.firstName.trim()) searchParams.firstName = patientSearchForm.firstName;
+                            if (patientSearchForm.lastName.trim()) searchParams.lastName = patientSearchForm.lastName;
+
                             const results = await searchPatients(searchParams);
-                            
+
                             if (results && results.length > 0) {
                               setSearchedPatient(results[0]);
                               setAppointmentForm({
@@ -5825,7 +5844,6 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                                 email: results[0].patientEmail || ''
                               });
                             } else {
-                              // Show no results with options
                               setPatientNotFound(true);
                             }
                           } catch (error) {
@@ -5833,20 +5851,23 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                             alert('❌ Error searching for patient');
                           }
                         }}
-                        className="flex-1 px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2"
+                        className={`flex-1 px-6 py-2 rounded-lg font-bold transition-all flex items-center justify-center gap-2 ${
+                          patientSearchForm.patientId.trim() || patientSearchForm.mobileNumber.trim() || patientSearchForm.firstName.trim() || patientSearchForm.lastName.trim()
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white cursor-pointer'
+                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        }`}
                       >
                         <span>🔍</span>
                         <span>Search Patient</span>
                       </motion.button>
-                      
+
                       <motion.button
                         type="button"
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => {
                           setBookingWithoutRegistration(true);
-                          document.getElementById('patientFirstNameSearch').value = '';
-                          document.getElementById('patientLastNameSearch').value = '';
+                          setPatientSearchForm({ clinicId: "", patientId: "", firstName: "", lastName: "", mobileNumber: "" });
                         }}
                         className="px-6 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2"
                       >
@@ -6108,7 +6129,8 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       clinicId: "",
                       patientId: "",
                       firstName: "",
-                      lastName: ""
+                      lastName: "",
+                      mobileNumber: ""
                     });
                     setSearchedPatient(null);
                     setPatientNotFound(false);
