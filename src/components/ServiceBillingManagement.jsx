@@ -213,32 +213,33 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
 
   // Load invoices for specific appointment
   const loadInvoicesForAppointment = useCallback(async (appointmentId) => {
+    if (!appointmentId) {
+      console.warn("⚠️ loadInvoicesForAppointment called with no appointmentId");
+      return;
+    }
     setLoadingInvoices(prev => ({ ...prev, [appointmentId]: true }));
     try {
       console.log(`📦 Loading invoices for appointment ${appointmentId}...`);
       const response = await request(`/Services/GetInvoicesByAppointmentComplete?appointmentId=${appointmentId}`, {
         method: "GET"
       });
-      
-      if (response && Array.isArray(response)) {
-        console.log(`✅ Found ${response.length} invoices for appointment ${appointmentId}:`, response);
-        setInvoicesByAppointment(prev => ({
-          ...prev,
-          [appointmentId]: response
-        }));
-      } else {
-        console.log(`No invoices found for appointment ${appointmentId}`);
-        setInvoicesByAppointment(prev => ({
-          ...prev,
-          [appointmentId]: []
-        }));
+
+      // API may return array of invoices OR a single invoice object — handle both
+      let invoices = [];
+      if (response) {
+        if (Array.isArray(response)) {
+          invoices = response;
+        } else if (response.header) {
+          // Single ServiceInvoiceComplete object returned
+          invoices = [response];
+        }
       }
+
+      console.log(`✅ Found ${invoices.length} invoice(s) for appointment ${appointmentId}`);
+      setInvoicesByAppointment(prev => ({ ...prev, [appointmentId]: invoices }));
     } catch (error) {
       console.error(`Failed to load invoices for appointment ${appointmentId}:`, error);
-      setInvoicesByAppointment(prev => ({
-        ...prev,
-        [appointmentId]: []
-      }));
+      setInvoicesByAppointment(prev => ({ ...prev, [appointmentId]: [] }));
     } finally {
       setLoadingInvoices(prev => ({ ...prev, [appointmentId]: false }));
     }
@@ -246,13 +247,18 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
 
   // Handle showing invoices for an appointment
   const handleShowInvoices = useCallback((appointmentId) => {
-    if (expandedAppointmentId === appointmentId) {
+    // Normalise field name — backend may return AppointmentId (PascalCase) or appointmentId
+    const id = appointmentId;
+    if (!id) {
+      console.warn("⚠️ handleShowInvoices: appointmentId is undefined");
+      return;
+    }
+    if (expandedAppointmentId === id) {
       setExpandedAppointmentId(null);
     } else {
-      setExpandedAppointmentId(appointmentId);
-      // Load invoices if not already loaded
-      if (!invoicesByAppointment[appointmentId]) {
-        loadInvoicesForAppointment(appointmentId);
+      setExpandedAppointmentId(id);
+      if (!invoicesByAppointment[id]) {
+        loadInvoicesForAppointment(id);
       }
     }
   }, [expandedAppointmentId, invoicesByAppointment, loadInvoicesForAppointment]);
@@ -511,16 +517,18 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                     </tr>
                   </thead>
                   <tbody>
-                    {billingAppointments.map((appt, idx) => (
+                    {billingAppointments.map((appt, idx) => {
+                      const apptId = appt.appointmentId || appt.AppointmentId;
+                      return (
                       <motion.tr
-                        key={appt.appointmentId}
+                        key={apptId || idx}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: idx * 0.03 }}
                         className="border-b border-stone-200 hover:bg-blue-50/50 transition-colors"
                       >
                         <td className="px-4 py-3">
-                          <span className="font-bold text-stone-700">#{appt.appointmentId}</span>
+                          <span className="font-bold text-stone-700">#{apptId}</span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
@@ -553,7 +561,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                             <motion.button
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
-                              onClick={() => handleShowInvoices(appt.appointmentId)}
+                              onClick={() => handleShowInvoices(appt.appointmentId || appt.AppointmentId)}
                               className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
                               title="Expand to view invoices"
                             >
@@ -571,7 +579,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                           </div>
                         </td>
                       </motion.tr>
-                    ))}
+                    ); })}
                   </tbody>
                 </table>
               </div>
@@ -988,7 +996,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                     <motion.button
                                       whileHover={{ scale: 1.1 }}
                                       whileTap={{ scale: 0.9 }}
-                                      onClick={() => handleShowInvoices(appt.appointmentId)}
+                                      onClick={() => handleShowInvoices(appt.appointmentId || appt.AppointmentId)}
                                       className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
                                       title="View Invoices"
                                     >
