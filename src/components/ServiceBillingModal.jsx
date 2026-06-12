@@ -17,8 +17,10 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { sendEmail } from "../services/emailService";
-import { getClinic } from "../services/clinicService";
+import { getClinicByClinicId } from "../services/clinicService";
+import { searchDoctors } from "../services/doctorService";
 import { toast } from "sonner";
+import clinicLogo from "../assets/dhantha-logo-new.svg";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { request } from "../services/apiClient";
@@ -40,6 +42,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState("");
   const [clinicInfo, setClinicInfo] = useState(null);
+  const [doctorInfo, setDoctorInfo] = useState(null);
   const [loadingClinic, setLoadingClinic] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [modeOfPayment, setModeOfPayment] = useState("Cash");
@@ -49,64 +52,67 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Get clinic ID and doctor info
+  // Get clinic ID and doctor info from localStorage
   const getClinicIdAndDoctorInfo = () => {
     const selectedAccess = JSON.parse(localStorage.getItem("selectedAccess") || "{}");
     const userData = JSON.parse(localStorage.getItem("userData") || "{}");
-    
+
     return {
       clinicId: selectedAccess.clinicId || userData.clinicId || 0,
-      doctorName: userData.username || "Dr. Dentist",
-      registrationNumber: userData.registrationNumber || "Registration #",
-      enterpriseId: selectedAccess.enterpriseId || userData.enterpriseId || 0
+      doctorId: appointmentDetails?.doctorId || userData.doctorId || 0,
+      enterpriseId: selectedAccess.enterpriseId || userData.enterpriseId || 0,
+      // Fallback values used only until API data loads
+      doctorName: userData.username || "Doctor",
+      registrationNumber: userData.registrationNumber || ""
     };
   };
 
-  // Load clinic data from API
+  // Load clinic and doctor data when modal opens
   useEffect(() => {
     if (show) {
-      console.log("🔍 Modal opened - received passedInvoiceNumber:", passedInvoiceNumber);
-      
-      const { clinicId } = getClinicIdAndDoctorInfo();
-      if (clinicId) {
-        loadClinicData(clinicId);
-      }
-      // Pre-populate with appointment details
+      const { clinicId, doctorId, enterpriseId } = getClinicIdAndDoctorInfo();
+      if (clinicId) loadClinicData(clinicId);
+      if (doctorId || enterpriseId) loadDoctorData(doctorId, enterpriseId);
+
       if (appointmentDetails) {
         setPatientName(`${appointmentDetails.firstName || ""} ${appointmentDetails.lastName || ""}`.trim());
         setRecipientEmail(appointmentDetails.email || "");
       }
-      
-      // Initialize displayInvoiceNumber from passedInvoiceNumber
+
       if (passedInvoiceNumber) {
-        console.log("✅ Setting displayInvoiceNumber to:", passedInvoiceNumber);
         setDisplayInvoiceNumber(passedInvoiceNumber);
         checkForExistingInvoiceByNumber(passedInvoiceNumber);
       } else {
-        console.log("⚠️ No passedInvoiceNumber, checking for existing appointment invoice");
         checkForExistingInvoice();
       }
     }
   }, [show, appointmentDetails, appointmentId, passedInvoiceNumber]);
 
+  // Fetch clinic details from GetClinicByClinicId endpoint
   const loadClinicData = async (clinicId) => {
     setLoadingClinic(true);
     try {
-      const data = await getClinic(clinicId);
+      const results = await getClinicByClinicId([clinicId]);
+      const data = Array.isArray(results) ? results[0] : results;
       setClinicInfo(data);
-      console.log("✅ Clinic data loaded:", data);
     } catch (error) {
       console.error("Failed to load clinic:", error);
-      toast.error("Failed to load clinic details");
-      const userData = JSON.parse(localStorage.getItem("userData") || "{}");
-      setClinicInfo({
-        clinicName: userData.clinicName || "Dental Clinic",
-        clinicAddress: userData.clinicAddress || "Clinic Address",
-        clinicPhone: userData.clinicPhone || "+1-555-1234",
-        clinicEmail: userData.clinicEmail || "clinic@example.com"
-      });
     } finally {
       setLoadingClinic(false);
+    }
+  };
+
+  // Fetch doctor details from SearchDoctors endpoint
+  const loadDoctorData = async (doctorId, enterpriseId) => {
+    try {
+      const params = {};
+      if (doctorId) params.doctorId = doctorId;
+      if (enterpriseId) params.enterpriseId = enterpriseId;
+      const results = await searchDoctors(params);
+      const doc = Array.isArray(results) ? results[0] : results;
+      if (doc) setDoctorInfo(doc);
+    } catch (error) {
+      console.error("Failed to load doctor:", error);
     }
   };
 
@@ -333,7 +339,9 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
 
   // Generate HTML for email
   const generateServiceBillingEmail = () => {
-    const { doctorName, registrationNumber } = getClinicIdAndDoctorInfo();
+    const { doctorName: fbName, registrationNumber: fbReg } = getClinicIdAndDoctorInfo();
+    const doctorName = doctorInfo ? `${doctorInfo.firstName || ""} ${doctorInfo.lastName || ""}`.trim() : fbName;
+    const registrationNumber = doctorInfo?.licenseNumber || fbReg;
     const chargesHTML = [
       { name: "Consultation Fee", amount: consultationFee, gstPercent: consultationGST, gstAmount: consultationFee * consultationGST / 100 },
       ...otherCharges.filter(c => c.name && c.amount).map(c => ({ ...c, gstAmount: c.amount * c.gstPercent / 100 }))
@@ -465,8 +473,9 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
 
     setSubmitting(true);
     try {
-      const { doctorName } = getClinicIdAndDoctorInfo();
-      
+      const { doctorName: fbName } = getClinicIdAndDoctorInfo();
+      const doctorName = doctorInfo ? `${doctorInfo.firstName || ""} ${doctorInfo.lastName || ""}`.trim() : fbName;
+
       // Build invoice line items - include consultation fee only if it's not null
       const lineItems = [];
       let lineNumber = 1;
@@ -656,7 +665,11 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
 
   if (!show) return null;
 
-  const { doctorName, registrationNumber } = getClinicIdAndDoctorInfo();
+  const { doctorName: fbDoctorName, registrationNumber: fbReg } = getClinicIdAndDoctorInfo();
+  const doctorName = doctorInfo
+    ? `${doctorInfo.firstName || ""} ${doctorInfo.lastName || ""}`.trim()
+    : fbDoctorName;
+  const registrationNumber = doctorInfo?.licenseNumber || fbReg;
   const statusColor = status === "Paid" ? "text-green-600" : status === "Partial" ? "text-amber-600" : "text-red-600";
   const statusBg = status === "Paid" ? "bg-green-50" : status === "Partial" ? "bg-amber-50" : "bg-red-50";
   const statusBorder = status === "Paid" ? "border-green-300" : status === "Partial" ? "border-amber-300" : "border-red-300";
@@ -789,18 +802,27 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                   <div className="flex items-start justify-between">
                     {/* Clinic identity */}
                     <div>
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-black text-white border border-white/30">
-                          {(clinicInfo?.clinicName || "D")[0]}
-                        </div>
+                      <div className="flex items-center gap-4 mb-3">
+                        <img
+                          src={clinicLogo}
+                          alt="clinic logo"
+                          className="w-14 h-14 object-contain rounded-xl bg-white/10 p-1 border border-white/20"
+                        />
                         <div>
                           <h1 className="text-3xl font-black tracking-wide">{clinicInfo?.clinicName || "Dental Clinic"}</h1>
-                          <p className="text-teal-300 text-xs font-medium italic mt-0.5">{clinicInfo?.clinicAddress || ""}</p>
+                          <p className="text-teal-300 text-xs font-medium mt-0.5">
+                            {[clinicInfo?.clinicAddress, clinicInfo?.clinicCity].filter(Boolean).join(", ")}
+                          </p>
+                          {clinicInfo?.clinicPhone && (
+                            <p className="text-slate-400 text-xs mt-0.5">{clinicInfo.clinicPhone}{clinicInfo.clinicEmail ? " · " + clinicInfo.clinicEmail : ""}</p>
+                          )}
                         </div>
                       </div>
-                      <div className="mt-4 flex flex-col gap-1">
-                        <p className="text-white font-bold text-lg">Dr. {doctorName}</p>
-                        <p className="text-indigo-300 text-sm font-medium">{registrationNumber}</p>
+                      <div className="mt-3 pl-1 flex flex-col gap-0.5 border-l-2 border-teal-500">
+                        <p className="text-white font-bold text-base">Dr. {doctorName}</p>
+                        {registrationNumber && (
+                          <p className="text-indigo-300 text-xs font-medium">Reg. No: {registrationNumber}</p>
+                        )}
                       </div>
                     </div>
 
@@ -830,7 +852,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                     />
                     <div className="mt-3 flex flex-wrap gap-3">
                       <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-white rounded-full px-3 py-1 border border-slate-200 shadow-sm">
-                        📞 {appointmentDetails?.phoneNumber || clinicInfo?.clinicPhone || "—"}
+                        📞 {appointmentDetails?.phoneNumber || "—"}
                       </span>
                       <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-white rounded-full px-3 py-1 border border-slate-200 shadow-sm">
                         🗓 {new Date().toLocaleDateString('en-IN')}
@@ -863,10 +885,6 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                             <option>Cheque</option>
                           </select>
                         )}
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500 font-medium">Clinic</span>
-                        <span className="font-semibold text-slate-700 text-right max-w-[60%] truncate">{clinicInfo?.clinicName || "—"}</span>
                       </div>
                     </div>
                   </div>
@@ -1067,8 +1085,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                 {/* ── FOOTER ── */}
                 <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-teal-900 text-white px-10 py-5 flex items-center justify-between">
                   <div className="text-xs text-slate-300 space-y-0.5">
-                    <p>{clinicInfo?.clinicAddress || ""}</p>
-                    <p>{clinicInfo?.clinicPhone || ""} {clinicInfo?.clinicEmail ? "· " + clinicInfo.clinicEmail : ""}</p>
+                    <p>{[clinicInfo?.clinicAddress, clinicInfo?.clinicCity].filter(Boolean).join(", ")}</p>
+                    <p>{clinicInfo?.clinicPhone || ""}{clinicInfo?.clinicEmail ? " · " + clinicInfo.clinicEmail : ""}</p>
                   </div>
                   <p className="text-xs text-slate-400 italic">Computer generated invoice · Valid without signature</p>
                 </div>

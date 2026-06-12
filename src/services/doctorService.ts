@@ -142,18 +142,20 @@ export function searchDoctors(params: {
   firstName?: string;
   lastName?: string;
   staffId?: number;
+  doctorId?: number;
   clinicId?: number;
   specialtyId?: number;
 }): Promise<DoctorProfileModel[]> {
   const queryParams = new URLSearchParams();
-  
-  if (params.enterpriseId) queryParams.append('enterpriseId', params.enterpriseId.toString());
+
+  if (params.enterpriseId) queryParams.append('EnterpriseID', params.enterpriseId.toString());
   if (params.firstName) queryParams.append('firstName', params.firstName);
   if (params.lastName) queryParams.append('lastName', params.lastName);
   if (params.staffId) queryParams.append('staffId', params.staffId.toString());
+  if (params.doctorId) queryParams.append('DoctorID', params.doctorId.toString());
   if (params.clinicId) queryParams.append('clinicId', params.clinicId.toString());
   if (params.specialtyId) queryParams.append('specialtyId', params.specialtyId.toString());
-  
+
   return request<DoctorProfileModel[]>(`/DoctorProfile/SearchDoctors?${queryParams.toString()}`);
 }
 
