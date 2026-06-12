@@ -749,18 +749,6 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                         <Printer size={18} />
                         Print
                       </motion.button>
-                      {isViewMode && (
-                        <motion.button 
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => setModalMode("edit-invoice")}
-                          className="flex items-center gap-2 px-4 py-2.5 border-2 border-white text-white rounded-lg transition-all font-medium bg-orange-500/80 hover:bg-orange-600"
-                          title="Edit Invoice"
-                        >
-                          ✏️
-                          Edit
-                        </motion.button>
-                      )}
                     </>
                   )}
                   <button
