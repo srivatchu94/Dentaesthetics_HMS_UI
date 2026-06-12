@@ -285,8 +285,26 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   }, [consultationFee, otherCharges]);
 
   const totalPaidAmount = (consultationPaid || 0) + otherCharges.reduce((sum, item) => sum + (item.paidAmount || 0), 0);
-  const pendingAmount = totalAmount - totalPaidAmount;
-  const status = totalPaidAmount === 0 ? "Pending" : totalPaidAmount >= totalAmount ? "Paid" : "Partial";
+
+  const numberToWords = (num) => {
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+      'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    if (num === 0) return 'Zero';
+    const convert = (n) => {
+      if (n < 20) return ones[n];
+      if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 ? ' ' + ones[n % 10] : '');
+      if (n < 1000) return ones[Math.floor(n / 100)] + ' Hundred' + (n % 100 ? ' ' + convert(n % 100) : '');
+      if (n < 100000) return convert(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 ? ' ' + convert(n % 1000) : '');
+      if (n < 10000000) return convert(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 ? ' ' + convert(n % 100000) : '');
+      return convert(Math.floor(n / 10000000)) + ' Crore' + (n % 10000000 ? ' ' + convert(n % 10000000) : '');
+    };
+    const intPart = Math.floor(num);
+    const decPart = Math.round((num - intPart) * 100);
+    let result = 'Rupees ' + convert(intPart);
+    if (decPart > 0) result += ' and ' + convert(decPart) + ' Paise';
+    return result + ' Only';
+  };
 
   const addCharge = () => {
     const newCharge = {
@@ -764,415 +782,295 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                   </div>
                 </>
               ) : null}
-              <div id="consultation-invoice-print" className="bg-white">
-                
-                {/* Professional Invoice Header */}
-                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-10 rounded-t-2xl">
-                  <div className="flex items-start justify-between mb-8">
+              <div id="consultation-invoice-print" className="bg-white rounded-2xl overflow-hidden">
+
+                {/* ── HEADER BAND ── */}
+                <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-teal-900 text-white px-10 pt-10 pb-8">
+                  <div className="flex items-start justify-between">
+                    {/* Clinic identity */}
                     <div>
-                      <h1 className="text-4xl font-bold mb-1">{clinicInfo?.clinicName || "Dental Clinic"}</h1>
-                      <p className="text-blue-100 text-sm">Service & Consultation Invoice</p>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center text-2xl font-black text-white border border-white/30">
+                          {(clinicInfo?.clinicName || "D")[0]}
+                        </div>
+                        <div>
+                          <h1 className="text-3xl font-black tracking-wide">{clinicInfo?.clinicName || "Dental Clinic"}</h1>
+                          <p className="text-teal-300 text-xs font-medium italic mt-0.5">{clinicInfo?.clinicAddress || ""}</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex flex-col gap-1">
+                        <p className="text-white font-bold text-lg">Dr. {doctorName}</p>
+                        <p className="text-indigo-300 text-sm font-medium">{registrationNumber}</p>
+                      </div>
                     </div>
+
+                    {/* Invoice badge */}
                     <div className="text-right">
-                      <p className="text-blue-100 text-xs font-semibold uppercase mb-1">Invoice</p>
-                      <p className="text-3xl font-bold">{displayInvoiceNumber}</p>
-                    </div>
-                  </div>
-                
-                  <div className="grid grid-cols-3 gap-6 text-sm">
-                    <div>
-                      <p className="text-blue-100 font-semibold mb-1">Date</p>
-                      <p className="text-lg font-bold">{new Date().toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-blue-100 font-semibold mb-1">Clinic Contact</p>
-                      <p className="text-sm">{clinicInfo?.clinicPhone || "N/A"}</p>
-                    </div>
-                    <div>
-                      <p className="text-blue-100 font-semibold mb-1">Email</p>
-                      <p className="text-sm">{clinicInfo?.clinicEmail || "N/A"}</p>
+                      <div className="inline-block bg-teal-500/20 border border-teal-400/40 rounded-2xl px-6 py-4 backdrop-blur">
+                        <p className="text-teal-300 text-xs font-bold uppercase tracking-widest mb-1">Invoice</p>
+                        <p className="text-white text-2xl font-black">{displayInvoiceNumber}</p>
+                        <p className="text-slate-300 text-xs mt-2">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Patient & Bill-To Section */}
-                <div className="grid grid-cols-2 gap-8 p-8 border-b-2 border-blue-100">
-                  {/* Patient Info */}
-                  <div>
-                    <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-4">Billed To</p>
-                    <input 
+                {/* ── PATIENT + INVOICE META STRIP ── */}
+                <div className="grid grid-cols-2 gap-0 border-b-2 border-slate-100">
+                  {/* Patient */}
+                  <div className="p-6 bg-gradient-to-br from-indigo-50 to-slate-50 border-r border-slate-100">
+                    <p className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-3">Billed To</p>
+                    <input
                       type="text"
                       placeholder="Enter patient name"
                       value={patientName}
                       onChange={(e) => setPatientName(e.target.value)}
                       disabled={isViewMode}
-                      className="text-2xl font-bold text-slate-800 border-b-2 border-blue-300 pb-2 w-full focus:border-blue-600 focus:outline-none transition disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-slate-600"
+                      className="text-xl font-black text-slate-900 border-b-2 border-indigo-300 pb-1 w-full focus:border-indigo-600 focus:outline-none bg-transparent transition disabled:cursor-not-allowed"
                     />
+                    <div className="mt-3 flex flex-wrap gap-3">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-white rounded-full px-3 py-1 border border-slate-200 shadow-sm">
+                        📞 {appointmentDetails?.phoneNumber || clinicInfo?.clinicPhone || "—"}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-white rounded-full px-3 py-1 border border-slate-200 shadow-sm">
+                        🗓 {new Date().toLocaleDateString('en-IN')}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Clinic Address */}
-                  <div>
-                    <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">Billing Address</p>
-                    <div className="text-sm text-slate-700">
-                      <p className="font-semibold text-slate-800 mb-1">{clinicInfo?.clinicName}</p>
-                      <p>{clinicInfo?.clinicAddress}</p>
+                  {/* Invoice meta */}
+                  <div className="p-6 bg-white">
+                    <p className="text-xs font-black text-teal-600 uppercase tracking-widest mb-3">Invoice Details</p>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 font-medium">Invoice By</span>
+                        <span className="font-bold text-slate-800">Dr. {doctorName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 font-medium">Payment Mode</span>
+                        {isViewMode ? (
+                          <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full text-xs">{modeOfPayment}</span>
+                        ) : (
+                          <select
+                            value={modeOfPayment}
+                            onChange={(e) => setModeOfPayment(e.target.value)}
+                            className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                          >
+                            <option>Cash</option>
+                            <option>Card</option>
+                            <option>UPI</option>
+                            <option>Insurance</option>
+                            <option>Cheque</option>
+                          </select>
+                        )}
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500 font-medium">Clinic</span>
+                        <span className="font-semibold text-slate-700 text-right max-w-[60%] truncate">{clinicInfo?.clinicName || "—"}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Services Table Section - Only show when NOT in view mode OR when no saved line items */}
+                {/* ── SERVICE TABLE — EDIT / CREATE MODE ── */}
                 {(!isViewMode || !savedLineItems.length) && (
-                <div className="p-8">
-                  <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-4">Service Details</p>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200">
-                          <th className="text-left px-3 py-3 text-xs font-bold text-blue-700 uppercase">Line #</th>
-                          <th className="text-left px-3 py-3 text-xs font-bold text-blue-700 uppercase">Service Name</th>
-                          <th className="text-right px-3 py-3 text-xs font-bold text-blue-700 uppercase">Amount (₹)</th>
-                          <th className="text-right px-3 py-3 text-xs font-bold text-blue-700 uppercase">GST %</th>
-                          <th className="text-right px-3 py-3 text-xs font-bold text-blue-700 uppercase">GST Amount (₹)</th>
-                          <th className="text-right px-3 py-3 text-xs font-bold text-blue-700 uppercase">Total (₹)</th>
-                          <th className="text-right px-3 py-3 text-xs font-bold text-blue-700 uppercase">Paid (₹)</th>
-                          <th className="text-center px-3 py-3 text-xs font-bold text-blue-700 uppercase">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {/* Consultation Fee Row - Only show if consultationFee is not null */}
-                        {consultationFee !== null && (
-                        <tr className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
-                          <td className="px-3 py-4 text-sm font-bold text-blue-700">1</td>
-                          <td className="px-3 py-4">
-                            <p className="text-sm font-semibold text-slate-800">Consultation Fee</p>
-                          </td>
-                          <td className="px-3 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="text-xs text-slate-600 print:hidden">₹</span>
-                              <input 
-                                type="number"
-                                step="0.01"
-                                value={consultationFee}
-                                onChange={(e) => setConsultationFee(Number(e.target.value))}
-                                disabled={isViewMode}
-                                className="w-20 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
-                              />
-                              <span className="hidden print:inline text-sm font-bold text-slate-800">₹{consultationFee.toFixed(2)}</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <input 
-                                type="number"
-                                step="0.01"
-                                value={consultationGST}
-                                onChange={(e) => setConsultationGST(Number(e.target.value))}
-                                disabled={isViewMode}
-                                className="w-16 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
-                              />
-                              <span className="text-xs text-slate-600 print:hidden">%</span>
-                              <span className="hidden print:inline text-sm font-bold text-slate-800">{consultationGST}%</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-4 text-right font-bold text-amber-600">₹{(consultationFee * consultationGST / 100).toFixed(2)}</td>
-                          <td className="px-3 py-4 text-right font-bold text-blue-700">₹{(consultationFee + consultationFee * consultationGST / 100).toFixed(2)}</td>
-                          <td className="px-3 py-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="text-xs text-slate-600 print:hidden">₹</span>
-                              <input 
-                                type="number"
-                                step="0.01"
-                                value={consultationPaid}
-                                onChange={(e) => setConsultationPaid(Number(e.target.value))}
-                                disabled={isViewMode}
-                                className="w-20 text-right text-sm font-bold py-1.5 px-2 rounded border border-green-300 focus:ring-2 focus:ring-green-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                placeholder="0.00"
-                              />
-                              <span className="hidden print:inline text-sm font-bold text-slate-800">₹{consultationPaid.toFixed(2)}</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-4 text-center print:hidden">
-                            {!isViewMode && (
-                              <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => setConsultationFee(null)}
-                                className="text-red-500 hover:text-red-700 transition-colors"
-                                title="Remove consultation fee"
-                              >
-                                <Trash2 size={18} />
-                              </motion.button>
-                            )}
-                          </td>
-                        </tr>
-                        )}
+                  <div className="px-8 py-6">
+                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Service Details</p>
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-indigo-600 to-teal-600 text-white">
+                            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-10">#</th>
+                            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Service</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Cost (₹)</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">GST %</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">GST Amt</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Final (₹)</th>
+                            <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider print:hidden">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {/* Consultation row */}
+                          {consultationFee !== null && (
+                            <tr className="hover:bg-indigo-50/40 transition-colors">
+                              <td className="px-4 py-3.5 text-sm font-black text-indigo-600">1</td>
+                              <td className="px-4 py-3.5">
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full mb-1">Consultation Fee</span>
+                              </td>
+                              <td className="px-4 py-3.5 text-right">
+                                <input type="number" step="0.01" value={consultationFee}
+                                  onChange={(e) => setConsultationFee(Number(e.target.value))}
+                                  disabled={isViewMode}
+                                  className="w-24 text-right text-sm font-bold py-1 px-2 rounded-lg border border-indigo-200 focus:ring-2 focus:ring-indigo-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                />
+                                <span className="hidden print:inline text-sm font-bold">₹{consultationFee.toFixed(2)}</span>
+                              </td>
+                              <td className="px-4 py-3.5 text-right">
+                                <input type="number" step="0.01" value={consultationGST}
+                                  onChange={(e) => setConsultationGST(Number(e.target.value))}
+                                  disabled={isViewMode}
+                                  className="w-16 text-right text-sm font-bold py-1 px-2 rounded-lg border border-amber-200 focus:ring-2 focus:ring-amber-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                />
+                                <span className="hidden print:inline text-sm font-bold">{consultationGST}%</span>
+                              </td>
+                              <td className="px-4 py-3.5 text-right text-sm font-bold text-amber-600">₹{(consultationFee * consultationGST / 100).toFixed(2)}</td>
+                              <td className="px-4 py-3.5 text-right text-sm font-black text-teal-700">₹{(consultationFee + consultationFee * consultationGST / 100).toFixed(2)}</td>
+                              <td className="px-4 py-3.5 text-center print:hidden">
+                                {!isViewMode && (
+                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                                    onClick={() => setConsultationFee(null)}
+                                    className="text-rose-400 hover:text-rose-600 transition-colors">
+                                    <Trash2 size={16} />
+                                  </motion.button>
+                                )}
+                              </td>
+                            </tr>
+                          )}
 
-                        {/* Other Charges Rows */}
-                        {otherCharges.map((charge, idx) => (
-                          <tr key={charge.id} className="border-b border-blue-100 hover:bg-blue-50 transition-colors">
-                            <td className="px-3 py-4 text-sm font-bold text-blue-700">{consultationFee !== null ? idx + 2 : idx + 1}</td>
-                            <td className="px-3 py-4">
-                              <input 
-                                type="text"
-                                placeholder="e.g., Additional Treatment"
-                                value={charge.name}
-                                onChange={(e) => updateCharge(charge.id, "name", e.target.value)}
-                                disabled={isViewMode}
-                                className="w-full text-sm py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:border-0 print:px-0 print:py-0 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                              />
-                              <span className="hidden print:inline text-sm font-semibold text-slate-800">{charge.name || '—'}</span>
-                            </td>
-                            <td className="px-3 py-4 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <span className="text-xs text-slate-600 print:hidden">₹</span>
-                                <input 
-                                  type="number"
-                                  step="0.01"
-                                  value={charge.amount}
+                          {/* Other charges */}
+                          {otherCharges.map((charge, idx) => (
+                            <tr key={charge.id} className="hover:bg-teal-50/40 transition-colors">
+                              <td className="px-4 py-3.5 text-sm font-black text-teal-600">{consultationFee !== null ? idx + 2 : idx + 1}</td>
+                              <td className="px-4 py-3.5">
+                                <input type="text" placeholder="Service name"
+                                  value={charge.name}
+                                  onChange={(e) => updateCharge(charge.id, "name", e.target.value)}
+                                  disabled={isViewMode}
+                                  className="w-full text-sm font-semibold py-1 px-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 outline-none print:border-0 print:px-0 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                />
+                                <span className="hidden print:inline text-sm font-semibold">{charge.name || '—'}</span>
+                              </td>
+                              <td className="px-4 py-3.5 text-right">
+                                <input type="number" step="0.01" value={charge.amount}
                                   onChange={(e) => updateCharge(charge.id, "amount", e.target.value)}
                                   disabled={isViewMode}
-                                  className="w-20 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden print:border-0 print:px-0 print:py-0 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                  className="w-24 text-right text-sm font-bold py-1 px-2 rounded-lg border border-indigo-200 focus:ring-2 focus:ring-indigo-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
                                   placeholder="0.00"
                                 />
-                                <span className="hidden print:inline text-sm font-bold text-slate-800">₹{charge.amount.toFixed(2)}</span>
-                              </div>
-                            </td>
-                            <td className="px-3 py-4 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <input 
-                                  type="number"
-                                  step="0.01"
-                                  value={charge.gstPercent}
+                                <span className="hidden print:inline text-sm font-bold">₹{charge.amount.toFixed(2)}</span>
+                              </td>
+                              <td className="px-4 py-3.5 text-right">
+                                <input type="number" step="0.01" value={charge.gstPercent}
                                   onChange={(e) => updateCharge(charge.id, "gstPercent", e.target.value)}
                                   disabled={isViewMode}
-                                  className="w-16 text-right text-sm font-bold py-1.5 px-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                  className="w-16 text-right text-sm font-bold py-1 px-2 rounded-lg border border-amber-200 focus:ring-2 focus:ring-amber-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 />
-                                <span className="text-xs text-slate-600 print:hidden">%</span>
-                                <span className="hidden print:inline text-sm font-bold text-slate-800">{charge.gstPercent}%</span>
-                              </div>
-                            </td>
-                            <td className="px-3 py-4 text-right font-bold text-amber-600">₹{(charge.amount * charge.gstPercent / 100).toFixed(2)}</td>
-                            <td className="px-3 py-4 text-right font-bold text-blue-700">₹{(charge.amount + charge.amount * charge.gstPercent / 100).toFixed(2)}</td>
-                            <td className="px-3 py-4 text-right">
-                              <div className="flex items-center justify-end gap-1">
-                                <span className="text-xs text-slate-600 print:hidden">₹</span>
-                                <input 
-                                  type="number"
-                                  step="0.01"
-                                  value={charge.paidAmount || 0}
-                                  onChange={(e) => updateCharge(charge.id, "paidAmount", e.target.value)}
-                                  disabled={isViewMode}
-                                  className="w-20 text-right text-sm font-bold py-1.5 px-2 rounded border border-green-300 focus:ring-2 focus:ring-green-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                  placeholder="0.00"
-                                />
-                                <span className="hidden print:inline text-sm font-bold text-slate-800">₹{(charge.paidAmount || 0).toFixed(2)}</span>
-                              </div>
-                            </td>
-                            <td className="px-3 py-4 text-center print:hidden">
-                              {!isViewMode && (
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  whileTap={{ scale: 0.9 }}
-                                  onClick={() => deleteCharge(charge.id)}
-                                  className="text-red-500 hover:text-red-700 transition-colors"
-                                >
-                                  <Trash2 size={18} />
-                                </motion.button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Add Charge Buttons */}
-                  {!isViewMode && (
-                    <div className="mt-4 print:hidden flex gap-3 flex-wrap">
-                      {consultationFee === null && (
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setConsultationFee(500)}
-                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
-                        >
-                          <Plus size={18} />
-                          Add Consultation Fee
-                        </motion.button>
-                      )}
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={addCharge}
-                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all"
-                      >
-                        <Plus size={18} />
-                        Add Service
-                      </motion.button>
+                                <span className="hidden print:inline text-sm font-bold">{charge.gstPercent}%</span>
+                              </td>
+                              <td className="px-4 py-3.5 text-right text-sm font-bold text-amber-600">₹{(charge.amount * charge.gstPercent / 100).toFixed(2)}</td>
+                              <td className="px-4 py-3.5 text-right text-sm font-black text-teal-700">₹{(charge.amount + charge.amount * charge.gstPercent / 100).toFixed(2)}</td>
+                              <td className="px-4 py-3.5 text-center print:hidden">
+                                {!isViewMode && (
+                                  <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+                                    onClick={() => deleteCharge(charge.id)}
+                                    className="text-rose-400 hover:text-rose-600 transition-colors">
+                                    <Trash2 size={16} />
+                                  </motion.button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
-                </div>
-                )}
 
-                {/* Saved Billing Information - Single Line Grid Format */}
-                {isViewMode && savedLineItems && savedLineItems.length > 0 && (
-                  <div className="p-8 border-t-2 border-green-100 bg-gradient-to-r from-green-50 to-emerald-50">
-                    <p className="text-xs font-bold text-green-600 uppercase tracking-widest mb-6">✅ Invoice Line Items</p>
-                    
-                    {/* Invoice Line Items - Single Line Grid */}
-                    <div className="space-y-2">
-                      {savedLineItems.map((item, idx) => (
-                        <motion.div
-                          key={idx}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className="bg-white rounded-lg border-2 border-green-200 p-4 shadow-sm hover:shadow-md transition-all"
-                        >
-                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                            {/* Line Number */}
-                            <div className="md:col-span-1">
-                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Line</p>
-                              <p className="text-lg font-bold text-green-700">#{item.lineItemNumber}</p>
-                            </div>
-                            
-                            {/* Service Description */}
-                            <div className="md:col-span-4">
-                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Service</p>
-                              <p className="text-sm font-semibold text-slate-800">{item.serviceDescription}</p>
-                            </div>
-                            
-                            {/* Cost */}
-                            <div className="md:col-span-1 text-center">
-                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Cost</p>
-                              <p className="text-sm font-bold text-slate-700">₹{item.serviceCost?.toFixed(2) || '0.00'}</p>
-                            </div>
-                            
-                            {/* GST */}
-                            <div className="md:col-span-1 text-center">
-                              <p className="text-xs text-green-600 font-bold uppercase mb-1">GST</p>
-                              <p className="text-sm font-bold text-amber-600">₹{item.gst?.toFixed(2) || '0.00'}</p>
-                            </div>
-                            
-                            {/* Total */}
-                            <div className="md:col-span-1 text-center">
-                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Total</p>
-                              <p className="text-sm font-bold text-blue-700">₹{item.totalAmount?.toFixed(2) || '0.00'}</p>
-                            </div>
-                            
-                            {/* Paid */}
-                            <div className="md:col-span-1 text-center">
-                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Paid</p>
-                              <p className="text-sm font-bold text-green-700">₹{item.amountPaid?.toFixed(2) || '0.00'}</p>
-                            </div>
-
-                            {/* Pending */}
-                            <div className="md:col-span-1 text-center">
-                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Pending</p>
-                              <p className="text-sm font-bold text-red-700">₹{Math.max(0, (item.totalAmount || 0) - (item.amountPaid || 0)).toFixed(2)}</p>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Totals & Payment Section */}
-                <div className="grid grid-cols-2 gap-8 p-8 border-t-2 border-blue-100">
-                  {/* Doctor Info */}
-                  <div>
-                    <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-4">Attending Doctor</p>
-                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-blue-200">
-                      <p className="font-bold text-slate-800 text-lg">Dr. {doctorName}</p>
-                      <p className="text-sm text-slate-600 mt-1">{registrationNumber}</p>
-                    </div>
-                  </div>
-
-                  {/* Billing Summary */}
-                  <div>
-                    <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-4">Billing Summary</p>
-                    <div className="space-y-3">
-                      {/* Subtotal */}
-                      <div className="flex justify-between items-center p-3 bg-gradient-to-r from-slate-50 to-gray-50 rounded-lg border border-slate-200">
-                        <span className="text-sm font-semibold text-slate-700">Subtotal</span>
-                        <span className="text-lg font-bold text-slate-600">₹{subtotalAmount.toFixed(2)}</span>
-                      </div>
-
-                      {/* GST Amount */}
-                      <div className="flex justify-between items-center p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200">
-                        <span className="text-sm font-semibold text-slate-700">Total GST</span>
-                        <span className="text-lg font-bold text-amber-600">₹{totalGST.toFixed(2)}</span>
-                      </div>
-
-                      {/* Final Total Amount */}
-                      <div className="flex justify-between items-center p-3 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg border-2 border-blue-300">
-                        <span className="text-sm font-bold text-blue-900">Final Total Amount</span>
-                        <span className="text-2xl font-bold text-blue-700">₹{totalAmount.toFixed(2)}</span>
-                      </div>
-
-                      {/* Amount Paid - Calculated from per-line-item payments */}
-                      <div className="flex justify-between items-center p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-200">
-                        <span className="text-sm font-semibold text-slate-700">Amount Paid (from items)</span>
-                        <span className="text-lg font-bold text-green-600">₹{totalPaidAmount.toFixed(2)}</span>
-                      </div>
-
-                      {/* Balance Due */}
-                      <div className="flex justify-between items-center p-3 bg-gradient-to-r from-red-50 to-rose-50 rounded-lg border border-red-200">
-                        <span className="text-sm font-semibold text-slate-700">Balance Due</span>
-                        <span className="text-2xl font-bold text-red-600">₹{pendingAmount.toFixed(2)}</span>
-                      </div>
-
-                      {/* Payment Status */}
-                      <div className={`flex items-center justify-between p-4 rounded-lg border-2 ${statusBg} ${statusBorder}`}>
-                        <div className="flex items-center gap-2">
-                          <div className={statusColor}>{statusIcon}</div>
-                          <span className={`font-bold text-sm ${statusColor}`}>Payment Status</span>
-                        </div>
-                        <span className={`font-bold text-lg ${statusColor}`}>{status}</span>
-                      </div>
-
-                      {/* Mode of Payment */}
-                      <div className="flex items-center justify-between gap-2 print:hidden">
-                        <label className="text-sm font-semibold text-slate-700">Payment Mode</label>
-                        <select
-                          value={modeOfPayment}
-                          onChange={(e) => setModeOfPayment(e.target.value)}
-                          disabled={isViewMode}
-                          className="px-3 py-2 rounded border border-blue-300 focus:ring-2 focus:ring-blue-400 outline-none text-sm disabled:bg-gray-100 disabled:cursor-not-allowed"
-                        >
-                          <option>Cash</option>
-                          <option>Card</option>
-                          <option>UPI</option>
-                          <option>Insurance</option>
-                          <option>Cheque</option>
-                        </select>
-                      </div>
-
-                      {/* Quick Actions */}
-                      {!isViewMode && (
-                        <div className="flex gap-2 pt-2 print:hidden">
-                          <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={markAsPaid}
-                            className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-all text-sm"
-                          >
-                            ✓ Mark as Paid
+                    {/* Add buttons */}
+                    {!isViewMode && (
+                      <div className="mt-4 print:hidden flex gap-3 flex-wrap">
+                        {consultationFee === null && (
+                          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                            onClick={() => setConsultationFee(500)}
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all text-sm">
+                            <Plus size={16} /> Add Consultation Fee
                           </motion.button>
-                        </div>
-                      )}
+                        )}
+                        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                          onClick={addCharge}
+                          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all text-sm">
+                          <Plus size={16} /> Add Service
+                        </motion.button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── SERVICE TABLE — VIEW MODE (saved line items) ── */}
+                {isViewMode && savedLineItems && savedLineItems.length > 0 && (
+                  <div className="px-8 py-6">
+                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Service Details</p>
+                    <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-gradient-to-r from-indigo-600 to-teal-600 text-white">
+                            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-10">#</th>
+                            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Service</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Cost (₹)</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">GST (₹)</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Final (₹)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {savedLineItems.map((item, idx) => (
+                            <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
+                              <td className="px-4 py-3.5 text-sm font-black text-indigo-600">{item.lineItemNumber}</td>
+                              <td className="px-4 py-3.5 text-sm font-semibold text-slate-800">{item.serviceDescription}</td>
+                              <td className="px-4 py-3.5 text-right text-sm font-bold text-slate-700">₹{item.serviceCost?.toFixed(2) || '0.00'}</td>
+                              <td className="px-4 py-3.5 text-right text-sm font-bold text-amber-600">₹{item.gst?.toFixed(2) || '0.00'}</td>
+                              <td className="px-4 py-3.5 text-right text-sm font-black text-teal-700">₹{item.totalAmount?.toFixed(2) || '0.00'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── TOTALS + SIGNATURE BLOCK ── */}
+                <div className="grid grid-cols-2 gap-0 border-t-2 border-slate-100">
+                  {/* Left: Total in words + signature */}
+                  <div className="p-8 bg-gradient-to-br from-slate-50 to-indigo-50/30 border-r border-slate-100 flex flex-col justify-between">
+                    <div>
+                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Total in Words</p>
+                      <p className="text-sm font-semibold text-slate-800 italic leading-relaxed border-l-4 border-indigo-400 pl-3">
+                        {numberToWords(Math.round(totalAmount))}
+                      </p>
+                    </div>
+                    <div className="mt-8">
+                      <div className="border-t-2 border-dashed border-slate-300 pt-4">
+                        <p className="text-xs text-slate-400 mb-1">Electronically signed by</p>
+                        <p className="text-base font-black text-slate-800">Dr. {doctorName}</p>
+                        <p className="text-xs text-slate-500">{registrationNumber}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Totals breakdown */}
+                  <div className="p-8 bg-white">
+                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Summary</p>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                        <span className="text-sm text-slate-500 font-medium">Subtotal</span>
+                        <span className="text-sm font-bold text-slate-700">₹{subtotalAmount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                        <span className="text-sm text-slate-500 font-medium">GST</span>
+                        <span className="text-sm font-bold text-amber-600">₹{totalGST.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-3 mt-1 bg-gradient-to-r from-indigo-600 to-teal-600 rounded-xl px-4 shadow-md">
+                        <span className="text-sm font-black text-white uppercase tracking-wide">Grand Total</span>
+                        <span className="text-2xl font-black text-white">₹{totalAmount.toFixed(2)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Footer */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 text-center border-t-2 border-blue-100 rounded-b-2xl">
-                  <p className="text-xs text-slate-600 mb-1">This is a computer-generated invoice. Valid without signature.</p>
-                  <p className="text-xs text-slate-500">
-                    For queries, contact {clinicInfo?.clinicPhone} or {clinicInfo?.clinicEmail}
-                  </p>
+                {/* ── FOOTER ── */}
+                <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-teal-900 text-white px-10 py-5 flex items-center justify-between">
+                  <div className="text-xs text-slate-300 space-y-0.5">
+                    <p>{clinicInfo?.clinicAddress || ""}</p>
+                    <p>{clinicInfo?.clinicPhone || ""} {clinicInfo?.clinicEmail ? "· " + clinicInfo.clinicEmail : ""}</p>
+                  </div>
+                  <p className="text-xs text-slate-400 italic">Computer generated invoice · Valid without signature</p>
                 </div>
 
               </div>
