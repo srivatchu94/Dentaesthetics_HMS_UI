@@ -313,11 +313,14 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
       yPosition += 5;
       doc.text(`Date: ${new Date(invoice.header.billDate).toLocaleDateString()}`, margin, yPosition);
       yPosition += 5;
-      doc.text(`Status: ${invoice.header.status}`, margin, yPosition);
+      const invLineItems = invoice.lineItems || [];
+      const invTotalPaid = invLineItems.reduce((s, i) => s + (i.amountPaid || 0), 0);
+      const invStatus = invTotalPaid === 0 ? 'Pending' : invTotalPaid >= (invoice.header.totalAmount || 0) ? 'Paid' : 'Partial';
+      doc.text(`Status: ${invStatus}`, margin, yPosition);
       yPosition += 10;
 
       // Line items table
-      const lineItems = invoice.lineItems || [];
+      const lineItems = invLineItems;
       const tableData = [
         ['Service', 'Cost', 'GST', 'Total', 'Paid', 'Pending']
       ];
@@ -328,8 +331,8 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
           `₹${item.serviceCost?.toFixed(2) || '0.00'}`,
           `₹${item.gst?.toFixed(2) || '0.00'}`,
           `₹${item.totalAmount?.toFixed(2) || '0.00'}`,
-          `₹${item.paidAmount?.toFixed(2) || '0.00'}`,
-          `₹${item.pendingAmount?.toFixed(2) || '0.00'}`
+          `₹${item.amountPaid?.toFixed(2) || '0.00'}`,
+          `₹${Math.max(0, (item.totalAmount || 0) - (item.amountPaid || 0)).toFixed(2)}`
         ]);
       });
 
@@ -348,9 +351,9 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
       doc.setFontSize(10);
       doc.text(`Total Amount: ₹${invoice.header.totalAmount?.toFixed(2) || '0.00'}`, margin, yPosition);
       yPosition += 5;
-      doc.text(`Amount Paid: ₹${invoice.header.paidAmount?.toFixed(2) || '0.00'}`, margin, yPosition);
+      doc.text(`Amount Paid: ₹${invTotalPaid.toFixed(2)}`, margin, yPosition);
       yPosition += 5;
-      doc.text(`Pending: ₹${invoice.header.pendingAmount?.toFixed(2) || '0.00'}`, margin, yPosition);
+      doc.text(`Pending: ₹${Math.max(0, (invoice.header.totalAmount || 0) - invTotalPaid).toFixed(2)}`, margin, yPosition);
 
       const fileName = `Invoice_${invoice.header.invoiceNumber}_${new Date().getTime()}.pdf`;
       doc.save(fileName);
@@ -608,13 +611,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                               initial={{ opacity: 0, x: -20 }}
                               animate={{ opacity: 1, x: 0 }}
                               transition={{ delay: idx * 0.1 }}
-                              className={`rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 ${
-                                invoice.header?.status === 'Paid'
-                                  ? 'border-l-green-500 bg-gradient-to-r from-green-50/40 to-white'
-                                  : invoice.header?.status === 'Partial'
-                                  ? 'border-l-amber-500 bg-gradient-to-r from-amber-50/40 to-white'
-                                  : 'border-l-red-500 bg-gradient-to-r from-red-50/40 to-white'
-                              } border border-slate-100`}
+                              className={`rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 ${(() => { const _p = (invoice.lineItems||[]).reduce((s,i)=>s+(i.amountPaid||0),0); const _s = _p===0?'Pending':_p>=(invoice.header?.totalAmount||0)?'Paid':'Partial'; return _s==='Paid'?'border-l-green-500 bg-gradient-to-r from-green-50/40 to-white':_s==='Partial'?'border-l-amber-500 bg-gradient-to-r from-amber-50/40 to-white':'border-l-red-500 bg-gradient-to-r from-red-50/40 to-white'; })()} border border-slate-100`}
                             >
                               <div className="px-5 py-3.5 flex items-center justify-between gap-5">
                                 {/* Left Section: Invoice Identity */}
@@ -640,15 +637,9 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                   <div className="flex-shrink-0">
                                     <motion.span
                                       whileHover={{ scale: 1.05 }}
-                                      className={`text-xs font-bold rounded-full px-3.5 py-1.5 inline-block border-2 transition-all ${
-                                        invoice.header?.status === 'Paid'
-                                          ? 'bg-green-500 text-white border-green-600 shadow-sm'
-                                          : invoice.header?.status === 'Partial'
-                                          ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
-                                          : 'bg-red-500 text-white border-red-600 shadow-sm'
-                                      }`}
+                                      className={`text-xs font-bold rounded-full px-3.5 py-1.5 inline-block border-2 transition-all ${(() => { const _p=(invoice.lineItems||[]).reduce((s,i)=>s+(i.amountPaid||0),0); const _s=_p===0?'Pending':_p>=(invoice.header?.totalAmount||0)?'Paid':'Partial'; return _s==='Paid'?'bg-green-500 text-white border-green-600 shadow-sm':_s==='Partial'?'bg-amber-500 text-white border-amber-600 shadow-sm':'bg-red-500 text-white border-red-600 shadow-sm'; })()}`}
                                     >
-                                      {invoice.header?.status || 'Pending'}
+                                      {(() => { const _p=(invoice.lineItems||[]).reduce((s,i)=>s+(i.amountPaid||0),0); return _p===0?'Pending':_p>=(invoice.header?.totalAmount||0)?'Paid':'Partial'; })()}
                                     </motion.span>
                                   </div>
                                 </div>
@@ -669,7 +660,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                     {/* Paid */}
                                     <div className="text-center min-w-fit">
                                       <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Paid</p>
-                                      <p className="text-sm font-black text-green-600">₹{(invoice.header?.paidAmount || 0).toFixed(0)}</p>
+                                      <p className="text-sm font-black text-green-600">₹{(invoice.lineItems||[]).reduce((s,i)=>s+(i.amountPaid||0),0).toFixed(0)}</p>
                                     </div>
                                     
                                     {/* Divider */}
@@ -678,7 +669,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                     {/* Pending */}
                                     <div className="text-center min-w-fit">
                                       <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Due</p>
-                                      <p className="text-sm font-black text-red-600">₹{Math.max(0, (invoice.header?.pendingAmount || 0)).toFixed(0)}</p>
+                                      <p className="text-sm font-black text-red-600">₹{Math.max(0,(invoice.header?.totalAmount||0)-(invoice.lineItems||[]).reduce((s,i)=>s+(i.amountPaid||0),0)).toFixed(0)}</p>
                                     </div>
                                   </div>
 
@@ -1053,13 +1044,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                       initial={{ opacity: 0, x: -20 }}
                                       animate={{ opacity: 1, x: 0 }}
                                       transition={{ delay: idx * 0.1 }}
-                                      className={`rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 ${
-                                        invoice.header?.status === 'Paid'
-                                          ? 'border-l-green-500 bg-gradient-to-r from-green-50/40 to-white'
-                                          : invoice.header?.status === 'Partial'
-                                          ? 'border-l-amber-500 bg-gradient-to-r from-amber-50/40 to-white'
-                                          : 'border-l-red-500 bg-gradient-to-r from-red-50/40 to-white'
-                                      } border border-slate-100`}
+                                      className={`rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden border-l-4 ${(() => { const _p=(invoice.lineItems||[]).reduce((s,i)=>s+(i.amountPaid||0),0); const _s=_p===0?'Pending':_p>=(invoice.header?.totalAmount||0)?'Paid':'Partial'; return _s==='Paid'?'border-l-green-500 bg-gradient-to-r from-green-50/40 to-white':_s==='Partial'?'border-l-amber-500 bg-gradient-to-r from-amber-50/40 to-white':'border-l-red-500 bg-gradient-to-r from-red-50/40 to-white'; })()} border border-slate-100`}
                                     >
                                       <div className="px-5 py-3.5 flex items-center justify-between gap-5">
                                         <div className="flex items-center gap-4 flex-1 min-w-0">

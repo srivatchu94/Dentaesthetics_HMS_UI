@@ -112,8 +112,9 @@ export default function PaymentManagement({ appointmentData, returnTo }) {
                 
                 invoiceResponse.forEach(invoice => {
                   totalInvoiceAmount += invoice.header?.totalAmount || 0;
-                  totalPaidAmount += invoice.header?.paidAmount || 0;
-                  if (invoice.header?.status === 'Partial') {
+                  const invPaid = (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid || 0), 0);
+                  totalPaidAmount += invPaid;
+                  if (invPaid > 0 && invPaid < (invoice.header?.totalAmount || 0)) {
                     hasPartialPayment = true;
                   }
                 });

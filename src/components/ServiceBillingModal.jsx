@@ -144,15 +144,15 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                 name: item.serviceDescription,
                 amount: item.serviceCost,
                 gstPercent: item.serviceCost > 0 ? (item.gst / item.serviceCost * 100) : 0,
-                paidAmount: item.paidAmount || 0
+                paidAmount: item.amountPaid || 0
               });
             }
           });
-          
+
           // Set consultation fee data
           if (consultationItem) {
             setConsultationFee(consultationItem.serviceCost);
-            setConsultationPaid(consultationItem.paidAmount || 0);
+            setConsultationPaid(consultationItem.amountPaid || 0);
             setConsultationGST(consultationItem.serviceCost > 0 ? (consultationItem.gst / consultationItem.serviceCost * 100) : 18);
           }
           
@@ -220,16 +220,16 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                 id: item.lineItemNumber.toString(),
                 name: item.serviceDescription,
                 amount: item.serviceCost,
-                gstPercent: (item.gst / item.serviceCost * 100) || 0, // Calculate GST percentage
-                paidAmount: item.paidAmount || 0
+                gstPercent: (item.gst / item.serviceCost * 100) || 0,
+                paidAmount: item.amountPaid || 0
               });
             }
           });
-          
+
           // Set consultation fee data
           if (consultationItem) {
             setConsultationFee(consultationItem.serviceCost);
-            setConsultationPaid(consultationItem.paidAmount || 0);
+            setConsultationPaid(consultationItem.amountPaid || 0);
             setConsultationGST((consultationItem.gst / consultationItem.serviceCost * 100) || 18);
           }
           
@@ -463,7 +463,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
           gst: consultationFee * consultationGST / 100,
           modeOfPayment: modeOfPayment,
           totalAmount: consultationFee + (consultationFee * consultationGST / 100),
-          paidAmount: consultationPaid
+          amountPaid: consultationPaid
         });
         lineNumber++;
       }
@@ -477,7 +477,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
         gst: charge.amount * (charge.gstPercent || 0) / 100,
         modeOfPayment: modeOfPayment,
         totalAmount: charge.amount + (charge.amount * (charge.gstPercent || 0) / 100),
-        paidAmount: charge.paidAmount || 0
+        amountPaid: charge.paidAmount || 0
       }));
       lineItems.push(...otherLineItems);
 
@@ -490,10 +490,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
           doctorName: doctorName,
           billDate: new Date().toISOString(),
           modeOfPayment: modeOfPayment,
-          status: totalPaidAmount === 0 ? "Pending" : totalPaidAmount >= totalAmount ? "Paid" : "Partial",
           totalAmount: totalAmount,
-          paidAmount: totalPaidAmount,
-          pendingAmount: Math.max(0, totalAmount - totalPaidAmount)
+          netAmount: subtotalAmount
         },
         lineItems: lineItems
       };
@@ -1066,13 +1064,13 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                             {/* Paid */}
                             <div className="md:col-span-1 text-center">
                               <p className="text-xs text-green-600 font-bold uppercase mb-1">Paid</p>
-                              <p className="text-sm font-bold text-green-700">₹{item.paidAmount?.toFixed(2) || '0.00'}</p>
+                              <p className="text-sm font-bold text-green-700">₹{item.amountPaid?.toFixed(2) || '0.00'}</p>
                             </div>
-                            
+
                             {/* Pending */}
                             <div className="md:col-span-1 text-center">
                               <p className="text-xs text-green-600 font-bold uppercase mb-1">Pending</p>
-                              <p className="text-sm font-bold text-red-700">₹{item.pendingAmount?.toFixed(2) || '0.00'}</p>
+                              <p className="text-sm font-bold text-red-700">₹{Math.max(0, (item.totalAmount || 0) - (item.amountPaid || 0)).toFixed(2)}</p>
                             </div>
                           </div>
                         </motion.div>
