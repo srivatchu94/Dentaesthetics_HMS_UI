@@ -32,15 +32,15 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   const [displayInvoiceNumber, setDisplayInvoiceNumber] = useState("INV-2026-001");
   const [modalMode, setModalMode] = useState(initialMode); // "edit" for create new, "view" for viewing, "edit-invoice" for editing existing
   const [consultationFee, setConsultationFee] = useState(null); // Optional - null means no consultation fee
-  const [consultationGST, setConsultationGST] = useState(18);
   const [consultationPaid, setConsultationPaid] = useState(0); // Per-item payment tracking
   const [otherCharges, setOtherCharges] = useState([
-    { id: "1", name: "Registration", amount: 50, gstPercent: 0, paidAmount: 0 }
+    { id: "1", name: "Registration", amount: 50, paidAmount: 0 }
   ]);
   const [amountPaid, setAmountPaid] = useState(0);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState("");
+  const [emailStatus, setEmailStatus] = useState(null); // 'sending' | 'success' | 'error'
   const [clinicInfo, setClinicInfo] = useState(null);
   const [doctorInfo, setDoctorInfo] = useState(null);
   const [loadingClinic, setLoadingClinic] = useState(false);
@@ -149,7 +149,6 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                 id: item.lineItemNumber.toString(),
                 name: item.serviceDescription,
                 amount: item.serviceCost,
-                gstPercent: item.serviceCost > 0 ? (item.gst / item.serviceCost * 100) : 0,
                 paidAmount: item.amountPaid ?? item.AmountPaid ?? 0
               });
             }
@@ -159,21 +158,20 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
           if (consultationItem) {
             setConsultationFee(consultationItem.serviceCost);
             setConsultationPaid(consultationItem.amountPaid ?? consultationItem.AmountPaid ?? 0);
-            setConsultationGST(consultationItem.serviceCost > 0 ? (consultationItem.gst / consultationItem.serviceCost * 100) : 18);
           }
-          
+
           // Set other charges
           if (otherItems.length > 0) {
             setOtherCharges(otherItems);
           }
         }
-        
+
         // Pre-populate patient info from response
         if (appointmentDetails) {
           setPatientName(`${appointmentDetails.firstName || ""} ${appointmentDetails.lastName || ""}`.trim());
           setRecipientEmail(appointmentDetails.email || "");
         }
-        
+
         toast.success("📋 Existing invoice loaded successfully!");
       } else {
         // No invoice found - stay in edit mode
@@ -226,7 +224,6 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                 id: item.lineItemNumber.toString(),
                 name: item.serviceDescription,
                 amount: item.serviceCost,
-                gstPercent: (item.gst / item.serviceCost * 100) || 0,
                 paidAmount: item.amountPaid ?? item.AmountPaid ?? 0
               });
             }
@@ -236,7 +233,6 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
           if (consultationItem) {
             setConsultationFee(consultationItem.serviceCost);
             setConsultationPaid(consultationItem.amountPaid ?? consultationItem.AmountPaid ?? 0);
-            setConsultationGST((consultationItem.gst / consultationItem.serviceCost * 100) || 18);
           }
           
           // Set other charges
@@ -268,27 +264,11 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
     }
   };
 
-  const totalAmount = useMemo(() => {
-    const consultationWithGST = consultationFee ? consultationFee + (consultationFee * consultationGST / 100) : 0;
-    const othersWithGST = otherCharges.reduce((sum, item) => {
-      const gst = item.amount * (item.gstPercent || 0) / 100;
-      return sum + item.amount + gst;
-    }, 0);
-    return consultationWithGST + othersWithGST;
-  }, [consultationFee, consultationGST, otherCharges]);
-
-  const totalGST = useMemo(() => {
-    const consultationGSTAmount = consultationFee ? consultationFee * consultationGST / 100 : 0;
-    const othersGST = otherCharges.reduce((sum, item) => {
-      const gst = item.amount * (item.gstPercent || 0) / 100;
-      return sum + gst;
-    }, 0);
-    return consultationGSTAmount + othersGST;
-  }, [consultationFee, consultationGST, otherCharges]);
-
   const subtotalAmount = useMemo(() => {
     return (consultationFee || 0) + otherCharges.reduce((sum, item) => sum + item.amount, 0);
   }, [consultationFee, otherCharges]);
+
+  const totalAmount = subtotalAmount;
 
   const totalPaidAmount = (consultationPaid || 0) + otherCharges.reduce((sum, item) => sum + (item.paidAmount || 0), 0);
 
@@ -317,15 +297,14 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
       id: Date.now().toString(),
       name: "",
       amount: 0,
-      gstPercent: 0,
       paidAmount: 0
     };
     setOtherCharges([...otherCharges, newCharge]);
   };
 
   const updateCharge = (id, field, value) => {
-    setOtherCharges(otherCharges.map(charge => 
-      charge.id === id ? { ...charge, [field]: ["amount", "gstPercent", "paidAmount"].includes(field) ? Number(value) : value } : charge
+    setOtherCharges(otherCharges.map(charge =>
+      charge.id === id ? { ...charge, [field]: ["amount", "paidAmount"].includes(field) ? Number(value) : value } : charge
     ));
   };
 
@@ -343,16 +322,13 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
     const doctorName = doctorInfo ? `${doctorInfo.firstName || ""} ${doctorInfo.lastName || ""}`.trim() : fbName;
     const registrationNumber = doctorInfo?.licenseNumber || fbReg;
     const chargesHTML = [
-      { name: "Consultation Fee", amount: consultationFee, gstPercent: consultationGST, gstAmount: consultationFee * consultationGST / 100 },
-      ...otherCharges.filter(c => c.name && c.amount).map(c => ({ ...c, gstAmount: c.amount * c.gstPercent / 100 }))
+      ...(consultationFee !== null ? [{ name: "Consultation Fee", amount: consultationFee }] : []),
+      ...otherCharges.filter(c => c.name && c.amount)
     ].map((item, idx) => `
       <tr style="border-bottom: 1px solid #e5e7eb;">
         <td style="padding: 12px; text-align: center; background-color: #f9fafb; font-weight: bold;">${idx + 1}</td>
         <td style="padding: 12px; background-color: #f9fafb;"><strong>${item.name}</strong></td>
-        <td style="padding: 12px; text-align: right; background-color: #f9fafb; color: #2563eb;">₹${item.amount.toFixed(2)}</td>
-        <td style="padding: 12px; text-align: center; background-color: #f9fafb; color: #f59e0b;">${item.gstPercent}%</td>
-        <td style="padding: 12px; text-align: right; background-color: #f9fafb; color: #f59e0b;">₹${item.gstAmount.toFixed(2)}</td>
-        <td style="padding: 12px; text-align: right; font-weight: bold; background-color: #f9fafb;">₹${(item.amount + item.gstAmount).toFixed(2)}</td>
+        <td style="padding: 12px; text-align: right; font-weight: bold; background-color: #f9fafb;">₹${item.amount.toFixed(2)}</td>
       </tr>
     `).join("");
     
@@ -406,11 +382,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
         <thead>
           <tr>
             <th style="width: 8%">#</th>
-            <th style="width: 40%">Service Description</th>
-            <th style="width: 12%">Amount</th>
-            <th style="width: 10%">GST %</th>
-            <th style="width: 12%">GST Amount</th>
-            <th style="width: 18%">Total</th>
+            <th style="width: 70%">Service Description</th>
+            <th style="width: 22%">Amount</th>
           </tr>
         </thead>
         <tbody>
@@ -420,16 +393,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
     </div>
 
     <div class="totals-section">
-      <div class="total-row">
-        <span style="color: #6b7280;">Subtotal:</span>
-        <span style="color: #1f2937;">₹${subtotalAmount.toFixed(2)}</span>
-      </div>
-      <div class="total-row">
-        <span style="color: #f59e0b;">Total GST:</span>
-        <span style="color: #f59e0b; font-weight: bold;">₹${totalGST.toFixed(2)}</span>
-      </div>
       <div class="total-row final">
-        <span>Final Total Amount:</span>
+        <span>Grand Total:</span>
         <span>₹${totalAmount.toFixed(2)}</span>
       </div>
       <div class="total-row">
@@ -487,9 +452,9 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
           lineItemNumber: lineNumber,
           serviceDescription: "Consultation Fee",
           serviceCost: consultationFee,
-          gst: consultationFee * consultationGST / 100,
+          gst: 0,
           modeOfPayment: modeOfPayment,
-          totalAmount: consultationFee + (consultationFee * consultationGST / 100),
+          totalAmount: consultationFee,
           amountPaid: consultationPaid
         });
         lineNumber++;
@@ -501,9 +466,9 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
         lineItemNumber: lineNumber++,
         serviceDescription: charge.name,
         serviceCost: charge.amount,
-        gst: charge.amount * (charge.gstPercent || 0) / 100,
+        gst: 0,
         modeOfPayment: modeOfPayment,
-        totalAmount: charge.amount + (charge.amount * (charge.gstPercent || 0) / 100),
+        totalAmount: charge.amount,
         amountPaid: charge.paidAmount || 0
       }));
       lineItems.push(...otherLineItems);
@@ -632,29 +597,23 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
   // Email function
   const handleSendEmail = async () => {
     if (!recipientEmail) {
-      toast.error("Please enter recipient email");
+      alert("Please enter a recipient email address.");
       return;
     }
 
-    setSendingEmail(true);
+    setShowEmailModal(false);
+    setEmailStatus('sending');
     try {
-      const { clinicName, clinicEmail } = clinicInfo || {};
       const emailHTML = generateServiceBillingEmail();
-
       await sendEmail({
         Email: recipientEmail,
-        Subject: `Service Bill ${displayInvoiceNumber} from ${clinicName || "Clinic"}`,
+        Subject: `Service Bill ${displayInvoiceNumber} from ${clinicInfo?.clinicName || "Clinic"}`,
         HtmlBody: emailHTML
       });
-
-      toast.success("Email sent successfully!");
-      setShowEmailModal(false);
-      setRecipientEmail("");
+      setEmailStatus('success');
     } catch (error) {
       console.error("Error sending email:", error);
-      toast.error("Failed to send email");
-    } finally {
-      setSendingEmail(false);
+      setEmailStatus('error');
     }
   };
 
@@ -732,7 +691,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                       <motion.button 
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => setShowEmailModal(true)}
+                        onClick={() => recipientEmail ? handleSendEmail() : setShowEmailModal(true)}
                         className="flex items-center gap-2 px-4 py-2.5 border text-white rounded-lg transition-all font-medium bg-white/20 border-white/40 hover:bg-white/30"
                         title="Email Invoice"
                       >
@@ -783,193 +742,176 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                   </div>
                 </>
               ) : null}
-              <div id="consultation-invoice-print" className="bg-white rounded-2xl overflow-hidden">
+              <div id="consultation-invoice-print" className="bg-white">
 
-                {/* ── HEADER BAND ── */}
-                <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-teal-900 text-white px-10 pt-10 pb-8">
-                  <div className="flex items-start justify-between">
-                    {/* Clinic identity */}
-                    <div>
-                      <div className="flex items-center gap-4 mb-3">
+                {/* ── HEADER ── screen: dark gradient | print: white + black border */}
+                <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-teal-900 text-white px-8 pt-8 pb-6 print:bg-white print:text-black print:border-b-2 print:border-black">
+                  <div className="flex items-start justify-between gap-6">
+                    {/* Left: clinic identity */}
+                    <div className="flex-1">
+                      <div className="flex items-start gap-4 mb-4">
+                        {/* Logo — color preserved on print */}
                         <img
                           src={clinicLogo}
                           alt="clinic logo"
-                          className="w-14 h-14 object-contain rounded-xl bg-white/10 p-1 border border-white/20"
+                          className="w-14 h-14 object-contain flex-shrink-0"
+                          style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
                         />
                         <div>
-                          <h1 className="text-3xl font-black tracking-wide">{clinicInfo?.clinicName || "Dental Clinic"}</h1>
-                          <p className="text-teal-300 text-xs font-medium mt-0.5">
+                          <h1 className="text-2xl font-black tracking-wide print:text-black">{clinicInfo?.clinicName || "Dental Clinic"}</h1>
+                          <p className="text-teal-300 text-xs mt-0.5 print:text-black">
                             {[clinicInfo?.clinicAddress, clinicInfo?.clinicCity].filter(Boolean).join(", ")}
                           </p>
                           {clinicInfo?.clinicPhone && (
-                            <p className="text-slate-400 text-xs mt-0.5">{clinicInfo.clinicPhone}{clinicInfo.clinicEmail ? " · " + clinicInfo.clinicEmail : ""}</p>
+                            <p className="text-slate-400 text-xs mt-0.5 print:text-black">
+                              {clinicInfo.clinicPhone}{clinicInfo.clinicEmail ? "  ·  " + clinicInfo.clinicEmail : ""}
+                            </p>
+                          )}
+                          {(clinicInfo?.registrationNumber || clinicInfo?.gstNumber) && (
+                            <p className="text-slate-400 text-xs mt-0.5 print:text-black">
+                              Reg: {clinicInfo.registrationNumber || clinicInfo.gstNumber}
+                            </p>
                           )}
                         </div>
                       </div>
-                      <div className="mt-3 pl-1 flex flex-col gap-0.5 border-l-2 border-teal-500">
-                        <p className="text-white font-bold text-base">Dr. {doctorName}</p>
+                      {/* Doctor line */}
+                      <div className="border-l-2 border-teal-500 pl-3 print:border-black">
+                        <p className="font-bold text-sm print:text-black">Dr. {doctorName}</p>
                         {registrationNumber && (
-                          <p className="text-indigo-300 text-xs font-medium">Reg. No: {registrationNumber}</p>
+                          <p className="text-indigo-300 text-xs print:text-black">Reg. No: {registrationNumber}</p>
                         )}
                       </div>
                     </div>
 
-                    {/* Invoice badge */}
-                    <div className="text-right">
-                      <div className="inline-block bg-teal-500/20 border border-teal-400/40 rounded-2xl px-6 py-4 backdrop-blur">
-                        <p className="text-teal-300 text-xs font-bold uppercase tracking-widest mb-1">Invoice</p>
-                        <p className="text-white text-2xl font-black">{displayInvoiceNumber}</p>
-                        <p className="text-slate-300 text-xs mt-2">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    {/* Right: invoice badge */}
+                    <div className="text-right flex-shrink-0">
+                      <div className="inline-block border border-teal-400/40 rounded-xl px-5 py-3 print:border-black print:rounded-none">
+                        <p className="text-teal-300 text-xs font-bold uppercase tracking-widest mb-1 print:text-black">Invoice</p>
+                        <p className="text-white text-2xl font-black print:text-black">{displayInvoiceNumber}</p>
+                        <p className="text-slate-300 text-xs mt-1 print:text-black">
+                          {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </p>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* ── PATIENT + INVOICE META STRIP ── */}
-                <div className="grid grid-cols-2 gap-0 border-b-2 border-slate-100">
-                  {/* Patient */}
-                  <div className="p-6 bg-gradient-to-br from-indigo-50 to-slate-50 border-r border-slate-100">
-                    <p className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-3">Billed To</p>
+                {/* ── PATIENT + INVOICE META ── screen: 2-col | print: stacked */}
+                <div className="grid grid-cols-2 print:grid-cols-1 border-b-2 border-slate-100 print:border-black">
+                  {/* Billed To */}
+                  <div className="p-5 bg-gradient-to-br from-indigo-50 to-slate-50 border-r border-slate-100 print:bg-white print:border-r-0 print:border-b print:border-black">
+                    <p className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-2 print:text-black">Billed To</p>
                     <input
                       type="text"
                       placeholder="Enter patient name"
                       value={patientName}
                       onChange={(e) => setPatientName(e.target.value)}
                       disabled={isViewMode}
-                      className="text-xl font-black text-slate-900 border-b-2 border-indigo-300 pb-1 w-full focus:border-indigo-600 focus:outline-none bg-transparent transition disabled:cursor-not-allowed"
+                      className="text-xl font-black text-slate-900 border-b-2 border-indigo-300 pb-1 w-full focus:border-indigo-600 focus:outline-none bg-transparent transition disabled:cursor-not-allowed print:border-b print:border-black print:text-black"
                     />
-                    <div className="mt-3 flex flex-wrap gap-3">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-white rounded-full px-3 py-1 border border-slate-200 shadow-sm">
-                        📞 {appointmentDetails?.phoneNumber || "—"}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-white rounded-full px-3 py-1 border border-slate-200 shadow-sm">
-                        🗓 {new Date().toLocaleDateString('en-IN')}
-                      </span>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600 print:text-black print:mt-1">
+                      <span>📞 {appointmentDetails?.phoneNumber || "—"}</span>
+                      <span className="print:hidden">·</span>
+                      <span>🗓 {new Date().toLocaleDateString('en-IN')}</span>
                     </div>
                   </div>
 
                   {/* Invoice meta */}
-                  <div className="p-6 bg-white">
-                    <p className="text-xs font-black text-teal-600 uppercase tracking-widest mb-3">Invoice Details</p>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500 font-medium">Invoice By</span>
-                        <span className="font-bold text-slate-800">Dr. {doctorName}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500 font-medium">Payment Mode</span>
-                        {isViewMode ? (
-                          <span className="font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full text-xs">{modeOfPayment}</span>
-                        ) : (
-                          <select
-                            value={modeOfPayment}
-                            onChange={(e) => setModeOfPayment(e.target.value)}
-                            className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                          >
-                            <option>Cash</option>
-                            <option>Card</option>
-                            <option>UPI</option>
-                            <option>Insurance</option>
-                            <option>Cheque</option>
-                          </select>
-                        )}
-                      </div>
-                    </div>
+                  <div className="p-5 bg-white print:py-3">
+                    <p className="text-xs font-black text-teal-600 uppercase tracking-widest mb-2 print:text-black">Invoice Details</p>
+                    <table className="w-full text-sm">
+                      <tbody>
+                        <tr>
+                          <td className="py-0.5 text-slate-500 print:text-black w-32">Invoice By</td>
+                          <td className="py-0.5 font-bold text-slate-800 print:text-black">Dr. {doctorName}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-0.5 text-slate-500 print:text-black">Payment Mode</td>
+                          <td className="py-0.5 font-bold text-slate-800 print:text-black">
+                            {isViewMode ? modeOfPayment : (
+                              <select
+                                value={modeOfPayment}
+                                onChange={(e) => setModeOfPayment(e.target.value)}
+                                className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 focus:outline-none print:bg-white print:text-black print:border-0"
+                              >
+                                <option>Cash</option>
+                                <option>Card</option>
+                                <option>UPI</option>
+                                <option>Insurance</option>
+                                <option>Cheque</option>
+                              </select>
+                            )}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
                 {/* ── SERVICE TABLE — EDIT / CREATE MODE ── */}
                 {(!isViewMode || !savedLineItems.length) && (
-                  <div className="px-8 py-6">
-                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Service Details</p>
-                    <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+                  <div className="px-6 py-5">
+                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 print:text-black">Service Details</p>
+                    <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm print:rounded-none print:shadow-none">
                       <table className="w-full">
                         <thead>
-                          <tr className="bg-gradient-to-r from-indigo-600 to-teal-600 text-white">
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-10">#</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Service</th>
-                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Cost (₹)</th>
-                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">GST %</th>
-                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">GST Amt</th>
-                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Final (₹)</th>
-                            <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider print:hidden">Action</th>
+                          <tr className="bg-gradient-to-r from-indigo-600 to-teal-600 text-white print:bg-white print:text-black print:border-b-2 print:border-black">
+                            <th className="px-3 py-3 text-left text-xs font-bold uppercase w-8">#</th>
+                            <th className="px-3 py-3 text-left text-xs font-bold uppercase">Service</th>
+                            <th className="px-3 py-3 text-right text-xs font-bold uppercase">Amount (₹)</th>
+                            <th className="px-3 py-3 text-center text-xs font-bold uppercase print:hidden">Action</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {/* Consultation row */}
+                        <tbody className="divide-y divide-slate-100 print:divide-gray-300">
                           {consultationFee !== null && (
-                            <tr className="hover:bg-indigo-50/40 transition-colors">
-                              <td className="px-4 py-3.5 text-sm font-black text-indigo-600">1</td>
-                              <td className="px-4 py-3.5">
-                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full mb-1">Consultation Fee</span>
-                              </td>
-                              <td className="px-4 py-3.5 text-right">
+                            <tr className="hover:bg-indigo-50/40 print:hover:bg-white">
+                              <td className="px-3 py-3 text-sm font-black text-indigo-600 print:text-black">1</td>
+                              <td className="px-3 py-3 text-sm font-semibold text-slate-800 print:text-black">Consultation Fee</td>
+                              <td className="px-3 py-3 text-right">
                                 <input type="number" step="0.01" value={consultationFee}
                                   onChange={(e) => setConsultationFee(Number(e.target.value))}
                                   disabled={isViewMode}
-                                  className="w-24 text-right text-sm font-bold py-1 px-2 rounded-lg border border-indigo-200 focus:ring-2 focus:ring-indigo-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                  className="w-28 text-right text-sm font-bold py-1 px-2 rounded-lg border border-indigo-200 focus:ring-2 focus:ring-indigo-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 />
-                                <span className="hidden print:inline text-sm font-bold">₹{consultationFee.toFixed(2)}</span>
+                                <span className="hidden print:inline text-sm font-bold text-black">₹{consultationFee.toFixed(2)}</span>
                               </td>
-                              <td className="px-4 py-3.5 text-right">
-                                <input type="number" step="0.01" value={consultationGST}
-                                  onChange={(e) => setConsultationGST(Number(e.target.value))}
-                                  disabled={isViewMode}
-                                  className="w-16 text-right text-sm font-bold py-1 px-2 rounded-lg border border-amber-200 focus:ring-2 focus:ring-amber-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                />
-                                <span className="hidden print:inline text-sm font-bold">{consultationGST}%</span>
-                              </td>
-                              <td className="px-4 py-3.5 text-right text-sm font-bold text-amber-600">₹{(consultationFee * consultationGST / 100).toFixed(2)}</td>
-                              <td className="px-4 py-3.5 text-right text-sm font-black text-teal-700">₹{(consultationFee + consultationFee * consultationGST / 100).toFixed(2)}</td>
-                              <td className="px-4 py-3.5 text-center print:hidden">
+                              <td className="px-3 py-3 text-center print:hidden">
                                 {!isViewMode && (
                                   <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
                                     onClick={() => setConsultationFee(null)}
-                                    className="text-rose-400 hover:text-rose-600 transition-colors">
+                                    className="text-rose-400 hover:text-rose-600">
                                     <Trash2 size={16} />
                                   </motion.button>
                                 )}
                               </td>
                             </tr>
                           )}
-
-                          {/* Other charges */}
                           {otherCharges.map((charge, idx) => (
-                            <tr key={charge.id} className="hover:bg-teal-50/40 transition-colors">
-                              <td className="px-4 py-3.5 text-sm font-black text-teal-600">{consultationFee !== null ? idx + 2 : idx + 1}</td>
-                              <td className="px-4 py-3.5">
+                            <tr key={charge.id} className="hover:bg-teal-50/40 print:hover:bg-white">
+                              <td className="px-3 py-3 text-sm font-black text-teal-600 print:text-black">{consultationFee !== null ? idx + 2 : idx + 1}</td>
+                              <td className="px-3 py-3">
                                 <input type="text" placeholder="Service name"
                                   value={charge.name}
                                   onChange={(e) => updateCharge(charge.id, "name", e.target.value)}
                                   disabled={isViewMode}
-                                  className="w-full text-sm font-semibold py-1 px-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 outline-none print:border-0 print:px-0 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                  className="w-full text-sm font-semibold py-1 px-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-teal-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 />
-                                <span className="hidden print:inline text-sm font-semibold">{charge.name || '—'}</span>
+                                <span className="hidden print:inline text-sm font-semibold text-black">{charge.name || '—'}</span>
                               </td>
-                              <td className="px-4 py-3.5 text-right">
+                              <td className="px-3 py-3 text-right">
                                 <input type="number" step="0.01" value={charge.amount}
                                   onChange={(e) => updateCharge(charge.id, "amount", e.target.value)}
                                   disabled={isViewMode}
-                                  className="w-24 text-right text-sm font-bold py-1 px-2 rounded-lg border border-indigo-200 focus:ring-2 focus:ring-indigo-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                  className="w-28 text-right text-sm font-bold py-1 px-2 rounded-lg border border-indigo-200 focus:ring-2 focus:ring-indigo-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
                                   placeholder="0.00"
                                 />
-                                <span className="hidden print:inline text-sm font-bold">₹{charge.amount.toFixed(2)}</span>
+                                <span className="hidden print:inline text-sm font-bold text-black">₹{charge.amount.toFixed(2)}</span>
                               </td>
-                              <td className="px-4 py-3.5 text-right">
-                                <input type="number" step="0.01" value={charge.gstPercent}
-                                  onChange={(e) => updateCharge(charge.id, "gstPercent", e.target.value)}
-                                  disabled={isViewMode}
-                                  className="w-16 text-right text-sm font-bold py-1 px-2 rounded-lg border border-amber-200 focus:ring-2 focus:ring-amber-400 outline-none print:hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                />
-                                <span className="hidden print:inline text-sm font-bold">{charge.gstPercent}%</span>
-                              </td>
-                              <td className="px-4 py-3.5 text-right text-sm font-bold text-amber-600">₹{(charge.amount * charge.gstPercent / 100).toFixed(2)}</td>
-                              <td className="px-4 py-3.5 text-right text-sm font-black text-teal-700">₹{(charge.amount + charge.amount * charge.gstPercent / 100).toFixed(2)}</td>
-                              <td className="px-4 py-3.5 text-center print:hidden">
+                              <td className="px-3 py-3 text-center print:hidden">
                                 {!isViewMode && (
                                   <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
                                     onClick={() => deleteCharge(charge.id)}
-                                    className="text-rose-400 hover:text-rose-600 transition-colors">
+                                    className="text-rose-400 hover:text-rose-600">
                                     <Trash2 size={16} />
                                   </motion.button>
                                 )}
@@ -979,8 +921,6 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                         </tbody>
                       </table>
                     </div>
-
-                    {/* Add buttons */}
                     {!isViewMode && (
                       <div className="mt-4 print:hidden flex gap-3 flex-wrap">
                         {consultationFee === null && (
@@ -1000,29 +940,25 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                   </div>
                 )}
 
-                {/* ── SERVICE TABLE — VIEW MODE (saved line items) ── */}
+                {/* ── SERVICE TABLE — VIEW MODE ── */}
                 {isViewMode && savedLineItems && savedLineItems.length > 0 && (
-                  <div className="px-8 py-6">
-                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Service Details</p>
-                    <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+                  <div className="px-6 py-5">
+                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 print:text-black">Service Details</p>
+                    <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm print:rounded-none print:shadow-none">
                       <table className="w-full">
                         <thead>
-                          <tr className="bg-gradient-to-r from-indigo-600 to-teal-600 text-white">
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider w-10">#</th>
-                            <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">Service</th>
-                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Cost (₹)</th>
-                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">GST (₹)</th>
-                            <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wider">Final (₹)</th>
+                          <tr className="bg-gradient-to-r from-indigo-600 to-teal-600 text-white print:bg-white print:text-black print:border-b-2 print:border-black">
+                            <th className="px-3 py-3 text-left text-xs font-bold uppercase w-8">#</th>
+                            <th className="px-3 py-3 text-left text-xs font-bold uppercase">Service</th>
+                            <th className="px-3 py-3 text-right text-xs font-bold uppercase">Amount (₹)</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-slate-100 print:divide-gray-300">
                           {savedLineItems.map((item, idx) => (
-                            <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
-                              <td className="px-4 py-3.5 text-sm font-black text-indigo-600">{item.lineItemNumber}</td>
-                              <td className="px-4 py-3.5 text-sm font-semibold text-slate-800">{item.serviceDescription}</td>
-                              <td className="px-4 py-3.5 text-right text-sm font-bold text-slate-700">₹{item.serviceCost?.toFixed(2) || '0.00'}</td>
-                              <td className="px-4 py-3.5 text-right text-sm font-bold text-amber-600">₹{item.gst?.toFixed(2) || '0.00'}</td>
-                              <td className="px-4 py-3.5 text-right text-sm font-black text-teal-700">₹{item.totalAmount?.toFixed(2) || '0.00'}</td>
+                            <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/60 print:bg-white"}>
+                              <td className="px-3 py-3 text-sm font-black text-indigo-600 print:text-black">{item.lineItemNumber}</td>
+                              <td className="px-3 py-3 text-sm font-semibold text-slate-800 print:text-black">{item.serviceDescription}</td>
+                              <td className="px-3 py-3 text-right text-sm font-black text-teal-700 print:text-black">₹{item.serviceCost?.toFixed(2) || '0.00'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -1031,52 +967,47 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                   </div>
                 )}
 
-                {/* ── TOTALS + SIGNATURE BLOCK ── */}
-                <div className="grid grid-cols-2 gap-0 border-t-2 border-slate-100">
-                  {/* Left: Total in words + signature */}
-                  <div className="p-8 bg-gradient-to-br from-slate-50 to-indigo-50/30 border-r border-slate-100 flex flex-col justify-between">
-                    <div>
-                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">Total in Words</p>
-                      <p className="text-sm font-semibold text-slate-800 italic leading-relaxed border-l-4 border-indigo-400 pl-3">
-                        {numberToWords(Math.round(totalAmount))}
-                      </p>
-                    </div>
-                    <div className="mt-8">
-                      <div className="border-t-2 border-dashed border-slate-300 pt-4">
-                        <p className="text-xs text-slate-400 mb-1">Electronically signed by</p>
-                        <p className="text-base font-black text-slate-800">Dr. {doctorName}</p>
-                        <p className="text-xs text-slate-500">{registrationNumber}</p>
+                {/* ── TOTALS ── screen: 2-col | print: stacked right-aligned */}
+                <div className="border-t-2 border-slate-100 print:border-black">
+                  {/* Summary numbers — screen: right col | print: full-width right-aligned */}
+                  <div className="px-6 py-4 flex flex-col items-end">
+                    <div className="w-full max-w-xs space-y-1">
+                      <div className="flex justify-between items-center py-2 mt-1 bg-gradient-to-r from-indigo-600 to-teal-600 rounded-xl px-4 shadow-md print:bg-white print:rounded-none print:shadow-none print:border-t-2 print:border-black print:px-0 print:py-2">
+                        <span className="text-sm font-black text-white uppercase tracking-wide print:text-black">Grand Total</span>
+                        <span className="text-xl font-black text-white print:text-black">₹{totalAmount.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Right: Totals breakdown */}
-                  <div className="p-8 bg-white">
-                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Summary</p>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                        <span className="text-sm text-slate-500 font-medium">Subtotal</span>
-                        <span className="text-sm font-bold text-slate-700">₹{subtotalAmount.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-2 border-b border-slate-100">
-                        <span className="text-sm text-slate-500 font-medium">GST</span>
-                        <span className="text-sm font-bold text-amber-600">₹{totalGST.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between items-center py-3 mt-1 bg-gradient-to-r from-indigo-600 to-teal-600 rounded-xl px-4 shadow-md">
-                        <span className="text-sm font-black text-white uppercase tracking-wide">Grand Total</span>
-                        <span className="text-2xl font-black text-white">₹{totalAmount.toFixed(2)}</span>
+                  {/* Total in words + signature — full width below totals */}
+                  <div className="px-6 pb-6 border-t border-slate-100 print:border-gray-300 pt-4">
+                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 print:text-black">Total in Words</p>
+                    <p className="text-sm font-semibold text-slate-800 italic leading-relaxed border-l-4 border-indigo-400 pl-3 mb-6 print:border-black print:text-black print:not-italic">
+                      {numberToWords(Math.round(totalAmount))}
+                    </p>
+                    <div className="flex justify-end">
+                      <div className="text-right border-t-2 border-dashed border-slate-300 pt-3 min-w-48 print:border-black">
+                        <p className="text-xs text-slate-400 mb-0.5 print:text-black">Electronically signed by</p>
+                        <p className="text-sm font-black text-slate-800 print:text-black">Dr. {doctorName}</p>
+                        {registrationNumber && <p className="text-xs text-slate-500 print:text-black">{registrationNumber}</p>}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* ── FOOTER ── */}
-                <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-teal-900 text-white px-10 py-5 flex items-center justify-between">
-                  <div className="text-xs text-slate-300 space-y-0.5">
-                    <p>{[clinicInfo?.clinicAddress, clinicInfo?.clinicCity].filter(Boolean).join(", ")}</p>
-                    <p>{clinicInfo?.clinicPhone || ""}{clinicInfo?.clinicEmail ? " · " + clinicInfo.clinicEmail : ""}</p>
+                {/* ── FOOTER ── screen: dark | print: white with black text */}
+                <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-teal-900 text-white px-8 py-4 print:bg-white print:text-black print:border-t-2 print:border-black">
+                  <div className="flex items-center justify-between gap-4 print:flex-col print:items-start print:gap-1">
+                    <div className="text-xs space-y-0.5 print:text-black">
+                      <p className="text-slate-300 print:text-black">
+                        {[clinicInfo?.clinicAddress, clinicInfo?.clinicCity].filter(Boolean).join(", ")}
+                      </p>
+                      <p className="text-slate-400 print:text-black">
+                        {clinicInfo?.clinicPhone || ""}{clinicInfo?.clinicEmail ? "  ·  " + clinicInfo.clinicEmail : ""}
+                      </p>
+                    </div>
+                    <p className="text-xs text-slate-400 italic print:text-black">Computer generated invoice · Valid without signature</p>
                   </div>
-                  <p className="text-xs text-slate-400 italic">Computer generated invoice · Valid without signature</p>
                 </div>
 
               </div>
@@ -1122,6 +1053,60 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                 )}
               </div>
             </div>
+
+            {/* Email Status Modal (sending / success / error) */}
+            <AnimatePresence>
+              {emailStatus && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
+                  onClick={emailStatus !== 'sending' ? () => setEmailStatus(null) : undefined}
+                >
+                  <motion.div
+                    initial={{ scale: 0.85, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    exit={{ scale: 0.85, y: 20 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center"
+                  >
+                    {emailStatus === 'sending' && (
+                      <>
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                          className="text-5xl mb-4 inline-block"
+                        >
+                          📤
+                        </motion.div>
+                        <p className="text-lg font-bold text-slate-800">Sending Invoice...</p>
+                        <p className="text-sm text-slate-500 mt-1">Sending to {recipientEmail}</p>
+                      </>
+                    )}
+                    {emailStatus === 'success' && (
+                      <>
+                        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring' }} className="text-6xl mb-4">✅</motion.div>
+                        <p className="text-xl font-black text-green-700">Invoice Sent!</p>
+                        <p className="text-sm text-slate-500 mt-2">Email delivered to<br /><strong>{recipientEmail}</strong></p>
+                        <button onClick={() => setEmailStatus(null)} className="mt-5 px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition">Done</button>
+                      </>
+                    )}
+                    {emailStatus === 'error' && (
+                      <>
+                        <div className="text-5xl mb-4">❌</div>
+                        <p className="text-lg font-bold text-red-700">Failed to Send</p>
+                        <p className="text-sm text-slate-500 mt-2">Please check your connection and try again.</p>
+                        <div className="flex gap-3 mt-5 justify-center">
+                          <button onClick={() => { setEmailStatus(null); handleSendEmail(); }} className="px-5 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition">Retry</button>
+                          <button onClick={() => setEmailStatus(null)} className="px-5 py-2 bg-slate-200 text-slate-700 rounded-lg font-semibold hover:bg-slate-300 transition">Close</button>
+                        </div>
+                      </>
+                    )}
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Email Modal */}
             <AnimatePresence>

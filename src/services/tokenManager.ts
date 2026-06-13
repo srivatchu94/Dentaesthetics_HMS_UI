@@ -655,6 +655,51 @@ export const getEnterpriseIdFromToken = (): number | null => {
 };
 
 /**
+ * Get doctor ID from JWT token payload (from login token claims)
+ * Decodes the access token to extract doctorId
+ */
+export const getDoctorIdFromToken = (): number | null => {
+  try {
+    const token = memoryAccessToken || sessionStorage.getItem(ACCESS_TOKEN_SS_KEY);
+    if (!token) {
+      console.warn('⚠️ No access token available to extract doctorId');
+      return null;
+    }
+
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+    );
+
+    const decoded = JSON.parse(jsonPayload);
+    // Try various casing/naming conventions the backend might use
+    const doctorId =
+      decoded.doctorId ??
+      decoded.DoctorId ??
+      decoded.doctor_id ??
+      decoded.DocId ??
+      decoded.docId ??
+      null;
+
+    if (doctorId !== null && doctorId !== undefined) {
+      const id = Number(doctorId);
+      console.log(`✅ Doctor ID extracted from JWT token: ${id}`);
+      return id;
+    }
+
+    console.warn('⚠️ No doctorId claim found in JWT token payload');
+    return null;
+  } catch (error) {
+    console.error('❌ Failed to extract doctorId from JWT:', error);
+    return null;
+  }
+};
+
+/**
  * Export constants for use in other services
  */
 export const STORAGE_KEYS = {

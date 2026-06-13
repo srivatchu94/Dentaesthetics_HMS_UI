@@ -1,272 +1,254 @@
 import React from "react";
-import { motion } from "framer-motion";
+import clinicLogo from "../assets/dhantha-logo-new.svg";
 
 const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorInfo, clinicInfo }, ref) => {
-  // Add print styles
   React.useEffect(() => {
-    console.log('%c🎨 PrescriptionPrint: Adding print styles', 'color: green; font-weight: bold');
     const style = document.createElement('style');
     style.id = 'prescription-print-styles';
     style.textContent = `
       @media print {
-        /* Hide everything except the prescription */
-        body * {
-          visibility: hidden;
-        }
-        
-        /* Show only the prescription container and its children */
+        body * { visibility: hidden; }
         .prescription-print-container,
-        .prescription-print-container * {
-          visibility: visible;
-        }
-        
-        /* Position prescription at top of page */
+        .prescription-print-container * { visibility: visible; }
         .prescription-print-container {
           position: absolute;
           left: 0;
           top: 0;
-          margin: 0;
-          padding: 20mm;
           width: 100%;
+          margin: 0;
+          padding: 0;
           background: white;
-          page-break-after: avoid;
         }
-        
-        /* Ensure colors print correctly */
-        .prescription-print-container * {
+        .prescription-print-container img.logo-color {
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
           color-adjust: exact;
         }
-        
-        /* Hide modals and overlays during print */
-        .fixed,
-        [class*="modal"],
-        [class*="backdrop"],
-        button:not(.prescription-print-container button) {
-          display: none !important;
-        }
+        @page { margin: 15mm; }
       }
     `;
     document.head.appendChild(style);
-    console.log('%c✅ Print styles injected', 'color: green; font-weight: bold', { styleId: style.id, length: style.textContent.length });
-    return () => {
-      document.head.removeChild(style);
-      console.log('%c🗑️ Print styles removed', 'color: red; font-weight: bold');
-    };
+    return () => { document.head.removeChild(style); };
   }, []);
 
-  // Log when component mounts
-  React.useEffect(() => {
-    console.log('%c📋 PrescriptionPrint mounted with ref:', 'color: blue; font-weight: bold', ref);
-  }, [ref]);
-  
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
+    if (!dateString || dateString === "0001-01-01T00:00:00") return new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(dateString).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const calculateAge = (dob) => {
-    if (!dob || dob === "0001-01-01T00:00:00") return "-";
+    if (!dob || dob === "0001-01-01T00:00:00") return null;
     const today = new Date();
-    const birthDate = new Date(dob);
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const month = today.getMonth() - birthDate.getMonth();
-    if (month < 0 || (month === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
-    return age > 0 ? age : "-";
+    const birth = new Date(dob);
+    let age = today.getFullYear() - birth.getFullYear();
+    if (today.getMonth() - birth.getMonth() < 0 || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--;
+    return age > 0 ? age : null;
   };
 
-  // Safely extract and parse medications
   const getMedications = () => {
     if (!prescription) return [];
-    
-    // Try to get prescriptionContent first
     const content = prescription?.prescriptionContent || prescription?.medicationsList || "";
-    
-    if (!content || content.trim() === "") {
-      return [];
-    }
-
-    // Try to parse as JSON first
+    if (!content || content.trim() === "") return [];
     try {
       const parsed = JSON.parse(content);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
-    } catch (e) {
-      // Not JSON, try splitting by newline
-      const medications = content.split('\n').filter(line => line.trim());
-      return medications.length > 0 ? medications : [];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    } catch {
+      // not JSON — fall through
     }
-    
-    return [];
+    return content.split('\n').filter(line => line.trim()).map(line => ({ raw: line }));
   };
 
   const medications = getMedications();
-
-  // Console log for debugging
-  React.useEffect(() => {
-    console.group('%c📋 PrescriptionPrint Debug Info', 'color: #1f2937; font-weight: bold; font-size: 14px');
-    console.log('%c💊 Prescription Data:', 'color: #3b82f6; font-weight: bold');
-    if (prescription) {
-      console.log('  - prescriptionContent:', prescription.prescriptionContent ? 'Present (' + prescription.prescriptionContent.length + ' chars)' : 'Missing');
-      console.log('  - prescriptionDate:', prescription.prescriptionDate);
-      console.log('  - Full object:', prescription);
-    } else {
-      console.warn('  ⚠️ Prescription is NULL/UNDEFINED');
-    }
-    console.log('%c💊 Medications Extracted:', 'color: #10b981; font-weight: bold', medications.length + ' items');
-    medications.slice(0, 3).forEach((med, idx) => console.log(`  [${idx}]:`, med));
-    console.log('%c👤 Patient Info:', 'color: #f59e0b; font-weight: bold');
-    console.log('  - Name:', patientInfo?.firstName && patientInfo?.lastName ? `${patientInfo.firstName} ${patientInfo.lastName}` : 'Missing');
-    console.log('  - Full object:', patientInfo);
-    console.log('%c👨‍⚕️ Doctor Info:', 'color: #8b5cf6; font-weight: bold', doctorInfo);
-    console.log('%c🏥 Clinic Info:', 'color: #ec4899; font-weight: bold', clinicInfo?.clinicName || 'Missing clinic name');
-    const container = document.querySelector('.prescription-print-container');
-    console.log('%c📦 Container Status:', 'color: #06b6d4; font-weight: bold');
-    console.log('  - Found:', !!container);
-    if (container) {
-      console.log('  - ID:', container.id || 'no-id');
-      console.log('  - Classes:', container.className);
-      console.log('  - HTML length:', container.outerHTML.length + ' chars');
-      console.log('  - Is visible:', window.getComputedStyle(container).display !== 'none');
-      console.log('  - Z-index:', window.getComputedStyle(container).zIndex);
-      console.log('  - Opacity:', window.getComputedStyle(container).opacity);
-      
-      // Check all children
-      const children = container.querySelectorAll('*');
-      console.log('%c📊 Child Elements:', 'color: #6366f1; font-weight: bold', children.length);
-      if (children.length === 0) {
-        console.warn('⚠️ WARNING: Container has NO child elements!');
-      }
-    } else {
-      console.error('❌ Container NOT FOUND in DOM!');
-    }
-    
-    // Try to find in modal
-    const modal = document.querySelector('[role="dialog"]');
-    if (modal) {
-      console.log('%c🗂️ Modal Found:', 'color: #0ea5e9; font-weight: bold');
-      console.log('  - Display:', window.getComputedStyle(modal).display);
-      console.log('  - Visibility:', window.getComputedStyle(modal).visibility);
-      console.log('  - Z-index:', window.getComputedStyle(modal).zIndex);
-    }
-    
-    console.groupEnd();
-  }, [prescription, medications, patientInfo, doctorInfo, clinicInfo]);
+  const patientFirstName = patientInfo?.firstName || patientInfo?.patientFirstName || "";
+  const patientLastName = patientInfo?.lastName || patientInfo?.patientLastName || "";
+  const fullPatientName = `${patientFirstName} ${patientLastName}`.trim() || patientInfo?.patientName || "Patient";
+  const age = patientInfo?.dateOfBirth ? calculateAge(patientInfo.dateOfBirth) : null;
+  const gender = patientInfo?.gender || patientInfo?.Gender || "";
+  const phone = patientInfo?.phone || patientInfo?.patientPhone || patientInfo?.phoneNumber || "";
+  const doctorName =
+    doctorInfo?.doctorName ||
+    (doctorInfo?.firstName ? `${doctorInfo.firstName} ${doctorInfo.lastName || ""}`.trim() : "") ||
+    doctorInfo?.name ||
+    "Doctor";
+  const regNo =
+    doctorInfo?.registrationNumber ||
+    doctorInfo?.licenseNumber ||
+    doctorInfo?.LicenseNumber ||
+    doctorInfo?.RegistrationNumber ||
+    "";
+  const speciality = doctorInfo?.speciality || doctorInfo?.specialtyName || "";
+  const clinicName = clinicInfo?.clinicName || "Dental Clinic";
+  const clinicAddress = [clinicInfo?.clinicAddress || clinicInfo?.address, clinicInfo?.clinicCity].filter(Boolean).join(", ");
+  const clinicPhone = clinicInfo?.clinicPhone || clinicInfo?.phone || "";
+  const clinicEmail = clinicInfo?.clinicEmail || clinicInfo?.email || "";
+  const clinicReg = clinicInfo?.registrationNumber || clinicInfo?.gstNumber || "";
+  const notes = prescription?.notes || prescription?.additionalNotes || "";
+  const diagnosis = prescription?.diagnosis || "";
+  const treatment = prescription?.treatment || "";
 
   return (
     <div
       ref={(node) => {
-        if (ref) {
-          if (typeof ref === 'function') ref(node);
-          else ref.current = node;
-        }
-        if (node) {
-          console.log('%c✅ Prescription container DOM assigned to ref', 'color: green; font-weight: bold');
-        }
+        if (ref) { if (typeof ref === 'function') ref(node); else ref.current = node; }
       }}
-      className="prescription-print-container bg-white p-10 w-full max-w-2xl mx-auto"
-      style={{ pageBreakAfter: 'always' }}
+      className="prescription-print-container bg-white w-full max-w-2xl mx-auto"
       id="prescription-print-main"
     >
-      {/* Clinic Header */}
-      <div className="text-center mb-10 pb-4 border-b-2 border-stone-400">
-        <h1 className="text-2xl font-bold text-stone-900">
-          {clinicInfo?.clinicName || "Dental Clinic"}
-        </h1>
-      </div>
-
-      {/* Patient and Doctor Info Panel */}
-      <div className="grid grid-cols-2 gap-6 mb-10 bg-stone-50 p-6 rounded-lg border border-stone-300">
-        {/* Patient Info */}
-        <div className="border-l-4 border-stone-900 pl-4">
-          <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold mb-2">👤 Patient Name</p>
-          <p className="text-lg font-bold text-stone-900 mb-4">
-            {(patientInfo?.firstName && patientInfo?.lastName) 
-              ? `${patientInfo.firstName} ${patientInfo.lastName}` 
-              : (patientInfo?.patientName || "Patient Name")}
-          </p>
-          <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold mb-2">📅 Age</p>
-          <p className="text-base font-semibold text-stone-800">
-            {patientInfo?.dateOfBirth ? calculateAge(patientInfo.dateOfBirth) : "-"} years
-          </p>
-        </div>
-
-        {/* Doctor Info */}
-        <div className="border-l-4 border-stone-900 pl-4">
-          <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold mb-2">👨‍⚕️ Doctor Name</p>
-          <p className="text-lg font-bold text-stone-900 mb-4">
-            Dr. {doctorInfo?.doctorName || "Doctor Name"}
-          </p>
-          <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold mb-2">📋 Registration Number</p>
-          <p className="text-base font-semibold text-stone-800">
-            {doctorInfo?.registrationNumber || "N/A"}
-          </p>
-        </div>
-      </div>
-
-      {/* Prescription Date */}
-      <div className="mb-8 pb-4 border-b border-stone-300">
-        <p className="text-xs uppercase tracking-wider text-stone-600 font-semibold">📅 Date</p>
-        <p className="text-lg font-bold text-stone-900">
-          {formatDate(prescription?.prescriptionDate || new Date())}
-        </p>
-      </div>
-
-      {/* RX Header - Before Medications */}
-      <div className="text-center mb-8 py-6">
-        <div className="text-5xl font-bold text-stone-900">℞</div>
-      </div>
-
-      {/* Medications Section */}
-      <div className="mb-10">
-        <h3 className="text-sm uppercase font-bold text-stone-900 mb-6 pb-3 border-b-2 border-stone-900 tracking-wider">
-          Prescription
-        </h3>
-        
-        {medications && medications.length > 0 ? (
-          <ul className="space-y-3">
-            {medications.map((med, index) => (
-              <li key={index} className="flex items-start bg-stone-50 p-4 rounded border-l-4 border-stone-700">
-                <span className="font-bold text-stone-900 mr-4 min-w-fit">{index + 1}.</span>
-                <span className="text-stone-800 text-sm">{med}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded text-stone-600">
-            <p className="text-sm">No medications prescribed in this prescription.</p>
+      {/* ── HEADER ── screen: dark gradient | print: white + black border */}
+      <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-teal-900 text-white px-8 pt-7 pb-6 print:bg-white print:text-black print:border-b-2 print:border-black">
+        <div className="flex items-start justify-between gap-6">
+          {/* Left: clinic + doctor identity */}
+          <div className="flex-1">
+            <div className="flex items-start gap-4 mb-4">
+              <img
+                src={clinicLogo}
+                alt="clinic logo"
+                className="logo-color w-14 h-14 object-contain flex-shrink-0"
+                style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+              />
+              <div>
+                <h1 className="text-2xl font-black tracking-wide print:text-black">{clinicName}</h1>
+                {clinicAddress && <p className="text-teal-300 text-xs mt-0.5 print:text-black">{clinicAddress}</p>}
+                {(clinicPhone || clinicEmail) && (
+                  <p className="text-slate-400 text-xs mt-0.5 print:text-black">
+                    {clinicPhone}{clinicEmail ? "  ·  " + clinicEmail : ""}
+                  </p>
+                )}
+                {clinicReg && <p className="text-slate-400 text-xs mt-0.5 print:text-black">Reg: {clinicReg}</p>}
+              </div>
+            </div>
+            {/* Doctor line */}
+            <div className="border-l-2 border-teal-500 pl-3 print:border-black">
+              <p className="font-black text-base print:text-black">
+                Dr. {doctorName}{speciality ? ` — ${speciality}` : ""}
+              </p>
+              {regNo && <p className="text-indigo-300 text-xs print:text-black">Reg. No: {regNo}</p>}
+            </div>
           </div>
+
+          {/* Right: Rx badge */}
+          <div className="text-right flex-shrink-0">
+            <div className="inline-block border border-teal-400/40 rounded-xl px-5 py-3 print:border-black print:rounded-none">
+              <p className="text-teal-300 text-xs font-bold uppercase tracking-widest mb-1 print:text-black">Prescription</p>
+              <div className="text-white text-4xl font-black print:text-black" style={{ fontFamily: 'serif' }}>℞</div>
+              <p className="text-slate-300 text-xs mt-1 print:text-black">{formatDate(prescription?.prescriptionDate)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── PATIENT STRIP ── screen: 2-col | print: stacked */}
+      <div className="grid grid-cols-2 print:grid-cols-1 border-b-2 border-slate-100 print:border-black">
+        <div className="p-5 bg-gradient-to-br from-indigo-50 to-slate-50 border-r border-slate-100 print:bg-white print:border-r-0 print:border-b print:border-black">
+          <p className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-2 print:text-black">Patient</p>
+          <p className="text-xl font-black text-slate-900 print:text-black">{fullPatientName}</p>
+          <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-600 print:text-black">
+            {age && <span>{age} yrs</span>}
+            {gender && <span>{gender}</span>}
+          </div>
+        </div>
+        <div className="p-5 bg-white print:py-3">
+          <p className="text-xs font-black text-teal-600 uppercase tracking-widest mb-2 print:text-black">Issued By</p>
+          <p className="text-sm font-bold text-slate-800 print:text-black">Dr. {doctorName}</p>
+          {regNo && <p className="text-xs text-slate-500 mt-0.5 print:text-black">Reg: {regNo}</p>}
+          <p className="text-xs text-slate-400 mt-1 print:text-black">{formatDate(prescription?.prescriptionDate)}</p>
+        </div>
+      </div>
+
+      {/* ── DIAGNOSIS (if present) ── */}
+      {diagnosis && (
+        <div className="px-6 pt-5 pb-0">
+          <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 print:text-black">Diagnosis</p>
+          <p className="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 print:bg-white print:border-gray-300 print:text-black">{diagnosis}</p>
+        </div>
+      )}
+
+      {/* ── MEDICATIONS TABLE ── */}
+      <div className="px-6 py-5">
+        <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 print:text-black">Prescription / Medications</p>
+        {medications.length > 0 ? (
+          <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm print:rounded-none print:shadow-none">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gradient-to-r from-indigo-600 to-teal-600 text-white print:bg-white print:text-black print:border-b-2 print:border-black">
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase w-8">#</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase">Medicine</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase">Dosage</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase">Frequency</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase">Duration</th>
+                  <th className="px-3 py-3 text-left text-xs font-bold uppercase">Instructions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 print:divide-gray-300">
+                {medications.map((med, idx) => (
+                  <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/60 print:bg-white"}>
+                    <td className="px-3 py-3 text-sm font-black text-indigo-600 print:text-black">{idx + 1}</td>
+                    {med.raw ? (
+                      <td colSpan={5} className="px-3 py-3 text-sm text-slate-800 print:text-black">{med.raw}</td>
+                    ) : (
+                      <>
+                        <td className="px-3 py-3 text-sm font-semibold text-slate-900 print:text-black">{med.medicineName || med.name || "—"}</td>
+                        <td className="px-3 py-3 text-sm text-slate-700 print:text-black">{med.dosage || "—"}</td>
+                        <td className="px-3 py-3 text-sm text-slate-700 print:text-black">{med.frequency || "—"}</td>
+                        <td className="px-3 py-3 text-sm text-slate-700 print:text-black">{med.duration || "—"}</td>
+                        <td className="px-3 py-3 text-sm text-slate-600 print:text-black">{med.specialInstructions || med.instructions || "—"}</td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500 italic print:text-black">No medications prescribed.</p>
         )}
       </div>
 
-      {/* Important Note */}
-      <div className="mb-10 p-4 bg-yellow-50 border-l-4 border-yellow-600 rounded">
-        <p className="text-xs font-bold text-yellow-800 mb-1">⚠️ IMPORTANT:</p>
-        <p className="text-xs text-yellow-900">
-          Please follow the dosage and frequency as prescribed. If you experience any adverse effects, consult your doctor immediately.
+      {/* ── TREATMENT / DOCTOR ADVICE ── */}
+      {treatment && (
+        <div className="px-6 pb-5">
+          <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 print:text-black">Treatment / Doctor Advice</p>
+          <p className="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 print:bg-white print:border-gray-300 print:text-black whitespace-pre-wrap">{treatment}</p>
+        </div>
+      )}
+
+      {/* ── IMPORTANT NOTE ── */}
+      <div className="mx-6 mb-5 px-4 py-3 bg-amber-50 border-l-4 border-amber-400 rounded print:bg-white print:border-black">
+        <p className="text-xs font-bold text-amber-800 print:text-black">Important:</p>
+        <p className="text-xs text-amber-900 mt-0.5 print:text-black">
+          Follow the dosage and frequency as prescribed. If you experience any adverse effects, consult your doctor immediately.
         </p>
       </div>
 
-      {/* Footer */}
-      <div className="pt-8 border-t border-stone-300 text-center text-xs text-stone-600">
-        <p className="font-semibold text-stone-700 mb-2">{clinicInfo?.clinicName}</p>
-        <p>📞 {clinicInfo?.phone || "Phone"} | 📧 {clinicInfo?.email || "Email"}</p>
-        <p className="text-stone-500 mt-4">
-          This is an electronically generated prescription.
-        </p>
+      {/* ── SIGNATURE + FOOTER ── */}
+      <div className="border-t-2 border-slate-100 print:border-black">
+        <div className="px-6 py-4 flex justify-end">
+          <div className="text-right border-t-2 border-dashed border-slate-300 pt-3 min-w-48 print:border-black">
+            <p className="text-xs text-slate-400 mb-0.5 print:text-black">Electronically signed by</p>
+            <p className="text-sm font-black text-slate-800 print:text-black">Dr. {doctorName}</p>
+            {regNo && <p className="text-xs text-slate-500 print:text-black">(Reg No.: {regNo})</p>}
+            <p className="text-xs text-slate-400 mt-0.5 print:text-black">Dentist</p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-teal-900 text-white px-8 py-4 print:bg-white print:text-black print:border-t-2 print:border-black">
+          <div className="flex items-center justify-between gap-4 print:flex-col print:items-start print:gap-1">
+            <div className="text-xs space-y-0.5">
+              {clinicAddress && <p className="text-slate-300 print:text-black">{clinicAddress}</p>}
+              <p className="text-slate-400 print:text-black">
+                {clinicPhone}{clinicEmail ? "  ·  " + clinicEmail : ""}
+              </p>
+            </div>
+            <p className="text-xs text-slate-400 italic print:text-black">
+              Computer generated prescription · Valid without signature
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
 });
 
 PrescriptionPrint.displayName = "PrescriptionPrint";
-
 export default PrescriptionPrint;

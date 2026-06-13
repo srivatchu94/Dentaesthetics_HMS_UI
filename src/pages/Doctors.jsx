@@ -7,7 +7,7 @@ import { createInventoryMaster, listInventoryMasters, getClinicInventoryByClinic
 import { getClinic, getClinicByClinicId } from "../services/clinicService";
 import { getStaffProfileByClinicId } from "../services/staffService";
 import { getDoctorsByClinicId } from "../services/doctorService";
-import { sendPrescriptionEmail } from "../services/emailService";
+import { sendPrescriptionEmail, sendEmail } from "../services/emailService";
 import PrescriptionWritingModal from "../components/PrescriptionWritingModal";
 import PrescriptionPrint from "../components/PrescriptionPrint";
 import VisitInfoModalExternal from "../components/VisitInfoModal";
@@ -1000,6 +1000,10 @@ export default function Doctors() {
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [doctorsList, setDoctorsList] = useState([]);
   const [loadingDoctors, setLoadingDoctors] = useState(false);
+  const [showBookingSuccess, setShowBookingSuccess] = useState(false);
+  const [bookedApptData, setBookedApptData] = useState(null);
+  const [sendingBookingEmail, setSendingBookingEmail] = useState(false);
+  const [bookingEmailSent, setBookingEmailSent] = useState(false);
   const [newAppointment, setNewAppointment] = useState({
     firstName: "",
     lastName: "",
@@ -1359,15 +1363,13 @@ export default function Doctors() {
   };
   
   const handleBookAppointment = () => {
-    // Validate mandatory fields
     const { firstName, lastName, date, time, type, notes, phone, email, isWalkIn, doctor } = newAppointment;
-    
-    if (!firstName || !lastName || !date || !time || !type || !notes || !phone || !email) {
-      alert("❌ Please fill in all mandatory fields: First Name, Last Name, Contact, Email, Date, Time, Type, and Reason for Visit");
+
+    if (!firstName || !lastName || !date || !time || !type || !phone || !email) {
+      alert("❌ Please fill in all mandatory fields: First Name, Last Name, Contact, Email, Date, Time, and Appointment Type");
       return;
     }
 
-    // For non-walk-in appointments, doctor is required
     if (!isWalkIn && !doctor) {
       alert("❌ Please select an attending physician for this appointment");
       return;
@@ -1375,34 +1377,82 @@ export default function Doctors() {
 
     const appointment = {
       id: appointments.length + 1,
-      firstName: firstName,
-      lastName: lastName,
+      firstName,
+      lastName,
       patient: `${firstName} ${lastName}`,
-      date: date,
-      time: time,
-      type: type,
+      date,
+      time,
+      type,
       doctor: doctor || "Walk-In",
-      notes: notes,
-      phone: phone,
-      email: email,
+      notes,
+      phone,
+      email,
       status: "Confirmed",
       appointmentType: isWalkIn ? "Walk In" : type
     };
     setAppointments([...appointments, appointment]);
     setBookingModalOpen(false);
-    setNewAppointment({
-      firstName: "",
-      lastName: "",
-      date: "",
-      time: "",
-      type: "",
-      doctor: "",
-      notes: "",
-      phone: "",
-      email: "",
-      isWalkIn: false
-    });
-    alert("✅ Appointment booked successfully!");
+    setNewAppointment({ firstName: "", lastName: "", date: "", time: "", type: "", doctor: "", notes: "", phone: "", email: "", isWalkIn: false });
+    setBookedApptData(appointment);
+    setBookingEmailSent(false);
+    setShowBookingSuccess(true);
+  };
+
+  const handleSendBookingEmail = async () => {
+    if (!bookedApptData?.email) return;
+    setSendingBookingEmail(true);
+    try {
+      const clinicName = clinicData?.clinicName || "Dentaesthetics";
+      const patientName = `${bookedApptData.firstName} ${bookedApptData.lastName}`;
+      const apptDate = bookedApptData.date ? new Date(bookedApptData.date).toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : bookedApptData.date;
+      const apptTime = bookedApptData.time || "";
+      const apptType = bookedApptData.appointmentType || bookedApptData.type || "";
+      const doctorName = bookedApptData.doctor && bookedApptData.doctor !== "Walk-In"
+        ? (doctorsList.find(d => String(d.doctorId) === String(bookedApptData.doctor)) ? `Dr. ${doctorsList.find(d => String(d.doctorId) === String(bookedApptData.doctor)).firstName} ${doctorsList.find(d => String(d.doctorId) === String(bookedApptData.doctor)).lastName}` : bookedApptData.doctor)
+        : "Walk-In";
+
+      const htmlBody = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;color:#1e293b;">
+  <div style="max-width:600px;margin:24px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+    <div style="background:linear-gradient(135deg,#0f172a 0%,#312e81 60%,#0f766e 100%);padding:32px;color:#ffffff;text-align:center;">
+      <div style="font-size:24px;font-weight:900;letter-spacing:0.5px;">${clinicName}</div>
+      <div style="margin-top:16px;font-size:36px;">📅</div>
+      <div style="font-size:18px;font-weight:700;margin-top:8px;">Appointment Confirmed</div>
+    </div>
+    <div style="padding:32px;">
+      <p style="font-size:15px;color:#334155;">Dear <strong>${patientName}</strong>,</p>
+      <p style="font-size:14px;color:#475569;margin-top:8px;">Your appointment has been successfully booked. Here are the details:</p>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin:24px 0;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr><td style="padding:8px 0;font-size:13px;color:#64748b;width:140px;">Date</td><td style="padding:8px 0;font-size:13px;font-weight:700;color:#0f172a;">${apptDate}</td></tr>
+          <tr><td style="padding:8px 0;font-size:13px;color:#64748b;">Time</td><td style="padding:8px 0;font-size:13px;font-weight:700;color:#0f172a;">${apptTime}</td></tr>
+          <tr><td style="padding:8px 0;font-size:13px;color:#64748b;">Type</td><td style="padding:8px 0;font-size:13px;font-weight:700;color:#0f172a;">${apptType}</td></tr>
+          <tr><td style="padding:8px 0;font-size:13px;color:#64748b;">Doctor</td><td style="padding:8px 0;font-size:13px;font-weight:700;color:#0f172a;">${doctorName}</td></tr>
+          ${bookedApptData.notes ? `<tr><td style="padding:8px 0;font-size:13px;color:#64748b;vertical-align:top;">Reason</td><td style="padding:8px 0;font-size:13px;color:#334155;">${bookedApptData.notes}</td></tr>` : ""}
+        </table>
+      </div>
+      <div style="background:#fffbeb;border-left:4px solid #f59e0b;border-radius:6px;padding:12px 16px;margin-bottom:24px;">
+        <p style="font-size:12px;color:#78350f;margin:0;">Please arrive 10 minutes before your appointment time. If you need to reschedule or cancel, contact us at the clinic.</p>
+      </div>
+      <p style="font-size:13px;color:#94a3b8;">Thank you for choosing <strong>${clinicName}</strong>. We look forward to seeing you.</p>
+    </div>
+    <div style="background:#0f172a;padding:16px 32px;color:#94a3b8;text-align:center;font-size:12px;">
+      This is an automated appointment confirmation from ${clinicName}.
+    </div>
+  </div>
+</body>
+</html>`;
+
+      await sendEmail({ Email: bookedApptData.email, Subject: `Appointment Confirmed — ${clinicName}`, HtmlBody: htmlBody });
+      setBookingEmailSent(true);
+    } catch (err) {
+      console.error("Failed to send booking email:", err);
+      alert("Failed to send email. Please try again.");
+    } finally {
+      setSendingBookingEmail(false);
+    }
   };
   
   const handleAddNewItem = () => {
@@ -1654,45 +1704,35 @@ export default function Doctors() {
         return;
       }
       
-      // Parse chronic diseases - handle both array and string formats
-      let chronicDiseaseArray = [];
-      if (Array.isArray(data?.chronicDiseases)) {
-        chronicDiseaseArray = data.chronicDiseases;
-      } else if (typeof data?.chronicDiseases === 'string' && data.chronicDiseases.trim()) {
-        chronicDiseaseArray = data.chronicDiseases
-          .split(',')
-          .map(d => d.trim())
-          .filter(d => d !== '');
-      } else if (Array.isArray(data?.chronicDisease)) {
-        chronicDiseaseArray = data.chronicDisease;
-      } else if (typeof data?.chronicDisease === 'string' && data.chronicDisease.trim()) {
-        chronicDiseaseArray = data.chronicDisease
-          .split(',')
-          .map(d => d.trim())
-          .filter(d => d !== '');
+      // Parse chronic diseases — handle camelCase, PascalCase, array or string
+      const toStringArray = (val) => {
+        if (Array.isArray(val)) return val.filter(Boolean);
+        if (typeof val === 'string' && val.trim()) return val.split(',').map(s => s.trim()).filter(Boolean);
+        return [];
+      };
+      let chronicDiseaseArray = (
+        toStringArray(data?.chronicDiseases) ||
+        toStringArray(data?.ChronicDiseases) ||
+        toStringArray(data?.chronicDisease) ||
+        toStringArray(data?.ChronicDisease)
+      );
+      if (!chronicDiseaseArray.length) {
+        chronicDiseaseArray =
+          toStringArray(data?.chronicDiseases ?? data?.ChronicDiseases ?? data?.chronicDisease ?? data?.ChronicDisease);
       }
-      
-      // Parse allergies - handle both array and string formats
-      let allergyArray = [];
-      if (Array.isArray(data?.allergies)) {
-        allergyArray = data.allergies;
-      } else if (typeof data?.allergies === 'string' && data.allergies.trim()) {
-        allergyArray = data.allergies
-          .split(',')
-          .map(a => a.trim())
-          .filter(a => a !== '');
-      } else if (typeof data?.patientAllergies === 'string' && data.patientAllergies.trim()) {
-        allergyArray = data.patientAllergies
-          .split(',')
-          .map(a => a.trim())
-          .filter(a => a !== '');
-      } else if (Array.isArray(data?.allergy)) {
-        allergyArray = data.allergy;
-      } else if (typeof data?.allergy === 'string' && data.allergy.trim()) {
-        allergyArray = data.allergy
-          .split(',')
-          .map(a => a.trim())
-          .filter(a => a !== '');
+
+      // Parse allergies — handle camelCase, PascalCase, array or string
+      let allergyArray = (
+        toStringArray(data?.allergies) ||
+        toStringArray(data?.Allergies) ||
+        toStringArray(data?.patientAllergies) ||
+        toStringArray(data?.PatientAllergies) ||
+        toStringArray(data?.allergy) ||
+        toStringArray(data?.Allergy)
+      );
+      if (!allergyArray.length) {
+        allergyArray =
+          toStringArray(data?.allergies ?? data?.Allergies ?? data?.patientAllergies ?? data?.PatientAllergies ?? data?.allergy ?? data?.Allergy);
       }
       
       console.log('✅ Parsed Medical Info:', { chronicDiseaseArray, allergyArray });
@@ -1749,9 +1789,10 @@ export default function Doctors() {
   }, []);
 
   useEffect(() => {
-    if (!showVisitInfoModal || !selectedAppointmentForVisit?.patientId) return;
-    loadMedicalInfoSummary(selectedAppointmentForVisit.patientId);
-  }, [showVisitInfoModal, selectedAppointmentForVisit?.patientId]);
+    const pid = selectedAppointmentForVisit?.patientId || selectedAppointmentForVisit?.PatientId;
+    if (!showVisitInfoModal || !pid) return;
+    loadMedicalInfoSummary(pid);
+  }, [showVisitInfoModal, selectedAppointmentForVisit?.patientId, selectedAppointmentForVisit?.PatientId]);
 
   // Load inventory data on component mount
   useEffect(() => {
@@ -6493,7 +6534,7 @@ export default function Doctors() {
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-stone-700 mb-1">
-                      Reason for Visit <span className="text-red-500">*</span>
+                      Reason for Visit
                     </label>
                     <textarea
                       value={newAppointment.notes}
@@ -6525,6 +6566,109 @@ export default function Doctors() {
               >
                 Book Appointment
               </motion.button>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  };
+
+  // Booking Success + Email Modal
+  const BookingSuccessModal = () => {
+    if (!showBookingSuccess) return null;
+    const apptDate = bookedApptData?.date
+      ? new Date(bookedApptData.date).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
+      : bookedApptData?.date;
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[99999] p-4"
+          onClick={() => setShowBookingSuccess(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.9, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 px-8 py-8 text-center text-white">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", delay: 0.1 }}
+                className="text-6xl mb-3"
+              >
+                ✅
+              </motion.div>
+              <h2 className="text-2xl font-black">Appointment Booked!</h2>
+              <p className="text-green-100 text-sm mt-1">
+                {bookedApptData?.firstName} {bookedApptData?.lastName}
+              </p>
+            </div>
+
+            {/* Details */}
+            <div className="px-6 py-5 space-y-3">
+              <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-2 text-sm">
+                {apptDate && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Date</span>
+                    <span className="font-semibold text-slate-800">{apptDate}</span>
+                  </div>
+                )}
+                {bookedApptData?.time && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Time</span>
+                    <span className="font-semibold text-slate-800">{bookedApptData.time}</span>
+                  </div>
+                )}
+                {bookedApptData?.appointmentType && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Type</span>
+                    <span className="font-semibold text-slate-800">{bookedApptData.appointmentType}</span>
+                  </div>
+                )}
+                {bookedApptData?.email && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Patient Email</span>
+                    <span className="font-semibold text-slate-800 truncate ml-2">{bookedApptData.email}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Email prompt */}
+              {bookingEmailSent ? (
+                <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 font-semibold">
+                  <span>✅</span> Confirmation email sent to {bookedApptData?.email}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-600 text-center">
+                  Would you like to send a confirmation email to the patient?
+                </p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="px-6 pb-6 flex gap-3">
+              {!bookingEmailSent && (
+                <button
+                  onClick={handleSendBookingEmail}
+                  disabled={sendingBookingEmail}
+                  className="flex-1 px-4 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-600 to-teal-600 hover:from-indigo-700 hover:to-teal-700 disabled:opacity-60 transition shadow-md"
+                >
+                  {sendingBookingEmail ? "Sending..." : "Send Confirmation Email"}
+                </button>
+              )}
+              <button
+                onClick={() => setShowBookingSuccess(false)}
+                className="flex-1 px-4 py-3 rounded-xl font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
+              >
+                {bookingEmailSent ? "Done" : "Skip"}
+              </button>
             </div>
           </motion.div>
         </motion.div>
@@ -9762,7 +9906,10 @@ export default function Doctors() {
       
       {/* Book Appointment Modal */}
       <BookAppointmentModal />
-      
+
+      {/* Booking Success + Email Modal */}
+      <BookingSuccessModal />
+
       {/* Appointment Details Modal */}
       {AppointmentDetailsModal}
       

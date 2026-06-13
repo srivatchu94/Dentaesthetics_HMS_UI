@@ -6082,33 +6082,30 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       return;
                     }
 
-                    if (!appointmentForm.doctorId) {
-                      alert('❌ Please select a doctor before booking appointment.');
-                      return;
-                    }
+                    if (appointmentForm.doctorId) {
+                      const conflictCheckResponse = await getDoctorAppointmentsWithCount({
+                        clinicId,
+                        doctorId: String(appointmentForm.doctorId),
+                        appointmentDate: appointmentForm.date,
+                        startTime: startTimeSpan,
+                        endTime: endTimeSpan
+                      });
 
-                    const conflictCheckResponse = await getDoctorAppointmentsWithCount({
-                      clinicId,
-                      doctorId: String(appointmentForm.doctorId),
-                      appointmentDate: appointmentForm.date,
-                      startTime: startTimeSpan,
-                      endTime: endTimeSpan
-                    });
+                      const appointmentCount = Number(
+                        conflictCheckResponse?.appointmentsCount ??
+                        conflictCheckResponse?.appointmentCount ??
+                        conflictCheckResponse?.count ??
+                        conflictCheckResponse?.data?.appointmentsCount ??
+                        conflictCheckResponse?.data?.appointmentCount ??
+                        conflictCheckResponse?.data?.count ??
+                        (typeof conflictCheckResponse === 'number' ? conflictCheckResponse : 0)
+                      );
 
-                    const appointmentCount = Number(
-                      conflictCheckResponse?.appointmentsCount ??
-                      conflictCheckResponse?.appointmentCount ??
-                      conflictCheckResponse?.count ??
-                      conflictCheckResponse?.data?.appointmentsCount ??
-                      conflictCheckResponse?.data?.appointmentCount ??
-                      conflictCheckResponse?.data?.count ??
-                      (typeof conflictCheckResponse === 'number' ? conflictCheckResponse : 0)
-                    );
-
-                    if (appointmentCount > 0 && !allowConflictBooking) {
-                      setBookingConflictCount(appointmentCount);
-                      setShowBookingConflictMessage(true);
-                      return;
+                      if (appointmentCount > 0 && !allowConflictBooking) {
+                        setBookingConflictCount(appointmentCount);
+                        setShowBookingConflictMessage(true);
+                        return;
+                      }
                     }
 
                     setShowBookingConflictMessage(false);
@@ -6489,11 +6486,10 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                   {/* Reason for Visit */}
                   <div>
                     <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
-                      <span>🩺</span> Reason for Visit * {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
+                      <span>🩺</span> Reason for Visit {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
                     </label>
                     <input
                       type="text"
-                      required
                       disabled={!searchedPatient && !bookingWithoutRegistration}
                       value={appointmentForm.reasonForVisit}
                       onChange={(e) => setAppointmentForm({ ...appointmentForm, reasonForVisit: e.target.value })}

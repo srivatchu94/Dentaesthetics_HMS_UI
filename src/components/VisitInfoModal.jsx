@@ -3,7 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { addPatientVisit } from "../services/appointmentService";
 import { editPatientVisit } from "../services/patientService";
 import { sendPrescriptionEmail, sendEmail } from "../services/emailService";
-import { getClinic, getDoctorById } from "../api/hmsApi";
+import { searchDoctors } from "../services/doctorService";
+import { getClinicByClinicId } from "../services/clinicService";
+import { getDoctorIdFromToken } from "../services/tokenManager";
 import PrescriptionPrint from "./PrescriptionPrint";
 import PrescriptionEmailTemplate from "./PrescriptionEmailTemplate";
 import jsPDF from "jspdf";
@@ -520,31 +522,98 @@ const VisitInfoModal = ({
     setEditingMedicationIndex(null);
   };
 
-  const handlePrintPrescription = () => {
+  // Shared helper — fetch doctor (SearchDoctors) + clinic (GetClinicByClinicId)
+  // Prefers the appointment's own doctorId so we get the right doctor's license number,
+  // then falls back to the logged-in user's token if the appointment has no doctorId.
+  const loadDoctorAndClinic = async () => {
     const userData = JSON.parse(localStorage.getItem("userData") || "{}");
     const selectedAccess = JSON.parse(localStorage.getItem("selectedAccess") || "{}");
-    
+
+    // Use the appointment's doctorId first — that's the physician who owns this visit
+    const appointmentDoctorId = Number(selectedAppointment?.doctorId) || 0;
+    const doctorId = appointmentDoctorId || getDoctorIdFromToken() || selectedAccess.doctorId || userData.doctorId || 0;
+    const enterpriseId = selectedAccess.enterpriseId || userData.enterpriseId || 0;
+    const clinicId    = selectedAccess.clinicId    || userData.clinicId    || 0;
+
+    // Appointment-level doctor name — use as final fallback if API returns no name
+    const apptDoctorName = selectedAppointment?.doctorName || selectedAppointment?.attendingPhysician || "";
+
+    let doctorResult = null;
+    let clinicResult = null;
+
+    if (doctorId && enterpriseId) {
+      try {
+        const results = await searchDoctors({ doctorId, enterpriseId });
+        const doc = Array.isArray(results) ? results[0] : results;
+        if (doc) {
+          const apiName = `${doc.firstName || ''} ${doc.lastName || ''}`.trim();
+          doctorResult = {
+            doctorId: doc.doctorId,
+            doctorName: apiName || apptDoctorName,
+            firstName: doc.firstName || '',
+            lastName: doc.lastName || '',
+            speciality: doc.speciality || doc.specialtyName || '',
+            registrationNumber: doc.licenseNumber || doc.LicenseNumber || ''
+          };
+        }
+      } catch (e) {
+        console.warn('SearchDoctors failed:', e);
+      }
+    }
+
+    // If API returned nothing, build from appointment data
+    if (!doctorResult && apptDoctorName) {
+      doctorResult = {
+        doctorId: selectedAppointment?.doctorId || 0,
+        doctorName: apptDoctorName,
+        firstName: '',
+        lastName: '',
+        speciality: '',
+        registrationNumber: ''
+      };
+    }
+
+    if (clinicId) {
+      try {
+        const clinicArr = await getClinicByClinicId([clinicId]);
+        const clinic = Array.isArray(clinicArr) ? clinicArr[0] : clinicArr;
+        if (clinic) clinicResult = clinic;
+      } catch (e) {
+        console.warn('GetClinicByClinicId failed:', e);
+      }
+    }
+
+    return { doctorResult, clinicResult };
+  };
+
+  const handlePrintPrescription = async () => {
+    const { doctorResult, clinicResult } = await loadDoctorAndClinic();
+
     setPrintPrescriptionData({
-      patientName: `${selectedAppointment.firstName} ${selectedAppointment.lastName}`,
-      patientId: selectedAppointment.patientId,
-      patientAge: selectedAppointment.age || 'N/A',
-      doctorName: selectedAppointment.doctorName || userData.username || 'Doctor',
-      registrationNumber: selectedAppointment.registrationNumber || 'N/A',
+      prescriptionDate: new Date().toISOString(),
       diagnosis: visitForm.diagnosis,
+      treatment: visitForm.treatmentProvided || '',
       medications: inlineMedications,
       notes: visitForm.notes,
-      clinicInfo: {
-        clinicName: userData.clinicName || selectedAccess.clinicName || 'My Dental Clinic',
-        address: userData.clinicAddress || selectedAccess.address || 'Clinic Address',
-        phone: userData.clinicPhone || selectedAccess.phone || '+1-555-1234',
-        email: userData.clinicEmail || selectedAccess.email || 'clinic@example.com'
-      },
-      doctorInfo: {
-        doctorName: selectedAppointment.doctorName || userData.username || 'Doctor',
-        registrationNumber: selectedAppointment.registrationNumber || 'N/A'
-      }
+      prescriptionContent: inlineMedications.map(m =>
+        `${m.name} - ${m.dosage} - ${m.frequency} - ${m.duration}`
+      ).join('\n')
     });
     setShowPrintPreviewModal(true);
+
+    // Store for the print modal to consume
+    setPrintPrescriptionData(prev => ({
+      ...prev,
+      _doctorInfo: doctorResult,
+      _clinicInfo: clinicResult,
+      _patientInfo: {
+        firstName: selectedAppointment.firstName,
+        lastName: selectedAppointment.lastName,
+        dateOfBirth: selectedAppointment.dateOfBirth,
+        gender: selectedAppointment.gender,
+        phone: selectedAppointment.phone || selectedAppointment.phoneNumber
+      }
+    }));
   };
 
   const handleSendEmail = async () => {
@@ -577,84 +646,18 @@ const VisitInfoModal = ({
         patientId: selectedAppointment.patientId
       };
 
-      // Fetch doctor details from API
-      let doctorInfo = {
-        doctorId: selectedAppointment.doctorId,
-        doctorName: selectedAppointment.doctorName || userData.username || 'Doctor',
-        registrationNumber: selectedAppointment.registrationNumber || 'N/A'
+      // Doctor + Clinic: use logged-in user's IDs from localStorage
+      const { doctorResult, clinicResult } = await loadDoctorAndClinic();
+      const doctorInfo = doctorResult || {
+        doctorName: userData.username || 'Doctor',
+        registrationNumber: ''
       };
-
-      try {
-        if (selectedAppointment.doctorId) {
-          console.log('👨‍⚕️ DOCTOR FETCH - doctorId:', selectedAppointment.doctorId);
-          const doctorDetails = await getDoctorById(selectedAppointment.doctorId.toString());
-          console.log('👨‍⚕️ DOCTOR RESPONSE OBJECT:', doctorDetails);
-          
-          if (doctorDetails) {
-            // Build doctor name from firstName and lastName
-            const doctorFirstName = doctorDetails.firstName || '';
-            const doctorLastName = doctorDetails.lastName || '';
-            const fullDoctorName = `${doctorFirstName} ${doctorLastName}`.trim() || doctorInfo.doctorName;
-            
-            doctorInfo = {
-              doctorId: doctorDetails.doctorId || selectedAppointment.doctorId,
-              doctorName: fullDoctorName,
-              registrationNumber: doctorDetails.licenseNumber || doctorInfo.registrationNumber
-            };
-            console.log('✅ Doctor info built from API:', doctorInfo);
-          } else {
-            console.warn('⚠️ Doctor API returned empty, using defaults');
-          }
-        } else {
-          console.warn('⚠️ No doctorId in appointment:', selectedAppointment.doctorId);
-        }
-      } catch (doctorError) {
-        console.error('❌ ERROR fetching doctor details:', doctorError);
-      }
-
-      // Fetch actual clinic details from API
-      let clinicInfo = {
-        clinicName: userData?.clinicName || 'Clinic Name',
-        address: userData?.clinicAddress || 'Clinic Address',
-        phone: userData?.clinicPhone || '+1-555-0000',
-        email: userData?.clinicEmail || 'clinic@dental.com'
+      const clinicInfo = clinicResult || {
+        clinicName: userData.clinicName || 'Clinic',
+        clinicAddress: userData.clinicAddress || '',
+        clinicPhone: userData.clinicPhone || '',
+        clinicEmail: userData.clinicEmail || ''
       };
-
-      try {
-        const clinicIdFromToken = selectedAccess?.clinicId;
-        console.log('🏥 ===== CLINIC FETCH START =====');
-        console.log('🏥 clinicId from token payload:', clinicIdFromToken);
-        console.log('🏥 Full selectedAccess object:', selectedAccess);
-        console.log('🏥 userData clinic info:', {
-          clinicName: userData?.clinicName,
-          clinicAddress: userData?.clinicAddress,
-          clinicPhone: userData?.clinicPhone,
-          clinicEmail: userData?.clinicEmail
-        });
-        
-        if (clinicIdFromToken && clinicIdFromToken > 0) {
-          console.log('🏥 Calling API: getClinic(' + clinicIdFromToken + ')');
-          const clinicDetails = await getClinic(clinicIdFromToken);
-          console.log('🏥 CLINIC DETAILS AFTER PROCESSING:', clinicDetails);
-          
-          if (clinicDetails) {
-            // Extract clinic data with proper property mapping
-            clinicInfo = {
-              clinicName: clinicDetails.clinicName || clinicInfo.clinicName,
-              address: clinicDetails.clinicAddress || clinicInfo.address,
-              phone: clinicDetails.clinicPhone || clinicInfo.phone,
-              email: clinicDetails.clinicEmail || clinicInfo.email
-            };
-            console.log('✅ Clinic info from API:', clinicInfo);
-          } else {
-            console.warn('⚠️ API returned null/undefined response');
-          }
-        } else {
-          console.warn('⚠️ Invalid clinicId from token:', clinicIdFromToken, 'using userData fallback');
-        }
-      } catch (clinicError) {
-        console.error('❌ ERROR fetching clinic - will use userData fallback:', clinicError);
-      }
 
       // Use the email template
       console.log('📧 PASSING TO EMAIL TEMPLATE:');
@@ -1511,6 +1514,9 @@ const VisitInfoModal = ({
                     prescription={{
                       prescriptionId: selectedAppointment.appointmentId,
                       prescriptionDate: new Date().toISOString(),
+                      diagnosis: visitForm.diagnosis || '',
+                      treatment: visitForm.treatmentProvided || '',
+                      notes: visitForm.notes || '',
                       prescriptionContent: JSON.stringify(
                         inlineMedications.map(m => ({
                           medicineName: m.name,
@@ -1521,15 +1527,15 @@ const VisitInfoModal = ({
                         }))
                       )
                     }}
-                    patientInfo={{
+                    patientInfo={printPrescriptionData._patientInfo || {
                       firstName: selectedAppointment.firstName,
                       lastName: selectedAppointment.lastName,
-                      age: selectedAppointment.age,
+                      dateOfBirth: selectedAppointment.dateOfBirth,
                       gender: selectedAppointment.gender,
-                      patientId: selectedAppointment.patientId
+                      phone: selectedAppointment.phone || selectedAppointment.phoneNumber
                     }}
-                    doctorInfo={printPrescriptionData.doctorInfo}
-                    clinicInfo={printPrescriptionData.clinicInfo}
+                    doctorInfo={printPrescriptionData._doctorInfo || printPrescriptionData.doctorInfo}
+                    clinicInfo={printPrescriptionData._clinicInfo || printPrescriptionData.clinicInfo}
                   />
                 </div>
               </div>
