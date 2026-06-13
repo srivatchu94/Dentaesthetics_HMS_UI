@@ -321,7 +321,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
       doc.text(`Date: ${new Date(invoice.header.billDate).toLocaleDateString()}`, margin, yPosition);
       yPosition += 5;
       const invLineItems = invoice.lineItems || [];
-      const invTotalPaid = invLineItems.reduce((s, i) => s + (i.amountPaid || 0), 0);
+      const invTotalPaid = invLineItems.reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0);
       const invStatus = invTotalPaid === 0 ? 'Pending' : invTotalPaid >= (invoice.header.totalAmount || 0) ? 'Paid' : 'Partial';
       doc.text(`Status: ${invStatus}`, margin, yPosition);
       yPosition += 10;
@@ -338,8 +338,8 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
           `₹${item.serviceCost?.toFixed(2) || '0.00'}`,
           `₹${item.gst?.toFixed(2) || '0.00'}`,
           `₹${item.totalAmount?.toFixed(2) || '0.00'}`,
-          `₹${item.amountPaid?.toFixed(2) || '0.00'}`,
-          `₹${Math.max(0, (item.totalAmount || 0) - (item.amountPaid || 0)).toFixed(2)}`
+          `₹${(item.amountPaid ?? item.AmountPaid ?? 0).toFixed(2)}`,
+          `₹${Math.max(0, (item.totalAmount ?? item.TotalAmount ?? 0) - (item.amountPaid ?? item.AmountPaid ?? 0)).toFixed(2)}`
         ]);
       });
 
@@ -652,8 +652,8 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', scrollSnapType: 'x mandatory' }}
                             >
                               {invoicesByAppointment[expandedAppointmentId].map((invoice, idx) => {
-                                const paid = (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid || 0), 0);
-                                const total = invoice.header?.totalAmount || 0;
+                                const paid = (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0);
+                                const total = invoice.header?.totalAmount ?? invoice.header?.TotalAmount ?? 0;
                                 const paidPct = total > 0 ? Math.min(100, Math.round(paid / total * 100)) : 0;
                                 return (
                                   <motion.div
@@ -1072,8 +1072,8 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                     <div ref={carouselRef} className="flex gap-4 overflow-x-auto px-10 pb-1"
                                       style={{ scrollbarWidth: 'none', scrollSnapType: 'x mandatory' }}>
                                       {invoicesByAppointment[expandedAppointmentId].map((invoice, idx) => {
-                                        const paid = (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid || 0), 0);
-                                        const total = invoice.header?.totalAmount || 0;
+                                        const paid = (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0);
+                                        const total = invoice.header?.totalAmount ?? invoice.header?.TotalAmount ?? 0;
                                         const pct = total > 0 ? Math.min(100, Math.round(paid / total * 100)) : 0;
                                         return (
                                           <motion.div key={idx} initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }}

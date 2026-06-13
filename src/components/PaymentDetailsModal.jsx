@@ -101,7 +101,7 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
                 
                 invoiceResponse.forEach(invoice => {
                   totalInvoiceAmount += invoice.header?.totalAmount || 0;
-                  totalPaidAmount += (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid || 0), 0);
+                  totalPaidAmount += (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0);
                 });
                 
                 const pendingAmount = Math.max(totalInvoiceAmount - totalPaidAmount, 0);
@@ -275,8 +275,8 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
         </table>
         <div style="margin-top: 20px; text-align: right;">
           <p><strong>Total Amount:</strong> ₹${(invoice.header?.totalAmount || 0).toFixed(2)}</p>
-          <p><strong>Paid Amount:</strong> ₹${(invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid || 0), 0).toFixed(2)}</p>
-          <p><strong>Pending:</strong> ₹${Math.max(0, (invoice.header?.totalAmount || 0) - (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid || 0), 0)).toFixed(2)}</p>
+          <p><strong>Paid Amount:</strong> ₹${(invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0).toFixed(2)}</p>
+          <p><strong>Pending:</strong> ₹${Math.max(0, (invoice.header?.totalAmount || 0) - (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0)).toFixed(2)}</p>
         </div>
       </div>
     `;
@@ -616,7 +616,7 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
                                         {/* Compute status dynamically based on paid/total amounts */}
                                         {(() => {
                                           const invTotal = parseFloat(invoice.header?.totalAmount) || 0;
-                                          const invPaid = (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid || 0), 0);
+                                          const invPaid = (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0);
                                           const invStatus = invPaid === 0 ? 'Pending' : invPaid >= invTotal ? 'Paid' : 'Partial';
                                           
                                           return (

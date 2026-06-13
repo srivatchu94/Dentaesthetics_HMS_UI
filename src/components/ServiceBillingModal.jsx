@@ -150,7 +150,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                 name: item.serviceDescription,
                 amount: item.serviceCost,
                 gstPercent: item.serviceCost > 0 ? (item.gst / item.serviceCost * 100) : 0,
-                paidAmount: item.amountPaid || 0
+                paidAmount: item.amountPaid ?? item.AmountPaid ?? 0
               });
             }
           });
@@ -158,7 +158,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
           // Set consultation fee data
           if (consultationItem) {
             setConsultationFee(consultationItem.serviceCost);
-            setConsultationPaid(consultationItem.amountPaid || 0);
+            setConsultationPaid(consultationItem.amountPaid ?? consultationItem.AmountPaid ?? 0);
             setConsultationGST(consultationItem.serviceCost > 0 ? (consultationItem.gst / consultationItem.serviceCost * 100) : 18);
           }
           
@@ -227,7 +227,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                 name: item.serviceDescription,
                 amount: item.serviceCost,
                 gstPercent: (item.gst / item.serviceCost * 100) || 0,
-                paidAmount: item.amountPaid || 0
+                paidAmount: item.amountPaid ?? item.AmountPaid ?? 0
               });
             }
           });
@@ -235,7 +235,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
           // Set consultation fee data
           if (consultationItem) {
             setConsultationFee(consultationItem.serviceCost);
-            setConsultationPaid(consultationItem.amountPaid || 0);
+            setConsultationPaid(consultationItem.amountPaid ?? consultationItem.AmountPaid ?? 0);
             setConsultationGST((consultationItem.gst / consultationItem.serviceCost * 100) || 18);
           }
           
