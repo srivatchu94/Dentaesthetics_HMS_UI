@@ -1,0 +1,119 @@
+<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0891b2;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="secondaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d9488;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#134e4a;stop-opacity:1" />
+    </linearGradient>
+
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#06b6d4;stop-opacity:1" />
+    </linearGradient>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="dropShadow">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-opacity="0.4" flood-color="#000000"/>
+    </filter>
+
+    <!-- Glow Filter -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Dark Background Circle -->
+  <circle cx="150" cy="150" r="145" fill="#1a1f2e" stroke="#0d9488" stroke-width="3" filter="url(#dropShadow)"/>
+
+  <!-- Central Medical Cross - Large (represents healthcare) -->
+  <g filter="url(#dropShadow)">
+    <!-- Horizontal bar -->
+    <rect x="110" y="135" width="80" height="30" fill="url(#primaryGradient)" rx="4"/>
+    <!-- Vertical bar -->
+    <rect x="135" y="110" width="30" height="80" fill="url(#primaryGradient)" rx="4"/>
+  </g>
+
+  <!-- Inner Heart (compassion & care) -->
+  <g transform="translate(150, 150)" filter="url(#glow)">
+    <path d="M 0,-5 C -4,-8 -9,-8 -9,-3 C -9,0 -5,4 0,6 C 5,4 9,0 9,-3 C 9,-8 4,-8 0,-5 Z" 
+          fill="#00d4ff" opacity="0.8"/>
+  </g>
+
+  <!-- Connected Nodes (representing multiple units/clinics) -->
+  <!-- Node 1 - Top Left -->
+  <g filter="url(#dropShadow)">
+    <circle cx="95" cy="95" r="8" fill="url(#accentGradient)" opacity="0.9"/>
+    <circle cx="95" cy="95" r="5" fill="#ffffff" opacity="0.3"/>
+  </g>
+
+  <!-- Node 2 - Top Right -->
+  <g filter="url(#dropShadow)">
+    <circle cx="205" cy="95" r="8" fill="url(#accentGradient)" opacity="0.9"/>
+    <circle cx="205" cy="95" r="5" fill="#ffffff" opacity="0.3"/>
+  </g>
+
+  <!-- Node 3 - Bottom Left -->
+  <g filter="url(#dropShadow)">
+    <circle cx="95" cy="205" r="8" fill="url(#accentGradient)" opacity="0.9"/>
+    <circle cx="95" cy="205" r="5" fill="#ffffff" opacity="0.3"/>
+  </g>
+
+  <!-- Node 4 - Bottom Right -->
+  <g filter="url(#dropShadow)">
+    <circle cx="205" cy="205" r="8" fill="url(#accentGradient)" opacity="0.9"/>
+    <circle cx="205" cy="205" r="5" fill="#ffffff" opacity="0.3"/>
+  </g>
+
+  <!-- Connection Lines (network connectivity) -->
+  <!-- Center to Top Left -->
+  <line x1="130" y1="125" x2="103" y2="103" stroke="#06b6d4" stroke-width="2" opacity="0.6" stroke-linecap="round"/>
+
+  <!-- Center to Top Right -->
+  <line x1="170" y1="125" x2="197" y2="103" stroke="#06b6d4" stroke-width="2" opacity="0.6" stroke-linecap="round"/>
+
+  <!-- Center to Bottom Left -->
+  <line x1="130" y1="175" x2="103" y2="197" stroke="#06b6d4" stroke-width="2" opacity="0.6" stroke-linecap="round"/>
+
+  <!-- Center to Bottom Right -->
+  <line x1="170" y1="175" x2="197" y2="197" stroke="#06b6d4" stroke-width="2" opacity="0.6" stroke-linecap="round"/>
+
+  <!-- Data Pulse Lines (representing healthcare data/information flow) -->
+  <g opacity="0.4">
+    <!-- Top arc -->
+    <path d="M 110 100 Q 150 60, 190 100" fill="none" stroke="url(#accentGradient)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,3"/>
+    
+    <!-- Bottom arc -->
+    <path d="M 110 200 Q 150 240, 190 200" fill="none" stroke="url(#accentGradient)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="5,3"/>
+  </g>
+
+  <!-- Shield overlay (trust & security) -->
+  <path d="M 150 80 L 180 95 L 180 135 Q 150 160 150 160 Q 150 160 120 135 L 120 95 Z" 
+        fill="none" stroke="url(#secondaryGradient)" stroke-width="1.5" opacity="0.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Data dots (information) -->
+  <g opacity="0.7" filter="url(#dropShadow)">
+    <!-- Top dots -->
+    <circle cx="140" cy="70" r="2.5" fill="#00d4ff"/>
+    <circle cx="160" cy="70" r="2.5" fill="#06b6d4"/>
+    
+    <!-- Bottom dots -->
+    <circle cx="140" cy="230" r="2.5" fill="#00d4ff"/>
+    <circle cx="160" cy="230" r="2.5" fill="#06b6d4"/>
+  </g>
+
+  <!-- Connecting ring (unity) -->
+  <circle cx="150" cy="150" r="110" fill="none" stroke="url(#accentGradient)" stroke-width="1" opacity="0.3" stroke-dasharray="10,5"/>
+
+  <!-- Outer border accent -->
+  <circle cx="150" cy="150" r="148" fill="none" stroke="url(#primaryGradient)" stroke-width="0.5" opacity="0.3"/>
+
+</svg>

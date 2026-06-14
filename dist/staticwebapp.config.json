@@ -1,0 +1,40 @@
+{
+  "routes": [
+    {
+      "route": "/api/*",
+      "methods": ["GET", "POST", "PUT", "DELETE", "PATCH"],
+      "allowedRoles": ["authenticated"]
+    },
+    {
+      "route": "/*",
+      "methods": ["GET", "HEAD", "OPTIONS"],
+      "serve": "/index.html",
+      "statusCode": 200
+    }
+  ],
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff"
+  },
+  "mimeTypes": {
+    ".js": "application/javascript; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
+    ".json": "application/json",
+    ".css": "text/css",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".ico": "image/x-icon",
+    ".webp": "image/webp",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".otf": "font/otf",
+    ".eot": "application/vnd.ms-fontobject"
+  },
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/assets/*", "/*.json", "/*.txt", "/*.xml", "/*.md"]
+  }
+}
