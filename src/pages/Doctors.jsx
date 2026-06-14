@@ -268,7 +268,11 @@ export default function Doctors() {
                   className="overflow-hidden"
                 >
                   <h2 className="text-white font-bold text-lg whitespace-nowrap">Doctor's Space</h2>
+<<<<<<< Updated upstream
                   <p className="text-indigo-100 text-xs whitespace-nowrap">Dr. Smith</p>
+=======
+                  <p className="text-indigo-100 text-xs whitespace-nowrap">{doctorName || 'Doctor'}</p>
+>>>>>>> Stashed changes
                 </motion.div>
               )}
             </AnimatePresence>

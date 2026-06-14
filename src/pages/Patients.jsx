@@ -28,7 +28,940 @@ export default function Patients() {
     status: ""
   });
   const [showFilters, setShowFilters] = useState(false);
+  // Success modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [registeredPatient, setRegisteredPatient] = useState(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
   
+  // View Patients modal state
+  const [showViewPatientsModal, setShowViewPatientsModal] = useState(false);
+  
+  // Appointments modal states
+  const [showViewAppointmentsModal, setShowViewAppointmentsModal] = useState(false);
+  const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
+  
+  // State for pre-populated appointment data from registration
+  const [appointmentFromRegistration, setAppointmentFromRegistration] = useState(null);
+  
+  // Appointment booking form state
+  const [appointmentForm, setAppointmentForm] = useState({
+    // Patient details
+    firstName: "",
+    lastName: "",
+    phoneNumber: "",
+    email: "",
+    dateOfBirth: "",
+    age: "",
+    // Scheduling
+    date: "",
+    startTime: "",
+    endTime: "",
+    durationMinutes: "",
+    // Details
+    appointmentType: "",
+    reasonForVisit: "",
+    notes: "",
+    telehealthLink: "",
+    attendingPhysician: "",
+    // References
+    doctorId: "",
+    // Walk-in flag
+    isWalkIn: false
+  })
+  
+  // Patient search state for appointment booking
+  const [patientSearchForm, setPatientSearchForm] = useState({
+    clinicId: "",
+    patientId: "",
+    firstName: "",
+    lastName: "",
+    mobileNumber: ""
+  });
+  const [searchedPatient, setSearchedPatient] = useState(null);
+  const [patientSearchLoading, setPatientSearchLoading] = useState(false);
+  const [patientNotFound, setPatientNotFound] = useState(false);
+  const [patientSearchResults, setPatientSearchResults] = useState([]);
+  const [bookingWithoutRegistration, setBookingWithoutRegistration] = useState(false);
+  const [clinicsList, setClinicsList] = useState([]);
+  const [clinicPatientsList, setClinicPatientsList] = useState([]);
+  const [loadingClinicPatients, setLoadingClinicPatients] = useState(false);
+  const [showAppointmentSuccessModal, setShowAppointmentSuccessModal] = useState(false);
+  const [createdAppointment, setCreatedAppointment] = useState(null);
+  const [showBookingConflictMessage, setShowBookingConflictMessage] = useState(false);
+  const [bookingConflictCount, setBookingConflictCount] = useState(0);
+  const [allowConflictBooking, setAllowConflictBooking] = useState(false);
+  const appointmentBookingFormRef = useRef(null);
+  const [appointmentDoctors, setAppointmentDoctors] = useState([]);
+  const [appointmentDoctorsLoading, setAppointmentDoctorsLoading] = useState(false);
+  const [appointmentsList, setAppointmentsList] = useState([]);
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
+  const [selectedAppointmentDetails, setSelectedAppointmentDetails] = useState(null);
+  const [isEditingAppointment, setIsEditingAppointment] = useState(false);
+  const [editAppointmentForm, setEditAppointmentForm] = useState(null);
+  const [showAppointmentUpdateSuccess, setShowAppointmentUpdateSuccess] = useState(false);
+  const [showNotLoggedInModal, setShowNotLoggedInModal] = useState(false);
+  const [isUserLoggedIn, setIsUserLoggedIn] = useState(!!localStorage.getItem('accessToken'));
+
+  const normalizePhoneNumber = (value) => value.replace(/\D/g, '').slice(0, 10);
+  const normalizeIndianPhoneDigits = (value) => {
+    const rawValue = String(value || "").trim();
+    let normalizedValue = rawValue;
+
+    if (normalizedValue.startsWith("+91")) {
+      normalizedValue = normalizedValue.slice(3);
+    }
+
+    let digits = normalizedValue.replace(/\D/g, "");
+    if (digits.startsWith("91") && digits.length > 10) {
+      digits = digits.slice(2);
+    }
+    return digits.slice(0, 10);
+  };
+  const formatIndianPhone = (value) => {
+    return normalizeIndianPhoneDigits(value);
+  };
+  const addIndianCountryCode = (value) => {
+    const digits = normalizeIndianPhoneDigits(value);
+    return digits ? `+91${digits}` : "";
+  };
+  const isValidIndianPhone = (value) => /^\d{10}$/.test(String(value || ""));
+  const isValidPostalCode = (value) => /^\d{6}$/.test(String(value || ""));
+  const validateEmailDomain = (email) => {
+    if (!email) return "";
+    const normalizedEmail = String(email).trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+      return "Please enter a valid email format (example@domain.com)";
+    }
+    const domain = normalizedEmail.split("@")[1] || "";
+    const tld = domain.split(".").pop() || "";
+    if (tld.length < 2) {
+      return "Please enter a valid email domain";
+    }
+    return "";
+  };
+  const isYearLengthValid = (dateValue) => {
+    if (!dateValue) return true;
+    const [year] = String(dateValue).split('-');
+    return !year || year.length <= 4;
+  };
+  const isStrictDateWithFourDigitYear = (dateValue) => /^\d{4}-\d{2}-\d{2}$/.test(String(dateValue || ""));
+
+  // Initialize appointment form with pre-populated data from registration
+  useEffect(() => {
+    if (appointmentFromRegistration && showNewAppointmentModal) {
+      setAppointmentForm(prev => ({
+        ...prev,
+        firstName: appointmentFromRegistration.firstName,
+        lastName: appointmentFromRegistration.lastName,
+        email: appointmentFromRegistration.email,
+        phoneNumber: appointmentFromRegistration.phoneNumber,
+        dateOfBirth: appointmentFromRegistration.dateOfBirth
+      }));
+      // Enable form editing when prepopulated from registration
+      setBookingWithoutRegistration(true);
+      setAppointmentFromRegistration(null); // Clear after using
+    }
+  }, [appointmentFromRegistration, showNewAppointmentModal]);
+
+  useEffect(() => {
+    if (!showNewAppointmentModal) return;
+
+    const selectedAccessStr = localStorage.getItem('selectedAccess');
+    const selectedAccess = selectedAccessStr ? JSON.parse(selectedAccessStr) : null;
+    const clinicId = selectedAccess?.clinicId;
+
+    console.log("🔍 Fetching doctors for clinicId:", clinicId);
+
+    if (!clinicId) {
+      console.warn("⚠️ No clinicId found in selectedAccess");
+      setAppointmentDoctors([]);
+      setAppointmentDoctorsLoading(false);
+      return;
+    }
+
+    const fetchDoctors = async () => {
+      try {
+        setAppointmentDoctorsLoading(true);
+        console.log("🔄 Starting doctor fetch...");
+        const doctorsList = await getDoctorsByClinicID(Number(clinicId));
+        console.log("🏥 Walk-in doctors response:", doctorsList);
+        
+        let rawDoctors = Array.isArray(doctorsList)
+          ? doctorsList
+          : Array.isArray(doctorsList?.data)
+            ? doctorsList.data
+            : Array.isArray(doctorsList?.doctors)
+              ? doctorsList.doctors
+              : [];
+
+        console.log("📋 Raw doctors array:", rawDoctors);
+
+        // Normalize the doctor data to have consistent field names
+        let normalizedDoctors = rawDoctors.map((item) => ({
+          doctorId: item.doctorId || item.doctorID || item.id || item.staffId || "",
+          firstName: item.firstName || item.FirstName || "",
+          lastName: item.lastName || item.LastName || "",
+          name: `${item.firstName || item.FirstName || ""} ${item.lastName || item.LastName || ""}`.trim(),
+          email: item.email || item.Email || "",
+          phone: item.phone || item.Phone || "",
+          specialization: item.specialization || item.Specialization || ""
+        }));
+
+        console.log("📋 Normalized doctors:", normalizedDoctors);
+
+        // Fallback: try staff profile search for clinic and filter Doctor/Nurse roles
+        if (normalizedDoctors.length === 0) {
+          console.log("⚠️ No doctors found, trying fallback staff profile fetch...");
+          try {
+            const response = await fetch(`${API_BASE_URL}/StaffDetail/GetStaffProfile?clinicId=${clinicId}`, {
+              method: "GET",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+              }
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const staffList = Array.isArray(data) ? data : data?.data || [];
+              const filtered = staffList.filter(item => {
+                const role = (item.roleType || item.role || item.roleName || "").toLowerCase();
+                return role.includes("doctor") || role.includes("nurse") || role.includes("dentist") || role.includes("physician");
+              });
+              const fallbackList = filtered.length > 0 ? filtered : staffList;
+              
+              // Normalize fallback data too
+              normalizedDoctors = fallbackList.map((item) => ({
+                doctorId: item.doctorId || item.doctorID || item.id || item.staffId || "",
+                firstName: item.firstName || item.FirstName || "",
+                lastName: item.lastName || item.LastName || "",
+                name: `${item.firstName || item.FirstName || ""} ${item.lastName || item.LastName || ""}`.trim(),
+                email: item.email || item.Email || "",
+                phone: item.phone || item.Phone || "",
+                specialization: item.specialization || item.Specialization || ""
+              }));
+              
+              console.log("✅ Fallback staff found and normalized:", normalizedDoctors);
+            }
+          } catch (fallbackError) {
+            console.error('❌ Fallback staff profile fetch failed:', fallbackError);
+          }
+        }
+
+        console.log("✅ Setting appointment doctors:", normalizedDoctors);
+        setAppointmentDoctors(normalizedDoctors);
+      } catch (error) {
+        console.error('❌ Failed to fetch doctors for appointment:', error);
+        setAppointmentDoctors([]);
+      } finally {
+        console.log("🏁 Doctor fetch complete, setting loading to false");
+        setAppointmentDoctorsLoading(false);
+      }
+    };
+
+    fetchDoctors();
+  }, [showNewAppointmentModal]);
+
+  useEffect(() => {
+    if (!showNewAppointmentModal) {
+      setShowBookingConflictMessage(false);
+      setBookingConflictCount(0);
+      setAllowConflictBooking(false);
+      setPatientSearchForm({ clinicId: "", patientId: "", firstName: "", lastName: "", mobileNumber: "" });
+      setSearchedPatient(null);
+      setPatientNotFound(false);
+      setPatientSearchResults([]);
+      setBookingWithoutRegistration(false);
+      setAppointmentForm({
+        firstName: "", lastName: "", phoneNumber: "", email: "", dateOfBirth: "", age: "",
+        date: "", startTime: "", endTime: "", durationMinutes: "",
+        appointmentType: "", reasonForVisit: "", notes: "", telehealthLink: "",
+        attendingPhysician: "", doctorId: "", isWalkIn: false
+      });
+    }
+  }, [showNewAppointmentModal]);
+  
+  // Diagnosis modal states
+  const [showDiagnosisModal, setShowDiagnosisModal] = useState(false);
+  const [selectedDiagnosis, setSelectedDiagnosis] = useState(null);
+  const [loadingDiagnosis, setLoadingDiagnosis] = useState(false);
+  const [showPrintPreviewModal, setShowPrintPreviewModal] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  
+  // Appointment filter state
+  const [appointmentFilter, setAppointmentFilter] = useState({
+    clinicId: "",
+    firstName: "",
+    lastName: "",
+    doctorId: "",
+    patientId: "",
+    mobilenumber: "",
+    fromDate: "",
+    toDate: "",
+    status: "All",
+    appointmentType: "All"
+  });
+  const [appointmentDateValidationError, setAppointmentDateValidationError] = useState("");
+  const [filteredAppointmentsList, setFilteredAppointmentsList] = useState([]);
+  const [distinctStatuses, setDistinctStatuses] = useState([]);
+  const [distinctAppointmentTypes, setDistinctAppointmentTypes] = useState([]);
+  const [mobileNumberError, setMobileNumberError] = useState('');
+  
+  // Load clinics on mount
+  useEffect(() => {
+    const enterpriseId = localStorage.getItem('enterpriseId') || '1';
+    getClinicsByEnterpriseId(parseInt(enterpriseId))
+      .then(clinics => setClinicsList(clinics))
+      .catch(err => console.error('Failed to load clinics:', err));
+  }, []);
+
+  // Load patients when appointment modal opens
+  useEffect(() => {
+    if (showNewAppointmentModal) {
+      const clinicId = localStorage.getItem('clinicId');
+      if (clinicId) {
+        setLoadingClinicPatients(true);
+        getAllPatientsByClinicID(parseInt(clinicId))
+          .then(patients => {
+            setClinicPatientsList(patients);
+          })
+          .catch(err => {
+            console.error('Failed to load clinic patients:', err);
+            setClinicPatientsList([]);
+          })
+          .finally(() => setLoadingClinicPatients(false));
+      }
+    }
+  }, [showNewAppointmentModal]);
+
+  // Check login status on mount and when active view changes
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    setIsUserLoggedIn(!!token);
+    console.log('✅ Login status updated:', !!token);
+  }, [activeView]);
+
+  // Also check on initial mount
+  useEffect(() => {
+    const token = getAccessToken();
+    setIsUserLoggedIn(!!token);
+    console.log('✅ Initial login check:', !!token);
+    
+    // Debug: Log all credentials
+    if (token) {
+      console.log('🔐 User is logged in');
+      console.log('📋 Token:', token.substring(0, 20) + '...');
+      const userData = localStorage.getItem('userData');
+      if (userData) {
+        const user = JSON.parse(userData);
+        console.log('👤 User Data:', { username: user.username, userId: user.userId });
+      }
+    } else {
+      console.log('❌ No token found in sessionStorage');
+      console.log('📦 Available sessionStorage keys:', Object.keys(sessionStorage));
+      console.log('📦 Available localStorage keys:', Object.keys(localStorage));
+    }
+  }, []);
+  
+  // Function to load appointments
+  const loadAppointments = async () => {
+    setLoadingAppointments(true);
+    try {
+      const appointments = await listAppointments();
+      setAppointmentsList(appointments);
+      setFilteredAppointmentsList(appointments);
+      
+      // Fetch distinct statuses from backend API
+      console.log('📡 Fetching appointment statuses from backend...');
+      const statuses = await getAppointmentStatuses();
+      setDistinctStatuses(statuses);
+      console.log('✅ Distinct Statuses from API:', statuses);
+      
+      // Fetch distinct appointment types from backend API
+      console.log('📡 Fetching appointment types from backend...');
+      const types = await getAppointmentTypes();
+      setDistinctAppointmentTypes(types);
+      console.log('✅ Distinct Appointment Types from API:', types);
+    } catch (error) {
+      console.error('Failed to load appointments:', error);
+    } finally {
+      setLoadingAppointments(false);
+    }
+  };
+  
+  // Validate mobile number
+  const validateMobileNumber = (mobileNumber) => {
+    // If empty, it's optional - no validation needed
+    if (!mobileNumber || mobileNumber.trim() === "") {
+      setMobileNumberError("");
+      return true;
+    }
+
+    // Check if only numbers
+    if (!/^\d+$/.test(mobileNumber)) {
+      setMobileNumberError("⚠️ Mobile number should contain only numbers");
+      return false;
+    }
+
+    // Check if length is exactly 10
+    if (mobileNumber.length !== 10) {
+      setMobileNumberError("⚠️ Mobile number must be exactly 10 digits");
+      return false;
+    }
+
+    // Validation passed
+    setMobileNumberError("");
+    return true;
+  };
+
+  // Function to filter appointments via API and apply local status/type filters
+  const filterAppointments = async () => {
+    if (!appointmentFilter.clinicId) {
+      alert('⚠️ Clinic ID is required to search appointments');
+      return;
+    }
+
+    // Validate mobile number if provided
+    if (!validateMobileNumber(appointmentFilter.mobilenumber)) {
+      return;
+    }
+
+    // Validate date range
+    if (appointmentFilter.toDate && !appointmentFilter.fromDate) {
+      setAppointmentDateValidationError("❌ 'From Date' is required when 'To Date' is selected");
+      return;
+    }
+
+    if (appointmentFilter.fromDate && appointmentFilter.toDate) {
+      const fromDate = new Date(appointmentFilter.fromDate);
+      const toDate = new Date(appointmentFilter.toDate);
+      
+      if (toDate < fromDate) {
+        setAppointmentDateValidationError("❌ 'To Date' must be greater than or equal to 'From Date'");
+        return;
+      }
+    }
+    
+    setLoadingAppointments(true);
+    try {
+      // Build filter params for GetAppointmentByIdwithDateRange API
+      const apiFilterParams = {
+        clinicId: appointmentFilter.clinicId,
+        firstName: appointmentFilter.firstName || undefined,
+        lastName: appointmentFilter.lastName || undefined,
+        doctorId: appointmentFilter.doctorId || undefined,
+        patientId: appointmentFilter.patientId ? parseInt(appointmentFilter.patientId) : undefined,
+        mobilenumber: appointmentFilter.mobilenumber || undefined,
+        fromDate: appointmentFilter.fromDate || undefined,
+        toDate: appointmentFilter.toDate || undefined
+      };
+
+      // Remove undefined values
+      Object.keys(apiFilterParams).forEach(key => 
+        apiFilterParams[key] === undefined && delete apiFilterParams[key]
+      );
+
+      console.log('🔍 SEARCHING APPOINTMENTS with filters:', apiFilterParams);
+      console.log('📡 Calling GetAppointmentByIdwithDateRange API...');
+      
+      // Call the proper API endpoint: GetAppointmentByIdwithDateRange
+      const results = await getAppointmentsByFilters(apiFilterParams);
+      console.log('✅ API RESULTS from GetAppointmentByIdwithDateRange:', results?.length || 0, 'appointments found');
+      
+      setFilteredAppointmentsList(results || []);
+      
+      if (!results || results.length === 0) {
+        alert('ℹ️ No appointments found matching the search criteria');
+      }
+    } catch (error) {
+      console.error('❌ Failed to filter appointments:', error);
+      alert('❌ Failed to search appointments. Please try again.');
+      setFilteredAppointmentsList([]);
+    } finally {
+      setLoadingAppointments(false);
+    }
+  };
+  
+  // Reset filters
+  const resetAppointmentFilters = () => {
+    setAppointmentFilter({
+      clinicId: "",
+      firstName: "",
+      lastName: "",
+      doctorId: "",
+      patientId: "",
+      mobilenumber: "",
+      fromDate: "",
+      toDate: "",
+      status: "All",
+      appointmentType: "All"
+    });
+    setMobileNumberError("");
+    setAppointmentDateValidationError("");
+    setFilteredAppointmentsList(appointmentsList);
+  };
+
+  // Unified close handler for edit appointment modal (exits edit mode only)
+  const handleCloseEditAppointment = () => {
+    setIsEditingAppointment(false);
+    setEditAppointmentForm(null);
+  };
+
+  // Unified close handler for entire appointment details modal
+  const handleCloseAppointmentDetails = () => {
+    setSelectedAppointmentDetails(null);
+    setIsEditingAppointment(false);
+    setEditAppointmentForm(null);
+  };
+
+  // Load diagnosis details for an appointment
+  const loadDiagnosisDetails = async (appointmentId) => {
+    console.log('🔍 loadDiagnosisDetails called with appointmentId:', appointmentId);
+    console.log('📊 Current showDiagnosisModal state:', showDiagnosisModal);
+    
+    if (!appointmentId) {
+      console.warn('⚠️ No appointment ID found');
+      alert('❌ No appointment ID found. Cannot load diagnosis details.');
+      return;
+    }
+    
+    console.log('📋 Setting loading state to true and opening diagnosis modal...');
+    setLoadingDiagnosis(true);
+    setShowDiagnosisModal(true);
+    console.log('📋 showDiagnosisModal state setter called - should update to true');
+    
+    try {
+      console.log('📋 Loading diagnosis for appointment ID:', appointmentId);
+      const diagnosisData = await getPatientVisit(appointmentId);
+      console.log('✅ Diagnosis data received:', diagnosisData);
+      
+      // Transform diagnosis data to ensure patient name and gender are populated
+      const transformedData = {
+        ...diagnosisData,
+        // Construct patient name from components if not present
+        patientName: diagnosisData.patientName || `${diagnosisData.patientFirstName || ''} ${diagnosisData.patientLastName || ''}`.trim() || 'N/A',
+        // Ensure gender is populated
+        patientGender: diagnosisData.patientGender || diagnosisData.gender || 'N/A'
+      };
+
+      // Normalize attending physician display name: prefer explicit full name fields,
+      // fall back to first/last name components, then to createdBy/doctorName fields,
+      // finally construct a readable name from an email local-part if needed.
+      try {
+        const doctorFirst = diagnosisData.doctorFirstName || diagnosisData.attendingDoctorFirstName || diagnosisData.doctorFirstName || '';
+        const doctorLast = diagnosisData.doctorLastName || diagnosisData.attendingDoctorLastName || diagnosisData.doctorLastName || '';
+        const possibleNameFields = [
+          diagnosisData.attendingPhysicianName,
+          diagnosisData.attendingPhysicianFullName,
+          diagnosisData.doctorName,
+          diagnosisData.createdByName,
+          diagnosisData.fullName,
+          diagnosisData.createdBy
+        ];
+
+        let attendingDisplay = possibleNameFields.find(f => f && String(f).trim());
+
+        if (!attendingDisplay && (doctorFirst || doctorLast)) {
+          attendingDisplay = `${doctorFirst} ${doctorLast}`.trim();
+        }
+
+        if (!attendingDisplay && diagnosisData.attendingPhysician && String(diagnosisData.attendingPhysician).includes('@')) {
+          // Convert email local-part to a human name: venkatesh.srinivasan -> Venkatesh Srinivasan
+          const emailName = String(diagnosisData.attendingPhysician).split('@')[0];
+          attendingDisplay = emailName.split(/[._\-]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+        }
+
+        transformedData.attendingPhysician = attendingDisplay || diagnosisData.attendingPhysician || 'N/A';
+      } catch (e) {
+        console.warn('Failed to normalize attending physician name', e);
+        transformedData.attendingPhysician = diagnosisData.attendingPhysician || 'N/A';
+      }
+      
+      console.log('✅ Transformed diagnosis data:', transformedData);
+      setSelectedDiagnosis(transformedData);
+    } catch (error) {
+      console.error("❌ Error loading diagnosis:", error);
+      alert('❌ Could not load diagnosis details. Please try again! 🩺');
+      setShowDiagnosisModal(false);
+    } finally {
+      setLoadingDiagnosis(false);
+    }
+  };
+
+  // Generate PDF from prescription
+  const generateDiagnosisPDF = async () => {
+    try {
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      let yPosition = 20;
+
+      // Header
+      pdf.setFillColor(102, 126, 234);
+      pdf.rect(0, 0, pageWidth, 40, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(24);
+      pdf.text('Diagnosis & Prescription Report', pageWidth / 2, 20, { align: 'center' });
+      pdf.setFontSize(10);
+      pdf.text('Medical Consultation Summary', pageWidth / 2, 30, { align: 'center' });
+
+      // Reset text color
+      pdf.setTextColor(50, 50, 50);
+      yPosition = 50;
+
+      // Patient Info
+      pdf.setFontSize(12);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Patient Information', 20, yPosition);
+      yPosition += 8;
+
+      pdf.setFontSize(10);
+      pdf.setFont(undefined, 'normal');
+      pdf.text(`Name: ${selectedDiagnosis?.patientName || 'N/A'}`, 20, yPosition);
+      yPosition += 6;
+      pdf.text(`ID: ${selectedDiagnosis?.patientId || 'N/A'}`, 20, yPosition);
+      yPosition += 6;
+      pdf.text(`Gender: ${selectedDiagnosis?.patientGender || 'N/A'}`, 20, yPosition);
+      yPosition += 6;
+      pdf.text(`Doctor: ${selectedDiagnosis?.attendingPhysician || 'N/A'}`, 20, yPosition);
+      yPosition += 6;
+      pdf.text(`Visit Date: ${selectedDiagnosis?.visitDate ? new Date(selectedDiagnosis.visitDate).toLocaleDateString() : 'N/A'}`, 20, yPosition);
+      yPosition += 12;
+
+      // Reason for Visit
+      if (selectedDiagnosis?.reasonForVisit) {
+        pdf.setFontSize(12);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Reason for Visit', 20, yPosition);
+        yPosition += 8;
+
+        pdf.setFontSize(10);
+        pdf.setFont(undefined, 'normal');
+        const reasonLines = pdf.splitTextToSize(selectedDiagnosis.reasonForVisit, pageWidth - 40);
+        pdf.text(reasonLines, 20, yPosition);
+        yPosition += reasonLines.length * 6 + 6;
+      }
+
+      // Diagnosis
+      if (selectedDiagnosis?.diagnoses) {
+        pdf.setFontSize(12);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Diagnosis', 20, yPosition);
+        yPosition += 8;
+
+        pdf.setFontSize(10);
+        pdf.setFont(undefined, 'normal');
+        const diagnosisLines = pdf.splitTextToSize(selectedDiagnosis.diagnoses, pageWidth - 40);
+        pdf.text(diagnosisLines, 20, yPosition);
+        yPosition += diagnosisLines.length * 6 + 6;
+      }
+
+      // Treatments
+      if (selectedDiagnosis?.treatments) {
+        pdf.setFontSize(12);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('Treatments', 20, yPosition);
+        yPosition += 8;
+
+        pdf.setFontSize(10);
+        pdf.setFont(undefined, 'normal');
+        const treatmentLines = pdf.splitTextToSize(selectedDiagnosis.treatments, pageWidth - 40);
+        pdf.text(treatmentLines, 20, yPosition);
+        yPosition += treatmentLines.length * 6 + 6;
+      }
+
+      // Medications
+      pdf.setFontSize(12);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('Medications', 20, yPosition);
+      yPosition += 8;
+
+      try {
+        const presData = typeof selectedDiagnosis?.prescriptions === 'string'
+          ? JSON.parse(selectedDiagnosis.prescriptions)
+          : selectedDiagnosis?.prescriptions;
+        
+        const medications = (Array.isArray(presData) ? presData : [presData]).filter(m => m);
+
+        pdf.setFontSize(9);
+        pdf.setFont(undefined, 'normal');
+        medications.forEach((med) => {
+          const medText = `• ${med.medicineName || med.name || 'N/A'} - Dosage: ${med.dosage || 'N/A'} - Frequency: ${med.frequency || 'N/A'} - Duration: ${med.duration || 'N/A'}`;
+          const medLines = pdf.splitTextToSize(medText, pageWidth - 40);
+          
+          if (yPosition + medLines.length * 5 > pageHeight - 20) {
+            pdf.addPage();
+            yPosition = 20;
+          }
+          
+          pdf.text(medLines, 20, yPosition);
+          yPosition += medLines.length * 5 + 2;
+          
+          if (med.specialInstructions) {
+            const instructionsText = `Special Instructions: ${med.specialInstructions}`;
+            const instructionsLines = pdf.splitTextToSize(instructionsText, pageWidth - 40);
+            if (yPosition + instructionsLines.length * 5 > pageHeight - 20) {
+              pdf.addPage();
+              yPosition = 20;
+            }
+            pdf.setFont(undefined, 'italic');
+            pdf.text(instructionsLines, 20, yPosition);
+            pdf.setFont(undefined, 'normal');
+            yPosition += instructionsLines.length * 5 + 2;
+          }
+        });
+      } catch (e) {
+        pdf.text('No medications recorded', 20, yPosition);
+        yPosition += 8;
+      }
+
+      // Footer
+      pdf.setFontSize(8);
+      pdf.setTextColor(150, 150, 150);
+      pdf.text('This is an automated diagnosis and prescription report from the clinic management system.', pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+      const patientName = selectedDiagnosis?.patientName || 'Patient';
+      const timestamp = new Date().toISOString().split('T')[0];
+      pdf.save(`Diagnosis_${patientName}_${timestamp}.pdf`);
+      
+      alert('✅ Diagnosis PDF downloaded successfully!');
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('❌ Error generating PDF. Please try again.');
+    }
+  };
+
+  // Send diagnosis email
+  const handleSendDiagnosisEmail = async () => {
+    try {
+      setSendingEmail(true);
+      
+      const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+      const selectedAccess = JSON.parse(localStorage.getItem("selectedAccess") || "{}");
+      
+      // Get patient email from selectedDiagnosis - try multiple field names
+      const patientEmail = selectedDiagnosis?.email || selectedDiagnosis?.patientEmail || selectedDiagnosis?.emailAddress;
+      if (!patientEmail) {
+        alert('❌ Patient email not available. Cannot send email.');
+        console.error('Patient email fields:', {email: selectedDiagnosis?.email, patientEmail: selectedDiagnosis?.patientEmail, emailAddress: selectedDiagnosis?.emailAddress});
+        return;
+      }
+
+      // Build prescription content from selectedDiagnosis
+      let prescriptionContent = '';
+      let prescriptionHTML = '<ul style="margin: 10px 0; padding-left: 20px;">';
+      
+      try {
+        const presData = typeof selectedDiagnosis.prescriptions === 'string'
+          ? JSON.parse(selectedDiagnosis.prescriptions)
+          : selectedDiagnosis.prescriptions;
+        
+        if (Array.isArray(presData) && presData.length > 0) {
+          prescriptionContent = presData.map(m => 
+            `${m.medicineName || m.name} - ${m.dosage} - ${m.frequency} - ${m.duration}`
+          ).join('\n');
+          prescriptionHTML = presData.map(m => 
+            `<li style="margin: 5px 0;">${m.medicineName || m.name} - Dosage: ${m.dosage || 'N/A'} - Frequency: ${m.frequency || 'N/A'} - Duration: ${m.duration || 'N/A'}</li>`
+          ).join('');
+        } else if (typeof presData === 'object' && presData !== null) {
+          prescriptionContent = JSON.stringify(presData, null, 2);
+          prescriptionHTML = `<li>${JSON.stringify(presData)}</li>`;
+        }
+      } catch (e) {
+        prescriptionContent = typeof selectedDiagnosis.prescriptions === 'string' ? selectedDiagnosis.prescriptions : JSON.stringify(selectedDiagnosis.prescriptions);
+        prescriptionHTML = `<li>${prescriptionContent}</li>`;
+      }
+      prescriptionHTML += '</ul>';
+
+      const emailHTML = `
+        <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+          <!-- Header
+             -->
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center;">
+            <h1 style="margin: 0;">Diagnosis & Prescription Report</h1>
+            <p style="margin: 5px 0 0; font-size: 14px; opacity: 0.9;">Medical Consultation Summary</p>
+          </div>
+          
+          <!-- Content -->
+          <div style="padding: 30px 20px;">
+            <!-- Patient & Clinic Info -->
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+              <h3 style="color: #333; margin: 0 0 10px;">Patient Information</h3>
+              <p style="margin: 5px 0;"><strong>Name:</strong> ${selectedDiagnosis?.patientName || 'N/A'}</p>
+            <p style="margin: 5px 0;"><strong>Gender:</strong> ${selectedDiagnosis?.patientGender || 'N/A'}</p>
+              <p style="margin: 5px 0;"><strong>Email:</strong> ${patientEmail}</p>
+              <p style="margin: 5px 0;"><strong>Clinic:</strong> ${userData.clinicName || selectedAccess.clinicName || 'Our Clinic'}</p>
+            </div>
+            
+            <!-- Diagnosis -->
+            ${selectedDiagnosis?.diagnoses ? `
+              <div style="margin-bottom: 20px;">
+                <h3 style="color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px;">🩺 Diagnosis</h3>
+                <p style="color: #555; line-height: 1.6; white-space: pre-wrap;">${selectedDiagnosis.diagnoses}</p>
+              </div>
+            ` : ''}
+            
+            <!-- Treatment -->
+            ${selectedDiagnosis?.treatments ? `
+              <div style="margin-bottom: 20px;">
+                <h3 style="color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px;">💉 Treatment Provided</h3>
+                <p style="color: #555; line-height: 1.6; white-space: pre-wrap;">${selectedDiagnosis.treatments}</p>
+              </div>
+            ` : ''}
+            
+            <!-- Medications -->
+            ${prescriptionContent ? `
+              <div style="margin-bottom: 20px;">
+                <h3 style="color: #333; border-bottom: 2px solid #667eea; padding-bottom: 10px;">💊 Prescribed Medications</h3>
+                <pre style="background: #f9f9f9; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea; color: #555; white-space: pre-wrap; font-family: monospace;">${prescriptionContent}</pre>
+              </div>
+            ` : ''}
+            
+            <!-- Footer -->
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 12px;">
+              <p>This is an automated prescription report. Please consult with your doctor for any clarifications.</p>
+              <p>© ${new Date().getFullYear()} ${userData.clinicName || selectedAccess.clinicName || 'Clinic'}. All rights reserved.</p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const response = await sendEmail({
+        Email: patientEmail,
+        Subject: `Diagnosis & Prescription Report from ${userData.clinicName || 'Clinic'}`,
+        HtmlBody: emailHTML
+      });
+
+      if (response.success) {
+        alert('✅ Diagnosis email sent successfully!');
+        setShowEmailModal(false);
+      } else {
+        alert('❌ Failed to send email');
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert('❌ Error sending email. Please try again.');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
+  // Send diagnosis via WhatsApp
+  const handleSendDiagnosisWhatsApp = () => {
+    const patientPhone = selectedDiagnosis?.phoneNumber || selectedDiagnosis?.phone || '';
+    if (!patientPhone) {
+      alert('Patient phone number not available');
+      return;
+    }
+
+    try {
+      // Format prescription for WhatsApp
+      let prescriptionText = '';
+      try {
+        const presData = typeof selectedDiagnosis?.prescriptions === 'string'
+          ? JSON.parse(selectedDiagnosis.prescriptions)
+          : selectedDiagnosis?.prescriptions;
+        
+        if (Array.isArray(presData) && presData.length > 0) {
+          prescriptionText = presData.map(m => 
+            `• ${m.medicineName || m.name} - ${m.dosage || 'N/A'} - ${m.frequency || 'N/A'} - ${m.duration || 'N/A'}`
+          ).join('\n');
+        } else if (typeof presData === 'object' && presData !== null) {
+          prescriptionText = JSON.stringify(presData, null, 2);
+        } else {
+          prescriptionText = selectedDiagnosis?.prescriptions || 'N/A';
+        }
+      } catch (e) {
+        prescriptionText = typeof selectedDiagnosis?.prescriptions === 'string' ? selectedDiagnosis.prescriptions : 'Prescription data';
+      }
+      
+      const messageText = `🏥 *Diagnosis & Prescription Report*\n\n` +
+        `👤 *Patient:* ${selectedDiagnosis?.patientName || 'N/A'}\n\n` +
+        `📋 *Diagnosis:*\n${selectedDiagnosis?.diagnoses || 'N/A'}\n\n` +
+        `💉 *Treatment:*\n${selectedDiagnosis?.treatments || 'N/A'}\n\n` +
+        `💊 *Medications:*\n${prescriptionText}\n\n` +
+        `*For queries, please contact the clinic.* ☺️`;
+      
+      const encodedText = encodeURIComponent(messageText);
+      const whatsappURL = `https://api.whatsapp.com/send?phone=${patientPhone}&text=${encodedText}`;
+      window.open(whatsappURL, '_blank');
+    } catch (error) {
+      console.error('Error sending WhatsApp:', error);
+      alert('❌ Error opening WhatsApp. Please try again.');
+    }
+  };
+
+
+  // Handle Visit Filtering
+  const handleFilterVisits = async () => {
+    setLoadingVisits(true);
+    try {
+      let visits = [];
+
+      // Priority: Patient ID > Clinic ID > Visit Date
+      if (visitFilters.patientId) {
+        visits = await visitService.getVisitsByPatientId(parseInt(visitFilters.patientId));
+      } else if (visitFilters.clinicId) {
+        visits = await visitService.getVisitsByClinicId(parseInt(visitFilters.clinicId));
+      } else if (visitFilters.visitDate) {
+        // Use single date as both start and end
+        visits = await visitService.getVisitsByDateRange(visitFilters.visitDate, visitFilters.visitDate);
+      }
+
+      // Apply additional client-side filtering if multiple criteria
+      let filtered = visits || [];
+      
+      if (visitFilters.patientId && visitFilters.clinicId) {
+        filtered = filtered.filter(v => v.clinicId == visitFilters.clinicId);
+      }
+      if (visitFilters.visitDate) {
+        filtered = filtered.filter(v => v.visitDate?.split('T')[0] === visitFilters.visitDate);
+      }
+
+      setFilteredVisits(filtered);
+      setPatientVisits(filtered);
+    } catch (error) {
+      console.error("Error filtering visits:", error);
+      alert("Error loading visits: " + (error.message || "Unknown error"));
+      setFilteredVisits([]);
+      setPatientVisits([]);
+    } finally {
+      setLoadingVisits(false);
+    }
+  };
+
+  const handleResetVisitFilters = () => {
+    setVisitFilters({
+      clinicId: "",
+      patientId: "",
+      visitDate: ""
+    });
+    setFilteredVisits([]);
+    setPatientVisits([]);
+  };
+  
+  // Load appointments when View Appointments modal opens
+  useEffect(() => {
+    if (showViewAppointmentsModal) {
+      loadAppointments();
+      // Reset filters when modal opens and load clinicId from token
+      const tokenClinicId = getClinicIdFromToken() || "";
+      setAppointmentFilter({
+        clinicId: tokenClinicId.toString(),
+        firstName: "",
+        lastName: "",
+        doctorId: "",
+        status: "All",
+        appointmentType: "All"
+      });
+    }
+  }, [showViewAppointmentsModal]);
   // Check URL params on mount to set initial view
   useEffect(() => {
     const viewParam = searchParams.get("view");
