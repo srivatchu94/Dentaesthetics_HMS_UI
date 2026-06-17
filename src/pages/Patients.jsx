@@ -1946,7 +1946,7 @@ export default function Patients() {
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-3">
             {[
-              { id: 'payments', title: '💳 Payments', description: 'Manage patient payments', icon: '💳', color: 'from-emerald-400 to-teal-400', action: () => navigate('/payments') }
+              { id: 'payments', title: '💳 Payments', description: 'Manage patient payments', icon: '💳', color: 'from-emerald-400 to-teal-400', action: () => navigate('/service-billing') }
             ].map((tile, index) => (
               <motion.div
                 key={tile.id}

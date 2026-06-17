@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getAppointmentsByFilters, getAppointmentById } from '../services/appointmentService';
 import { searchPatients } from '../services/patientService';
-import { getAccessToken, getClinicIdFromToken, getSelectedAccess } from '../services/tokenManager';
+import { getClinicIdFromToken } from '../services/tokenManager';
 import { request } from '../services/apiClient';
 import { Download, Mail, Eye, ChevronDown, Plus, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -11,12 +11,12 @@ import html2canvas from 'html2canvas';
 const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
 
 export default function ServiceBillingManagement({ onPaymentClick, refreshTrigger }) {
-  // Existing states
-  const today = new Date().toISOString().split('T')[0];
-  const [fromDate, setFromDate] = useState(today);
-  const [toDate, setToDate] = useState(today);
-  const [billingClinicId, setBillingClinicId] = useState('');
-  const [clinicsList, setClinicsList] = useState([]);
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [filterPatientId, setFilterPatientId] = useState('');
+  const [filterMobile, setFilterMobile] = useState('');
+  const [dateValidationError, setDateValidationError] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
   const [billingAppointments, setBillingAppointments] = useState([]);
   const [loadingBilling, setLoadingBilling] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -36,60 +36,54 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
   const [selectedPatientAppointmentId, setSelectedPatientAppointmentId] = useState(null);
   const [mobileNumberError, setMobileNumberError] = useState('');
   const [showPatientAppointments, setShowPatientAppointments] = useState(false);
+  const [patientMatches, setPatientMatches] = useState([]);
 
-  // Load clinics from token on mount
-  useEffect(() => {
-    const selectedAccess = getSelectedAccess();
-    console.log('📋 Loading clinics from selectedAccess:', selectedAccess);
-    
-    if (selectedAccess?.clinics && Array.isArray(selectedAccess.clinics)) {
-      console.log('✅ Found clinics array:', selectedAccess.clinics);
-      setClinicsList(selectedAccess.clinics);
-      if (selectedAccess.clinicId) {
-        setBillingClinicId(selectedAccess.clinicId.toString());
-      }
-    } else {
-      // Fallback to getting clinic ID directly from token
-      const clinicId = getClinicIdFromToken();
-      console.log('⚠️ Fallback: Getting clinicId from token:', clinicId);
-      if (clinicId) {
-        setBillingClinicId(clinicId.toString());
-        setClinicsList([{ clinicId, clinicName: `Clinic ${clinicId}` }]);
-      }
+
+  const handleFromDateChange = (val) => {
+    setFromDate(val);
+    setDateValidationError('');
+    if (!val) { setToDate(''); return; }
+    if (toDate && val > toDate) { setToDate(''); }
+  };
+
+  const handleToDateChange = (val) => {
+    setDateValidationError('');
+    if (fromDate && val && val < fromDate) {
+      setDateValidationError('To Date cannot be earlier than From Date.');
+      return;
     }
-  }, []);
+    setToDate(val);
+  };
 
   // Load service billing appointments
   const loadBillingAppointments = useCallback(async () => {
-    const clinicId = billingClinicId;
-    
+    const clinicId = getClinicIdFromToken();
     if (!clinicId) {
-      setErrorMessage('Please select a clinic to load appointments.');
+      setErrorMessage('Unable to determine clinic. Please login again.');
       return;
     }
-
+    const todayStr = new Date().toISOString().split('T')[0];
+    const effectiveToDate = fromDate && !toDate ? todayStr : toDate;
+    if (fromDate && effectiveToDate && fromDate > effectiveToDate) {
+      setDateValidationError('From Date cannot be greater than To Date.');
+      return;
+    }
     setErrorMessage('');
+    setDateValidationError('');
     setLoadingBilling(true);
+    setHasSearched(true);
     try {
-      const token = getAccessToken();
-      if (!token) {
-        setErrorMessage('Authentication required. Please login again.');
-        setLoadingBilling(false);
-        return;
-      }
-
       const params = {
         clinicId: clinicId.toString(),
-        fromDate: fromDate,
-        toDate: toDate
+        ...(fromDate && { fromDate }),
+        ...(effectiveToDate && { toDate: effectiveToDate }),
+        ...(filterPatientId.trim() && { patientId: parseInt(filterPatientId.trim()) }),
+        ...(filterMobile.trim() && { mobilenumber: filterMobile.trim() }),
       };
-      
-      console.log('🏥 Loading service billing appointments with params:', params);
-      let data = await getAppointmentsByFilters(params);
-      console.log('🏥 Loaded appointments for service billing:', data);
-      
+      console.log('🏥 Searching service billing appointments with params:', params);
+      const data = await getAppointmentsByFilters(params);
       if (!data || data.length === 0) {
-        setErrorMessage('No appointments booked for the selected date range.');
+        setErrorMessage('No appointments found for the selected filters.');
         setBillingAppointments([]);
       } else {
         setBillingAppointments(data);
@@ -97,27 +91,19 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
       }
     } catch (error) {
       console.error('Failed to load service billing appointments:', error);
-      setErrorMessage('Failed to load appointments. Please try again.');
+      setErrorMessage('Something went wrong. Please try again.');
       setBillingAppointments([]);
     } finally {
       setLoadingBilling(false);
     }
-  }, [billingClinicId, fromDate, toDate]);
-
-  // Auto-load appointments on initial mount with today's date
-  useEffect(() => {
-    if (billingClinicId) {
-      // Only load once when clinic is selected for the first time
-      loadBillingAppointments();
-    }
-  }, [billingClinicId]); // Only on clinic change
+  }, [fromDate, toDate, filterPatientId, filterMobile]);
 
   // Clear invoice cache when refreshTrigger changes (after update)
   useEffect(() => {
+    if (refreshTrigger === 0) return;
     console.log("🔄 Refresh triggered - clearing invoice cache");
     setInvoicesByAppointment({});
-    // Reload appointments after payment update
-    if (billingClinicId) {
+    if (hasSearched) {
       loadBillingAppointments();
     }
   }, [refreshTrigger]);
@@ -165,26 +151,29 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
     setPatientSearchError('');
     setSearchedPatient(null);
     setPatientAppointments([]);
+    setPatientMatches([]);
+    setShowPatientAppointments(false);
+    setExpandedAppointmentId(null);
 
     try {
-      // Use the proper searchPatients function with mobilenumber parameter
       const params = {
         patientId: patientSearchId ? parseInt(patientSearchId) : undefined,
         mobilenumber: patientSearchPhone || undefined
       };
 
-      // Remove undefined values
       Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
       console.log('🔍 Searching patient with params:', params);
       const results = await searchPatients(params);
-      
-      if (results && results.length > 0) {
+
+      if (results && results.length > 1) {
+        // Multiple patients match — show selection dropdown
+        setPatientMatches(results);
+      } else if (results && results.length === 1) {
         const patient = results[0];
         console.log('✅ Patient found:', patient);
         setSearchedPatient(patient);
 
-        // Load appointments for this patient
         if (patient.patientId) {
           try {
             const clinicIdFromToken = getClinicIdFromToken();
@@ -193,12 +182,19 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
               patientId: patient.patientId,
               mobilenumber: patientSearchPhone || undefined
             });
-            
+
             console.log('✅ Patient appointments:', appointmentsResponse);
-            setPatientAppointments(Array.isArray(appointmentsResponse) ? appointmentsResponse : []);
+            const appts = Array.isArray(appointmentsResponse)
+              ? appointmentsResponse
+              : (appointmentsResponse && (appointmentsResponse.appointmentId || appointmentsResponse.AppointmentId)
+                  ? [appointmentsResponse]
+                  : []);
+            setPatientAppointments(appts);
+            setShowPatientAppointments(true);
           } catch (apptError) {
             console.error('Error fetching appointments:', apptError);
             setPatientAppointments([]);
+            setShowPatientAppointments(true);
           }
         }
       } else {
@@ -283,17 +279,57 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
           });
           
           console.log('✅ Fetched appointments:', appointmentsResponse);
-          setPatientAppointments(Array.isArray(appointmentsResponse) ? appointmentsResponse : []);
+          const appts = Array.isArray(appointmentsResponse)
+            ? appointmentsResponse
+            : (appointmentsResponse && (appointmentsResponse.appointmentId || appointmentsResponse.AppointmentId)
+                ? [appointmentsResponse]
+                : []);
+          setPatientAppointments(appts);
           setShowPatientAppointments(true);
         } catch (error) {
           console.error('Error fetching appointments:', error);
-          setPatientSearchError('Failed to load appointments. Please try again.');
+          setPatientAppointments([]);
+          setShowPatientAppointments(true);
         } finally {
           setLoadingPatientSearch(false);
         }
       }
     }
   }, [showPatientAppointments, searchedPatient, patientSearchPhone]);
+
+  // Handle patient selection when multiple matches found
+  const handleSelectPatient = useCallback(async (patient) => {
+    setPatientMatches([]);
+    setSearchedPatient(patient);
+    setPatientAppointments([]);
+    setPatientSearchError('');
+    setShowPatientAppointments(false);
+    setExpandedAppointmentId(null);
+
+    if (patient.patientId) {
+      setLoadingPatientSearch(true);
+      try {
+        const clinicIdFromToken = getClinicIdFromToken();
+        const appointmentsResponse = await getAppointmentById({
+          clinicId: clinicIdFromToken ? parseInt(clinicIdFromToken) : undefined,
+          patientId: patient.patientId,
+          mobilenumber: patientSearchPhone || undefined
+        });
+        const appts = Array.isArray(appointmentsResponse)
+          ? appointmentsResponse
+          : (appointmentsResponse && (appointmentsResponse.appointmentId || appointmentsResponse.AppointmentId)
+              ? [appointmentsResponse]
+              : []);
+        setPatientAppointments(appts);
+        setShowPatientAppointments(true);
+      } catch {
+        setPatientAppointments([]);
+        setShowPatientAppointments(true);
+      } finally {
+        setLoadingPatientSearch(false);
+      }
+    }
+  }, [patientSearchPhone]);
 
   // Download invoice as PDF
   const downloadInvoicePDF = (invoice) => {
@@ -422,50 +458,89 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
           <>
             {/* Filters for Appointments Tab */}
             <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-end">
+                {/* Patient ID */}
                 <div>
-                  <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Clinic:</label>
-                  <select
-                    value={billingClinicId}
-                    onChange={(e) => setBillingClinicId(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
-                  >
-                    <option value="">-- Choose a clinic --</option>
-                    {clinicsList.map((clinic) => (
-                      <option key={clinic.clinicId} value={clinic.clinicId}>
-                        {clinic.clinicName || `Clinic ${clinic.clinicId}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700 mb-2 block">From Date:</label>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">Patient ID</label>
                   <input
-                    type="date"
-                    value={fromDate}
-                    onChange={(e) => setFromDate(e.target.value)}
+                    type="number"
+                    value={filterPatientId}
+                    onChange={(e) => setFilterPatientId(e.target.value)}
+                    placeholder="e.g. 1042"
                     className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
                   />
                 </div>
+                {/* Mobile */}
                 <div>
-                  <label className="text-sm font-semibold text-slate-700 mb-2 block">To Date:</label>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">Mobile Number</label>
                   <input
-                    type="date"
-                    value={toDate}
-                    onChange={(e) => setToDate(e.target.value)}
+                    type="text"
+                    value={filterMobile}
+                    onChange={(e) => setFilterMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="10-digit mobile"
+                    maxLength={10}
                     className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
                   />
                 </div>
+                {/* From Date */}
                 <div>
+                  <label className="text-sm font-semibold text-slate-700 mb-2 block">From Date</label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={fromDate}
+                      onChange={(e) => handleFromDateChange(e.target.value)}
+                      className="w-full px-3 py-2.5 pr-8 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+                    />
+                    {fromDate && (
+                      <button type="button"
+                        onClick={() => { setFromDate(''); setToDate(''); setDateValidationError(''); }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 transition-colors text-lg leading-none"
+                      >×</button>
+                    )}
+                  </div>
+                </div>
+                {/* To Date */}
+                <div>
+                  <label className={`text-sm font-semibold mb-2 block ${fromDate ? 'text-slate-700' : 'text-slate-400'}`}>
+                    To Date
+                    {fromDate && !toDate && <span className="ml-1 text-xs font-normal text-blue-500">(defaults to today)</span>}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={toDate}
+                      min={fromDate || undefined}
+                      disabled={!fromDate}
+                      onChange={(e) => handleToDateChange(e.target.value)}
+                      className={`w-full px-3 py-2.5 pr-8 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white ${
+                        !fromDate ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+                          : dateValidationError ? 'border-red-400' : 'border-blue-300'
+                      }`}
+                    />
+                    {toDate && (
+                      <button type="button"
+                        onClick={() => { setToDate(''); setDateValidationError(''); }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 transition-colors text-lg leading-none"
+                      >×</button>
+                    )}
+                  </div>
+                  {dateValidationError && (
+                    <p className="text-red-500 text-xs mt-1 font-medium">{dateValidationError}</p>
+                  )}
+                </div>
+                {/* Search Button */}
+                <div>
+                  <label className="text-sm font-semibold text-transparent mb-2 block select-none">.</label>
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={loadBillingAppointments}
-                    disabled={loadingBilling || !billingClinicId}
+                    disabled={loadingBilling || !!dateValidationError}
                     className="w-full px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span>🔍</span>
-                    <span>{loadingBilling ? 'Loading...' : 'Search Appointments'}</span>
+                    <span>{loadingBilling ? 'Searching...' : 'Search'}</span>
                   </motion.button>
                 </div>
               </div>
@@ -495,11 +570,17 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
               <p className="mt-4 text-stone-600 font-medium">Loading appointments...</p>
             </div>
+          ) : !hasSearched ? (
+            <div className="py-16 text-center">
+              <div className="text-6xl mb-4">🔍</div>
+              <h3 className="text-xl font-bold text-slate-700 mb-2">Search to Load Appointments</h3>
+              <p className="text-slate-500 max-w-sm mx-auto">Use the filters above — by patient ID, mobile number, or date range — then click <strong>Search</strong>.</p>
+            </div>
           ) : billingAppointments.length === 0 ? (
             <div className="py-12 text-center">
               <div className="text-6xl mb-4">📋</div>
               <h3 className="text-xl font-bold text-stone-700 mb-2">No Appointments Found</h3>
-              <p className="text-stone-500">Try adjusting your filters to see appointments.</p>
+              <p className="text-stone-500">Try adjusting your filters and search again.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -651,10 +732,10 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                               className="flex gap-4 overflow-x-auto px-11 pb-2"
                               style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', scrollSnapType: 'x mandatory' }}
                             >
-                              {invoicesByAppointment[expandedAppointmentId].map((invoice, idx) => {
-                                const paid = (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0);
+                              {(() => {
+                                const apptInfo = billingAppointments.find(a => (a.appointmentId || a.AppointmentId) === expandedAppointmentId) || patientAppointments.find(a => (a.appointmentId || a.AppointmentId) === expandedAppointmentId);
+                                return invoicesByAppointment[expandedAppointmentId].map((invoice, idx) => {
                                 const total = invoice.header?.totalAmount ?? invoice.header?.TotalAmount ?? 0;
-                                const paidPct = total > 0 ? Math.min(100, Math.round(paid / total * 100)) : 0;
                                 return (
                                   <motion.div
                                     key={idx}
@@ -668,6 +749,21 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                     <div className="h-1.5 bg-gradient-to-r from-teal-500 to-indigo-500"></div>
 
                                     <div className="p-5">
+                                      {/* Appointment info row */}
+                                      {apptInfo && (
+                                        <div className="bg-slate-700/50 rounded-lg px-3 py-2 mb-3 flex items-center justify-between">
+                                          <div>
+                                            <p className="text-xs text-slate-400 uppercase tracking-widest">Appt #</p>
+                                            <p className="text-sm font-black text-white">{apptInfo.appointmentId || apptInfo.AppointmentId}</p>
+                                          </div>
+                                          <div className="text-right">
+                                            <p className="text-xs text-slate-400 uppercase tracking-widest">Appt Date</p>
+                                            <p className="text-xs font-bold text-teal-300">
+                                              {apptInfo.appointmentDate ? new Date(apptInfo.appointmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      )}
                                       {/* Invoice # and date */}
                                       <div className="flex items-start justify-between mb-4">
                                         <div>
@@ -675,27 +771,17 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                           <p className="text-lg font-black text-white mt-0.5">{invoice.header?.invoiceNumber || '—'}</p>
                                         </div>
                                         <div className="text-right">
-                                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Date</p>
+                                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Bill Date</p>
                                           <p className="text-sm font-bold text-teal-400 mt-0.5">
                                             {new Date(invoice.header?.billDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                           </p>
                                         </div>
                                       </div>
 
-                                      {/* Paid amount — prominent */}
+                                      {/* Amount */}
                                       <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 mb-4">
                                         <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1">Amount Paid</p>
-                                        <p className="text-2xl font-black text-emerald-400">₹{paid.toLocaleString('en-IN', { minimumFractionDigits: 0 })}</p>
-                                        {/* Payment progress bar */}
-                                        <div className="mt-2 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                          <motion.div
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${paidPct}%` }}
-                                            transition={{ duration: 0.8, ease: 'easeOut', delay: idx * 0.06 + 0.2 }}
-                                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full"
-                                          />
-                                        </div>
-                                        <p className="text-xs text-slate-500 mt-1">{paidPct}% of ₹{total.toLocaleString('en-IN')}</p>
+                                        <p className="text-2xl font-black text-emerald-400">₹{total.toLocaleString('en-IN')}</p>
                                       </div>
 
                                       {/* Doctor & payment mode */}
@@ -738,7 +824,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                     </div>
                                   </motion.div>
                                 );
-                              })}
+                              }); })()}
                             </div>
 
                             {/* Right arrow */}
@@ -776,11 +862,9 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                 >
                   <p className="text-xs font-bold text-cyan-700 uppercase mb-1">Date Range</p>
                   <p className="text-sm font-bold text-cyan-900">
-                    {new Date(fromDate).toLocaleDateString('en-US', { 
-                      month: 'short', day: 'numeric'
-                    })} - {new Date(toDate).toLocaleDateString('en-US', { 
-                      month: 'short', day: 'numeric', year: 'numeric'
-                    })}
+                    {fromDate
+                      ? `${new Date(fromDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${toDate ? new Date(toDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Today'}`
+                      : 'All dates'}
                   </p>
                 </motion.div>
               </div>
@@ -850,6 +934,37 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                     <span>{loadingPatientSearch ? 'Searching...' : 'Search'}</span>
                   </motion.button>
                 </div>
+
+                {/* Multiple Patient Matches — visible list inside search form */}
+                {patientMatches.length > 1 && (
+                  <div className="mt-4 border-t border-purple-200 pt-4">
+                    <p className="text-sm font-bold text-purple-700 mb-3">
+                      👥 {patientMatches.length} patients found for this number — select one:
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {patientMatches.map((p) => (
+                        <motion.button
+                          key={p.patientId}
+                          whileHover={{ scale: 1.01, x: 4 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => handleSelectPatient(p)}
+                          disabled={loadingPatientSearch}
+                          className="flex items-center justify-between px-4 py-3 bg-white border border-purple-200 hover:border-purple-500 hover:bg-purple-50 rounded-lg transition-all text-left disabled:opacity-50 group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-purple-100 group-hover:bg-purple-200 flex items-center justify-center text-purple-700 font-bold text-sm">
+                              {p.patientFirstName?.charAt(0)}{p.patientLastName?.charAt(0)}
+                            </div>
+                            <span className="font-semibold text-slate-800">{p.patientFirstName} {p.patientLastName}</span>
+                          </div>
+                          <span className="text-xs font-bold text-purple-600 bg-purple-50 border border-purple-200 px-2 py-1 rounded-full">
+                            ID: {p.patientId}
+                          </span>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Patient Search Error */}
@@ -868,6 +983,23 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Guide placeholder — shown before any search */}
+              {!searchedPatient && patientMatches.length === 0 && !patientSearchError && (
+                <div className="py-14 text-center">
+                  <div className="text-6xl mb-4">🔍</div>
+                  <h3 className="text-xl font-bold text-purple-700 mb-2">Find a Patient</h3>
+                  <p className="text-slate-500 max-w-sm mx-auto mb-6">Enter the patient's ID or mobile number above and click <strong>Search</strong> to pull up their profile and billing history.</p>
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center text-sm text-slate-400">
+                    <div className="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-full">
+                      <span>🆔</span> Search by Patient ID
+                    </div>
+                    <div className="flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-full">
+                      <span>📱</span> Search by 10-digit mobile
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Patient Details Display - Compact Tile */}
               {searchedPatient && (
@@ -906,18 +1038,14 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                           whileTap={{ scale: 0.95 }}
                           onClick={handleTogglePatientAppointments}
                           disabled={loadingPatientSearch}
-                          className={`px-4 py-2 rounded-lg font-semibold shadow-md transition-all flex items-center gap-2 flex-shrink-0 whitespace-nowrap text-sm ${
-                            showPatientAppointments
-                              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg disabled:opacity-50'
-                              : 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:shadow-lg hover:from-blue-600 hover:to-indigo-600 disabled:opacity-50'
-                          }`}
+                          className="px-4 py-2 rounded-lg font-semibold shadow-md transition-all flex items-center gap-2 flex-shrink-0 whitespace-nowrap text-sm bg-gradient-to-r from-blue-500 to-indigo-500 text-white hover:shadow-lg hover:from-blue-600 hover:to-indigo-600 disabled:opacity-50"
                         >
                           {loadingPatientSearch ? (
                             <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
                           ) : (
-                            <span>{showPatientAppointments ? '🔻' : '📋'}</span>
+                            <span>{showPatientAppointments ? '🔄' : '📋'}</span>
                           )}
-                          {loadingPatientSearch ? 'Loading...' : (showPatientAppointments ? 'Hide Appointments' : 'Show Appointments')}
+                          {loadingPatientSearch ? 'Loading...' : 'Refresh Appointments'}
                         </motion.button>
                         <motion.button
                           whileHover={{ scale: 1.05 }}
@@ -941,7 +1069,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
 
               {/* Patient Appointments List - Collapsible Table View */}
               <AnimatePresence>
-                {showPatientAppointments && searchedPatient && patientAppointments.length > 0 && (
+                {showPatientAppointments && searchedPatient && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -955,77 +1083,93 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                     >
                       <h3 className="text-2xl font-bold text-blue-800 mb-4 flex items-center gap-2">
                         <span>📅</span>
-                        Appointments for {searchedPatient.patientFirstName} ({patientAppointments.length})
+                        Appointments for {searchedPatient.patientFirstName}
+                        {patientAppointments.length > 0 && <span className="text-lg font-normal text-blue-500">({patientAppointments.length})</span>}
                       </h3>
 
+                      {patientAppointments.length === 0 ? (
+                        <div className="py-10 text-center">
+                          <div className="text-5xl mb-3">📭</div>
+                          <p className="text-lg font-bold text-slate-600 mb-1">No Appointments Found</p>
+                          <p className="text-sm text-slate-400">This patient has no appointments on record.</p>
+                        </div>
+                      ) : null}
+
                       {/* Appointments Table */}
-                      <div className="overflow-x-auto mb-4">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="bg-gradient-to-r from-blue-100 to-indigo-100 border-b-2 border-blue-300">
-                              <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">ID</th>
-                              <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Date</th>
-                              <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Time</th>
-                              <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Type</th>
-                              <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Doctor</th>
-                              <th className="px-4 py-3 text-center text-xs font-bold text-blue-900 uppercase tracking-wider">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {patientAppointments.map((appt, idx) => (
-                              <motion.tr
-                                key={appt.appointmentId}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: idx * 0.05 }}
-                                className="border-b border-slate-200 hover:bg-blue-50/50 transition-colors"
-                              >
-                                <td className="px-4 py-3">
-                                  <span className="font-bold text-slate-700">#{appt.appointmentId}</span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <p className="text-sm text-slate-700">
-                                    {new Date(appt.appointmentDate).toLocaleDateString('en-US', { 
-                                      month: 'short', day: 'numeric', year: 'numeric'
-                                    })}
-                                  </p>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <p className="text-xs text-slate-500">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <span className="text-sm font-medium text-slate-700">{appt.appointmentType || 'Consultation'}</span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <span className="text-sm font-medium text-slate-700">{appt.doctorName || 'N/A'}</span>
-                                </td>
-                                <td className="px-4 py-3">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <motion.button
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={() => handleShowInvoices(appt.appointmentId || appt.AppointmentId)}
-                                      className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
-                                      title="View Invoices"
-                                    >
-                                      📂 Invoices
-                                    </motion.button>
-                                    <motion.button
-                                      whileHover={{ scale: 1.1 }}
-                                      whileTap={{ scale: 0.9 }}
-                                      onClick={() => onPaymentClick(appt)}
-                                      className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
-                                      title="Create New Invoice"
-                                    >
-                                      ➕ Create
-                                    </motion.button>
-                                  </div>
-                                </td>
-                              </motion.tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      {patientAppointments.length > 0 && (
+                        <div className="overflow-x-auto mb-4">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="bg-gradient-to-r from-blue-100 to-indigo-100 border-b-2 border-blue-300">
+                                <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">ID</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Date</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Time</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Type</th>
+                                <th className="px-4 py-3 text-left text-xs font-bold text-blue-900 uppercase tracking-wider">Doctor</th>
+                                <th className="px-4 py-3 text-center text-xs font-bold text-blue-900 uppercase tracking-wider">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {patientAppointments.map((appt, idx) => {
+                                const apptId = appt.appointmentId || appt.AppointmentId || appt.id || appt.Id;
+                                const isSelected = expandedAppointmentId === apptId;
+                                return (
+                                <motion.tr
+                                  key={apptId || idx}
+                                  initial={{ opacity: 0, x: -20 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ delay: idx * 0.05 }}
+                                  onClick={() => handleShowInvoices(apptId)}
+                                  className={`border-b cursor-pointer transition-colors ${
+                                    isSelected
+                                      ? 'bg-blue-100 border-blue-400'
+                                      : 'border-slate-200 hover:bg-blue-50'
+                                  }`}
+                                >
+                                  <td className="px-4 py-3">
+                                    <span className={`font-bold ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
+                                      #{apptId}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <p className="text-sm text-slate-700">
+                                      {appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString('en-IN', {
+                                        day: '2-digit', month: 'short', year: 'numeric'
+                                      }) : '—'}
+                                    </p>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <p className="text-xs text-slate-500">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className="text-sm font-medium text-slate-700">{appt.appointmentType || 'Consultation'}</span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className="text-sm font-medium text-slate-700">{appt.doctorName || appt.DoctorName || 'N/A'}</span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                        {isSelected ? '▼ Invoices' : '▶ View Invoices'}
+                                      </span>
+                                      <motion.button
+                                        whileHover={{ scale: 1.1 }}
+                                        whileTap={{ scale: 0.9 }}
+                                        onClick={(e) => { e.stopPropagation(); onPaymentClick(appt); }}
+                                        className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
+                                        title="Create New Invoice"
+                                      >
+                                        ➕ Create
+                                      </motion.button>
+                                    </div>
+                                  </td>
+                                </motion.tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
 
                       {/* Expandable Invoices Section — shared carousel */}
                       <AnimatePresence>
@@ -1071,10 +1215,10 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                     </button>
                                     <div ref={carouselRef} className="flex gap-4 overflow-x-auto px-10 pb-1"
                                       style={{ scrollbarWidth: 'none', scrollSnapType: 'x mandatory' }}>
-                                      {invoicesByAppointment[expandedAppointmentId].map((invoice, idx) => {
-                                        const paid = (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0);
+                                      {(() => {
+                                        const apptInfo2 = patientAppointments.find(a => (a.appointmentId || a.AppointmentId) === expandedAppointmentId) || billingAppointments.find(a => (a.appointmentId || a.AppointmentId) === expandedAppointmentId);
+                                        return invoicesByAppointment[expandedAppointmentId].map((invoice, idx) => {
                                         const total = invoice.header?.totalAmount ?? invoice.header?.TotalAmount ?? 0;
-                                        const pct = total > 0 ? Math.min(100, Math.round(paid / total * 100)) : 0;
                                         return (
                                           <motion.div key={idx} initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }}
                                             transition={{ delay: idx * 0.06 }}
@@ -1082,27 +1226,35 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                             style={{ scrollSnapAlign: 'start' }}>
                                             <div className="h-1 bg-gradient-to-r from-teal-500 to-indigo-500"></div>
                                             <div className="p-4">
+                                              {apptInfo2 && (
+                                                <div className="bg-slate-700/50 rounded-lg px-2 py-1.5 mb-2 flex items-center justify-between">
+                                                  <div>
+                                                    <p className="text-xs text-slate-400 uppercase tracking-widest">Appt #</p>
+                                                    <p className="text-sm font-black text-white">{apptInfo2.appointmentId || apptInfo2.AppointmentId}</p>
+                                                  </div>
+                                                  <div className="text-right">
+                                                    <p className="text-xs text-slate-400 uppercase tracking-widest">Appt Date</p>
+                                                    <p className="text-xs font-bold text-teal-300">
+                                                      {apptInfo2.appointmentDate ? new Date(apptInfo2.appointmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                                                    </p>
+                                                  </div>
+                                                </div>
+                                              )}
                                               <div className="flex justify-between mb-3">
                                                 <div>
                                                   <p className="text-xs text-slate-500 uppercase tracking-widest">Invoice</p>
                                                   <p className="text-base font-black text-white">{invoice.header?.invoiceNumber || '—'}</p>
                                                 </div>
                                                 <div className="text-right">
-                                                  <p className="text-xs text-slate-500 uppercase tracking-widest">Date</p>
+                                                  <p className="text-xs text-slate-500 uppercase tracking-widest">Bill Date</p>
                                                   <p className="text-xs font-bold text-teal-400">
                                                     {new Date(invoice.header?.billDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                                   </p>
                                                 </div>
                                               </div>
                                               <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2 mb-3">
-                                                <p className="text-xs text-emerald-400 uppercase tracking-widest mb-0.5">Paid</p>
-                                                <p className="text-xl font-black text-emerald-400">₹{paid.toLocaleString('en-IN')}</p>
-                                                <div className="mt-1.5 h-1 bg-slate-700 rounded-full overflow-hidden">
-                                                  <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }}
-                                                    transition={{ duration: 0.7, delay: idx * 0.06 + 0.2 }}
-                                                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full" />
-                                                </div>
-                                                <p className="text-xs text-slate-500 mt-0.5">{pct}% of ₹{total.toLocaleString('en-IN')}</p>
+                                                <p className="text-xs text-emerald-400 uppercase tracking-widest mb-0.5">Amount Paid</p>
+                                                <p className="text-xl font-black text-emerald-400">₹{total.toLocaleString('en-IN')}</p>
                                               </div>
                                               <div className="flex gap-2">
                                                 <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
@@ -1122,7 +1274,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                             </div>
                                           </motion.div>
                                         );
-                                      })}
+                                      }); })()}
                                     </div>
                                     <button onClick={() => carouselRef.current?.scrollBy({ left: 316, behavior: 'smooth' })}
                                       className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white border border-white/10">
@@ -1136,28 +1288,11 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                         )}
                       </AnimatePresence>
 
-                      {/* Collapse Button */}
-                      <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setShowPatientAppointments(false)}
-                        className="mt-4 w-full px-4 py-3 border-2 border-blue-400 bg-blue-50 text-blue-700 rounded-lg font-semibold hover:bg-blue-100 transition-all flex items-center justify-center gap-2"
-                      >
-                        <ChevronDown size={20} className="rotate-180" />
-                        Hide Appointments
-                      </motion.button>
                     </motion.div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {searchedPatient && patientAppointments.length === 0 && (
-                <div className="py-12 text-center bg-slate-50 rounded-xl border-2 border-slate-200">
-                  <div className="text-6xl mb-4">📋</div>
-                  <h3 className="text-xl font-bold text-slate-700 mb-2">No Appointments Found</h3>
-                  <p className="text-slate-500">This patient has no appointments on record.</p>
-                </div>
-              )}
             </div>
           </>
         )}

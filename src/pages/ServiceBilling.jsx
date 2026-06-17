@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import ServiceBillingManagement from '../components/ServiceBillingManagement';
@@ -7,6 +7,10 @@ import { ServiceBillingModal } from '../components/ServiceBillingModal';
 export default function ServiceBilling() {
   const navigate = useNavigate();
   const [showBillingModal, setShowBillingModal] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [modalMode, setModalMode] = useState("edit"); // "edit" for create, "view" for view, "edit-invoice" for editing existing
   const [refreshTrigger, setRefreshTrigger] = useState(0);

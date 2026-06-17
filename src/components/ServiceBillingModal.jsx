@@ -334,6 +334,8 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
     
     const statusColor = status === "Paid" ? "#10b981" : status === "Partial" ? "#f59e0b" : "#ef4444";
     const statusBg = status === "Paid" ? "#ecfdf5" : status === "Partial" ? "#fffbeb" : "#fef2f2";
+    const emailAmountPaid = totalPaidAmount;
+    const pendingAmount = Math.max(0, totalAmount - emailAmountPaid);
 
     const emailHTML = `
 <html>
@@ -399,7 +401,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
       </div>
       <div class="total-row">
         <span style="color: #6b7280;">Amount Paid:</span>
-        <span style="color: #1f2937;">₹${amountPaid.toFixed(2)}</span>
+        <span style="color: #1f2937;">₹${emailAmountPaid.toFixed(2)}</span>
       </div>
       <div class="total-row final">
         <span>Balance Due:</span>

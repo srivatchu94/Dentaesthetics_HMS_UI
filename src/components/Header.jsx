@@ -6,7 +6,7 @@ import { listDoctorProfiles } from "../services/doctorService";
 import { getCalendarAppointments } from "../services/appointmentService";
 import { getClinicInventoryByClinicId } from "../services/inventoryService";
 import LoginModal from "./LoginModal";
-import dentaestheticsLogo from "../assets/dhantha-logo-new.svg";
+import dantaLogo from "../assets/danta-logo.jpg";
 
 const TABS = [
   { key: "home", path: "/", label: "Home", icon: "🏠" },
@@ -728,12 +728,28 @@ export default function Header(){
             <div className="w-full px-6 md:px-12 py-4">
               <div className="grid grid-cols-3 items-center gap-4">
             {/* Logo - Left */}
-                <Link to="/" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
-                  <motion.img 
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                    src={dentaestheticsLogo}
-                    alt="Dentaesthetics Logo"
-                    className="w-12 h-12 cursor-pointer drop-shadow-lg"
+                <Link to="/" className="flex items-center hover:opacity-95 transition-opacity">
+                  <motion.div
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.97 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                    style={{
+                      width: '62px',
+                      height: '70px',
+                      borderRadius: '50%',
+                      backgroundImage: `url(${dantaLogo})`,
+                      backgroundSize: '128%',
+                      backgroundPosition: 'center center',
+                      backgroundRepeat: 'no-repeat',
+                      flexShrink: 0,
+                      boxShadow: [
+                        'inset 0 3px 5px rgba(0,0,0,0.55)',
+                        'inset 0 -1px 3px rgba(210,165,80,0.18)',
+                        '0 0 0 1.5px rgba(195,140,65,0.5)',
+                        '0 4px 14px rgba(0,0,0,0.88)',
+                        '0 0 20px rgba(175,115,45,0.22)',
+                      ].join(', '),
+                    }}
                   />
                 </Link>
 

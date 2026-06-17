@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { getAppointmentsByFilters, updateAppointment } from '../services/appointmentService';
-import { getAccessToken, getClinicIdFromToken, getSelectedAccess } from '../services/tokenManager';
+import { getClinicIdFromToken } from '../services/tokenManager';
 import { request } from '../services/apiClient';
 import { Download, Eye, ChevronDown, Plus } from 'lucide-react';
 import jsPDF from 'jspdf';
@@ -16,9 +16,12 @@ export default function Payments() {
   const appointmentData = location.state?.appointmentData;
   const returnTo = location.state?.returnTo;
 
-  const [paymentDate, setPaymentDate] = useState(appointmentData?.appointmentDate?.split('T')[0] || new Date().toISOString().split('T')[0]);
-  const [paymentClinicId, setPaymentClinicId] = useState('');
-  const [clinicsList, setClinicsList] = useState([]);
+  const [filterFromDate, setFilterFromDate] = useState('');
+  const [filterToDate, setFilterToDate]     = useState('');
+  const [filterFirstName, setFilterFirstName] = useState('');
+  const [filterMobile, setFilterMobile]       = useState('');
+  const [filterPatientId, setFilterPatientId] = useState('');
+  const [dateValidationError, setDateValidationError] = useState('');
   const [paymentAppointments, setPaymentAppointments] = useState([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -41,22 +44,6 @@ export default function Payments() {
   const [showPaymentSuccessPopup, setShowPaymentSuccessPopup] = useState(false);
   const [paymentSuccessMessage, setPaymentSuccessMessage] = useState('');
 
-  // Load clinics from token on mount
-  useEffect(() => {
-    const selectedAccess = getSelectedAccess();
-    if (selectedAccess?.clinics && Array.isArray(selectedAccess.clinics)) {
-      setClinicsList(selectedAccess.clinics);
-      if (selectedAccess.clinicId) {
-        setPaymentClinicId(selectedAccess.clinicId.toString());
-      }
-    } else {
-      const clinicId = getClinicIdFromToken();
-      if (clinicId) {
-        setPaymentClinicId(clinicId.toString());
-        setClinicsList([{ clinicId, clinicName: `Clinic ${clinicId}` }]);
-      }
-    }
-  }, []);
 
   // Handle appointment data from Calendar redirect
   useEffect(() => {
@@ -73,94 +60,85 @@ export default function Payments() {
     }
   }, [appointmentData]);
 
+  // From-date change — clear To Date if it's now before From Date
+  const handleFromDateChange = (val) => {
+    setFilterFromDate(val);
+    setDateValidationError('');
+    if (!val) { setFilterToDate(''); return; }
+    if (filterToDate && val > filterToDate) {
+      setFilterToDate('');
+    }
+  };
+
+  // To-date change — validate against From Date
+  const handleToDateChange = (val) => {
+    setDateValidationError('');
+    if (filterFromDate && val && val < filterFromDate) {
+      setDateValidationError('To Date cannot be earlier than From Date.');
+      return;
+    }
+    setFilterToDate(val);
+  };
+
   // Load payment appointments
   const loadPaymentAppointments = useCallback(async () => {
-    const clinicId = paymentClinicId;
-    
+    const clinicId = getClinicIdFromToken();
     if (!clinicId) {
-      setErrorMessage('Please select a clinic to load payments.');
+      setErrorMessage('Could not determine clinic from login session. Please log in again.');
       return;
     }
 
+    // Date validation
+    const today = new Date().toISOString().split('T')[0];
+    const effectiveToDate = filterFromDate && !filterToDate ? today : filterToDate;
+
+    if (filterFromDate && effectiveToDate && filterFromDate > effectiveToDate) {
+      setDateValidationError('From Date cannot be greater than To Date.');
+      return;
+    }
+
+    setDateValidationError('');
     setErrorMessage('');
     setLoadingPayments(true);
+    setPaymentAppointments([]);
+
     try {
-      const token = getAccessToken();
-      if (!token) {
-        setErrorMessage('Authentication required. Please login again.');
-        setLoadingPayments(false);
+      const params = {
+        clinicId: clinicId.toString(),
+        ...(filterFirstName.trim() && { firstName: filterFirstName.trim() }),
+        ...(filterMobile.trim()    && { mobilenumber: filterMobile.trim() }),
+        ...(filterPatientId.trim() && { patientId: parseInt(filterPatientId.trim()) }),
+        ...(filterFromDate         && { fromDate: filterFromDate }),
+        ...(effectiveToDate        && { toDate: effectiveToDate }),
+      };
+
+      const data = await getAppointmentsByFilters(params);
+
+      if (!data || data.length === 0) {
+        setErrorMessage('No data found for the selected filters.');
         return;
       }
 
-      const params = {
-        clinicId: clinicId.toString(),
-        appointmentDate: paymentDate
-      };
-      
-      console.log('💳 Loading payment appointments with params:', params);
-      let data = await getAppointmentsByFilters(params);
-      console.log('💳 Loaded appointments for payments:', data);
-      
-      if (!data || data.length === 0) {
-        setErrorMessage('No appointments booked for the selected day.');
-        setPaymentAppointments([]);
-      } else {
-        const appointmentsWithInvoices = await Promise.all(data.map(async (appt) => {
-          try {
-            const invoiceResponse = await request(`/Services/GetInvoicesByAppointmentComplete?appointmentId=${appt.appointmentId}`);
-            
-            if (invoiceResponse && Array.isArray(invoiceResponse)) {
-              console.log(`📦 Found ${invoiceResponse.length} invoices for appointment ${appt.appointmentId}`);
-              
-              if (invoiceResponse.length > 0) {
-                let totalInvoiceAmount = 0;
-                let totalPaidAmount = 0;
-                
-                invoiceResponse.forEach(invoice => {
-                  totalInvoiceAmount += invoice.header?.totalAmount || 0;
-                  totalPaidAmount += (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0);
-                });
-                
-                const pendingAmount = Math.max(totalInvoiceAmount - totalPaidAmount, 0);
-                const paymentStatus = totalPaidAmount === 0 ? 'Pending' : totalPaidAmount >= totalInvoiceAmount ? 'Paid' : 'Partial';
-                
-                return {
-                  ...appt,
-                  billableAmount: totalInvoiceAmount,
-                  paidAmount: totalPaidAmount,
-                  pendingAmount: pendingAmount,
-                  paymentStatus: paymentStatus
-                };
-              }
-            }
-          } catch (invoiceError) {
-            console.log(`⚠️ No invoices found for appointment ${appt.appointmentId}`);
+      const appointmentsWithInvoices = await Promise.all(data.map(async (appt) => {
+        try {
+          const invoiceResponse = await request(`/Services/GetInvoicesByAppointmentComplete?appointmentId=${appt.appointmentId}`);
+          if (invoiceResponse && Array.isArray(invoiceResponse) && invoiceResponse.length > 0) {
+            const amountPaid = invoiceResponse.reduce((sum, inv) =>
+              sum + (inv.header?.totalAmount ?? inv.header?.TotalAmount ?? 0), 0);
+            return { ...appt, amountPaid, hasInvoice: true };
           }
-          
-          const billable = parseFloat(appt.billableAmount) || 0;
-          const paid = parseFloat(appt.paidAmount) || 0;
-          const pending = billable - paid;
-          
-          return {
-            ...appt,
-            billableAmount: billable,
-            paidAmount: paid,
-            pendingAmount: Math.max(pending, 0),
-            paymentStatus: appt.paymentStatus || 'Pending'
-          };
-        }));
-        
-        setPaymentAppointments(appointmentsWithInvoices);
-        setErrorMessage('');
-      }
+        } catch {}
+        return { ...appt, amountPaid: 0, hasInvoice: false };
+      }));
+
+      setPaymentAppointments(appointmentsWithInvoices);
     } catch (error) {
       console.error('Failed to load payment appointments:', error);
-      setErrorMessage('Failed to load payments. Please try again.');
-      setPaymentAppointments([]);
+      setErrorMessage('Something went wrong while fetching data. Please try again.');
     } finally {
       setLoadingPayments(false);
     }
-  }, [paymentClinicId, paymentDate]);
+  }, [filterFirstName, filterMobile, filterPatientId, filterFromDate, filterToDate]);
 
   // Load invoices for specific appointment
   const loadInvoicesForAppointment = useCallback(async (appointmentId) => {
@@ -416,37 +394,114 @@ export default function Payments() {
           transition={{ duration: 0.6, delay: 0.1 }}
           className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-xl border border-blue-100/60 p-6 mb-6"
         >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 items-end">
+            {/* First Name */}
             <div>
-              <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Clinic:</label>
-              <select
-                value={paymentClinicId}
-                onChange={(e) => setPaymentClinicId(e.target.value)}
-                className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
-              >
-                <option value="">-- Choose a clinic --</option>
-                {clinicsList.map((clinic) => (
-                  <option key={clinic.clinicId} value={clinic.clinicId}>
-                    {clinic.clinicName || `Clinic ${clinic.clinicId}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm font-semibold text-slate-700 mb-2 block">Select Date:</label>
+              <label className="text-sm font-semibold text-slate-700 mb-2 block">First Name</label>
               <input
-                type="date"
-                value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
+                type="text"
+                value={filterFirstName}
+                onChange={(e) => setFilterFirstName(e.target.value)}
+                placeholder="e.g. Ravi"
                 className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
               />
             </div>
+
+            {/* Mobile */}
             <div>
+              <label className="text-sm font-semibold text-slate-700 mb-2 block">Mobile Number</label>
+              <input
+                type="text"
+                value={filterMobile}
+                onChange={(e) => setFilterMobile(e.target.value)}
+                placeholder="10-digit mobile"
+                maxLength={10}
+                className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+              />
+            </div>
+
+            {/* Patient ID */}
+            <div>
+              <label className="text-sm font-semibold text-slate-700 mb-2 block">Patient ID</label>
+              <input
+                type="number"
+                value={filterPatientId}
+                onChange={(e) => setFilterPatientId(e.target.value)}
+                placeholder="e.g. 1042"
+                className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+              />
+            </div>
+
+            {/* From Date */}
+            <div>
+              <label className="text-sm font-semibold text-slate-700 mb-2 block">From Date</label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={filterFromDate}
+                  onChange={(e) => handleFromDateChange(e.target.value)}
+                  className="w-full px-3 py-2.5 pr-8 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white"
+                />
+                {filterFromDate && (
+                  <button
+                    type="button"
+                    onClick={() => { setFilterFromDate(''); setFilterToDate(''); setDateValidationError(''); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 transition-colors text-lg leading-none"
+                    title="Clear From Date"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* To Date */}
+            <div>
+              <label className={`text-sm font-semibold mb-2 block ${filterFromDate ? 'text-slate-700' : 'text-slate-400'}`}>
+                To Date
+                {filterFromDate && !filterToDate && (
+                  <span className="ml-1 text-xs font-normal text-blue-500">(defaults to today)</span>
+                )}
+              </label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={filterToDate}
+                  min={filterFromDate || undefined}
+                  disabled={!filterFromDate}
+                  onChange={(e) => handleToDateChange(e.target.value)}
+                  className={`w-full px-3 py-2.5 pr-8 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium text-slate-700 bg-white ${
+                    !filterFromDate
+                      ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+                      : dateValidationError
+                      ? 'border-red-400'
+                      : 'border-blue-300'
+                  }`}
+                />
+                {filterToDate && (
+                  <button
+                    type="button"
+                    onClick={() => { setFilterToDate(''); setDateValidationError(''); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 transition-colors text-lg leading-none"
+                    title="Clear To Date"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              {dateValidationError && (
+                <p className="text-red-500 text-xs mt-1 font-medium">{dateValidationError}</p>
+              )}
+            </div>
+
+            {/* Load Button */}
+            <div>
+              <label className="text-sm font-semibold text-transparent mb-2 block select-none">.</label>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={loadPaymentAppointments}
-                disabled={loadingPayments || !paymentClinicId}
+                disabled={loadingPayments || !!dateValidationError}
                 className="w-full px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span>🔍</span>
@@ -482,37 +537,31 @@ export default function Payments() {
             <div className="px-6 py-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-200">
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-sm font-bold text-stone-700">Filter by Status:</span>
-                {['All', 'Paid', 'Partial', 'Pending'].map((status) => {
-                  const count = status === 'All' 
-                    ? paymentAppointments.length 
-                    : paymentAppointments.filter(a => a.paymentStatus === status).length;
-                  
+                {[
+                  { key: 'All',        label: 'All',        icon: '📋', active: 'from-indigo-500 to-purple-600' },
+                  { key: 'Invoiced',   label: 'Invoiced',   icon: '✅', active: 'from-emerald-500 to-green-600' },
+                  { key: 'No Invoice', label: 'No Invoice', icon: '⏳', active: 'from-slate-500 to-slate-600' },
+                ].map(({ key, label, icon, active }) => {
+                  const count = key === 'All'
+                    ? paymentAppointments.length
+                    : key === 'Invoiced'
+                    ? paymentAppointments.filter(a => a.hasInvoice).length
+                    : paymentAppointments.filter(a => !a.hasInvoice).length;
                   return (
                     <motion.button
-                      key={status}
+                      key={key}
                       whileHover={{ scale: 1.05, y: -2 }}
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => setPaymentStatusFilter(status)}
+                      onClick={() => setPaymentStatusFilter(key)}
                       className={`px-4 py-2 rounded-lg font-bold text-sm transition-all shadow-md flex items-center gap-2 ${
-                        paymentStatusFilter === status
-                          ? status === 'All' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white' :
-                            status === 'Paid' ? 'bg-gradient-to-r from-emerald-500 to-green-600 text-white' :
-                            status === 'Partial' ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white' :
-                            'bg-gradient-to-r from-rose-500 to-red-600 text-white'
+                        paymentStatusFilter === key
+                          ? `bg-gradient-to-r ${active} text-white`
                           : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
                       }`}
                     >
-                      <span>{
-                        status === 'All' ? '📋' :
-                        status === 'Paid' ? '✓' :
-                        status === 'Partial' ? '⚠' : '⏳'
-                      }</span>
-                      <span>{status}</span>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        paymentStatusFilter === status
-                          ? 'bg-white/30'
-                          : 'bg-stone-200'
-                      }`}>
+                      <span>{icon}</span>
+                      <span>{label}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${paymentStatusFilter === key ? 'bg-white/30' : 'bg-stone-200'}`}>
                         {count}
                       </span>
                     </motion.button>
@@ -524,7 +573,11 @@ export default function Payments() {
             {/* Appointments List */}
             <div className="p-6 space-y-4">
               {paymentAppointments
-                .filter(appt => paymentStatusFilter === 'All' || appt.paymentStatus === paymentStatusFilter)
+                .filter(appt =>
+                  paymentStatusFilter === 'All' ||
+                  (paymentStatusFilter === 'Invoiced' && appt.hasInvoice) ||
+                  (paymentStatusFilter === 'No Invoice' && !appt.hasInvoice)
+                )
                 .map((appt, idx) => (
                   <motion.div
                     key={appt.appointmentId}
@@ -536,30 +589,21 @@ export default function Payments() {
                     {/* Main Row */}
                     <div className="flex items-center justify-between gap-4 mb-3">
                       <div className="flex-1">
-                        <p className="font-bold text-slate-800">#{appt.appointmentId} - {appt.firstName} {appt.lastName}</p>
-                        <p className="text-xs text-slate-600">{new Date(appt.appointmentDate).toLocaleDateString()} at {appt.startTime}</p>
+                        <p className="font-bold text-slate-800">#{appt.appointmentId} — {appt.firstName} {appt.lastName}</p>
+                        <p className="text-xs text-slate-600">
+                          {appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                          {appt.startTime ? ` at ${appt.startTime.substring(0, 5)}` : ''}
+                        </p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-4">
                         <div className="text-right">
-                          <p className="text-xs text-slate-600">Billable</p>
-                          <p className="font-bold text-slate-800">₹{(appt.billableAmount || 0).toLocaleString('en-IN')}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-slate-600">Paid</p>
-                          <p className="font-bold text-emerald-600">₹{(appt.paidAmount || 0).toLocaleString('en-IN')}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-slate-600">Pending</p>
-                          <p className="font-bold text-rose-600">₹{(appt.pendingAmount || 0).toLocaleString('en-IN')}</p>
+                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Amount Paid</p>
+                          <p className="font-black text-xl text-emerald-600">₹{(appt.amountPaid || 0).toLocaleString('en-IN')}</p>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                          appt.paymentStatus === 'Paid'
-                            ? 'bg-emerald-500 text-white'
-                            : appt.paymentStatus === 'Partial'
-                            ? 'bg-yellow-500 text-white'
-                            : 'bg-rose-500 text-white'
+                          appt.hasInvoice ? 'bg-emerald-500 text-white' : 'bg-slate-400 text-white'
                         }`}>
-                          {appt.paymentStatus}
+                          {appt.hasInvoice ? 'Invoiced' : 'No Invoice'}
                         </span>
                       </div>
                     </div>
@@ -605,9 +649,7 @@ export default function Payments() {
                             ) : (
                               <div className="space-y-3">
                                 {invoicesByAppointment[appt.appointmentId]?.map((invoice, invIdx) => {
-                                  const invTotal = parseFloat(invoice.header?.totalAmount) || 0;
-                                  const invPaid = (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0);
-                                  const invStatus = invPaid === 0 ? 'Pending' : invPaid >= invTotal ? 'Paid' : 'Partial';
+                                  const invTotal = parseFloat(invoice.header?.totalAmount ?? invoice.header?.TotalAmount) || 0;
                                   
                                   return (
                                     <motion.div
@@ -615,11 +657,7 @@ export default function Payments() {
                                       initial={{ opacity: 0, x: -20 }}
                                       animate={{ opacity: 1, x: 0 }}
                                       transition={{ delay: invIdx * 0.1 }}
-                                      className={`rounded-lg p-5 border-l-4 ${
-                                        invStatus === 'Paid' ? 'border-l-green-500 bg-green-50' :
-                                        invStatus === 'Partial' ? 'border-l-amber-500 bg-amber-50' :
-                                        'border-l-red-500 bg-red-50'
-                                      }`}
+                                      className="rounded-lg p-5 border-l-4 border-l-emerald-500 bg-emerald-50/40"
                                     >
                                       {/* Header */}
                                       <div className="flex items-center justify-between mb-4">
@@ -627,13 +665,6 @@ export default function Payments() {
                                           <p className="font-bold text-slate-800 text-lg">Invoice: {invoice.header?.invoiceNumber}</p>
                                           <p className="text-sm text-slate-600">Bill Date: {new Date(invoice.header?.billDate).toLocaleDateString()}</p>
                                         </div>
-                                        <span className={`px-4 py-2 rounded-full text-sm font-bold text-white ${
-                                          invStatus === 'Paid' ? 'bg-green-500' :
-                                          invStatus === 'Partial' ? 'bg-amber-500' :
-                                          'bg-red-500'
-                                        }`}>
-                                          {invStatus}
-                                        </span>
                                       </div>
 
                                       {/* Line Items Table */}
@@ -662,23 +693,11 @@ export default function Payments() {
                                         </table>
                                       </div>
 
-                                      {/* Invoice Summary */}
-                                      <div className="grid grid-cols-4 gap-3 mb-4">
-                                        <div className="bg-white rounded-lg p-3 border-2 border-blue-200 shadow-sm">
-                                          <p className="text-xs font-bold text-blue-600 uppercase">Total</p>
-                                          <p className="font-bold text-blue-700 text-lg">₹{invTotal.toFixed(2)}</p>
-                                        </div>
-                                        <div className="bg-white rounded-lg p-3 border-2 border-emerald-200 shadow-sm">
-                                          <p className="text-xs font-bold text-emerald-600 uppercase">Paid</p>
-                                          <p className="font-bold text-emerald-600 text-lg">₹{invPaid.toFixed(2)}</p>
-                                        </div>
-                                        <div className="bg-white rounded-lg p-3 border-2 border-rose-200 shadow-sm">
-                                          <p className="text-xs font-bold text-rose-600 uppercase">Due</p>
-                                          <p className="font-bold text-rose-600 text-lg">₹{Math.max(0, invTotal - invPaid).toFixed(2)}</p>
-                                        </div>
-                                        <div className="bg-white rounded-lg p-3 border-2 border-slate-200 shadow-sm">
-                                          <p className="text-xs font-bold text-slate-600 uppercase">Payment Status</p>
-                                          <p className="font-bold text-slate-700 text-lg">{invStatus}</p>
+                                        {/* Invoice Summary — Amount Paid only */}
+                                      <div className="mb-4">
+                                        <div className="bg-emerald-50 rounded-xl p-4 border-2 border-emerald-200 shadow-sm inline-flex items-center gap-3">
+                                          <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Amount Paid</span>
+                                          <span className="font-black text-2xl text-emerald-600">₹{invTotal.toLocaleString('en-IN')}</span>
                                         </div>
                                       </div>
 
@@ -743,7 +762,7 @@ export default function Payments() {
             className="text-center py-12"
           >
             <div className="text-6xl mb-4">💳</div>
-            <p className="text-slate-600 font-medium">Select clinic and date, then click Load Payments</p>
+            <p className="text-slate-600 font-medium">Enter a name, mobile number, patient ID or date, then click Load Payments</p>
           </motion.div>
         )}
       </div>
