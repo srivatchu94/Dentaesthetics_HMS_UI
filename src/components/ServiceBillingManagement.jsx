@@ -584,7 +584,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Appointments Table */}
+              {/* Appointments Table with inline invoice expansion */}
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
@@ -601,246 +601,199 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                   <tbody>
                     {billingAppointments.map((appt, idx) => {
                       const apptId = appt.appointmentId || appt.AppointmentId;
+                      const isExpanded = expandedAppointmentId === apptId;
                       return (
-                      <motion.tr
-                        key={apptId || idx}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.03 }}
-                        className="border-b border-stone-200 hover:bg-blue-50/50 transition-colors"
-                      >
-                        <td className="px-4 py-3">
-                          <span className="font-bold text-stone-700">#{apptId}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                              {appt.firstName?.charAt(0)}{appt.lastName?.charAt(0)}
-                            </div>
-                            <div>
-                              <p className="font-semibold text-stone-800 text-sm">{appt.firstName} {appt.lastName}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="text-sm text-stone-700">
-                            {new Date(appt.appointmentDate).toLocaleDateString('en-US', { 
-                              month: 'short', day: 'numeric', year: 'numeric'
-                            })}
-                          </p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="text-xs text-stone-500">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm font-medium text-stone-700">{appt.appointmentType || 'Consultation'}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="text-sm font-medium text-stone-700">{appt.doctorName || 'N/A'}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center justify-center gap-2">
-                            <motion.button
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => handleShowInvoices(appt.appointmentId || appt.AppointmentId)}
-                              className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
-                              title="Expand to view invoices"
-                            >
-                              📂 Expand Invoices
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => onPaymentClick(appt)}
-                              className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
-                              title="Create New Invoice"
-                            >
-                              ➕ Create Invoice
-                            </motion.button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ); })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Expandable Invoices Section */}
-              <AnimatePresence>
-                {expandedAppointmentId && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -12 }}
-                    transition={{ duration: 0.25 }}
-                    className="mt-4"
-                  >
-                    {/* ── INVOICE CAROUSEL PANEL ── */}
-                    <div className="rounded-2xl overflow-hidden shadow-xl border border-slate-200">
-
-                      {/* Dark header bar */}
-                      <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-teal-900 px-6 py-4 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center">
-                            <FileText size={18} className="text-teal-300" />
-                          </div>
-                          <div>
-                            <p className="text-white font-black text-base">Invoices · Appt #{expandedAppointmentId}</p>
-                            <p className="text-slate-400 text-xs">
-                              {loadingInvoices[expandedAppointmentId]
-                                ? "Loading..."
-                                : `${invoicesByAppointment[expandedAppointmentId]?.length || 0} invoice${(invoicesByAppointment[expandedAppointmentId]?.length || 0) !== 1 ? 's' : ''} found`}
-                            </p>
-                          </div>
-                        </div>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => setExpandedAppointmentId(null)}
-                          className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-all"
-                        >
-                          ✕
-                        </motion.button>
-                      </div>
-
-                      {/* Content area */}
-                      <div className="bg-gradient-to-br from-slate-950 to-indigo-950 px-6 py-5">
-                        {loadingInvoices[expandedAppointmentId] ? (
-                          <div className="flex items-center justify-center py-10 gap-3">
-                            <div className="animate-spin rounded-full h-8 w-8 border-4 border-teal-700 border-t-teal-400"></div>
-                            <p className="text-slate-400 text-sm font-medium">Fetching invoices...</p>
-                          </div>
-                        ) : !invoicesByAppointment[expandedAppointmentId]?.length ? (
-                          <div className="py-10 text-center">
-                            <div className="text-4xl mb-3">🧾</div>
-                            <p className="text-slate-400 font-semibold">No invoices yet for this appointment.</p>
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            {/* Left arrow */}
-                            <button
-                              onClick={() => carouselRef.current?.scrollBy({ left: -316, behavior: 'smooth' })}
-                              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-all shadow-lg border border-white/10"
-                            >
-                              <ChevronLeft size={18} />
-                            </button>
-
-                            {/* Scrollable strip */}
-                            <div
-                              ref={carouselRef}
-                              className="flex gap-4 overflow-x-auto px-11 pb-2"
-                              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', scrollSnapType: 'x mandatory' }}
-                            >
-                              {(() => {
-                                const apptInfo = billingAppointments.find(a => (a.appointmentId || a.AppointmentId) === expandedAppointmentId) || patientAppointments.find(a => (a.appointmentId || a.AppointmentId) === expandedAppointmentId);
-                                return invoicesByAppointment[expandedAppointmentId].map((invoice, idx) => {
-                                const total = invoice.header?.totalAmount ?? invoice.header?.TotalAmount ?? 0;
-                                return (
+                        <React.Fragment key={apptId || idx}>
+                          <motion.tr
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.03 }}
+                            className={`border-b transition-colors ${isExpanded ? 'bg-indigo-50 border-indigo-300' : 'border-stone-200 hover:bg-blue-50/50'}`}
+                          >
+                            <td className="px-4 py-3">
+                              <span className="font-bold text-stone-700">#{apptId}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                                  {appt.firstName?.charAt(0)}{appt.lastName?.charAt(0)}
+                                </div>
+                                <p className="font-semibold text-stone-800 text-sm">{appt.firstName} {appt.lastName}</p>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-sm text-stone-700">
+                                {new Date(appt.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-xs text-stone-500">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-sm font-medium text-stone-700">{appt.appointmentType || 'Consultation'}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-sm font-medium text-stone-700">{appt.doctorName || 'N/A'}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-center gap-2">
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => handleShowInvoices(apptId)}
+                                  className={`px-3 py-2 rounded-lg font-bold text-sm shadow-md transition-all ${
+                                    isExpanded
+                                      ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                                      : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white'
+                                  }`}
+                                >
+                                  {isExpanded ? '▲ Collapse' : '📂 Invoices'}
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
+                                  onClick={() => onPaymentClick(appt)}
+                                  className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
+                                >
+                                  ➕ Create
+                                </motion.button>
+                              </div>
+                            </td>
+                          </motion.tr>
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.tr
+                                key={`inv-${apptId}`}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <td colSpan={7} className="p-0">
                                   <motion.div
-                                    key={idx}
-                                    initial={{ opacity: 0, scale: 0.92 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: idx * 0.06 }}
-                                    className="flex-shrink-0 w-72 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-slate-700 shadow-lg overflow-hidden"
-                                    style={{ scrollSnapAlign: 'start' }}
+                                    initial={{ height: 0 }}
+                                    animate={{ height: 'auto' }}
+                                    exit={{ height: 0 }}
+                                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                    style={{ overflow: 'hidden' }}
                                   >
-                                    {/* Card top accent */}
-                                    <div className="h-1.5 bg-gradient-to-r from-teal-500 to-indigo-500"></div>
-
-                                    <div className="p-5">
-                                      {/* Appointment info row */}
-                                      {apptInfo && (
-                                        <div className="bg-slate-700/50 rounded-lg px-3 py-2 mb-3 flex items-center justify-between">
-                                          <div>
-                                            <p className="text-xs text-slate-400 uppercase tracking-widest">Appt #</p>
-                                            <p className="text-sm font-black text-white">{apptInfo.appointmentId || apptInfo.AppointmentId}</p>
+                                    <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900">
+                                      {/* Panel header */}
+                                      <div className="px-6 py-3 flex items-center justify-between border-b border-slate-700">
+                                        <div className="flex items-center gap-3">
+                                          <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-400/40 flex items-center justify-center">
+                                            <FileText size={16} className="text-teal-300" />
                                           </div>
-                                          <div className="text-right">
-                                            <p className="text-xs text-slate-400 uppercase tracking-widest">Appt Date</p>
-                                            <p className="text-xs font-bold text-teal-300">
-                                              {apptInfo.appointmentDate ? new Date(apptInfo.appointmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                                          <div>
+                                            <p className="text-white font-black text-sm">Invoices · Appt #{apptId}</p>
+                                            <p className="text-slate-400 text-xs">
+                                              {loadingInvoices[apptId]
+                                                ? 'Loading...'
+                                                : `${invoicesByAppointment[apptId]?.length || 0} invoice${(invoicesByAppointment[apptId]?.length || 0) !== 1 ? 's' : ''}`}
                                             </p>
                                           </div>
                                         </div>
-                                      )}
-                                      {/* Invoice # and date */}
-                                      <div className="flex items-start justify-between mb-4">
-                                        <div>
-                                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Invoice</p>
-                                          <p className="text-lg font-black text-white mt-0.5">{invoice.header?.invoiceNumber || '—'}</p>
-                                        </div>
-                                        <div className="text-right">
-                                          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Bill Date</p>
-                                          <p className="text-sm font-bold text-teal-400 mt-0.5">
-                                            {new Date(invoice.header?.billDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                          </p>
-                                        </div>
+                                        <button
+                                          onClick={() => setExpandedAppointmentId(null)}
+                                          className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-all text-sm"
+                                        >✕</button>
                                       </div>
-
-                                      {/* Amount */}
-                                      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 mb-4">
-                                        <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1">Amount Paid</p>
-                                        <p className="text-2xl font-black text-emerald-400">₹{total.toLocaleString('en-IN')}</p>
-                                      </div>
-
-                                      {/* Doctor & payment mode */}
-                                      <div className="flex items-center justify-between mb-4 text-xs">
-                                        <span className="text-slate-500 truncate max-w-[55%]">
-                                          {invoice.header?.doctorName ? `Dr. ${invoice.header.doctorName}` : ''}
-                                        </span>
-                                        <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-bold">
-                                          {invoice.header?.modeOfPayment || 'Cash'}
-                                        </span>
-                                      </div>
-
-                                      {/* Action buttons */}
-                                      <div className="flex gap-2">
-                                        <motion.button
-                                          whileHover={{ scale: 1.03 }}
-                                          whileTap={{ scale: 0.97 }}
-                                          onClick={() => {
-                                            const appointmentData = billingAppointments.find(
-                                              a => (a.appointmentId || a.AppointmentId) === expandedAppointmentId
-                                            );
-                                            const invNumber = invoice?.header?.invoiceNumber;
-                                            if (appointmentData && invNumber) {
-                                              onPaymentClick({ ...appointmentData, invoiceNumber: invNumber, mode: "view" });
-                                            }
-                                          }}
-                                          className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all"
-                                        >
-                                          <Eye size={13} /> View
-                                        </motion.button>
-                                        <motion.button
-                                          whileHover={{ scale: 1.03 }}
-                                          whileTap={{ scale: 0.97 }}
-                                          onClick={() => downloadInvoicePDF(invoice)}
-                                          className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-all"
-                                        >
-                                          <Download size={13} /> PDF
-                                        </motion.button>
+                                      {/* Panel body */}
+                                      <div className="px-6 py-4">
+                                        {loadingInvoices[apptId] ? (
+                                          <div className="flex items-center justify-center py-8 gap-3">
+                                            <div className="animate-spin rounded-full h-7 w-7 border-4 border-teal-700 border-t-teal-400"></div>
+                                            <p className="text-slate-400 text-sm">Fetching invoices...</p>
+                                          </div>
+                                        ) : !invoicesByAppointment[apptId]?.length ? (
+                                          <div className="py-8 text-center">
+                                            <div className="text-4xl mb-2">🧾</div>
+                                            <p className="text-slate-400 font-semibold text-sm">No invoices yet for this appointment.</p>
+                                          </div>
+                                        ) : (
+                                          <div className="relative">
+                                            <button
+                                              onClick={() => carouselRef.current?.scrollBy({ left: -316, behavior: 'smooth' })}
+                                              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white border border-white/10"
+                                            ><ChevronLeft size={16} /></button>
+                                            <div
+                                              ref={carouselRef}
+                                              className="flex gap-4 overflow-x-auto px-10 pb-2"
+                                              style={{ scrollbarWidth: 'none', scrollSnapType: 'x mandatory' }}
+                                            >
+                                              {invoicesByAppointment[apptId].map((invoice, iIdx) => {
+                                                const total = invoice.header?.totalAmount ?? invoice.header?.TotalAmount ?? 0;
+                                                return (
+                                                  <motion.div
+                                                    key={iIdx}
+                                                    initial={{ opacity: 0, scale: 0.92 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    transition={{ delay: iIdx * 0.06 }}
+                                                    className="flex-shrink-0 w-64 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl border border-slate-700 overflow-hidden"
+                                                    style={{ scrollSnapAlign: 'start' }}
+                                                  >
+                                                    <div className="h-1 bg-gradient-to-r from-teal-500 to-indigo-500" />
+                                                    <div className="p-4">
+                                                      <div className="flex justify-between mb-3">
+                                                        <div>
+                                                          <p className="text-xs text-slate-500 uppercase tracking-widest">Invoice</p>
+                                                          <p className="text-base font-black text-white">{invoice.header?.invoiceNumber || '—'}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                          <p className="text-xs text-slate-500 uppercase tracking-widest">Bill Date</p>
+                                                          <p className="text-xs font-bold text-teal-400">
+                                                            {new Date(invoice.header?.billDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                          </p>
+                                                        </div>
+                                                      </div>
+                                                      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2 mb-3">
+                                                        <p className="text-xs text-emerald-400 uppercase tracking-widest mb-0.5">Amount Paid</p>
+                                                        <p className="text-xl font-black text-emerald-400">₹{total.toLocaleString('en-IN')}</p>
+                                                      </div>
+                                                      <div className="flex items-center justify-between mb-3 text-xs">
+                                                        <span className="text-slate-500 truncate max-w-[55%]">
+                                                          {invoice.header?.doctorName ? `Dr. ${invoice.header.doctorName}` : ''}
+                                                        </span>
+                                                        <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-bold">
+                                                          {invoice.header?.modeOfPayment || 'Cash'}
+                                                        </span>
+                                                      </div>
+                                                      <div className="flex gap-2">
+                                                        <motion.button
+                                                          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                                                          onClick={() => onPaymentClick({ ...appt, invoiceNumber: invoice.header?.invoiceNumber, mode: 'view' })}
+                                                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold"
+                                                        ><Eye size={12} /> View</motion.button>
+                                                        <motion.button
+                                                          whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                                                          onClick={() => downloadInvoicePDF(invoice)}
+                                                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold"
+                                                        ><Download size={12} /> PDF</motion.button>
+                                                      </div>
+                                                    </div>
+                                                  </motion.div>
+                                                );
+                                              })}
+                                            </div>
+                                            <button
+                                              onClick={() => carouselRef.current?.scrollBy({ left: 316, behavior: 'smooth' })}
+                                              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white border border-white/10"
+                                            ><ChevronRight size={16} /></button>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </motion.div>
-                                );
-                              }); })()}
-                            </div>
-
-                            {/* Right arrow */}
-                            <button
-                              onClick={() => carouselRef.current?.scrollBy({ left: 316, behavior: 'smooth' })}
-                              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-all shadow-lg border border-white/10"
-                            >
-                              <ChevronRight size={18} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                                </td>
+                              </motion.tr>
+                            )}
+                          </AnimatePresence>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t-2 border-blue-200">
                 <motion.div
                   whileHover={{ scale: 1.02, y: -2 }}
@@ -1095,7 +1048,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                         </div>
                       ) : null}
 
-                      {/* Appointments Table */}
+                      {/* Appointments Table with inline invoice expansion */}
                       {patientAppointments.length > 0 && (
                         <div className="overflow-x-auto mb-4">
                           <table className="w-full">
@@ -1112,181 +1065,190 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                             <tbody>
                               {patientAppointments.map((appt, idx) => {
                                 const apptId = appt.appointmentId || appt.AppointmentId || appt.id || appt.Id;
-                                const isSelected = expandedAppointmentId === apptId;
+                                const isExpanded = expandedAppointmentId === apptId;
                                 return (
-                                <motion.tr
-                                  key={apptId || idx}
-                                  initial={{ opacity: 0, x: -20 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  transition={{ delay: idx * 0.05 }}
-                                  onClick={() => handleShowInvoices(apptId)}
-                                  className={`border-b cursor-pointer transition-colors ${
-                                    isSelected
-                                      ? 'bg-blue-100 border-blue-400'
-                                      : 'border-slate-200 hover:bg-blue-50'
-                                  }`}
-                                >
-                                  <td className="px-4 py-3">
-                                    <span className={`font-bold ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
-                                      #{apptId}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <p className="text-sm text-slate-700">
-                                      {appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString('en-IN', {
-                                        day: '2-digit', month: 'short', year: 'numeric'
-                                      }) : '—'}
-                                    </p>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <p className="text-xs text-slate-500">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className="text-sm font-medium text-slate-700">{appt.appointmentType || 'Consultation'}</span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className="text-sm font-medium text-slate-700">{appt.doctorName || appt.DoctorName || 'N/A'}</span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <div className="flex items-center justify-center gap-2">
-                                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                        {isSelected ? '▼ Invoices' : '▶ View Invoices'}
-                                      </span>
-                                      <motion.button
-                                        whileHover={{ scale: 1.1 }}
-                                        whileTap={{ scale: 0.9 }}
-                                        onClick={(e) => { e.stopPropagation(); onPaymentClick(appt); }}
-                                        className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
-                                        title="Create New Invoice"
-                                      >
-                                        ➕ Create
-                                      </motion.button>
-                                    </div>
-                                  </td>
-                                </motion.tr>
+                                  <React.Fragment key={apptId || idx}>
+                                    <motion.tr
+                                      initial={{ opacity: 0, x: -20 }}
+                                      animate={{ opacity: 1, x: 0 }}
+                                      transition={{ delay: idx * 0.05 }}
+                                      className={`border-b transition-colors ${isExpanded ? 'bg-indigo-50 border-indigo-300' : 'border-slate-200 hover:bg-blue-50'}`}
+                                    >
+                                      <td className="px-4 py-3">
+                                        <span className={`font-bold ${isExpanded ? 'text-indigo-700' : 'text-slate-700'}`}>#{apptId}</span>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <p className="text-sm text-slate-700">
+                                          {appt.appointmentDate ? new Date(appt.appointmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                                        </p>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <p className="text-xs text-slate-500">{appt.startTime?.substring(0, 5) || 'N/A'}</p>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <span className="text-sm font-medium text-slate-700">{appt.appointmentType || 'Consultation'}</span>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <span className="text-sm font-medium text-slate-700">{appt.doctorName || appt.DoctorName || 'N/A'}</span>
+                                      </td>
+                                      <td className="px-4 py-3">
+                                        <div className="flex items-center justify-center gap-2">
+                                          <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={() => handleShowInvoices(apptId)}
+                                            className={`px-3 py-2 rounded-lg font-bold text-sm shadow-md transition-all ${
+                                              isExpanded
+                                                ? 'bg-slate-700 hover:bg-slate-600 text-white'
+                                                : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white'
+                                            }`}
+                                          >
+                                            {isExpanded ? '▲ Collapse' : '📂 Invoices'}
+                                          </motion.button>
+                                          <motion.button
+                                            whileHover={{ scale: 1.05 }}
+                                            whileTap={{ scale: 0.95 }}
+                                            onClick={(e) => { e.stopPropagation(); onPaymentClick(appt); }}
+                                            className="px-3 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg font-bold text-sm shadow-md transition-all"
+                                          >
+                                            ➕ Create
+                                          </motion.button>
+                                        </div>
+                                      </td>
+                                    </motion.tr>
+                                    <AnimatePresence>
+                                      {isExpanded && (
+                                        <motion.tr
+                                          key={`inv-${apptId}`}
+                                          initial={{ opacity: 0 }}
+                                          animate={{ opacity: 1 }}
+                                          exit={{ opacity: 0 }}
+                                          transition={{ duration: 0.2 }}
+                                        >
+                                          <td colSpan={6} className="p-0">
+                                            <motion.div
+                                              initial={{ height: 0 }}
+                                              animate={{ height: 'auto' }}
+                                              exit={{ height: 0 }}
+                                              transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                              style={{ overflow: 'hidden' }}
+                                            >
+                                              <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900">
+                                                <div className="px-6 py-3 flex items-center justify-between border-b border-slate-700">
+                                                  <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-400/40 flex items-center justify-center">
+                                                      <FileText size={16} className="text-teal-300" />
+                                                    </div>
+                                                    <div>
+                                                      <p className="text-white font-black text-sm">Invoices · Appt #{apptId}</p>
+                                                      <p className="text-slate-400 text-xs">
+                                                        {loadingInvoices[apptId]
+                                                          ? 'Loading...'
+                                                          : `${invoicesByAppointment[apptId]?.length || 0} invoice${(invoicesByAppointment[apptId]?.length || 0) !== 1 ? 's' : ''}`}
+                                                      </p>
+                                                    </div>
+                                                  </div>
+                                                  <button
+                                                    onClick={() => setExpandedAppointmentId(null)}
+                                                    className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-slate-300 hover:text-white transition-all text-sm"
+                                                  >✕</button>
+                                                </div>
+                                                <div className="px-6 py-4">
+                                                  {loadingInvoices[apptId] ? (
+                                                    <div className="flex items-center justify-center py-8 gap-3">
+                                                      <div className="animate-spin rounded-full h-7 w-7 border-4 border-teal-700 border-t-teal-400"></div>
+                                                      <p className="text-slate-400 text-sm">Fetching invoices...</p>
+                                                    </div>
+                                                  ) : !invoicesByAppointment[apptId]?.length ? (
+                                                    <div className="py-8 text-center">
+                                                      <div className="text-4xl mb-2">🧾</div>
+                                                      <p className="text-slate-400 font-semibold text-sm">No invoices yet for this appointment.</p>
+                                                    </div>
+                                                  ) : (
+                                                    <div className="relative">
+                                                      <button
+                                                        onClick={() => carouselRef.current?.scrollBy({ left: -316, behavior: 'smooth' })}
+                                                        className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white border border-white/10"
+                                                      ><ChevronLeft size={16} /></button>
+                                                      <div
+                                                        ref={carouselRef}
+                                                        className="flex gap-4 overflow-x-auto px-10 pb-2"
+                                                        style={{ scrollbarWidth: 'none', scrollSnapType: 'x mandatory' }}
+                                                      >
+                                                        {invoicesByAppointment[apptId].map((invoice, iIdx) => {
+                                                          const total = invoice.header?.totalAmount ?? invoice.header?.TotalAmount ?? 0;
+                                                          return (
+                                                            <motion.div
+                                                              key={iIdx}
+                                                              initial={{ opacity: 0, scale: 0.92 }}
+                                                              animate={{ opacity: 1, scale: 1 }}
+                                                              transition={{ delay: iIdx * 0.06 }}
+                                                              className="flex-shrink-0 w-64 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl border border-slate-700 overflow-hidden"
+                                                              style={{ scrollSnapAlign: 'start' }}
+                                                            >
+                                                              <div className="h-1 bg-gradient-to-r from-teal-500 to-indigo-500" />
+                                                              <div className="p-4">
+                                                                <div className="flex justify-between mb-3">
+                                                                  <div>
+                                                                    <p className="text-xs text-slate-500 uppercase tracking-widest">Invoice</p>
+                                                                    <p className="text-base font-black text-white">{invoice.header?.invoiceNumber || '—'}</p>
+                                                                  </div>
+                                                                  <div className="text-right">
+                                                                    <p className="text-xs text-slate-500 uppercase tracking-widest">Bill Date</p>
+                                                                    <p className="text-xs font-bold text-teal-400">
+                                                                      {new Date(invoice.header?.billDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                                    </p>
+                                                                  </div>
+                                                                </div>
+                                                                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2 mb-3">
+                                                                  <p className="text-xs text-emerald-400 uppercase tracking-widest mb-0.5">Amount Paid</p>
+                                                                  <p className="text-xl font-black text-emerald-400">₹{total.toLocaleString('en-IN')}</p>
+                                                                </div>
+                                                                <div className="flex items-center justify-between mb-3 text-xs">
+                                                                  <span className="text-slate-500 truncate max-w-[55%]">
+                                                                    {invoice.header?.doctorName ? `Dr. ${invoice.header.doctorName}` : ''}
+                                                                  </span>
+                                                                  <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-bold">
+                                                                    {invoice.header?.modeOfPayment || 'Cash'}
+                                                                  </span>
+                                                                </div>
+                                                                <div className="flex gap-2">
+                                                                  <motion.button
+                                                                    whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                                                                    onClick={() => onPaymentClick({ ...appt, invoiceNumber: invoice.header?.invoiceNumber, mode: 'view' })}
+                                                                    className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold"
+                                                                  ><Eye size={12} /> View</motion.button>
+                                                                  <motion.button
+                                                                    whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                                                                    onClick={() => downloadInvoicePDF(invoice)}
+                                                                    className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold"
+                                                                  ><Download size={12} /> PDF</motion.button>
+                                                                </div>
+                                                              </div>
+                                                            </motion.div>
+                                                          );
+                                                        })}
+                                                      </div>
+                                                      <button
+                                                        onClick={() => carouselRef.current?.scrollBy({ left: 316, behavior: 'smooth' })}
+                                                        className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white border border-white/10"
+                                                      ><ChevronRight size={16} /></button>
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </motion.div>
+                                          </td>
+                                        </motion.tr>
+                                      )}
+                                    </AnimatePresence>
+                                  </React.Fragment>
                                 );
                               })}
                             </tbody>
                           </table>
                         </div>
                       )}
-
-                      {/* Expandable Invoices Section — shared carousel */}
-                      <AnimatePresence>
-                        {expandedAppointmentId && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
-                            transition={{ duration: 0.25 }}
-                            className="border-t-2 border-slate-700 pt-4"
-                          >
-                            <div className="rounded-2xl overflow-hidden shadow-xl border border-slate-700">
-                              {/* Dark header */}
-                              <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-teal-900 px-5 py-3.5 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-lg bg-teal-500/20 border border-teal-400/40 flex items-center justify-center">
-                                    <FileText size={16} className="text-teal-300" />
-                                  </div>
-                                  <div>
-                                    <p className="text-white font-black text-sm">Invoices · Appt #{expandedAppointmentId}</p>
-                                    <p className="text-slate-400 text-xs">{invoicesByAppointment[expandedAppointmentId]?.length || 0} invoice{(invoicesByAppointment[expandedAppointmentId]?.length || 0) !== 1 ? 's' : ''}</p>
-                                  </div>
-                                </div>
-                                <button onClick={() => setExpandedAppointmentId(null)} className="text-slate-400 hover:text-white text-sm">✕</button>
-                              </div>
-                              {/* Carousel body */}
-                              <div className="bg-gradient-to-br from-slate-950 to-indigo-950 px-5 py-4">
-                                {loadingInvoices[expandedAppointmentId] ? (
-                                  <div className="flex items-center justify-center py-8 gap-3">
-                                    <div className="animate-spin rounded-full h-7 w-7 border-4 border-teal-700 border-t-teal-400"></div>
-                                    <p className="text-slate-400 text-sm">Loading...</p>
-                                  </div>
-                                ) : !invoicesByAppointment[expandedAppointmentId]?.length ? (
-                                  <div className="py-8 text-center">
-                                    <p className="text-4xl mb-2">🧾</p>
-                                    <p className="text-slate-400 font-semibold text-sm">No invoices yet.</p>
-                                  </div>
-                                ) : (
-                                  <div className="relative">
-                                    <button onClick={() => carouselRef.current?.scrollBy({ left: -316, behavior: 'smooth' })}
-                                      className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white border border-white/10">
-                                      <ChevronLeft size={16} />
-                                    </button>
-                                    <div ref={carouselRef} className="flex gap-4 overflow-x-auto px-10 pb-1"
-                                      style={{ scrollbarWidth: 'none', scrollSnapType: 'x mandatory' }}>
-                                      {(() => {
-                                        const apptInfo2 = patientAppointments.find(a => (a.appointmentId || a.AppointmentId) === expandedAppointmentId) || billingAppointments.find(a => (a.appointmentId || a.AppointmentId) === expandedAppointmentId);
-                                        return invoicesByAppointment[expandedAppointmentId].map((invoice, idx) => {
-                                        const total = invoice.header?.totalAmount ?? invoice.header?.TotalAmount ?? 0;
-                                        return (
-                                          <motion.div key={idx} initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }}
-                                            transition={{ delay: idx * 0.06 }}
-                                            className="flex-shrink-0 w-64 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl border border-slate-700 overflow-hidden"
-                                            style={{ scrollSnapAlign: 'start' }}>
-                                            <div className="h-1 bg-gradient-to-r from-teal-500 to-indigo-500"></div>
-                                            <div className="p-4">
-                                              {apptInfo2 && (
-                                                <div className="bg-slate-700/50 rounded-lg px-2 py-1.5 mb-2 flex items-center justify-between">
-                                                  <div>
-                                                    <p className="text-xs text-slate-400 uppercase tracking-widest">Appt #</p>
-                                                    <p className="text-sm font-black text-white">{apptInfo2.appointmentId || apptInfo2.AppointmentId}</p>
-                                                  </div>
-                                                  <div className="text-right">
-                                                    <p className="text-xs text-slate-400 uppercase tracking-widest">Appt Date</p>
-                                                    <p className="text-xs font-bold text-teal-300">
-                                                      {apptInfo2.appointmentDate ? new Date(apptInfo2.appointmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                                                    </p>
-                                                  </div>
-                                                </div>
-                                              )}
-                                              <div className="flex justify-between mb-3">
-                                                <div>
-                                                  <p className="text-xs text-slate-500 uppercase tracking-widest">Invoice</p>
-                                                  <p className="text-base font-black text-white">{invoice.header?.invoiceNumber || '—'}</p>
-                                                </div>
-                                                <div className="text-right">
-                                                  <p className="text-xs text-slate-500 uppercase tracking-widest">Bill Date</p>
-                                                  <p className="text-xs font-bold text-teal-400">
-                                                    {new Date(invoice.header?.billDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                  </p>
-                                                </div>
-                                              </div>
-                                              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2 mb-3">
-                                                <p className="text-xs text-emerald-400 uppercase tracking-widest mb-0.5">Amount Paid</p>
-                                                <p className="text-xl font-black text-emerald-400">₹{total.toLocaleString('en-IN')}</p>
-                                              </div>
-                                              <div className="flex gap-2">
-                                                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                                                  onClick={() => {
-                                                    const appt = patientAppointments.find(a => (a.appointmentId || a.AppointmentId) === expandedAppointmentId);
-                                                    if (appt) onPaymentClick({ ...appt, invoiceNumber: invoice.header?.invoiceNumber, mode: "view" });
-                                                  }}
-                                                  className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold">
-                                                  <Eye size={12} /> View
-                                                </motion.button>
-                                                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                                                  onClick={() => downloadInvoicePDF(invoice)}
-                                                  className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold">
-                                                  <Download size={12} /> PDF
-                                                </motion.button>
-                                              </div>
-                                            </div>
-                                          </motion.div>
-                                        );
-                                      }); })()}
-                                    </div>
-                                    <button onClick={() => carouselRef.current?.scrollBy({ left: 316, behavior: 'smooth' })}
-                                      className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white border border-white/10">
-                                      <ChevronRight size={16} />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
 
                     </motion.div>
                   </motion.div>
