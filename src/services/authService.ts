@@ -527,21 +527,26 @@ const startTokenRefreshTimer = (): void => {
       console.log(`   🔓 Clear isTokenRefreshInProgress flag`);
       console.log('════════════════════════════════════════════════════════════════════════════════\n');
       
+      // Clear the timer ref now that it has fired — before the async refresh
+      refreshTokenTimer = null;
+
       const success = await refreshAccessToken();
-      
+
       if (!success) {
-        console.error('\n\n❌════════════════════════════════════════════════════════════════════════════════');
-        console.error('❌ UNIFIED REFRESH FAILED - AUTO LOGOUT TRIGGERED');
-        console.error('❌════════════════════════════════════════════════════════════════════════════════');
-        console.error(`\n   Reason: refreshAccessToken() returned false`);
-        console.error(`   This means:`);
-        console.error(`   1. API call failed or returned error status`);
-        console.error(`   2. Response didn't have new access token`);
-        console.error(`   3. Refresh token may have expired`);
-        console.error(`\n   Action: User will be logged out automatically`);
-        console.error('❌════════════════════════════════════════════════════════════════════════════════\n');
-        showSessionExpiredPopup();
-        handleLogout();
+        // Check whether the token is still valid before deciding to logout.
+        // A transient network error ("Failed to fetch") should NOT cause logout
+        // if the token hasn't actually expired yet.
+        const currentExpiry = getTokenExpiry();
+        const tokenStillValid = currentExpiry && new Date(currentExpiry).getTime() > Date.now() + 30_000;
+
+        if (tokenStillValid) {
+          console.warn('⚠️ Token refresh failed but token is still valid — retrying in 60s (transient network error).');
+          window.setTimeout(() => startTokenRefreshTimer(), 60_000);
+        } else {
+          console.error('❌ Token refresh failed and token has expired — logging out.');
+          showSessionExpiredPopup();
+          handleLogout();
+        }
       } else {
         console.log('\n\n✅════════════════════════════════════════════════════════════════════════════════');
         console.log('✅ UNIFIED TOKEN REFRESH SUCCESSFUL - SESSION SEAMLESSLY EXTENDED');
@@ -1507,23 +1512,18 @@ export const startTokenRefreshHeartbeat = (): void => {
         return;
       }
 
-      // If less than 3.5 minutes until expiry and refresh timer not running, refresh NOW
-      if (timeUntilExpiry < 3.5 * 60 * 1000 && !refreshTokenTimer) {
+      // If less than 3.5 minutes until expiry and refresh timer not running, refresh NOW.
+      // Skip if a refresh is already in progress — prevents duplicate timer setup.
+      if (timeUntilExpiry < 3.5 * 60 * 1000 && !refreshTokenTimer && !isTokenRefreshInProgress) {
         console.warn(`⚠️ [Heartbeat] Token expires in ${Math.floor(timeUntilExpiry / 1000 / 60)}m and no refresh timer! Refreshing NOW...`);
         refreshAccessToken();
         return;
       }
 
-      // If refresh timer is not set but token still valid, restart it
-      if (!refreshTokenTimer && timeUntilExpiry > 60000) {
+      // If refresh timer is not set but token still valid, restart it.
+      // Only restart when no refresh is currently running — avoids the double-setup bug.
+      if (!refreshTokenTimer && timeUntilExpiry > 60000 && !isTokenRefreshInProgress) {
         console.warn(`⚠️ [Heartbeat] Refresh timer not running but token valid (${Math.floor(timeUntilExpiry / 1000 / 60)}m left). Restarting...`);
-        startTokenRefreshTimer();
-        return;
-      }
-
-      // Also ensure continuous polling is running
-      if (!refreshTokenTimer) {
-        console.warn(`⚠️ [Heartbeat] Unified refresh timer not running. Restarting...`);
         startTokenRefreshTimer();
         return;
       }
