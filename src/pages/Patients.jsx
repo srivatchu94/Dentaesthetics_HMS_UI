@@ -765,6 +765,39 @@ export default function Patients() {
         // Ensure gender is populated
         patientGender: diagnosisData.patientGender || diagnosisData.gender || 'N/A'
       };
+
+      // Normalize attending physician display name: prefer explicit full name fields,
+      // fall back to first/last name components, then to createdBy/doctorName fields,
+      // finally construct a readable name from an email local-part if needed.
+      try {
+        const doctorFirst = diagnosisData.doctorFirstName || diagnosisData.attendingDoctorFirstName || diagnosisData.doctorFirstName || '';
+        const doctorLast = diagnosisData.doctorLastName || diagnosisData.attendingDoctorLastName || diagnosisData.doctorLastName || '';
+        const possibleNameFields = [
+          diagnosisData.attendingPhysicianName,
+          diagnosisData.attendingPhysicianFullName,
+          diagnosisData.doctorName,
+          diagnosisData.createdByName,
+          diagnosisData.fullName,
+          diagnosisData.createdBy
+        ];
+
+        let attendingDisplay = possibleNameFields.find(f => f && String(f).trim());
+
+        if (!attendingDisplay && (doctorFirst || doctorLast)) {
+          attendingDisplay = `${doctorFirst} ${doctorLast}`.trim();
+        }
+
+        if (!attendingDisplay && diagnosisData.attendingPhysician && String(diagnosisData.attendingPhysician).includes('@')) {
+          // Convert email local-part to a human name: venkatesh.srinivasan -> Venkatesh Srinivasan
+          const emailName = String(diagnosisData.attendingPhysician).split('@')[0];
+          attendingDisplay = emailName.split(/[._\-]/).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+        }
+
+        transformedData.attendingPhysician = attendingDisplay || diagnosisData.attendingPhysician || 'N/A';
+      } catch (e) {
+        console.warn('Failed to normalize attending physician name', e);
+        transformedData.attendingPhysician = diagnosisData.attendingPhysician || 'N/A';
+      }
       
       console.log('✅ Transformed diagnosis data:', transformedData);
       setSelectedDiagnosis(transformedData);
