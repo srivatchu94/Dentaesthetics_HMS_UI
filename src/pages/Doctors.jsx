@@ -7004,10 +7004,7 @@ export default function Doctors() {
                   className="overflow-hidden"
                 >
                   <h2 className="text-white font-bold text-lg whitespace-nowrap">Doctor's Space</h2>
-                  <p className="text-indigo-100 text-xs whitespace-nowrap">{(() => {
-                    const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-                    return userData.username || 'Doctor';
-                  })()}</p>
+                  <p className="text-indigo-100 text-xs whitespace-nowrap">Dr.{doctorName || 'Doctor'}</p>
                 </motion.div>
               )}
             </AnimatePresence>
