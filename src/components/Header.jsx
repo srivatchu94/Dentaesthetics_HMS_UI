@@ -5,6 +5,7 @@ import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, ge
 import { listDoctorProfiles } from "../services/doctorService";
 import { getCalendarAppointments } from "../services/appointmentService";
 import { getClinicInventoryByClinicId } from "../services/inventoryService";
+import { getClinic } from "../api/hmsApi";
 import LoginModal from "./LoginModal";
 import dantaLogo from "../assets/danta-logo.jpg";
 
@@ -312,6 +313,7 @@ export default function Header(){
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
   const [tokenRefreshStatus, setTokenRefreshStatus] = useState(null);
   const [showTokenRefreshToast, setShowTokenRefreshToast] = useState(false);
+  const [clinicName, setClinicName] = useState("");
   const navigate = useNavigate();
   const searchRef = useRef(null);
   const notificationRef = useRef(null);
@@ -391,6 +393,17 @@ export default function Header(){
     
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch clinic name whenever logged-in state or selected clinic changes
+  useEffect(() => {
+    if (!isLoggedIn || !selectedAccess?.clinicId) {
+      setClinicName("");
+      return;
+    }
+    getClinic(selectedAccess.clinicId)
+      .then(clinic => setClinicName(clinic?.clinicName || ""))
+      .catch(() => setClinicName(""));
+  }, [isLoggedIn, selectedAccess?.clinicId]);
 
   useEffect(() => {
     const selectedNotificationScope = buildNotificationScopeKey(selectedAccess);
@@ -722,464 +735,246 @@ export default function Header(){
 
   return (
     <>
-      <header className="w-full fixed top-0 left-0 right-0 z-40 shadow-xl">
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 shadow-2xl">
-          <div className="bg-gradient-to-br from-slate-800 to-indigo-800 shadow-2xl">
-            <div className="w-full px-6 md:px-12 py-4">
-              <div className="grid grid-cols-3 items-center gap-4">
-            {/* Logo - Left */}
-                <Link to="/" className="flex items-center hover:opacity-95 transition-opacity">
-                  <motion.div
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.97 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                    style={{
-                      width: '62px',
-                      height: '70px',
-                      borderRadius: '50%',
-                      backgroundImage: `url(${dantaLogo})`,
-                      backgroundSize: '128%',
-                      backgroundPosition: 'center center',
-                      backgroundRepeat: 'no-repeat',
-                      flexShrink: 0,
-                      boxShadow: [
-                        'inset 0 3px 5px rgba(0,0,0,0.55)',
-                        'inset 0 -1px 3px rgba(210,165,80,0.18)',
-                        '0 0 0 1.5px rgba(195,140,65,0.5)',
-                        '0 4px 14px rgba(0,0,0,0.88)',
-                        '0 0 20px rgba(175,115,45,0.22)',
-                      ].join(', '),
-                    }}
-                  />
-                </Link>
+      {/* ─── Top Header Bar ─── */}
+      <header className="w-full fixed top-0 left-0 right-0 z-40"
+        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)' }}
+      >
+        <div className="w-full px-4 md:px-8 py-3 flex items-center justify-between gap-4">
 
-            {/* Title - Center */}
-                <div className="text-center">
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.5 }}
-                    className="leading-none"
-                  >
-                    {/* Main Brand Name */}
-                    <h1 
-                      className="text-3xl md:text-4xl font-black tracking-tight mb-0.5"
-                      style={{
-                        background: 'linear-gradient(135deg, #00d4ff 0%, #2dd4bf 40%, #14b8a6 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                        textShadow: '0 2px 8px rgba(0, 212, 255, 0.4)',
-                        filter: 'drop-shadow(0 0 12px rgba(0, 212, 255, 0.2))'
-                      }}
-                    >
-                      DENTAESTHETICS
-                    </h1>
-                    {/* Subtitle */}
-                    <p 
-                      className="text-xs md:text-sm font-bold tracking-widest"
-                      style={{
-                        background: 'linear-gradient(90deg, #22d3ee, #2dd4bf)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text'
-                      }}
-                    >
-                      THE DENTAL COMPANY
-                    </p>
-                  </motion.div>
-                </div>
-
-            {/* Notifications, Login/Doctor's Space Buttons - Right */}
-                <div className="flex justify-end items-center gap-3">
-                  {isLoggedIn && (
-                    <>
-                      {!isSuperAdmin && (
-                        <>
-                          {/* Notification Bell */}
-                          <div ref={notificationRef} className="relative">
-                            <motion.button
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => setShowNotifications(!showNotifications)}
-                              className="relative p-2 rounded-lg hover:bg-indigo-700 transition-colors cursor-pointer"
-                            >
-                              <svg className="w-6 h-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                              </svg>
-                              {unreadCount > 0 && (
-                                <motion.span
-                                  initial={{ scale: 0 }}
-                                  animate={{ scale: 1 }}
-                                  className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold"
-                                >
-                                  {unreadCount}
-                                </motion.span>
-                              )}
-                            </motion.button>
-
-                            {/* Notifications Dropdown */}
-                            <AnimatePresence>
-                              {showNotifications && (
-                                <motion.div
-                                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                                  className="fixed right-4 top-20 w-96 bg-slate-800 rounded-xl shadow-2xl border-2 border-indigo-700 overflow-hidden z-[9999]"
-                                >
-                                  {/* Header */}
-                                  <div className="bg-gradient-to-r from-slate-700 to-indigo-700 px-4 py-3 border-b border-indigo-600 flex items-center justify-between">
-                                    <div>
-                                      <h3 className="font-bold text-cyan-300">Notifications</h3>
-                                      <p className="text-[11px] text-cyan-100/70">Live updates every minute</p>
-                                    </div>
-                                    {unreadCount > 0 && (
-                                      <button
-                                        onClick={markAllAsRead}
-                                        className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold"
-                                      >
-                                        Mark all read
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  {/* Notifications List */}
-                                  <div className="max-h-96 overflow-y-auto">
-                                    {notificationsLoading && notifications.length === 0 && (
-                                      <div className="px-4 py-4 text-sm text-slate-400">
-                                        Refreshing notifications...
-                                      </div>
-                                    )}
-                                    {notifications.map((notif) => (
-                                      <motion.div
-                                        key={notif.id}
-                                        whileHover={{ backgroundColor: "#1e293b" }}
-                                        onClick={() => handleNotificationClick(notif)}
-                                        className={`px-4 py-3 border-b border-slate-700 cursor-pointer ${notif.unread ? 'bg-indigo-900/30' : ''}`}
-                                      >
-                                        <div className="flex items-start gap-3">
-                                          <span className="text-2xl">{notif.icon}</span>
-                                          <div className="flex-1">
-                                            <div className="flex items-center justify-between">
-                                              <p className="font-semibold text-sm text-cyan-300">{notif.title}</p>
-                                              {notif.unread && (
-                                                <span className="w-2 h-2 bg-cyan-400 rounded-full"></span>
-                                              )}
-                                            </div>
-                                            <p className="text-sm text-slate-400 mt-0.5">{notif.message}</p>
-                                            <p className="text-xs text-slate-500 mt-1">{notif.time}</p>
-                                          </div>
-                                        </div>
-                                      </motion.div>
-                                    ))}
-                                  </div>
-
-                                  {/* Footer */}
-                                  <div className="bg-slate-700 px-4 py-2 text-center border-t border-indigo-600">
-                                    <button
-                                      onClick={() => {
-                                        setShowNotifications(false);
-                                        navigate("/calendar");
-                                      }}
-                                      className="text-sm text-cyan-400 hover:text-cyan-300 font-semibold"
-                                    >
-                                      Open Calendar
-                                    </button>
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </>
-                      )}
-
-                      {/* Doctor's Space / Admin Corner Button */}
-                      <motion.button
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => navigate(isSuperAdmin ? "/superadmin" : "/doctors")}
-                        className={`px-4 py-2 rounded-lg hover:shadow-xl transition-all font-semibold shadow-lg text-sm flex items-center gap-2 cursor-pointer ${isSuperAdmin ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white' : 'bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-900'}`}
-                      >
-                        <span>{isSuperAdmin ? '🛡️' : '👨‍⚕️'}</span>
-                        <span>{isSuperAdmin ? "Admin Corner" : (doctorName || "Doctor's Space")}</span>
-                      </motion.button>
-                    </>
-                  )}
-                  {!isLoggedIn ? (
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleLoginClick}
-                      className="px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-900 rounded-lg hover:from-cyan-400 hover:to-blue-400 transition-all font-semibold shadow-lg hover:shadow-xl text-sm"
-                    >
-                      Login
-                    </motion.button>
-                  ) : (
-                    <motion.button
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleLogout}
-                      className="px-6 py-2 bg-gradient-to-r from-indigo-600 to-slate-700 text-white rounded-lg hover:from-indigo-500 hover:to-slate-600 transition-all font-semibold shadow-lg hover:shadow-xl text-sm"
-                    >
-                      Logout
-                    </motion.button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Login Modal Component */}
-      <LoginModal 
-        isOpen={showLoginModal} 
-        onClose={() => setShowLoginModal(false)}
-        onLoginSuccess={() => {
-          setIsLoggedIn(true);
-          setShowWelcome(true);
-          setTimeout(() => setShowWelcome(false), 5000);
-        }}
-      />
-
-      {/* Welcome Message */}
-      <AnimatePresence>
-        {showWelcome && isLoggedIn && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: -50 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: -50 }}
-            transition={{ type: "spring", damping: 15, stiffness: 200 }}
-            className="fixed top-32 right-6 z-[100] bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 text-white px-6 py-5 rounded-2xl shadow-2xl backdrop-blur-lg border-2 border-cyan-300/30 max-w-md"
-          >
-            <div className="flex items-start gap-4">
-              <motion.span
-                animate={{ 
-                  rotate: [0, 15, -15, 15, 0],
-                  scale: [1, 1.2, 1, 1.2, 1]
-                }}
-                transition={{ duration: 1, repeat: 2 }}
-                className="text-4xl"
-              >
-                👋
-              </motion.span>
-              <div className="flex-1">
-                <motion.p 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="text-xl font-bold mb-1"
-                >
-                  {welcomeMessage}
-                </motion.p>
-                <motion.p 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.3 }}
-                  className="text-sm text-white/90"
-                >
-                  You're all set to go! 🚀
-                </motion.p>
-              </div>
-            </div>
-            {/* Animated Progress bar */}
+          {/* Left: Logo + Brand */}
+          <Link to="/" className="flex items-center gap-3 flex-shrink-0 group">
             <motion.div
-              initial={{ width: "100%" }}
-              animate={{ width: "0%" }}
-              transition={{ duration: 5, ease: "linear" }}
-              className="absolute bottom-0 left-0 h-1.5 bg-white/40 rounded-full"
-            />
-            {/* Sparkle effects */}
-            <motion.div
-              animate={{ 
-                scale: [0, 1, 0],
-                rotate: [0, 180, 360]
+              whileHover={{ scale: 1.08, rotate: 3 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '50%',
+                backgroundImage: `url(${dantaLogo})`,
+                backgroundSize: '128%',
+                backgroundPosition: 'center center',
+                backgroundRepeat: 'no-repeat',
+                flexShrink: 0,
+                boxShadow: '0 0 0 2px rgba(34,211,238,0.35), 0 4px 16px rgba(0,0,0,0.7)',
               }}
-              transition={{ duration: 1, repeat: Infinity, repeatDelay: 0.5 }}
-              className="absolute -top-2 -right-2 text-2xl"
-            >
-              ✨
-            </motion.div>
-            <motion.div
-              animate={{ 
-                scale: [0, 1, 0],
-                rotate: [360, 180, 0]
-              }}
-              transition={{ duration: 1, repeat: Infinity, repeatDelay: 0.8, delay: 0.3 }}
-              className="absolute -bottom-2 -left-2 text-2xl"
-            >
-              💫
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Token Refresh Toast Notification */}
-      <AnimatePresence>
-        {showTokenRefreshToast && tokenRefreshStatus && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: -50, x: 100 }}
-            animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-            exit={{ opacity: 0, scale: 0.8, y: -50, x: 100 }}
-            transition={{ type: "spring", damping: 15, stiffness: 200 }}
-            className={`fixed top-32 right-6 z-[100] px-6 py-5 rounded-2xl shadow-2xl backdrop-blur-lg border-2 max-w-md ${
-              tokenRefreshStatus.success
-                ? 'bg-gradient-to-br from-emerald-600 via-green-600 to-teal-500 text-white border-emerald-300/30'
-                : 'bg-gradient-to-br from-red-600 via-rose-600 to-pink-500 text-white border-red-300/30'
-            }`}
-          >
-            <div className="flex items-start gap-4">
-              <motion.span
-                animate={{ 
-                  rotate: [0, 10, -10, 10, 0],
-                  scale: [1, 1.2, 1, 1.2, 1]
-                }}
-                transition={{ duration: 0.6, repeat: tokenRefreshStatus.success ? 1 : 2 }}
-                className="text-4xl"
-              >
-                {tokenRefreshStatus.success ? '✅' : '❌'}
-              </motion.span>
-              <div className="flex-1">
-                <motion.p 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 }}
-                  className="text-lg font-bold mb-1"
-                >
-                  {tokenRefreshStatus.success ? 'Token Refreshed!' : 'Refresh Failed'}
-                </motion.p>
-                <motion.p 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="text-sm text-white/90"
-                >
-                  {tokenRefreshStatus.message}
-                </motion.p>
-              </div>
-            </div>
-            {/* Animated Progress bar */}
-            <motion.div
-              initial={{ width: "100%" }}
-              animate={{ width: "0%" }}
-              transition={{ duration: 5, ease: "linear" }}
-              className={`absolute bottom-0 left-0 h-1.5 rounded-full ${
-                tokenRefreshStatus.success ? 'bg-white/40' : 'bg-white/40'
-              }`}
             />
-            {/* Sparkle effects */}
-            {tokenRefreshStatus.success && (
+            <div className="leading-none">
+              <h1 className="text-xl md:text-2xl font-black tracking-tight"
+                style={{
+                  background: 'linear-gradient(135deg, #00d4ff 0%, #2dd4bf 60%, #14b8a6 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}>
+                DENTAESTHETICS
+              </h1>
+              <p className="text-[10px] font-semibold tracking-widest mt-0.5"
+                style={{
+                  background: 'linear-gradient(90deg, #22d3ee, #2dd4bf)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}>
+                THE DENTAL COMPANY
+              </p>
+            </div>
+          </Link>
+
+          {/* Center: Clinic Name (only when logged in) */}
+          {isLoggedIn && clinicName && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="hidden md:flex items-center gap-2 px-4 py-1.5 rounded-full"
+              style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.22)' }}
+            >
+              <span className="text-cyan-400 text-sm">🏥</span>
+              <span className="text-cyan-200 text-sm font-semibold tracking-wide">{clinicName}</span>
+            </motion.div>
+          )}
+
+          {/* Right: Actions */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isLoggedIn && (
               <>
-                <motion.div
-                  animate={{ 
-                    scale: [0, 1, 0],
-                    rotate: [0, 180, 360]
-                  }}
-                  transition={{ duration: 1, repeat: 2, repeatDelay: 0.3 }}
-                  className="absolute -top-2 -right-2 text-2xl"
-                >
-                  ✨
-                </motion.div>
-                <motion.div
-                  animate={{ 
-                    scale: [0, 1, 0],
-                    rotate: [360, 180, 0]
-                  }}
-                  transition={{ duration: 1, repeat: 2, repeatDelay: 0.3, delay: 0.3 }}
-                  className="absolute -bottom-2 -left-2 text-2xl"
-                >
-                  💫
-                </motion.div>
-              </>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+                {!isSuperAdmin && (
+                  <div ref={notificationRef} className="relative">
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setShowNotifications(!showNotifications)}
+                      className="relative p-2 rounded-lg transition-colors cursor-pointer"
+                      style={{ background: 'rgba(99,102,241,0.18)' }}
+                    >
+                      <svg className="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                      {unreadCount > 0 && (
+                        <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }}
+                          className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                          {unreadCount}
+                        </motion.span>
+                      )}
+                    </motion.button>
 
-      {/* Animated Decorative Strip */}
-      <div className="h-20"></div>
-      <motion.div 
-        className="fixed top-20 left-0 right-0 h-1 z-40"
-        style={{
-          background: 'linear-gradient(90deg, #06b6d4, #0ea5e9, #06b6d4, #0ea5e9)',
-          backgroundSize: '200% 100%'
-        }}
-        animate={{
-          backgroundPosition: ['0% 0%', '100% 0%', '0% 0%']
-        }}
-        transition={{
-          duration: 8,
-          repeat: Infinity,
-          ease: "linear"
-        }}
-      />
+                    <AnimatePresence>
+                      {showNotifications && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                          className="fixed right-4 top-16 w-88 rounded-xl shadow-2xl overflow-hidden z-[9999]"
+                          style={{ background: '#1e293b', border: '1px solid rgba(99,102,241,0.4)', width: '22rem' }}
+                        >
+                          <div className="px-4 py-3 border-b border-indigo-800/60 flex items-center justify-between"
+                            style={{ background: 'linear-gradient(90deg, #1e1b4b, #1e293b)' }}>
+                            <div>
+                              <h3 className="font-bold text-cyan-300 text-sm">Notifications</h3>
+                              <p className="text-[10px] text-cyan-200/50 mt-0.5">Live updates every minute</p>
+                            </div>
+                            {unreadCount > 0 && (
+                              <button onClick={markAllAsRead} className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold">
+                                Mark all read
+                              </button>
+                            )}
+                          </div>
+                          <div className="max-h-80 overflow-y-auto">
+                            {notificationsLoading && notifications.length === 0 && (
+                              <div className="px-4 py-4 text-xs text-slate-400">Refreshing…</div>
+                            )}
+                            {notifications.map((notif) => (
+                              <motion.div key={notif.id} whileHover={{ backgroundColor: '#0f172a' }}
+                                onClick={() => handleNotificationClick(notif)}
+                                className={`px-4 py-3 border-b border-slate-700/60 cursor-pointer ${notif.unread ? 'bg-indigo-900/20' : ''}`}>
+                                <div className="flex items-start gap-3">
+                                  <span className="text-lg mt-0.5">{notif.icon}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="font-semibold text-xs text-cyan-300 truncate">{notif.title}</p>
+                                      {notif.unread && <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full flex-shrink-0"></span>}
+                                    </div>
+                                    <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{notif.message}</p>
+                                    <p className="text-[10px] text-slate-500 mt-1">{notif.time}</p>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+                          <div className="px-4 py-2 text-center border-t border-indigo-800/40"
+                            style={{ background: '#1e1b4b' }}>
+                            <button onClick={() => { setShowNotifications(false); navigate("/calendar"); }}
+                              className="text-xs text-cyan-400 hover:text-cyan-300 font-semibold">
+                              Open Calendar →
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
 
-      <nav className="w-full bg-gradient-to-r from-slate-800/90 via-indigo-800/80 to-slate-800/90 border-b border-indigo-700/50 shadow-md sticky top-20 z-30 backdrop-blur-md">
-        <div className="w-full px-4 md:px-8 py-3">
-          <div className="flex gap-3 justify-center relative items-center overflow-hidden">
-            {visibleTabs.map((t) => (
-              <div
-                key={t.key}
-                className="relative flex-shrink-0"
-                onMouseEnter={() => setHoveredTab(t.key)}
-                onMouseLeave={() => setHoveredTab(null)}
-              >
-                <NavLink
-                  to={t.path}
-                  className={({isActive}) =>
-                    `px-4 py-2.5 font-bold transition-all inline-flex items-center gap-2 rounded-lg border-2 border-indigo-600 text-cyan-300 hover:bg-indigo-700 ${isActive ? `bg-indigo-700 ring-2 ring-cyan-400 ring-offset-2 scale-105` : `bg-slate-700/50`} whitespace-nowrap`
+                <motion.button
+                  whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                  onClick={() => navigate(isSuperAdmin ? "/superadmin" : "/doctors")}
+                  className="px-3 py-1.5 rounded-lg font-semibold text-sm flex items-center gap-1.5 cursor-pointer transition-all"
+                  style={isSuperAdmin
+                    ? { background: 'linear-gradient(135deg, #4f46e5, #2563eb)', color: '#fff' }
+                    : { background: 'linear-gradient(135deg, #06b6d4, #0284c7)', color: '#0f172a' }
                   }
                 >
-                  <span className="text-xl w-6 h-6 flex items-center justify-center">{t.icon}</span>
-                  <motion.span whileHover={{ y: -2 }} className="text-sm">{t.label}</motion.span>
+                  <span className="text-base">{isSuperAdmin ? '🛡️' : '👨‍⚕️'}</span>
+                  <span>{isSuperAdmin ? "Admin Corner" : (doctorName || "Doctor's Space")}</span>
+                </motion.button>
+              </>
+            )}
+
+            {!isLoggedIn ? (
+              <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                onClick={handleLoginClick}
+                className="px-4 py-1.5 rounded-lg font-semibold text-sm transition-all"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #0284c7)', color: '#0f172a' }}>
+                Login
+              </motion.button>
+            ) : (
+              <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                onClick={handleLogout}
+                className="px-4 py-1.5 rounded-lg font-semibold text-sm transition-all"
+                style={{ background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.3)', color: '#c7d2fe' }}>
+                Logout
+              </motion.button>
+            )}
+          </div>
+        </div>
+
+        {/* Thin animated accent line at bottom of header */}
+        <motion.div className="h-0.5 w-full"
+          style={{ background: 'linear-gradient(90deg, #06b6d4, #6366f1, #06b6d4)', backgroundSize: '200% 100%' }}
+          animate={{ backgroundPosition: ['0% 0%', '100% 0%', '0% 0%'] }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
+        />
+      </header>
+
+      {/* ─── Navigation Bar ─── */}
+      <div className="h-[60px]" />
+      <nav className="w-full fixed top-[60px] left-0 right-0 z-30 backdrop-blur-md"
+        style={{ background: 'rgba(15,23,42,0.92)', borderBottom: '1px solid rgba(99,102,241,0.25)' }}>
+        <div className="w-full px-4 md:px-8 py-2 flex justify-center">
+          <div className="flex items-center gap-1 flex-wrap justify-center">
+            {visibleTabs.map((t) => (
+              <div key={t.key} className="relative flex-shrink-0"
+                onMouseEnter={() => setHoveredTab(t.key)}
+                onMouseLeave={() => setHoveredTab(null)}>
+                <NavLink to={t.path}
+                  className={({ isActive }) =>
+                    `px-3 py-2 font-semibold transition-all inline-flex items-center gap-1.5 rounded-lg text-sm whitespace-nowrap ${
+                      isActive
+                        ? 'text-cyan-300 bg-indigo-800/70 ring-1 ring-cyan-400/60'
+                        : 'text-slate-300 hover:text-cyan-300 hover:bg-indigo-900/50'
+                    }`
+                  }>
+                  <span className="text-base">{t.icon}</span>
+                  <span>{t.label}</span>
                 </NavLink>
 
-                {/* Dropdown Menu */}
+                {/* Dropdown */}
                 {hoveredTab === t.key && CRUD_OPERATIONS[t.key].length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="absolute top-full left-0 mt-2 bg-slate-700 rounded-xl shadow-2xl overflow-hidden z-50 min-w-max border-2 border-indigo-600 pointer-events-auto"
-                  onMouseEnter={() => setHoveredTab(t.key)}
-                  onMouseLeave={() => setHoveredTab(null)}
-                >
-                  {CRUD_OPERATIONS[t.key].map((op, idx) => {
-                    const colors = {
-                      create: { bg: "bg-emerald-900/40 hover:bg-emerald-800/60", text: "text-emerald-300", icon: "➕" },
-                      view: { bg: "bg-blue-900/40 hover:bg-blue-800/60", text: "text-blue-300", icon: "📋" },
-                      update: { bg: "bg-cyan-900/40 hover:bg-cyan-800/60", text: "text-cyan-300", icon: "✏️" },
-                      delete: { bg: "bg-red-900/40 hover:bg-red-800/60", text: "text-red-300", icon: "🗑️" },
-                      clinic: { bg: "bg-indigo-900/40 hover:bg-indigo-800/60", text: "text-indigo-300", icon: "🏥" },
-                    };
-                    const opColor = colors[op] || { bg: "bg-slate-600/40 hover:bg-slate-600/60", text: "text-slate-300", icon: "⚙️" };
-
-                    return (
-                      <motion.button
-                        key={op}
-                        whileHover={{ x: 8 }}
-                        onClick={() => {
-                          handleCrudClick(t.key, op);
-                          setHoveredTab(null);
-                        }}
-                        className={`w-full px-6 py-4 text-left font-semibold transition-all ${opColor.bg} ${opColor.text} ${idx !== CRUD_OPERATIONS[t.key].length - 1 ? 'border-b border-slate-600' : ''} flex items-center gap-3 cursor-pointer`}
-                      >
-                        <span className="text-xl w-6 h-6 flex items-center justify-center flex-shrink-0">{opColor.icon}</span>
-                        <span className="capitalize">{op}</span>
-                      </motion.button>
-                    );
-                  })}
-                </motion.div>
-              )}
-            </div>
-          ))}
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    className="absolute top-full left-0 mt-1 rounded-xl shadow-2xl overflow-hidden z-50 min-w-max pointer-events-auto"
+                    style={{ background: '#1e293b', border: '1px solid rgba(99,102,241,0.4)' }}
+                    onMouseEnter={() => setHoveredTab(t.key)}
+                    onMouseLeave={() => setHoveredTab(null)}
+                  >
+                    {CRUD_OPERATIONS[t.key].map((op, idx) => {
+                      const colors = {
+                        create: { bg: 'hover:bg-emerald-900/40', text: 'text-emerald-300', icon: '➕' },
+                        view:   { bg: 'hover:bg-blue-900/40',    text: 'text-blue-300',    icon: '📋' },
+                        update: { bg: 'hover:bg-cyan-900/40',    text: 'text-cyan-300',    icon: '✏️' },
+                        delete: { bg: 'hover:bg-red-900/40',     text: 'text-red-300',     icon: '🗑️' },
+                        clinic: { bg: 'hover:bg-indigo-900/40',  text: 'text-indigo-300',  icon: '🏥' },
+                      };
+                      const c = colors[op] || { bg: 'hover:bg-slate-700/40', text: 'text-slate-300', icon: '⚙️' };
+                      return (
+                        <motion.button key={op} whileHover={{ x: 6 }}
+                          onClick={() => { handleCrudClick(t.key, op); setHoveredTab(null); }}
+                          className={`w-full px-5 py-3 text-left font-semibold transition-all ${c.bg} ${c.text} ${idx !== CRUD_OPERATIONS[t.key].length - 1 ? 'border-b border-slate-700/60' : ''} flex items-center gap-3 cursor-pointer text-sm`}>
+                          <span className="text-base">{c.icon}</span>
+                          <span className="capitalize">{op}</span>
+                        </motion.button>
+                      );
+                    })}
+                  </motion.div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </nav>
+      {/* spacer so content starts below both bars */}
+      <div className="h-[42px]" />
 
       {/* Success Modal */}
       <AnimatePresence>

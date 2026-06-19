@@ -629,7 +629,11 @@ export default function ViewPatients() {
         setShowSuccessModal(false);
         setShowEditModal(false);
         setIsEditMode(false);
-        // Optionally refresh the patient data in the list if you want
+        setEditActiveTab("patient");
+        setAppointmentFromDate("");
+        setAppointmentToDate("");
+        setAppointmentsList([]);
+        setAppointmentsError("");
         handleSearchClick();
       }, 2000);
     } catch (error) {
@@ -731,7 +735,8 @@ export default function ViewPatients() {
       };
 
       const appointments = await getAppointmentsByFilters(billingParams);
-      console.log('✅ APPOINTMENTS FOR BILLING FETCHED:', appointments);
+      console.log('✅ BILLING APPOINTMENTS RAW RESPONSE:', appointments);
+      console.log('📋 Sample appointment fields:', appointments?.[0] ? Object.keys(appointments[0]) : 'empty');
       setBillingAppointments(appointments || []);
       // If no appointments, don't show error
       if (!appointments || appointments.length === 0) {
@@ -767,7 +772,7 @@ export default function ViewPatients() {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          "Authorization": `Bearer ${sessionStorage.getItem('accessToken_session')}`
         }
       });
 
@@ -808,7 +813,7 @@ export default function ViewPatients() {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          "Authorization": `Bearer ${sessionStorage.getItem('accessToken_session')}`
         }
       });
 
@@ -844,13 +849,14 @@ export default function ViewPatients() {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          "Authorization": `Bearer ${sessionStorage.getItem('accessToken_session')}`
         }
       });
 
       if (response.ok) {
         const appointmentDetail = await response.json();
-        console.log('✅ APPOINTMENT DETAIL FETCHED:', appointmentDetail);
+        console.log('✅ APPOINTMENT DETAIL RAW RESPONSE:', appointmentDetail);
+        console.log('📋 Available fields:', Object.keys(appointmentDetail || {}));
         setSelectedAppointmentDetail(appointmentDetail);
         setShowAppointmentDetailModal(true);
       } else {
@@ -877,7 +883,7 @@ export default function ViewPatients() {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          "Authorization": `Bearer ${sessionStorage.getItem('accessToken_session')}`
         }
       });
 
@@ -913,7 +919,7 @@ export default function ViewPatients() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+          "Authorization": `Bearer ${sessionStorage.getItem('accessToken_session')}`
         },
         body: JSON.stringify({ AppointmentID: appointmentId })
       });
@@ -1153,6 +1159,11 @@ export default function ViewPatients() {
                     onClick={() => {
                       setShowEditModal(false);
                       setIsEditMode(false);
+                      setEditActiveTab("patient");
+                      setAppointmentFromDate("");
+                      setAppointmentToDate("");
+                      setAppointmentsList([]);
+                      setAppointmentsError("");
                     }}
                     className="text-white hover:text-amber-100 text-2xl"
                   >
@@ -1667,9 +1678,10 @@ export default function ViewPatients() {
                           <h3 className="font-bold text-slate-800 mb-2">Appointment #{appointment.appointmentId}</h3>
                           <div className="space-y-2 text-sm">
                             <p className="text-slate-700"><span className="font-semibold">Date:</span> {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString() : "N/A"}</p>
-                            <p className="text-slate-700"><span className="font-semibold">Time:</span> {appointment.appointmentTime || "N/A"}</p>
-                            <p className="text-slate-700"><span className="font-semibold">Doctor:</span> {appointment.doctorName || `Dr. ID: ${appointment.doctorId}` || "N/A"}</p>
-                            <p className="text-slate-700"><span className="font-semibold">Service:</span> {appointment.serviceName || appointment.appointmentType || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Time:</span> {appointment.startTime || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Doctor ID:</span> {appointment.doctorId || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Type:</span> {appointment.appointmentType || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Status:</span> {appointment.status || "N/A"}</p>
                             {appointment.notes && <p className="text-slate-600 italic mt-3">💬 {appointment.notes}</p>}
                           </div>
                         </motion.div>
@@ -1814,9 +1826,10 @@ export default function ViewPatients() {
                           <h3 className="font-bold text-slate-800 mb-2">Appointment #{appointment.appointmentId}</h3>
                           <div className="space-y-2 text-sm mb-4">
                             <p className="text-slate-700"><span className="font-semibold">Date:</span> {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString() : "N/A"}</p>
-                            <p className="text-slate-700"><span className="font-semibold">Time:</span> {appointment.appointmentTime || "N/A"}</p>
-                            <p className="text-slate-700"><span className="font-semibold">Doctor:</span> {appointment.doctorName || `Dr. ID: ${appointment.doctorId}` || "N/A"}</p>
-                            <p className="text-slate-700"><span className="font-semibold">Service:</span> {appointment.serviceName || appointment.appointmentType || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Time:</span> {appointment.startTime || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Doctor ID:</span> {appointment.doctorId || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Type:</span> {appointment.appointmentType || "N/A"}</p>
+                            <p className="text-slate-700"><span className="font-semibold">Status:</span> {appointment.status || "N/A"}</p>
                           </div>
                           <button
                             onClick={() => loadInvoicesForAppointment(appointment.appointmentId)}
@@ -1844,6 +1857,11 @@ export default function ViewPatients() {
                 onClick={() => {
                   setShowEditModal(false);
                   setIsEditMode(false);
+                  setEditActiveTab("patient");
+                  setAppointmentFromDate("");
+                  setAppointmentToDate("");
+                  setAppointmentsList([]);
+                  setAppointmentsError("");
                   // Reset all invoice-related states
                   setSelectedAppointmentForInvoices(null);
                   setInvoicesList([]);
@@ -1967,7 +1985,7 @@ export default function ViewPatients() {
             <div className="bg-gradient-to-r from-blue-600 to-blue-700 sticky top-0 p-6 flex items-center justify-between z-10">
               <div>
                 <h2 className="text-2xl font-bold text-white">📅 Appointment Details</h2>
-                <p className="text-blue-100 text-sm mt-1">Appointment #{selectedAppointmentDetail.appointmentId}</p>
+                <p className="text-blue-100 text-sm mt-1">Appointment #{selectedAppointmentDetail.appointmentId || selectedAppointmentDetail.AppointmentId || "—"}</p>
               </div>
               <button
                 onClick={() => {
@@ -2002,31 +2020,35 @@ export default function ViewPatients() {
                     <p className="text-base text-stone-800">{selectedAppointmentDetail.appointmentDate ? new Date(selectedAppointmentDetail.appointmentDate).toLocaleDateString() : "N/A"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-blue-600 font-semibold">Appointment Time</p>
-                    <p className="text-base text-stone-800">{selectedAppointmentDetail.appointmentTime || "N/A"}</p>
+                    <p className="text-sm text-blue-600 font-semibold">Start Time</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.startTime || "N/A"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-blue-600 font-semibold">Doctor Name</p>
-                    <p className="text-base text-stone-800">{selectedAppointmentDetail.doctorName || `Dr. ID: ${selectedAppointmentDetail.doctorId}` || "N/A"}</p>
+                    <p className="text-sm text-blue-600 font-semibold">Doctor ID</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.doctorId || "N/A"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-blue-600 font-semibold">Service</p>
-                    <p className="text-base text-stone-800">{selectedAppointmentDetail.serviceName || selectedAppointmentDetail.appointmentType || "N/A"}</p>
+                    <p className="text-sm text-blue-600 font-semibold">Appointment Type</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.appointmentType || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Patient</p>
+                    <p className="text-base text-stone-800">{[selectedAppointmentDetail.firstName, selectedAppointmentDetail.lastName].filter(Boolean).join(' ') || `Patient #${selectedAppointmentDetail.patientId}` || "N/A"}</p>
                   </div>
                   <div>
                     <p className="text-sm text-blue-600 font-semibold">Status</p>
                     <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${
-                      selectedAppointmentDetail.appointmentStatus === "Completed" ? "bg-green-100 text-green-800" :
-                      selectedAppointmentDetail.appointmentStatus === "Cancelled" ? "bg-red-100 text-red-800" :
-                      selectedAppointmentDetail.appointmentStatus === "Scheduled" ? "bg-blue-100 text-blue-800" :
+                      selectedAppointmentDetail.status === "Completed" ? "bg-green-100 text-green-800" :
+                      selectedAppointmentDetail.status === "Cancelled" ? "bg-red-100 text-red-800" :
+                      selectedAppointmentDetail.status === "Scheduled" ? "bg-blue-100 text-blue-800" :
                       "bg-yellow-100 text-yellow-800"
                     }`}>
-                      {selectedAppointmentDetail.appointmentStatus || "Pending"}
+                      {selectedAppointmentDetail.status || "Pending"}
                     </span>
                   </div>
                   <div>
-                    <p className="text-sm text-blue-600 font-semibold">Clinic</p>
-                    <p className="text-base text-stone-800">{selectedAppointmentDetail.clinicName || `Clinic ID: ${selectedAppointmentDetail.clinicId}` || "N/A"}</p>
+                    <p className="text-sm text-blue-600 font-semibold">Clinic ID</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.clinicId || "N/A"}</p>
                   </div>
                 </div>
                 
