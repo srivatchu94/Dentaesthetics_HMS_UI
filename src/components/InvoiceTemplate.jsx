@@ -1,20 +1,32 @@
 import React from "react";
 import { CheckCircle2 } from "lucide-react";
+import dantaLogo from "../assets/danta-logo.jpg";
 
 export function InvoiceTemplate({ data }) {
   return (
     <div className="hidden print-only p-8 bg-white">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-8 pb-8 border-b-2 border-gray-300">
-          <div className="flex justify-between mb-6">
-            <div>
-              <h1 className="text-4xl font-bold text-slate-900 mb-2">INVOICE</h1>
-              <p className="text-slate-600">{data.clinic}</p>
+        <div className="mb-8 pb-6 border-b-2 border-gray-200">
+          <div className="flex items-center justify-between">
+            {/* Logo + Brand */}
+            <div className="flex items-center gap-3">
+              <img
+                src={dantaLogo}
+                alt="Dentaesthetics Logo"
+                style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #e2e8f0' }}
+              />
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">DENTAESTHETICS</h2>
+                <p className="text-xs text-slate-500 font-semibold tracking-widest uppercase">The Dental Company</p>
+                {data.clinic && <p className="text-xs text-slate-400 mt-0.5">{data.clinic}</p>}
+              </div>
             </div>
+            {/* Invoice Meta */}
             <div className="text-right">
-              <p className="text-sm text-slate-500">Date: {data.date}</p>
-              <p className="text-sm text-slate-500">Invoice #: INV-2026-001</p>
+              <h1 className="text-3xl font-black text-slate-800 tracking-wide">INVOICE</h1>
+              <p className="text-sm text-slate-500 mt-1">Date: {data.date}</p>
+              <p className="text-sm text-slate-500">Invoice #: {data.invoiceNumber || "INV-2026-001"}</p>
             </div>
           </div>
         </div>

@@ -5,6 +5,7 @@ import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, ge
 import { listDoctorProfiles } from "../services/doctorService";
 import { getCalendarAppointments } from "../services/appointmentService";
 import { getClinicInventoryByClinicId } from "../services/inventoryService";
+import { getClinic } from "../api/hmsApi";
 
 import LoginModal from "./LoginModal";
 import dantaLogo from "../assets/danta-logo.jpg";
@@ -282,7 +283,6 @@ const SEARCH_DATA = [
 ];
 
 export default function Header(){
-  const [hoveredTab, setHoveredTab] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userInfo, setUserInfo] = useState({ name: "", role: "" });
   const [doctorName, setDoctorName] = useState("");
@@ -313,6 +313,7 @@ export default function Header(){
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
   const [tokenRefreshStatus, setTokenRefreshStatus] = useState(null);
   const [showTokenRefreshToast, setShowTokenRefreshToast] = useState(false);
+  const [clinicName, setClinicName] = useState("");
   const navigate = useNavigate();
   const searchRef = useRef(null);
   const notificationRef = useRef(null);
@@ -392,6 +393,13 @@ export default function Header(){
     
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn || !selectedAccess?.clinicId) { setClinicName(""); return; }
+    getClinic(selectedAccess.clinicId)
+      .then(clinic => setClinicName(clinic?.clinicName || ""))
+      .catch(() => setClinicName(""));
+  }, [isLoggedIn, selectedAccess?.clinicId]);
 
   useEffect(() => {
     const selectedNotificationScope = buildNotificationScopeKey(selectedAccess);
@@ -725,51 +733,132 @@ export default function Header(){
     <>
       {/* ─── Top Header Bar ─── */}
       <header className="w-full fixed top-0 left-0 right-0 z-40"
-        style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)' }}
+        style={{
+          background: 'linear-gradient(180deg, #0e0e12 0%, #16161e 100%)',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+        }}
       >
-        <div className="w-full px-4 md:px-8 py-4 flex items-center justify-between gap-4">
+        <div className="w-full px-4 md:px-8 py-4 flex items-center gap-4">
 
-          {/* Left: Logo + Brand */}
-          <Link to="/" className="flex items-center gap-3 flex-shrink-0 group">
+          {/* Left: Logo + Brand (takes natural width) */}
+          <div className="flex-1">
+          <Link to="/" className="flex items-center gap-4 flex-shrink-0 group" style={{ textDecoration: 'none' }}>
+
+            {/* ── Embossed logo medallion ── */}
             <motion.div
-              whileHover={{ scale: 1.08, rotate: 3 }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+              whileHover={{ scale: 1.07, y: -1 }}
+              whileTap={{ scale: 0.94 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 18 }}
               style={{
-                width: '46px',
-                height: '46px',
+                width: '54px',
+                height: '54px',
                 borderRadius: '50%',
+                position: 'relative',
+                flexShrink: 0,
+                overflow: 'hidden',
                 backgroundImage: `url(${dantaLogo})`,
-                backgroundSize: '128%',
+                backgroundSize: '132%',
                 backgroundPosition: 'center center',
                 backgroundRepeat: 'no-repeat',
-                flexShrink: 0,
-                boxShadow: '0 0 0 2px rgba(34,211,238,0.35), 0 4px 16px rgba(0,0,0,0.7)',
+                /* Layer 1: tight cyan ring
+                   Layer 2: dark gap (separates logo from bg)
+                   Layer 3: faint outer halo
+                   Layer 4: deep directional shadow (light from upper-left)
+                   Layer 5: ambient cyan bloom
+                   Layer 6: inset top-left highlight (raised-surface feel)
+                   Layer 7: inset bottom-right shadow (depth) */
+                boxShadow: [
+                  '0 0 0 1.5px rgba(34,211,238,0.75)',
+                  '0 0 0 3.5px rgba(6,10,24,1)',
+                  '0 0 0 5px rgba(34,211,238,0.12)',
+                  '-3px -3px 14px rgba(255,255,255,0.06)',
+                  '5px 8px 24px rgba(0,0,0,0.92)',
+                  '0 0 28px rgba(34,211,238,0.1)',
+                  'inset 0 2px 4px rgba(255,255,255,0.2)',
+                  'inset 0 -4px 8px rgba(0,0,0,0.55)',
+                ].join(', '),
               }}
-            />
-            <div className="leading-none">
-              <h1 className="text-xl md:text-2xl font-black tracking-tight"
-                style={{
-                  background: 'linear-gradient(135deg, #00d4ff 0%, #2dd4bf 60%, #14b8a6 100%)',
+            >
+              {/* Directional gleam — simulates light hitting a raised surface */}
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                borderRadius: '50%',
+                background: 'linear-gradient(145deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.07) 35%, transparent 65%)',
+                pointerEvents: 'none',
+              }} />
+            </motion.div>
+
+            {/* ── Brand wordmark ── */}
+            <div style={{ lineHeight: 1, userSelect: 'none' }}>
+              {/* Name: heavy white "DENTA" + italic cyan "ESTHETICS" */}
+              <div style={{ display: 'flex', alignItems: 'baseline' }}>
+                <span style={{
+                  fontSize: '1.25rem',
+                  fontWeight: '900',
+                  letterSpacing: '-0.01em',
+                  color: '#f1f5f9',
+                }}>
+                  DENTA
+                </span>
+                <span style={{
+                  fontSize: '1.25rem',
+                  fontWeight: '300',
+                  letterSpacing: '0.06em',
+                  fontStyle: 'italic',
+                  background: 'linear-gradient(135deg, #67e8f9 0%, #22d3ee 50%, #0ea5e9 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
                 }}>
-                DENTAESTHETICS
-              </h1>
-              <p className="text-[10px] font-semibold tracking-widest mt-0.5"
-                style={{
-                  background: 'linear-gradient(90deg, #22d3ee, #2dd4bf)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}>
+                  ESTHETICS
+                </span>
+              </div>
+
+              {/* Thin cyan accent rule */}
+              <div style={{
+                height: '1px',
+                width: '100%',
+                background: 'linear-gradient(90deg, rgba(34,211,238,0.7) 0%, rgba(34,211,238,0) 100%)',
+                margin: '4px 0 3px',
+              }} />
+
+              {/* Tagline */}
+              <p style={{
+                fontSize: '7px',
+                fontWeight: '600',
+                letterSpacing: '0.26em',
+                color: 'rgba(148,163,184,0.7)',
+                textTransform: 'uppercase',
+                margin: 0,
+              }}>
                 THE DENTAL COMPANY
               </p>
             </div>
           </Link>
+          </div>
+
+          {/* Center: Clinic Name */}
+          <div className="flex-1 flex justify-center">
+            {isLoggedIn && clinicName && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '6px 18px', borderRadius: '24px',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                backdropFilter: 'blur(8px)',
+              }}>
+                <span style={{ fontSize: '12px', color: 'rgba(203,213,225,0.7)' }}>🏥</span>
+                <span style={{
+                  fontSize: '13px', fontWeight: '600', letterSpacing: '0.04em',
+                  color: '#e2e8f0',
+                }}>{clinicName}</span>
+              </div>
+            )}
+          </div>
 
           {/* Right: Actions */}
+          <div className="flex-1 flex justify-end">
           <div className="flex items-center gap-2 flex-shrink-0">
             {isLoggedIn && (
               <>
@@ -880,6 +969,7 @@ export default function Header(){
               </motion.button>
             )}
           </div>
+          </div>
         </div>
 
         {/* Thin animated accent line at bottom of header */}
@@ -892,13 +982,11 @@ export default function Header(){
 
       {/* ─── Navigation Bar ─── */}
       <nav className="w-full fixed top-[80px] left-0 right-0 z-30 backdrop-blur-md"
-        style={{ background: 'rgba(15,23,42,0.92)', borderBottom: '1px solid rgba(99,102,241,0.25)' }}>
+        style={{ background: 'rgba(14,14,18,0.95)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="w-full px-4 md:px-8 py-2 flex justify-center">
           <div className="flex items-center gap-1 flex-wrap justify-center">
             {visibleTabs.map((t) => (
-              <div key={t.key} className="relative flex-shrink-0"
-                onMouseEnter={() => setHoveredTab(t.key)}
-                onMouseLeave={() => setHoveredTab(null)}>
+              <div key={t.key} className="flex-shrink-0">
                 <NavLink to={t.path}
                   className={({ isActive }) =>
                     `px-3 py-2 font-semibold transition-all inline-flex items-center gap-1.5 rounded-lg text-sm whitespace-nowrap ${
@@ -910,38 +998,6 @@ export default function Header(){
                   <span className="text-base">{t.icon}</span>
                   <span>{t.label}</span>
                 </NavLink>
-
-                {/* Dropdown */}
-                {hoveredTab === t.key && CRUD_OPERATIONS[t.key].length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    className="absolute top-full left-0 mt-1 rounded-xl shadow-2xl overflow-hidden z-50 min-w-max pointer-events-auto"
-                    style={{ background: '#1e293b', border: '1px solid rgba(99,102,241,0.4)' }}
-                    onMouseEnter={() => setHoveredTab(t.key)}
-                    onMouseLeave={() => setHoveredTab(null)}
-                  >
-                    {CRUD_OPERATIONS[t.key].map((op, idx) => {
-                      const colors = {
-                        create: { bg: 'hover:bg-emerald-900/40', text: 'text-emerald-300', icon: '➕' },
-                        view:   { bg: 'hover:bg-blue-900/40',    text: 'text-blue-300',    icon: '📋' },
-                        update: { bg: 'hover:bg-cyan-900/40',    text: 'text-cyan-300',    icon: '✏️' },
-                        delete: { bg: 'hover:bg-red-900/40',     text: 'text-red-300',     icon: '🗑️' },
-                        clinic: { bg: 'hover:bg-indigo-900/40',  text: 'text-indigo-300',  icon: '🏥' },
-                      };
-                      const c = colors[op] || { bg: 'hover:bg-slate-700/40', text: 'text-slate-300', icon: '⚙️' };
-                      return (
-                        <motion.button key={op} whileHover={{ x: 6 }}
-                          onClick={() => { handleCrudClick(t.key, op); setHoveredTab(null); }}
-                          className={`w-full px-5 py-3 text-left font-semibold transition-all ${c.bg} ${c.text} ${idx !== CRUD_OPERATIONS[t.key].length - 1 ? 'border-b border-slate-700/60' : ''} flex items-center gap-3 cursor-pointer text-sm`}>
-                          <span className="text-base">{c.icon}</span>
-                          <span className="capitalize">{op}</span>
-                        </motion.button>
-                      );
-                    })}
-                  </motion.div>
-                )}
               </div>
             ))}
           </div>

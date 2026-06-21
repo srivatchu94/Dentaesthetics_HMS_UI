@@ -7,6 +7,7 @@ import { getUserAccess, getSelectedAccess } from "../services/authService";
 import { getAppointmentsByFilters } from "../services/appointmentService";
 import { request } from "../services/apiClient";
 import FancyDatePicker from "../components/FancyDatePicker";
+import { ServiceBillingModal } from "../components/ServiceBillingModal";
 
 // Reusable InputField component (similar to RegisterPatient)
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => {
@@ -226,6 +227,11 @@ export default function ViewPatients() {
   const [detailInvoices, setDetailInvoices] = useState([]);
   const [detailInvoicesLoading, setDetailInvoicesLoading] = useState(false);
   
+  // ServiceBillingModal state
+  const [showServiceBillingModal, setShowServiceBillingModal] = useState(false);
+  const [serviceBillingAppointment, setServiceBillingAppointment] = useState(null);
+  const [serviceBillingInvoiceNumber, setServiceBillingInvoiceNumber] = useState(null);
+
   // Diagnostics Modal state
   const [diagnosticsData, setDiagnosticsData] = useState(null);
   const [showDiagnosticsModal, setShowDiagnosticsModal] = useState(false);
@@ -763,40 +769,13 @@ export default function ViewPatients() {
     setInvoicesError("");
     setInvoicesList([]);
     setSelectedAppointmentForInvoices(appointmentId);
-    
-    try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
-      
-      console.log('🧾 FETCHING INVOICES for appointment:', appointmentId);
-      
-      const response = await fetch(`${API_BASE_URL}/Services/GetInvoiceByAppointment?appointmentId=${appointmentId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${sessionStorage.getItem('accessToken_session')}`
-        }
-      });
 
-      if (response.ok) {
-        const invoices = await response.json();
-        console.log('✅ INVOICES FETCHED:', invoices);
-        setInvoicesList(invoices || []);
-      } else if (response.status === 404) {
-        // No invoices found - treat as empty, not error
-        setInvoicesList([]);
-        setInvoicesError("");
-      } else {
-        setInvoicesError("Unable to load invoices at this time.");
-      }
+    try {
+      const invoices = await request(`/Services/GetInvoicesByAppointmentComplete?appointmentId=${appointmentId}`);
+      setInvoicesList(Array.isArray(invoices) ? invoices : []);
     } catch (error) {
       console.error("❌ Failed to load invoices:", error);
-      // Check if it's a 404 - if so, treat as "no data found"
-      if (error.message?.includes('404')) {
-        setInvoicesList([]);
-        setInvoicesError("");
-      } else {
-        setInvoicesError("Unable to load invoices at this time.");
-      }
+      setInvoicesList([]);
     } finally {
       setInvoicesLoading(false);
     }
@@ -1704,31 +1683,26 @@ export default function ViewPatients() {
                               transition={{ delay: idx * 0.05 }}
                               className="bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-200 rounded-lg p-5 hover:shadow-lg transition-all"
                             >
-                              <div className="flex items-start justify-between mb-4">
+                              <div className="flex items-start justify-between mb-3">
                                 <span className="text-2xl">🧾</span>
-                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                  invoice.paymentStatus === "Paid" ? "bg-green-100 text-green-800" :
-                                  invoice.paymentStatus === "Pending" ? "bg-yellow-100 text-yellow-800" :
-                                  "bg-red-100 text-red-800"
-                                }`}>
-                                  {invoice.paymentStatus || "Pending"}
+                                <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                                  {invoice.header?.modeOfPayment || "—"}
                                 </span>
                               </div>
-                              <h3 className="font-bold text-slate-800 mb-2">Invoice #{invoice.invoiceNumber}</h3>
-                              <div className="space-y-2 text-sm mb-4">
-                                <p className="text-slate-700"><span className="font-semibold">Date:</span> {invoice.invoiceDate ? new Date(invoice.invoiceDate).toLocaleDateString() : "N/A"}</p>
-                                {invoice.invoiceAmount && (
-                                  <div className="mt-3 pt-3 border-t border-purple-300">
-                                    <p className="text-lg font-bold text-purple-700">Amount: ₹{typeof invoice.invoiceAmount === 'number' ? invoice.invoiceAmount.toLocaleString('en-IN') : invoice.invoiceAmount}</p>
-                                  </div>
-                                )}
+                              <h3 className="font-bold text-slate-800 mb-2">Invoice #{invoice.header?.invoiceNumber}</h3>
+                              <div className="space-y-1.5 text-sm mb-4">
+                                <p className="text-slate-700"><span className="font-semibold">Date:</span> {invoice.header?.billDate ? new Date(invoice.header.billDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : "N/A"}</p>
+                                <p className="text-slate-700"><span className="font-semibold">Doctor:</span> {invoice.header?.doctorName || "N/A"}</p>
+                                <p className="text-slate-700"><span className="font-semibold">Services:</span> {invoice.lineItems?.length || 0}</p>
+                                <div className="mt-3 pt-3 border-t border-purple-300">
+                                  <p className="text-lg font-bold text-purple-700">₹{invoice.header?.netAmount?.toLocaleString('en-IN') ?? 0}</p>
+                                </div>
                               </div>
                               <button
-                                onClick={() => loadLineItems(invoice.invoiceNumber)}
-                                disabled={lineItemsLoading}
-                                className="w-full px-3 py-2 bg-purple-600 text-white rounded font-semibold hover:bg-purple-700 transition disabled:bg-purple-400 text-sm"
+                                onClick={() => { setSelectedInvoice(invoice); setShowLineItemsModal(true); }}
+                                className="w-full px-3 py-2 bg-purple-600 text-white rounded font-semibold hover:bg-purple-700 transition text-sm"
                               >
-                                {lineItemsLoading ? "Loading..." : "View Details"}
+                                View Invoice
                               </button>
                             </motion.div>
                           ))}
@@ -1827,81 +1801,99 @@ export default function ViewPatients() {
         </div>
       )}
 
-      {/* Line Items Modal */}
-      {showLineItemsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {/* Invoice Detail Modal */}
+      {showLineItemsModal && selectedInvoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[60] p-4">
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-y-auto"
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto"
           >
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-purple-600 to-purple-700 sticky top-0 p-6 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-white">📋 Invoice Line Items</h2>
+            <div className="sticky top-0 bg-gradient-to-r from-purple-700 to-indigo-700 px-6 py-5 flex items-center justify-between rounded-t-2xl z-10">
+              <div>
+                <h2 className="text-xl font-black text-white tracking-tight">Invoice #{selectedInvoice.header?.invoiceNumber}</h2>
+                <p className="text-purple-200 text-xs mt-0.5 font-medium">
+                  {selectedInvoice.header?.billDate ? new Date(selectedInvoice.header.billDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : ""}
+                </p>
+              </div>
               <button
-                onClick={() => {
-                  setShowLineItemsModal(false);
-                  setLineItemsList([]);
-                  setSelectedInvoice(null);
-                }}
-                className="text-white hover:bg-purple-700 rounded-full p-2 transition"
+                onClick={() => { setShowLineItemsModal(false); setSelectedInvoice(null); }}
+                className="text-white hover:bg-white/20 rounded-full p-2 transition"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            {/* Modal Content */}
-            <div className="p-6">
-              <div className="mb-4">
-                <p className="text-stone-700"><span className="font-semibold">Invoice Number:</span> {selectedInvoice}</p>
+            {/* Invoice Header Info */}
+            <div className="px-6 pt-5 pb-4">
+              <div className="grid grid-cols-2 gap-3 bg-purple-50 border border-purple-100 rounded-xl p-4 mb-5">
+                <div>
+                  <p className="text-[10px] font-bold text-purple-500 uppercase tracking-widest mb-0.5">Doctor</p>
+                  <p className="text-sm font-semibold text-slate-800">{selectedInvoice.header?.doctorName || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-purple-500 uppercase tracking-widest mb-0.5">Mode of Payment</p>
+                  <p className="text-sm font-semibold text-slate-800">{selectedInvoice.header?.modeOfPayment || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-purple-500 uppercase tracking-widest mb-0.5">Total Amount</p>
+                  <p className="text-base font-black text-purple-700">₹{selectedInvoice.header?.totalAmount?.toLocaleString('en-IN') ?? 0}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-purple-500 uppercase tracking-widest mb-0.5">Net Amount</p>
+                  <p className="text-base font-black text-green-700">₹{selectedInvoice.header?.netAmount?.toLocaleString('en-IN') ?? 0}</p>
+                </div>
               </div>
 
-              {lineItemsLoading ? (
-                <div className="text-center py-8">
-                  <p className="text-stone-600">Loading line items...</p>
-                </div>
-              ) : lineItemsList.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+              {/* Line Items */}
+              <h3 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wide">Services</h3>
+              {selectedInvoice.lineItems?.length > 0 ? (
+                <div className="rounded-xl overflow-hidden border border-slate-200">
+                  <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-stone-100 border-b border-stone-300">
-                        <th className="px-4 py-3 text-left font-semibold text-stone-700">Item Description</th>
-                        <th className="px-4 py-3 text-center font-semibold text-stone-700">Quantity</th>
-                        <th className="px-4 py-3 text-right font-semibold text-stone-700">Unit Price</th>
-                        <th className="px-4 py-3 text-right font-semibold text-stone-700">Total Amount</th>
+                      <tr className="bg-slate-800 text-white">
+                        <th className="px-4 py-3 text-left font-semibold">#</th>
+                        <th className="px-4 py-3 text-left font-semibold">Service</th>
+                        <th className="px-4 py-3 text-right font-semibold">Cost</th>
+                        <th className="px-4 py-3 text-right font-semibold">GST</th>
+                        <th className="px-4 py-3 text-right font-semibold">Total</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {lineItemsList.map((item, idx) => (
-                        <tr key={idx} className="border-b border-stone-200 hover:bg-stone-50">
-                          <td className="px-4 py-3 text-stone-800">{item.itemDescription || item.serviceName || "Service"}</td>
-                          <td className="px-4 py-3 text-center text-stone-700">{item.quantity || 1}</td>
-                          <td className="px-4 py-3 text-right text-stone-700">₹{typeof item.unitPrice === 'number' ? item.unitPrice.toLocaleString('en-IN') : item.unitPrice || "0"}</td>
-                          <td className="px-4 py-3 text-right font-semibold text-purple-700">₹{typeof item.totalAmount === 'number' ? item.totalAmount.toLocaleString('en-IN') : item.totalAmount || "0"}</td>
+                      {selectedInvoice.lineItems.map((item, idx) => (
+                        <tr key={idx} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
+                          <td className="px-4 py-3 text-slate-500 font-medium">{item.lineItemNumber}</td>
+                          <td className="px-4 py-3 text-slate-800 font-medium">{item.serviceDescription || "—"}</td>
+                          <td className="px-4 py-3 text-right text-slate-700">₹{item.serviceCost?.toLocaleString('en-IN') ?? 0}</td>
+                          <td className="px-4 py-3 text-right text-slate-500">{item.gst ?? 0}%</td>
+                          <td className="px-4 py-3 text-right font-bold text-purple-700">₹{item.totalAmount?.toLocaleString('en-IN') ?? 0}</td>
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot>
+                      <tr className="bg-purple-700 text-white">
+                        <td colSpan={4} className="px-4 py-3 font-bold text-right">Net Amount</td>
+                        <td className="px-4 py-3 text-right font-black text-lg">₹{selectedInvoice.header?.netAmount?.toLocaleString('en-IN') ?? 0}</td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               ) : (
-                <div className="text-center py-8 bg-stone-50 rounded-lg">
-                  <p className="text-stone-600">No line items found</p>
+                <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200">
+                  <p className="text-slate-500">No line items found</p>
                 </div>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="bg-stone-50 p-4 border-t border-stone-200 flex justify-end gap-3">
+            <div className="px-6 pb-5 flex justify-end">
               <button
-                onClick={() => {
-                  setShowLineItemsModal(false);
-                  setLineItemsList([]);
-                  setSelectedInvoice(null);
-                }}
-                className="px-6 py-2 bg-stone-300 text-stone-700 rounded-lg font-semibold hover:bg-stone-400 transition"
+                onClick={() => { setShowLineItemsModal(false); setSelectedInvoice(null); }}
+                className="px-6 py-2 bg-slate-200 text-slate-700 rounded-lg font-semibold hover:bg-slate-300 transition"
               >
                 Close
               </button>
@@ -2045,45 +2037,32 @@ export default function ViewPatients() {
                       <p className="text-stone-600">Loading invoices...</p>
                     </div>
                   ) : detailInvoices.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="bg-purple-100 border-b border-purple-300">
-                            <th className="px-4 py-3 text-left font-semibold text-purple-900">Invoice #</th>
-                            <th className="px-4 py-3 text-left font-semibold text-purple-900">Invoice Date</th>
-                            <th className="px-4 py-3 text-right font-semibold text-purple-900">Amount</th>
-                            <th className="px-4 py-3 text-center font-semibold text-purple-900">Status</th>
-                            <th className="px-4 py-3 text-center font-semibold text-purple-900">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {detailInvoices.map((invoice, idx) => (
-                            <tr key={idx} className="border-b border-purple-200 hover:bg-purple-100">
-                              <td className="px-4 py-3 text-stone-800 font-semibold">{invoice.invoiceNumber}</td>
-                              <td className="px-4 py-3 text-stone-700">{invoice.invoiceDate ? new Date(invoice.invoiceDate).toLocaleDateString() : "N/A"}</td>
-                              <td className="px-4 py-3 text-right text-stone-800 font-semibold">₹{typeof invoice.invoiceAmount === 'number' ? invoice.invoiceAmount.toLocaleString('en-IN') : invoice.invoiceAmount || "0"}</td>
-                              <td className="px-4 py-3 text-center">
-                                <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                                  invoice.paymentStatus === "Paid" ? "bg-green-100 text-green-800" :
-                                  invoice.paymentStatus === "Pending" ? "bg-yellow-100 text-yellow-800" :
-                                  "bg-red-100 text-red-800"
-                                }`}>
-                                  {invoice.paymentStatus || "Pending"}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <button
-                                  onClick={() => loadLineItems(invoice.invoiceNumber)}
-                                  disabled={lineItemsLoading}
-                                  className="text-blue-600 hover:text-blue-800 font-semibold text-sm disabled:text-blue-400"
-                                >
-                                  View Details
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="grid grid-cols-1 gap-3">
+                      {detailInvoices.map((invoice, idx) => (
+                        <motion.div
+                          key={invoice.header?.invoiceNumber || idx}
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          onClick={() => { setSelectedInvoice(invoice); setShowLineItemsModal(true); }}
+                          className="flex items-center justify-between px-4 py-3 bg-white border border-purple-200 rounded-lg cursor-pointer hover:border-purple-400 hover:shadow-md transition-all"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-xl">🧾</span>
+                            <div>
+                              <p className="font-bold text-slate-800 text-sm">Invoice #{invoice.header?.invoiceNumber}</p>
+                              <p className="text-xs text-slate-500">{invoice.header?.billDate ? new Date(invoice.header.billDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : "N/A"}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-slate-700">₹{invoice.header?.netAmount?.toLocaleString('en-IN') ?? 0}</span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">{invoice.header?.modeOfPayment || "—"}</span>
+                            <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        </motion.div>
+                      ))}
                     </div>
                   ) : (
                     <div className="text-center py-6">
@@ -2257,6 +2236,27 @@ export default function ViewPatients() {
             <p className="text-stone-400 text-sm">Redirecting to view patients...</p>
           </motion.div>
         </div>
+      )}
+
+      {/* Service Billing Modal */}
+      {showServiceBillingModal && serviceBillingAppointment && (
+        <ServiceBillingModal
+          show={showServiceBillingModal}
+          onClose={() => {
+            setShowServiceBillingModal(false);
+            setServiceBillingAppointment(null);
+            setServiceBillingInvoiceNumber(null);
+          }}
+          appointmentId={serviceBillingAppointment.appointmentId}
+          appointmentDetails={serviceBillingAppointment}
+          invoiceNumber={serviceBillingInvoiceNumber}
+          onSuccess={() => {
+            setShowServiceBillingModal(false);
+            setServiceBillingAppointment(null);
+            setServiceBillingInvoiceNumber(null);
+          }}
+          initialMode="view"
+        />
       )}
     </div>
   );

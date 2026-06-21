@@ -1,5 +1,6 @@
 import React from "react";
 import clinicLogo from "../assets/dhantha-logo-new.svg";
+import dantaLogo from "../assets/danta-logo.jpg";
 
 const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorInfo, clinicInfo }, ref) => {
   React.useEffect(() => {
@@ -101,10 +102,15 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
           <div className="flex-1">
             <div className="flex items-start gap-4 mb-4">
               <img
-                src={clinicLogo}
-                alt="clinic logo"
-                className="logo-color w-14 h-14 object-contain flex-shrink-0"
-                style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
+                src={dantaLogo}
+                alt="Dentaesthetics Logo"
+                className="logo-color w-14 h-14 object-cover flex-shrink-0"
+                style={{
+                  printColorAdjust: 'exact',
+                  WebkitPrintColorAdjust: 'exact',
+                  borderRadius: '50%',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                }}
               />
               <div>
                 <h1 className="text-2xl font-black tracking-wide print:text-black">{clinicName}</h1>
