@@ -10,8 +10,8 @@
     "X-Content-Type-Options": "nosniff"
   },
   "mimeTypes": {
-    ".js": "application/javascript; charset=utf-8",
-    ".mjs": "application/javascript; charset=utf-8",
+    ".js": "text/javascript",
+    ".mjs": "text/javascript",
     ".json": "application/json",
     ".css": "text/css",
     ".svg": "image/svg+xml",
