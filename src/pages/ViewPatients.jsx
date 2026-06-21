@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { searchPatients } from "../services/patientService";
@@ -8,6 +8,9 @@ import { getAppointmentsByFilters } from "../services/appointmentService";
 import { request } from "../services/apiClient";
 import FancyDatePicker from "../components/FancyDatePicker";
 import { ServiceBillingModal } from "../components/ServiceBillingModal";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import dantaLogo from "../assets/danta-logo.jpg";
 
 // Reusable InputField component (similar to RegisterPatient)
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => {
@@ -762,6 +765,87 @@ export default function ViewPatients() {
     } finally {
       setBillingLoading(false);
     }
+  };
+
+  const generateInvoiceHTML = (invoice) => {
+    const lineItemsHTML = (invoice.lineItems || []).map((item, idx) => `
+      <tr style="border-bottom:1px solid #e5e7eb; background:${idx % 2 === 0 ? '#fff' : '#f8f9ff'}">
+        <td style="padding:10px 14px; color:#64748b; font-weight:600">${item.lineItemNumber || idx + 1}</td>
+        <td style="padding:10px 14px; color:#1e293b; font-weight:500">${item.serviceDescription || '—'}</td>
+        <td style="padding:10px 14px; text-align:right; color:#475569">₹${(item.serviceCost || 0).toLocaleString('en-IN')}</td>
+        <td style="padding:10px 14px; text-align:right; color:#64748b">${item.gst ?? 0}%</td>
+        <td style="padding:10px 14px; text-align:right; font-weight:700; color:#7c3aed">₹${(item.totalAmount || 0).toLocaleString('en-IN')}</td>
+      </tr>
+    `).join('');
+    return `
+      <div style="font-family:Arial,sans-serif; max-width:750px; margin:0 auto; background:#fff; padding:32px; color:#1e293b">
+        <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid #7c3aed; padding-bottom:20px; margin-bottom:24px">
+          <div style="display:flex; align-items:center; gap:14px">
+            <img src="${dantaLogo}" style="width:56px; height:56px; border-radius:50%; object-fit:cover; border:2px solid #e2e8f0" />
+            <div>
+              <div style="font-size:18px; font-weight:900; letter-spacing:1px; color:#1e293b">DENTAESTHETICS</div>
+              <div style="font-size:10px; color:#94a3b8; font-weight:600; letter-spacing:2px; text-transform:uppercase">The Dental Company</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:28px; font-weight:900; color:#7c3aed; letter-spacing:2px">INVOICE</div>
+            <div style="font-size:12px; color:#64748b; margin-top:2px">#${invoice.header?.invoiceNumber || '—'}</div>
+            <div style="font-size:12px; color:#64748b">${invoice.header?.billDate ? new Date(invoice.header.billDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : ''}</div>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:#f5f3ff; border:1px solid #ede9fe; border-radius:12px; padding:16px; margin-bottom:24px">
+          <div><div style="font-size:10px; font-weight:700; color:#7c3aed; text-transform:uppercase; letter-spacing:2px; margin-bottom:2px">Doctor</div><div style="font-size:13px; font-weight:600">${invoice.header?.doctorName || '—'}</div></div>
+          <div><div style="font-size:10px; font-weight:700; color:#7c3aed; text-transform:uppercase; letter-spacing:2px; margin-bottom:2px">Mode of Payment</div><div style="font-size:13px; font-weight:600">${invoice.header?.modeOfPayment || '—'}</div></div>
+          <div><div style="font-size:10px; font-weight:700; color:#7c3aed; text-transform:uppercase; letter-spacing:2px; margin-bottom:2px">Total Amount</div><div style="font-size:15px; font-weight:900; color:#7c3aed">₹${(invoice.header?.totalAmount || 0).toLocaleString('en-IN')}</div></div>
+          <div><div style="font-size:10px; font-weight:700; color:#059669; text-transform:uppercase; letter-spacing:2px; margin-bottom:2px">Net Amount</div><div style="font-size:15px; font-weight:900; color:#059669">₹${(invoice.header?.netAmount || 0).toLocaleString('en-IN')}</div></div>
+        </div>
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:#64748b; margin-bottom:10px">Services</div>
+        <table style="width:100%; border-collapse:collapse; border:1px solid #e2e8f0; border-radius:10px; overflow:hidden">
+          <thead><tr style="background:#1e293b; color:#fff">
+            <th style="padding:12px 14px; text-align:left; font-size:12px">#</th>
+            <th style="padding:12px 14px; text-align:left; font-size:12px">Service</th>
+            <th style="padding:12px 14px; text-align:right; font-size:12px">Cost</th>
+            <th style="padding:12px 14px; text-align:right; font-size:12px">GST</th>
+            <th style="padding:12px 14px; text-align:right; font-size:12px">Total</th>
+          </tr></thead>
+          <tbody>${lineItemsHTML}</tbody>
+          <tfoot><tr style="background:#7c3aed; color:#fff">
+            <td colspan="4" style="padding:12px 14px; text-align:right; font-weight:700; font-size:13px">Net Amount</td>
+            <td style="padding:12px 14px; text-align:right; font-weight:900; font-size:16px">₹${(invoice.header?.netAmount || 0).toLocaleString('en-IN')}</td>
+          </tr></tfoot>
+        </table>
+        <div style="margin-top:32px; text-align:center; font-size:11px; color:#94a3b8; border-top:1px solid #e2e8f0; padding-top:16px">
+          Computer generated invoice · Valid without signature
+        </div>
+      </div>`;
+  };
+
+  const downloadInvoicePDF = (invoice) => {
+    try {
+      const el = document.createElement('div');
+      el.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:800px';
+      el.innerHTML = generateInvoiceHTML(invoice);
+      document.body.appendChild(el);
+      html2canvas(el, { scale: 2, logging: false, backgroundColor: '#ffffff', useCORS: true })
+        .then(canvas => {
+          const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+          const imgData = canvas.toDataURL('image/png');
+          const imgWidth = 210;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+          pdf.save(`Invoice-${invoice.header?.invoiceNumber || 'download'}.pdf`);
+          document.body.removeChild(el);
+        })
+        .catch(err => { document.body.removeChild(el); alert('PDF generation failed: ' + err.message); });
+    } catch (e) { alert('PDF generation failed: ' + e.message); }
+  };
+
+  const printInvoice = (invoice) => {
+    const win = window.open('', '_blank', 'width=900,height=700');
+    win.document.write(`<!DOCTYPE html><html><head><title>Invoice ${invoice.header?.invoiceNumber || ''}</title><style>body{margin:0;padding:0} @media print{@page{margin:15mm}}</style></head><body>${generateInvoiceHTML(invoice)}</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); win.close(); }, 400);
   };
 
   const loadInvoicesForAppointment = async (appointmentId) => {
@@ -1890,10 +1974,30 @@ export default function ViewPatients() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 pb-5 flex justify-end">
+            <div className="px-6 pb-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+              <div className="flex gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => downloadInvoicePDF(selectedInvoice)}
+                  className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold text-sm transition-all shadow-md"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Download PDF
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => printInvoice(selectedInvoice)}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg font-semibold text-sm transition-all shadow-md"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                  Print
+                </motion.button>
+              </div>
               <button
                 onClick={() => { setShowLineItemsModal(false); setSelectedInvoice(null); }}
-                className="px-6 py-2 bg-slate-200 text-slate-700 rounded-lg font-semibold hover:bg-slate-300 transition"
+                className="px-5 py-2 bg-slate-200 text-slate-700 rounded-lg font-semibold hover:bg-slate-300 transition text-sm"
               >
                 Close
               </button>
