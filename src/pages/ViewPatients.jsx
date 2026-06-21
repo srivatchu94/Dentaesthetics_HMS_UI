@@ -5,6 +5,7 @@ import { searchPatients } from "../services/patientService";
 import { getFullPatientProfile, updateFullPatientProfile, listClinics } from "../api/hmsApi";
 import { getUserAccess, getSelectedAccess } from "../services/authService";
 import { getAppointmentsByFilters } from "../services/appointmentService";
+import { request } from "../services/apiClient";
 import FancyDatePicker from "../components/FancyDatePicker";
 
 // Reusable InputField component (similar to RegisterPatient)
@@ -839,29 +840,14 @@ export default function ViewPatients() {
     setSelectedAppointmentDetail(null);
     setShowDetailInvoices(false);
     setDetailInvoices([]);
-    
-    try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
-      
-      console.log('📋 FETCHING APPOINTMENT DETAIL:', appointmentId);
-      
-      const response = await fetch(`${API_BASE_URL}/Appointments/GetAppointmentbyAppointmentID?appointmentId=${appointmentId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${sessionStorage.getItem('accessToken_session')}`
-        }
-      });
 
-      if (response.ok) {
-        const appointmentDetail = await response.json();
-        console.log('✅ APPOINTMENT DETAIL RAW RESPONSE:', appointmentDetail);
-        console.log('📋 Available fields:', Object.keys(appointmentDetail || {}));
-        setSelectedAppointmentDetail(appointmentDetail);
-        setShowAppointmentDetailModal(true);
-      } else {
-        setAppointmentDetailError("Failed to load appointment details.");
-      }
+    try {
+      console.log('📋 FETCHING APPOINTMENT DETAIL:', appointmentId);
+      const raw = await request(`/Appointments/GetAppointmentbyAppointmentID?appointmentId=${appointmentId}`);
+      const appointmentDetail = Array.isArray(raw) ? raw[0] : raw;
+      console.log('✅ APPOINTMENT DETAIL:', appointmentDetail);
+      setSelectedAppointmentDetail(appointmentDetail);
+      setShowAppointmentDetailModal(true);
     } catch (error) {
       console.error("❌ Failed to load appointment detail:", error);
       setAppointmentDetailError("Unable to load appointment details.");
@@ -873,31 +859,15 @@ export default function ViewPatients() {
   const loadDetailInvoices = async (appointmentId) => {
     setDetailInvoicesLoading(true);
     setDetailInvoices([]);
-    
-    try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
-      
-      console.log('🧾 FETCHING INVOICES for appointment detail:', appointmentId);
-      
-      const response = await fetch(`${API_BASE_URL}/Services/GetInvoiceByAppointment?appointmentId=${appointmentId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${sessionStorage.getItem('accessToken_session')}`
-        }
-      });
 
-      if (response.ok) {
-        const invoices = await response.json();
-        console.log('✅ INVOICES FETCHED for detail:', invoices);
-        setDetailInvoices(invoices || []);
-        setShowDetailInvoices(true);
-      } else if (response.status === 404) {
-        setDetailInvoices([]);
-        setShowDetailInvoices(true);
-      }
+    try {
+      console.log('🧾 FETCHING INVOICES for appointment:', appointmentId);
+      const invoices = await request(`/Services/GetInvoicesByAppointmentComplete?appointmentId=${appointmentId}`);
+      console.log('✅ INVOICES FETCHED:', invoices);
+      setDetailInvoices(Array.isArray(invoices) ? invoices : []);
+      setShowDetailInvoices(true);
     } catch (error) {
-      console.error("❌ Failed to load invoices for detail:", error);
+      console.error("❌ Failed to load invoices:", error);
       setDetailInvoices([]);
       setShowDetailInvoices(true);
     } finally {
@@ -909,32 +879,16 @@ export default function ViewPatients() {
     setDiagnosticsLoading(true);
     setDiagnosticsError("");
     setDiagnosticsData(null);
-    
-    try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
-      
-      console.log('📋 FETCHING DIAGNOSTICS/PATIENT VISIT:', appointmentId);
-      
-      const response = await fetch(`${API_BASE_URL}/Patients/GetPatientVisit`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${sessionStorage.getItem('accessToken_session')}`
-        },
-        body: JSON.stringify({ AppointmentID: appointmentId })
-      });
+    setShowDiagnosticsModal(true);
 
-      if (response.ok) {
-        const diagnostics = await response.json();
-        console.log('✅ DIAGNOSTICS/PATIENT VISIT FETCHED:', diagnostics);
-        setDiagnosticsData(diagnostics);
-        setShowDiagnosticsModal(true);
-      } else {
-        setDiagnosticsError("Failed to load diagnostic information.");
-      }
+    try {
+      console.log('📋 FETCHING PATIENT VISIT/DIAGNOSTICS:', appointmentId);
+      const diagnostics = await request(`/Patient/GetPatientVisit?AppointmentID=${appointmentId}`, { method: "POST" });
+      console.log('✅ PATIENT VISIT FETCHED:', diagnostics);
+      setDiagnosticsData(diagnostics);
     } catch (error) {
       console.error("❌ Failed to load diagnostics:", error);
-      setDiagnosticsError("Unable to load diagnostic information.");
+      setDiagnosticsError("No diagnostic records found for this appointment.");
     } finally {
       setDiagnosticsLoading(false);
     }
@@ -945,17 +899,9 @@ export default function ViewPatients() {
       {/* Header */}
       <div className="max-w-7xl mx-auto px-4 mb-8">
         <div className="bg-gradient-to-r from-amber-600 to-amber-700 rounded-lg shadow-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-2">View Patients</h1>
-              <p className="text-amber-50">Search and manage patient records</p>
-            </div>
-            <button
-              onClick={() => navigate("/patients")}
-              className="px-6 py-3 bg-white text-amber-700 rounded-lg font-semibold hover:bg-amber-50 transition shadow-lg"
-            >
-              ← Back to Patients
-            </button>
+          <div>
+            <h1 className="text-3xl font-bold text-white mb-2">View Patients</h1>
+            <p className="text-amber-50">Search and manage patient records</p>
           </div>
         </div>
       </div>
@@ -1145,14 +1091,6 @@ export default function ViewPatients() {
                       className="px-4 py-2 bg-white text-amber-700 font-semibold rounded-lg hover:bg-amber-50 transition-all"
                     >
                       Edit
-                    </button>
-                  )}
-                  {isEditMode && (
-                    <button
-                      onClick={() => setIsEditMode(false)}
-                      className="px-4 py-2 bg-white text-amber-700 font-semibold rounded-lg hover:bg-amber-50 transition-all"
-                    >
-                      Cancel
                     </button>
                   )}
                   <button
@@ -2016,24 +1954,10 @@ export default function ViewPatients() {
                 <h3 className="text-lg font-bold text-blue-900 mb-4">Basic Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-blue-600 font-semibold">Appointment Date</p>
-                    <p className="text-base text-stone-800">{selectedAppointmentDetail.appointmentDate ? new Date(selectedAppointmentDetail.appointmentDate).toLocaleDateString() : "N/A"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-blue-600 font-semibold">Start Time</p>
-                    <p className="text-base text-stone-800">{selectedAppointmentDetail.startTime || "N/A"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-blue-600 font-semibold">Doctor ID</p>
-                    <p className="text-base text-stone-800">{selectedAppointmentDetail.doctorId || "N/A"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-blue-600 font-semibold">Appointment Type</p>
-                    <p className="text-base text-stone-800">{selectedAppointmentDetail.appointmentType || "N/A"}</p>
-                  </div>
-                  <div>
                     <p className="text-sm text-blue-600 font-semibold">Patient</p>
-                    <p className="text-base text-stone-800">{[selectedAppointmentDetail.firstName, selectedAppointmentDetail.lastName].filter(Boolean).join(' ') || `Patient #${selectedAppointmentDetail.patientId}` || "N/A"}</p>
+                    <p className="text-base text-stone-800 font-semibold">
+                      {[selectedAppointmentDetail.firstName, selectedAppointmentDetail.lastName].filter(Boolean).join(' ') || "N/A"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-blue-600 font-semibold">Status</p>
@@ -2047,14 +1971,54 @@ export default function ViewPatients() {
                     </span>
                   </div>
                   <div>
+                    <p className="text-sm text-blue-600 font-semibold">Appointment Date</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.appointmentDate ? new Date(selectedAppointmentDetail.appointmentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Time</p>
+                    <p className="text-base text-stone-800">
+                      {selectedAppointmentDetail.startTime || "N/A"}
+                      {selectedAppointmentDetail.endTime ? ` – ${selectedAppointmentDetail.endTime}` : ""}
+                      {selectedAppointmentDetail.durationMinutes ? ` (${selectedAppointmentDetail.durationMinutes} min)` : ""}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Appointment Type</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.appointmentType || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Confirmed</p>
+                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${selectedAppointmentDetail.isConfirmed ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
+                      {selectedAppointmentDetail.isConfirmed ? "Yes" : "Not Yet"}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Phone</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.phoneNumber || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Email</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.email || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600 font-semibold">Doctor</p>
+                    <p className="text-base text-stone-800">{selectedAppointmentDetail.attendingPhysician || selectedAppointmentDetail.doctorId || "N/A"}</p>
+                  </div>
+                  <div>
                     <p className="text-sm text-blue-600 font-semibold">Clinic ID</p>
                     <p className="text-base text-stone-800">{selectedAppointmentDetail.clinicId || "N/A"}</p>
                   </div>
                 </div>
-                
-                {selectedAppointmentDetail.notes && (
+
+                {selectedAppointmentDetail.reasonForVisit && (
                   <div className="mt-4 pt-4 border-t border-blue-300">
-                    <p className="text-sm text-blue-600 font-semibold mb-2">Notes</p>
+                    <p className="text-sm text-blue-600 font-semibold mb-1">Reason for Visit</p>
+                    <p className="text-stone-700">{selectedAppointmentDetail.reasonForVisit}</p>
+                  </div>
+                )}
+                {selectedAppointmentDetail.notes && (
+                  <div className="mt-3">
+                    <p className="text-sm text-blue-600 font-semibold mb-1">Notes</p>
                     <p className="text-stone-700 italic">💬 {selectedAppointmentDetail.notes}</p>
                   </div>
                 )}
@@ -2167,7 +2131,7 @@ export default function ViewPatients() {
       )}
 
       {/* Diagnostics Modal */}
-      {showDiagnosticsModal && diagnosticsData && (
+      {showDiagnosticsModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -2196,100 +2160,62 @@ export default function ViewPatients() {
 
             {/* Modal Content */}
             <div className="p-6">
-              {diagnosticsError && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 mb-6">
-                  <p className="font-semibold">⚠️ Error</p>
-                  <p className="text-sm">{diagnosticsError}</p>
-                </div>
-              )}
-
               {diagnosticsLoading ? (
                 <div className="text-center py-12">
-                  <p className="text-stone-600">Loading diagnostic information...</p>
+                  <p className="text-2xl mb-3">🔍</p>
+                  <p className="text-stone-600 font-medium">Fetching diagnostic records...</p>
+                </div>
+              ) : (diagnosticsError || !diagnosticsData) ? (
+                <div className="text-center py-12">
+                  <p className="text-4xl mb-4">📋</p>
+                  <p className="text-lg font-semibold text-stone-700 mb-2">No Diagnostic Records Found</p>
+                  <p className="text-stone-500 text-sm">No visit notes or diagnostic information has been recorded for this appointment yet. The doctor may add these during or after the consultation.</p>
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* Chief Complaint */}
                   {diagnosticsData.chiefComplaint && (
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                       <h3 className="text-sm font-bold text-green-900 mb-2">Chief Complaint</h3>
                       <p className="text-stone-800">{diagnosticsData.chiefComplaint}</p>
                     </div>
                   )}
-
-                  {/* Diagnosis */}
                   {diagnosticsData.diagnosis && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <h3 className="text-sm font-bold text-blue-900 mb-2">Diagnosis</h3>
                       <p className="text-stone-800">{diagnosticsData.diagnosis}</p>
                     </div>
                   )}
-
-                  {/* Treatment Plan */}
                   {diagnosticsData.treatmentPlan && (
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                       <h3 className="text-sm font-bold text-amber-900 mb-2">Treatment Plan</h3>
                       <p className="text-stone-800">{diagnosticsData.treatmentPlan}</p>
                     </div>
                   )}
-
-                  {/* Prescription */}
                   {diagnosticsData.prescription && (
                     <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                       <h3 className="text-sm font-bold text-purple-900 mb-2">💊 Prescription</h3>
                       <div className="text-stone-800 whitespace-pre-wrap">{diagnosticsData.prescription}</div>
                     </div>
                   )}
-
-                  {/* Notes */}
                   {diagnosticsData.notes && (
                     <div className="bg-stone-100 border border-stone-300 rounded-lg p-4">
                       <h3 className="text-sm font-bold text-stone-900 mb-2">Additional Notes</h3>
                       <p className="text-stone-800 italic">{diagnosticsData.notes}</p>
                     </div>
                   )}
-
-                  {/* If no diagnostic data available */}
                   {!diagnosticsData.chiefComplaint && !diagnosticsData.diagnosis && !diagnosticsData.treatmentPlan && !diagnosticsData.prescription && !diagnosticsData.notes && (
-                    <div className="text-center py-8 bg-stone-50 rounded-lg">
-                      <p className="text-stone-600">No diagnostic information available for this appointment</p>
+                    <div className="text-center py-12">
+                      <p className="text-4xl mb-4">📋</p>
+                      <p className="text-lg font-semibold text-stone-700 mb-2">No Diagnostic Records Found</p>
+                      <p className="text-stone-500 text-sm">No visit notes have been recorded for this appointment yet.</p>
                     </div>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Modal Footer with Download/Email Options */}
-            <div className="bg-stone-50 p-6 border-t border-stone-200 flex flex-wrap gap-3 justify-end">
-              <button
-                onClick={() => {
-                  // Download as PDF functionality
-                  const element = document.createElement('div');
-                  element.innerHTML = `
-                    <h2>Diagnostic Information</h2>
-                    ${diagnosticsData.chiefComplaint ? `<h3>Chief Complaint</h3><p>${diagnosticsData.chiefComplaint}</p>` : ''}
-                    ${diagnosticsData.diagnosis ? `<h3>Diagnosis</h3><p>${diagnosticsData.diagnosis}</p>` : ''}
-                    ${diagnosticsData.treatmentPlan ? `<h3>Treatment Plan</h3><p>${diagnosticsData.treatmentPlan}</p>` : ''}
-                    ${diagnosticsData.prescription ? `<h3>Prescription</h3><p>${diagnosticsData.prescription}</p>` : ''}
-                    ${diagnosticsData.notes ? `<h3>Notes</h3><p>${diagnosticsData.notes}</p>` : ''}
-                  `;
-                  
-                  // For now, we'll alert - in production, use a library like jspdf
-                  alert('Download as PDF functionality would require jsPDF library integration');
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
-              >
-                📥 Download as PDF
-              </button>
-              <button
-                onClick={() => {
-                  // Email functionality - would require backend integration
-                  alert('Email functionality would require backend integration with email service');
-                }}
-                className="px-4 py-2 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition"
-              >
-                📧 Email
-              </button>
+            {/* Modal Footer */}
+            <div className="bg-stone-50 p-4 border-t border-stone-200 flex justify-end">
               <button
                 onClick={() => {
                   setShowDiagnosticsModal(false);

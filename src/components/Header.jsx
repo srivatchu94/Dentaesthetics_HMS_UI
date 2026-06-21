@@ -5,7 +5,7 @@ import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, ge
 import { listDoctorProfiles } from "../services/doctorService";
 import { getCalendarAppointments } from "../services/appointmentService";
 import { getClinicInventoryByClinicId } from "../services/inventoryService";
-import { getClinic } from "../api/hmsApi";
+
 import LoginModal from "./LoginModal";
 import dantaLogo from "../assets/danta-logo.jpg";
 
@@ -313,7 +313,6 @@ export default function Header(){
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
   const [tokenRefreshStatus, setTokenRefreshStatus] = useState(null);
   const [showTokenRefreshToast, setShowTokenRefreshToast] = useState(false);
-  const [clinicName, setClinicName] = useState("");
   const navigate = useNavigate();
   const searchRef = useRef(null);
   const notificationRef = useRef(null);
@@ -393,17 +392,6 @@ export default function Header(){
     
     return () => clearInterval(interval);
   }, []);
-
-  // Fetch clinic name whenever logged-in state or selected clinic changes
-  useEffect(() => {
-    if (!isLoggedIn || !selectedAccess?.clinicId) {
-      setClinicName("");
-      return;
-    }
-    getClinic(selectedAccess.clinicId)
-      .then(clinic => setClinicName(clinic?.clinicName || ""))
-      .catch(() => setClinicName(""));
-  }, [isLoggedIn, selectedAccess?.clinicId]);
 
   useEffect(() => {
     const selectedNotificationScope = buildNotificationScopeKey(selectedAccess);
@@ -739,7 +727,7 @@ export default function Header(){
       <header className="w-full fixed top-0 left-0 right-0 z-40"
         style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)' }}
       >
-        <div className="w-full px-4 md:px-8 py-3 flex items-center justify-between gap-4">
+        <div className="w-full px-4 md:px-8 py-4 flex items-center justify-between gap-4">
 
           {/* Left: Logo + Brand */}
           <Link to="/" className="flex items-center gap-3 flex-shrink-0 group">
@@ -780,19 +768,6 @@ export default function Header(){
               </p>
             </div>
           </Link>
-
-          {/* Center: Clinic Name (only when logged in) */}
-          {isLoggedIn && clinicName && (
-            <motion.div
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="hidden md:flex items-center gap-2 px-4 py-1.5 rounded-full"
-              style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.22)' }}
-            >
-              <span className="text-cyan-400 text-sm">🏥</span>
-              <span className="text-cyan-200 text-sm font-semibold tracking-wide">{clinicName}</span>
-            </motion.div>
-          )}
 
           {/* Right: Actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -916,8 +891,7 @@ export default function Header(){
       </header>
 
       {/* ─── Navigation Bar ─── */}
-      <div className="h-[60px]" />
-      <nav className="w-full fixed top-[60px] left-0 right-0 z-30 backdrop-blur-md"
+      <nav className="w-full fixed top-[80px] left-0 right-0 z-30 backdrop-blur-md"
         style={{ background: 'rgba(15,23,42,0.92)', borderBottom: '1px solid rgba(99,102,241,0.25)' }}>
         <div className="w-full px-4 md:px-8 py-2 flex justify-center">
           <div className="flex items-center gap-1 flex-wrap justify-center">
@@ -973,8 +947,8 @@ export default function Header(){
           </div>
         </div>
       </nav>
-      {/* spacer so content starts below both bars */}
-      <div className="h-[42px]" />
+      {/* spacer so content starts below both fixed bars (header 80px + nav ~52px) */}
+      <div className="h-[136px]" />
 
       {/* Success Modal */}
       <AnimatePresence>
