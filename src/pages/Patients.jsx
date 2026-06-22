@@ -528,6 +528,7 @@ export default function Patients() {
   const [distinctStatuses, setDistinctStatuses] = useState([]);
   const [distinctAppointmentTypes, setDistinctAppointmentTypes] = useState([]);
   const [mobileNumberError, setMobileNumberError] = useState('');
+  const [appointmentPhoneError, setAppointmentPhoneError] = useState('');
   
   // Load clinics on mount
   useEffect(() => {
@@ -690,9 +691,12 @@ export default function Patients() {
       const results = await getAppointmentsByFilters(apiFilterParams);
       console.log('✅ API RESULTS from GetAppointmentByIdwithDateRange:', results?.length || 0, 'appointments found');
       
-      setFilteredAppointmentsList(results || []);
-      
-      if (!results || results.length === 0) {
+      const sorted = [...(results || [])].sort((a, b) =>
+        new Date(b.appointmentDate || b.AppointmentDate || 0) - new Date(a.appointmentDate || a.AppointmentDate || 0)
+      );
+      setFilteredAppointmentsList(sorted);
+
+      if (!sorted.length) {
         alert('ℹ️ No appointments found matching the search criteria');
       }
     } catch (error) {
@@ -6326,18 +6330,43 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>
                         <span>📞</span> Phone Number * {!searchedPatient && !bookingWithoutRegistration && '(Search patient first)'}
                       </label>
-                      <input
-                        type="tel"
-                        required
-                        disabled={!searchedPatient && !bookingWithoutRegistration}
-                        value={appointmentForm.phoneNumber}
-                        onChange={(e) => setAppointmentForm({ ...appointmentForm, phoneNumber: normalizePhoneNumber(e.target.value) })}
-                        inputMode="numeric"
-                        pattern="[0-9]{10}"
-                        maxLength={10}
-                        className={`w-full px-4 py-3 rounded-xl border-2 outline-none transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-cyan-200 focus:border-cyan-500 focus:ring-4 focus:ring-cyan-100'}`}
-                        placeholder="555-0123"
-                      />
+                      <div className={`flex rounded-xl border-2 overflow-hidden transition-all ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 bg-gray-100 cursor-not-allowed' : appointmentPhoneError ? 'border-red-400 focus-within:ring-4 focus-within:ring-red-100' : 'border-cyan-200 focus-within:border-cyan-500 focus-within:ring-4 focus-within:ring-cyan-100'}`}>
+                        <span className={`flex items-center px-3 font-semibold text-sm border-r-2 select-none ${!searchedPatient && !bookingWithoutRegistration ? 'border-gray-200 text-gray-400 bg-gray-100' : appointmentPhoneError ? 'border-red-300 text-red-500 bg-red-50' : 'border-cyan-200 text-cyan-700 bg-cyan-50'}`}>+91</span>
+                        <input
+                          type="tel"
+                          required
+                          disabled={!searchedPatient && !bookingWithoutRegistration}
+                          value={appointmentForm.phoneNumber}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                            setAppointmentForm({ ...appointmentForm, phoneNumber: digits });
+                            if (digits.length > 0 && digits.length < 10) {
+                              setAppointmentPhoneError('Enter exactly 10 digits');
+                            } else {
+                              setAppointmentPhoneError('');
+                            }
+                          }}
+                          onBlur={() => {
+                            if (appointmentForm.phoneNumber && appointmentForm.phoneNumber.length !== 10) {
+                              setAppointmentPhoneError('Phone number must be exactly 10 digits');
+                            }
+                          }}
+                          inputMode="numeric"
+                          maxLength={10}
+                          className={`flex-1 px-3 py-3 outline-none text-sm ${!searchedPatient && !bookingWithoutRegistration ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-slate-800'}`}
+                          placeholder="9876543210"
+                        />
+                        {appointmentForm.phoneNumber.length > 0 && (
+                          <span className={`flex items-center pr-3 text-xs font-bold ${appointmentForm.phoneNumber.length === 10 ? 'text-green-500' : 'text-red-400'}`}>
+                            {appointmentForm.phoneNumber.length}/10
+                          </span>
+                        )}
+                      </div>
+                      {appointmentPhoneError && (
+                        <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
+                          <span>⚠️</span> {appointmentPhoneError}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className={`block text-sm font-bold mb-2 flex items-center gap-2 ${!searchedPatient && !bookingWithoutRegistration ? 'text-slate-400' : 'text-slate-700'}`}>

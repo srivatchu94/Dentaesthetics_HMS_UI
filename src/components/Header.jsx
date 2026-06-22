@@ -283,7 +283,9 @@ const SEARCH_DATA = [
 ];
 
 export default function Header(){
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    try { const t = getAuthToken(); return !!(t && !checkTokenExpired()); } catch { return false; }
+  });
   const [userInfo, setUserInfo] = useState({ name: "", role: "" });
   const [doctorName, setDoctorName] = useState("");
   const [showWelcome, setShowWelcome] = useState(false);

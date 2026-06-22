@@ -913,6 +913,13 @@ export default function Doctors() {
   const [editAction, setEditAction] = useState(""); // "cancel" or "reschedule"
   const [rescheduleData, setRescheduleData] = useState({ date: "", time: "" });
   
+  // Shared inventory for prescription writing — loaded once, reused across all appointments
+  const [sharedInventoryMeds, setSharedInventoryMeds] = useState([]);
+
+  useEffect(() => {
+    listInventoryMasters().then(data => setSharedInventoryMeds(data || [])).catch(() => {});
+  }, []);
+
   // Prescription management states
   const [showPrescriptionWritingModal, setShowPrescriptionWritingModal] = useState(false);
   const [patientMedicalInfo, setPatientMedicalInfo] = useState(null);
@@ -2572,10 +2579,8 @@ export default function Doctors() {
 
   const dashboardTabs = [
     { key: "overview", label: "Overview", icon: "📊", gradient: "from-indigo-500 to-purple-600" },
-    { key: "schedule", label: "Schedule", icon: "📅", gradient: "from-indigo-500 to-purple-600" },
     { key: "clinic", label: "Clinic Details", icon: "🏥", gradient: "from-purple-500 to-pink-600" },
     { key: "patients", label: "My Patients", icon: "👥", gradient: "from-indigo-500 to-purple-600" },
-    { key: "payments", label: "Payments", icon: "💳", gradient: "from-purple-500 to-pink-600" },
     { key: "serviceBilling", label: "Service Billing", icon: "💰", gradient: "from-blue-500 to-indigo-600" },
     { key: "appointments", label: "Appointments", icon: "📅", gradient: "from-indigo-600 to-purple-600" }
   ];
@@ -9988,6 +9993,8 @@ export default function Doctors() {
         appointmentId={selectedAppointmentDetails?.appointmentId}
         appointmentDetails={selectedAppointmentDetails}
         onSavePrescription={handleSavePrescription}
+        preloadedMeds={sharedInventoryMeds}
+        onInventoryUpdate={(updatedMeds) => setSharedInventoryMeds(updatedMeds)}
       />
 
       {/* View Prescription Modal */}

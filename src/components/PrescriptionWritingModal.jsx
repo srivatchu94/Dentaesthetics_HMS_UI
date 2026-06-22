@@ -15,12 +15,14 @@ const PrescriptionWritingModal = ({
   doctorInfo,
   appointmentId,
   appointmentDetails,
-  onSavePrescription
+  onSavePrescription,
+  preloadedMeds,
+  onInventoryUpdate
 }) => {
   const [medications, setMedications] = useState([
     { name: "", dosage: "", frequency: "", duration: "", instructions: "" }
   ]);
-  const [inventoryMeds, setInventoryMeds] = useState([]);
+  const [inventoryMeds, setInventoryMeds] = useState(preloadedMeds || []);
   const [loadingMeds, setLoadingMeds] = useState(false);
   const [showAddMedModal, setShowAddMedModal] = useState(false);
   const [newMedicationForm, setNewMedicationForm] = useState({
@@ -44,17 +46,26 @@ const PrescriptionWritingModal = ({
     Other: ["General", "Custom"]
   };
 
-  // Load medications from inventory
+  // Sync preloaded meds when prop updates (shared across appointments)
   useEffect(() => {
-    if (isOpen) {
+    if (preloadedMeds && preloadedMeds.length > 0) {
+      setInventoryMeds(preloadedMeds);
+    }
+  }, [preloadedMeds]);
+
+  // Only hit the API if no preloaded data is available
+  useEffect(() => {
+    if (isOpen && (!preloadedMeds || preloadedMeds.length === 0)) {
       loadInventoryMedications();
     }
   }, [isOpen]);
+
   const loadInventoryMedications = async () => {
     setLoadingMeds(true);
     try {
       const data = await listInventoryMasters();
       setInventoryMeds(data || []);
+      onInventoryUpdate?.(data || []);
     } catch (error) {
       console.error("Failed to load medications:", error);
       setInventoryMeds([]);
@@ -101,9 +112,10 @@ const PrescriptionWritingModal = ({
         isActive: newMedicationForm.isActive
       });
 
-      // Refresh dropdown with latest list and add the new med locally for immediate availability
-      setInventoryMeds(prev => [...prev, newMed]);
-      await loadInventoryMedications();
+      // Refresh dropdown and push updated list to parent so other appointments share it
+      const updated = await listInventoryMasters();
+      setInventoryMeds(updated || []);
+      onInventoryUpdate?.(updated || []);
 
       // Select the new medication
       if (medicationToAdd !== null) {
