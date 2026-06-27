@@ -186,6 +186,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
         // Close modal and redirect immediately on successful authentication
         resetForm();
         onClose();
+        window.dispatchEvent(new Event('auth-login-success'));
         if (onLoginSuccess) onLoginSuccess();
       } else {
         setError('Invalid credentials. Please try again.');
@@ -277,6 +278,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
       // Close modal and redirect immediately on successful authentication
       resetForm();
       onClose();
+      window.dispatchEvent(new Event('auth-login-success'));
       if (onLoginSuccess) onLoginSuccess();
     } catch (err) {
       console.error('❌ OTP verification failed:', err);

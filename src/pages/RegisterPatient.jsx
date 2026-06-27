@@ -810,8 +810,9 @@ export default function RegisterPatient() {
                                                 name="city"
                                                 value={contactData.city}
                                                 onChange={(e) => {
-                                                    setContactData({ ...contactData, city: e.target.value });
-                                                    setErrors(prev => ({ ...prev, city: validateAlphaOnly(e.target.value, "City") }));
+                                                    const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                                                    setContactData({ ...contactData, city: v });
+                                                    setErrors(prev => ({ ...prev, city: '' }));
                                                 }}
                                                 onBlur={(e) => handleFieldBlur("city", e.target.value, (v) => validateAlphaOnly(v, "City"))}
                                                 required
@@ -823,8 +824,9 @@ export default function RegisterPatient() {
                                                 name="state"
                                                 value={contactData.state}
                                                 onChange={(e) => {
-                                                    setContactData({ ...contactData, state: e.target.value });
-                                                    setErrors(prev => ({ ...prev, state: validateAlphaOnly(e.target.value, "State") }));
+                                                    const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                                                    setContactData({ ...contactData, state: v });
+                                                    setErrors(prev => ({ ...prev, state: '' }));
                                                 }}
                                                 onBlur={(e) => handleFieldBlur("state", e.target.value, (v) => validateAlphaOnly(v, "State"))}
                                                 required
@@ -846,8 +848,9 @@ export default function RegisterPatient() {
                                                 name="country"
                                                 value={contactData.country}
                                                 onChange={(e) => {
-                                                    setContactData({ ...contactData, country: e.target.value });
-                                                    setErrors(prev => ({ ...prev, country: validateAlphaOnly(e.target.value, "Country") }));
+                                                    const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                                                    setContactData({ ...contactData, country: v });
+                                                    setErrors(prev => ({ ...prev, country: '' }));
                                                 }}
                                                 onBlur={(e) => handleFieldBlur("country", e.target.value, (v) => validateAlphaOnly(v, "Country"))}
                                                 required
