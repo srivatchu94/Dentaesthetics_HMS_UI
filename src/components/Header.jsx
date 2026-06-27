@@ -286,6 +286,7 @@ export default function Header(){
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try { const t = getAuthToken(); return !!(t && !checkTokenExpired()); } catch { return false; }
   });
+  const prevIsLoggedInRef = useRef(isLoggedIn);
   const [userInfo, setUserInfo] = useState({ name: "", role: "" });
   const [doctorName, setDoctorName] = useState("");
   const [showWelcome, setShowWelcome] = useState(false);
@@ -352,12 +353,21 @@ export default function Header(){
         
         if (token && !checkTokenExpired()) {
           // Token exists and is valid - restore user session
+          const wasLoggedOut = !prevIsLoggedInRef.current;
+          prevIsLoggedInRef.current = true;
           setIsLoggedIn(true);
           if (userData) {
             setUserInfo({
               name: userData.username || '',
               role: 'User'
             });
+            // Show welcome toast when transitioning from logged-out → logged-in
+            if (wasLoggedOut) {
+              const name = userData.username || 'Doctor';
+              setWelcomeMessage(`Welcome back, ${name}! Successfully logged in.`);
+              setShowWelcome(true);
+              setTimeout(() => setShowWelcome(false), 2000);
+            }
             // Try to fetch full doctor name if available (only once per session)
             if (!hasFetchedDoctorNameRef.current) {
               hasFetchedDoctorNameRef.current = true;
@@ -377,9 +387,11 @@ export default function Header(){
         } else if (token && checkTokenExpired()) {
           // Token expired - logout
           console.log('⏰ Token expired - logging out');
+          prevIsLoggedInRef.current = false;
           handleLogout();
         } else {
           // No token - not logged in
+          prevIsLoggedInRef.current = false;
           setIsLoggedIn(false);
         }
       } catch (error) {
@@ -609,7 +621,7 @@ export default function Header(){
         setIsLoggedIn(true);
         setShowLoginModal(false);
         setShowWelcome(true);
-        setTimeout(() => setShowWelcome(false), 5000);
+        setTimeout(() => setShowWelcome(false), 2000);
         setFormData({ username: "", emailid: "", mobileNumber: "", password: "" });
         
         // Fetch doctor's profile to get their actual name
@@ -1007,6 +1019,27 @@ export default function Header(){
       </nav>
       {/* spacer so content starts below both fixed bars (header 80px + nav ~52px) */}
       <div className="h-[136px]" />
+
+      {/* Welcome Toast — small non-blocking banner */}
+      <AnimatePresence>
+        {showWelcome && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.25 }}
+            className="fixed top-20 left-1/2 z-[9999] flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl border border-green-400/40"
+            style={{ transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #064e3b, #065f46)', minWidth: '260px', maxWidth: '420px' }}
+          >
+            <span className="text-xl">✅</span>
+            <span className="text-sm font-semibold text-green-100 flex-1">{welcomeMessage}</span>
+            <button
+              onClick={() => setShowWelcome(false)}
+              className="w-6 h-6 flex items-center justify-center rounded-full bg-green-800/60 hover:bg-green-700 text-green-200 font-bold text-base leading-none transition"
+            >×</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Success Modal */}
       <AnimatePresence>

@@ -329,7 +329,7 @@ export default function ViewPatients() {
     };
   }, [showEditModal]);
 
-  // Validate mobile number
+  // Validate mobile number (expects 10 digits, country code added separately)
   const validateMobileNumber = (mobileNumber) => {
     // If empty, it's optional - no validation needed
     if (!mobileNumber || mobileNumber.trim() === "") {
@@ -339,13 +339,13 @@ export default function ViewPatients() {
 
     // Check if only numbers
     if (!/^\d+$/.test(mobileNumber)) {
-      setMobileNumberError("⚠️ Mobile number should contain only numbers");
+      setMobileNumberError("⚠️ Mobile number should contain only digits");
       return false;
     }
 
-    // Check if length is at least 10
-    if (mobileNumber.length < 10) {
-      setMobileNumberError("⚠️ Mobile number must be at least 10 digits");
+    // Exactly 10 digits
+    if (mobileNumber.length !== 10) {
+      setMobileNumberError(`⚠️ Enter exactly 10 digits (${mobileNumber.length}/10)`);
       return false;
     }
 
@@ -368,7 +368,7 @@ export default function ViewPatients() {
         dob: filterData.dateOfBirth || undefined,
         patientId: filterData.patientId ? parseInt(filterData.patientId) : undefined,
         clinicId: filterData.clinicId ? parseInt(filterData.clinicId) : undefined,
-        mobilenumber: filterData.mobileNumber || undefined
+        mobilenumber: filterData.mobileNumber ? `+91${filterData.mobileNumber}` : undefined
       };
 
       // Remove undefined values
@@ -820,11 +820,64 @@ export default function ViewPatients() {
       </div>`;
   };
 
+  const generateBWInvoiceHTML = (invoice) => {
+    const lineItemsHTML = (invoice.lineItems || []).map((item, idx) => `
+      <tr style="border-bottom:1px solid #ccc; background:${idx % 2 === 0 ? '#fff' : '#f5f5f5'}">
+        <td style="padding:10px 14px; color:#333; font-weight:600">${item.lineItemNumber || idx + 1}</td>
+        <td style="padding:10px 14px; color:#111; font-weight:500">${item.serviceDescription || '—'}</td>
+        <td style="padding:10px 14px; text-align:right; color:#333">₹${(item.serviceCost || 0).toLocaleString('en-IN')}</td>
+        <td style="padding:10px 14px; text-align:right; color:#555">${item.gst ?? 0}%</td>
+        <td style="padding:10px 14px; text-align:right; font-weight:700; color:#000">₹${(item.totalAmount || 0).toLocaleString('en-IN')}</td>
+      </tr>
+    `).join('');
+    return `
+      <div style="font-family:Arial,sans-serif; max-width:750px; margin:0 auto; background:#fff; padding:32px; color:#111">
+        <div style="display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid #000; padding-bottom:20px; margin-bottom:24px">
+          <div style="display:flex; align-items:center; gap:14px">
+            <img src="${dantaLogo}" style="width:56px; height:56px; border-radius:50%; object-fit:cover; border:2px solid #ccc" />
+            <div>
+              <div style="font-size:18px; font-weight:900; letter-spacing:1px; color:#000">DENTAESTHETICS</div>
+              <div style="font-size:10px; color:#555; font-weight:600; letter-spacing:2px; text-transform:uppercase">The Dental Company</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:28px; font-weight:900; color:#000; letter-spacing:2px">INVOICE</div>
+            <div style="font-size:12px; color:#444; margin-top:2px">#${invoice.header?.invoiceNumber || '—'}</div>
+            <div style="font-size:12px; color:#444">${invoice.header?.billDate ? new Date(invoice.header.billDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : ''}</div>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; background:#f5f5f5; border:1px solid #ccc; border-radius:4px; padding:16px; margin-bottom:24px">
+          <div><div style="font-size:10px; font-weight:700; color:#000; text-transform:uppercase; letter-spacing:2px; margin-bottom:2px">Doctor</div><div style="font-size:13px; font-weight:600">${invoice.header?.doctorName || '—'}</div></div>
+          <div><div style="font-size:10px; font-weight:700; color:#000; text-transform:uppercase; letter-spacing:2px; margin-bottom:2px">Mode of Payment</div><div style="font-size:13px; font-weight:600">${invoice.header?.modeOfPayment || '—'}</div></div>
+          <div><div style="font-size:10px; font-weight:700; color:#000; text-transform:uppercase; letter-spacing:2px; margin-bottom:2px">Total Amount</div><div style="font-size:15px; font-weight:900; color:#000">₹${(invoice.header?.totalAmount || 0).toLocaleString('en-IN')}</div></div>
+          <div><div style="font-size:10px; font-weight:700; color:#000; text-transform:uppercase; letter-spacing:2px; margin-bottom:2px">Net Amount</div><div style="font-size:15px; font-weight:900; color:#000">₹${(invoice.header?.netAmount || 0).toLocaleString('en-IN')}</div></div>
+        </div>
+        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:2px; color:#333; margin-bottom:10px">Services</div>
+        <table style="width:100%; border-collapse:collapse; border:1px solid #ccc">
+          <thead><tr style="background:#222; color:#fff">
+            <th style="padding:12px 14px; text-align:left; font-size:12px">#</th>
+            <th style="padding:12px 14px; text-align:left; font-size:12px">Service</th>
+            <th style="padding:12px 14px; text-align:right; font-size:12px">Cost</th>
+            <th style="padding:12px 14px; text-align:right; font-size:12px">GST</th>
+            <th style="padding:12px 14px; text-align:right; font-size:12px">Total</th>
+          </tr></thead>
+          <tbody>${lineItemsHTML}</tbody>
+          <tfoot><tr style="background:#000; color:#fff">
+            <td colspan="4" style="padding:12px 14px; text-align:right; font-weight:700; font-size:13px">Net Amount</td>
+            <td style="padding:12px 14px; text-align:right; font-weight:900; font-size:16px">₹${(invoice.header?.netAmount || 0).toLocaleString('en-IN')}</td>
+          </tr></tfoot>
+        </table>
+        <div style="margin-top:32px; text-align:center; font-size:11px; color:#666; border-top:1px solid #ccc; padding-top:16px">
+          Computer generated invoice · Valid without signature
+        </div>
+      </div>`;
+  };
+
   const downloadInvoicePDF = (invoice) => {
     try {
       const el = document.createElement('div');
       el.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:800px';
-      el.innerHTML = generateInvoiceHTML(invoice);
+      el.innerHTML = generateBWInvoiceHTML(invoice);
       document.body.appendChild(el);
       html2canvas(el, { scale: 2, logging: false, backgroundColor: '#ffffff', useCORS: true })
         .then(canvas => {
@@ -842,7 +895,7 @@ export default function ViewPatients() {
 
   const printInvoice = (invoice) => {
     const win = window.open('', '_blank', 'width=900,height=700');
-    win.document.write(`<!DOCTYPE html><html><head><title>Invoice ${invoice.header?.invoiceNumber || ''}</title><style>body{margin:0;padding:0} @media print{@page{margin:15mm}}</style></head><body>${generateInvoiceHTML(invoice)}</body></html>`);
+    win.document.write(`<!DOCTYPE html><html><head><title>Invoice ${invoice.header?.invoiceNumber || ''}</title><style>body{margin:0;padding:0} @media print{@page{margin:15mm} * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }}</style></head><body>${generateBWInvoiceHTML(invoice)}</body></html>`);
     win.document.close();
     win.focus();
     setTimeout(() => { win.print(); win.close(); }, 400);
@@ -1021,23 +1074,26 @@ export default function ViewPatients() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-stone-700 mb-2">Mobile Number</label>
-                <input
-                  type="text"
-                  value={filterData.mobileNumber}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setFilterData({ ...filterData, mobileNumber: value });
-                    // Clear error when user starts typing
-                    if (mobileNumberError) {
-                      setMobileNumberError("");
-                    }
-                  }}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
-                  placeholder="Search by mobile number (numbers only, min 10 digits)"
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-amber-400 focus:border-transparent transition ${
-                    mobileNumberError ? "border-red-500 focus:ring-red-400" : "border-stone-300"
-                  }`}
-                />
+                <div className={`flex items-center border rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-amber-400 transition ${mobileNumberError ? "border-red-500 focus-within:ring-red-400" : "border-stone-300"}`}>
+                  <span className="px-3 py-2 bg-stone-100 border-r border-stone-300 text-stone-600 font-semibold text-sm select-none">+91</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={filterData.mobileNumber}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setFilterData({ ...filterData, mobileNumber: digits });
+                      if (mobileNumberError) setMobileNumberError("");
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
+                    placeholder="10-digit mobile number"
+                    maxLength={10}
+                    className="flex-1 px-3 py-2 bg-white focus:outline-none text-sm"
+                  />
+                  <span className={`px-2 py-2 text-xs font-medium select-none ${filterData.mobileNumber.length === 10 ? 'text-green-600' : 'text-stone-400'}`}>
+                    {filterData.mobileNumber.length}/10
+                  </span>
+                </div>
                 {mobileNumberError && (
                   <p className="text-sm text-red-600 mt-1">{mobileNumberError}</p>
                 )}

@@ -245,39 +245,48 @@ export default function PaymentDetailsModal({ isOpen, onClose, appointmentData }
 
   const generateInvoiceHTML = (invoice) => {
     const lineItemsHTML = (invoice.lineItems || []).map((item, idx) => `
-      <tr style="border-bottom: 1px solid #e5e7eb;">
-        <td style="padding: 12px; text-align: center;">${idx + 1}</td>
-        <td style="padding: 12px;">${item.serviceDescription}</td>
-        <td style="padding: 12px; text-align: right;">₹${(item.serviceCost || 0).toFixed(2)}</td>
-        <td style="padding: 12px; text-align: right;">₹${(item.gst || 0).toFixed(2)}</td>
-        <td style="padding: 12px; text-align: right;">₹${((item.serviceCost || 0) + (item.gst || 0)).toFixed(2)}</td>
+      <tr style="border-bottom: 1px solid #ccc; background:${idx % 2 === 0 ? '#fff' : '#f5f5f5'}">
+        <td style="padding: 12px; text-align: center; color:#333">${idx + 1}</td>
+        <td style="padding: 12px; color:#111">${item.serviceDescription}</td>
+        <td style="padding: 12px; text-align: right; color:#333">₹${(item.serviceCost || 0).toFixed(2)}</td>
+        <td style="padding: 12px; text-align: right; color:#555">₹${(item.gst || 0).toFixed(2)}</td>
+        <td style="padding: 12px; text-align: right; font-weight:700; color:#000">₹${((item.serviceCost || 0) + (item.gst || 0)).toFixed(2)}</td>
       </tr>
     `).join('');
 
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 20px;">
-        <h1 style="text-align: center; color: #1e40af;">Invoice</h1>
+      <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 20px; color:#111;">
+        <h1 style="text-align: center; color: #000; border-bottom:3px solid #000; padding-bottom:12px;">INVOICE</h1>
         <p><strong>Invoice Number:</strong> ${invoice.header?.invoiceNumber}</p>
         <p><strong>Bill Date:</strong> ${new Date(invoice.header?.billDate).toLocaleDateString()}</p>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+        <p><strong>Doctor:</strong> ${invoice.header?.doctorName || '—'}</p>
+        <p><strong>Mode of Payment:</strong> ${invoice.header?.modeOfPayment || '—'}</p>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; border:1px solid #ccc;">
           <thead>
-            <tr style="background: #f3e8ff;">
-              <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">#</th>
-              <th style="padding: 12px; text-align: left; border: 1px solid #e5e7eb;">Service</th>
-              <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Amount</th>
-              <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">GST</th>
-              <th style="padding: 12px; text-align: right; border: 1px solid #e5e7eb;">Total</th>
+            <tr style="background: #222; color:#fff;">
+              <th style="padding: 12px; text-align: left; border: 1px solid #555;">#</th>
+              <th style="padding: 12px; text-align: left; border: 1px solid #555;">Service</th>
+              <th style="padding: 12px; text-align: right; border: 1px solid #555;">Amount</th>
+              <th style="padding: 12px; text-align: right; border: 1px solid #555;">GST</th>
+              <th style="padding: 12px; text-align: right; border: 1px solid #555;">Total</th>
             </tr>
           </thead>
           <tbody>
             ${lineItemsHTML}
           </tbody>
+          <tfoot>
+            <tr style="background:#000; color:#fff;">
+              <td colspan="4" style="padding:12px; text-align:right; font-weight:700;">Net Amount</td>
+              <td style="padding:12px; text-align:right; font-weight:900; font-size:15px;">₹${(invoice.header?.netAmount || invoice.header?.totalAmount || 0).toFixed(2)}</td>
+            </tr>
+          </tfoot>
         </table>
-        <div style="margin-top: 20px; text-align: right;">
+        <div style="margin-top: 20px; text-align: right; border-top:1px solid #ccc; padding-top:12px;">
           <p><strong>Total Amount:</strong> ₹${(invoice.header?.totalAmount || 0).toFixed(2)}</p>
           <p><strong>Paid Amount:</strong> ₹${(invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0).toFixed(2)}</p>
           <p><strong>Pending:</strong> ₹${Math.max(0, (invoice.header?.totalAmount || 0) - (invoice.lineItems || []).reduce((s, i) => s + (i.amountPaid ?? i.AmountPaid ?? 0), 0)).toFixed(2)}</p>
         </div>
+        <div style="margin-top:24px; text-align:center; font-size:11px; color:#666; border-top:1px solid #ccc; padding-top:12px;">Computer generated invoice · Valid without signature</div>
       </div>
     `;
   };
