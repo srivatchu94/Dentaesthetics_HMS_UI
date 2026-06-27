@@ -1024,32 +1024,38 @@ export default function Header(){
       {/* spacer so content starts below both fixed bars (header 80px + nav ~52px) */}
       <div className="h-[136px]" />
 
-      {/* Welcome Popup — centered on screen */}
+      {/* Welcome Popup — guaranteed center via inline styles */}
       <AnimatePresence>
         {showWelcome && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none"
-          >
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ duration: 0.25, type: 'spring', stiffness: 300, damping: 25 }}
-              className="pointer-events-auto flex flex-col items-center gap-3 px-8 py-6 rounded-2xl shadow-2xl border border-green-400/30"
-              style={{ background: 'linear-gradient(135deg, #064e3b, #065f46)', minWidth: '300px', maxWidth: '460px' }}
+              transition={{ duration: 0.25, type: 'spring', stiffness: 280, damping: 22 }}
+              style={{
+                pointerEvents: 'auto',
+                background: 'linear-gradient(135deg, #064e3b, #065f46)',
+                minWidth: '300px',
+                maxWidth: '460px',
+                padding: '2rem 2.5rem',
+                borderRadius: '1.25rem',
+                boxShadow: '0 25px 50px rgba(0,0,0,0.4)',
+                border: '1px solid rgba(74,222,128,0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.75rem'
+              }}
             >
-              <span className="text-4xl">✅</span>
-              <p className="text-base font-bold text-green-100 text-center">{welcomeMessage}</p>
+              <span style={{ fontSize: '2.5rem' }}>✅</span>
+              <p style={{ color: '#d1fae5', fontWeight: 700, textAlign: 'center', fontSize: '1rem', margin: 0 }}>{welcomeMessage}</p>
               <button
                 onClick={() => setShowWelcome(false)}
-                className="mt-1 px-5 py-1.5 rounded-full bg-green-800/60 hover:bg-green-700 text-green-200 text-sm font-semibold transition"
+                style={{ marginTop: '0.25rem', padding: '0.375rem 1.25rem', borderRadius: '9999px', background: 'rgba(6,78,59,0.6)', color: '#a7f3d0', fontSize: '0.875rem', fontWeight: 600, border: 'none', cursor: 'pointer' }}
               >Dismiss</button>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
@@ -1070,7 +1076,7 @@ export default function Header(){
               className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
             >
               {/* Animated Background */}
-              <div className="relative bg-gradient-to-br from-green-400 via-emerald-500 to-teal-600 p-8 text-center">
+              <div className="relative p-8 text-center" style={{ background: 'linear-gradient(135deg, #064e3b, #065f46)' }}>
                 <button
                   onClick={() => setShowSuccessModal(false)}
                   className="absolute top-3 right-3 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/40 text-white font-bold text-lg transition"
