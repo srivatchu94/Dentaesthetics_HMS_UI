@@ -289,7 +289,6 @@ export default function Header(){
   const prevIsLoggedInRef = useRef(isLoggedIn);
   const [userInfo, setUserInfo] = useState({ name: "", role: "" });
   const [doctorName, setDoctorName] = useState("");
-  const [showWelcome, setShowWelcome] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [formData, setFormData] = useState({
@@ -307,7 +306,6 @@ export default function Header(){
   const [authError, setAuthError] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-  const [welcomeMessage, setWelcomeMessage] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -361,13 +359,6 @@ export default function Header(){
               name: userData.username || '',
               role: 'User'
             });
-            // Show welcome toast when transitioning from logged-out → logged-in
-            if (wasLoggedOut) {
-              const name = userData.username || 'Doctor';
-              setWelcomeMessage(`Welcome back, ${name}! Successfully logged in.`);
-              setShowWelcome(true);
-              setTimeout(() => setShowWelcome(false), 1200);
-            }
             // Try to fetch full doctor name if available (only once per session)
             if (!hasFetchedDoctorNameRef.current) {
               hasFetchedDoctorNameRef.current = true;
@@ -623,7 +614,6 @@ export default function Header(){
           name: username, 
           role: "User"
         });
-        setWelcomeMessage(randomWelcome);
         setIsLoggedIn(true);
         setShowLoginModal(false);
         setFormData({ username: "", emailid: "", mobileNumber: "", password: "" });
@@ -658,7 +648,6 @@ export default function Header(){
     
     // Clear local state
     setIsLoggedIn(false);
-    setShowWelcome(false);
     setUserInfo({ name: "", role: "" });
     setDoctorName("");
     
@@ -1023,41 +1012,6 @@ export default function Header(){
       </nav>
       {/* spacer so content starts below both fixed bars (header 80px + nav ~52px) */}
       <div className="h-[136px]" />
-
-      {/* Welcome Popup — guaranteed center via inline styles */}
-      <AnimatePresence>
-        {showWelcome && (
-          <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ duration: 0.25, type: 'spring', stiffness: 280, damping: 22 }}
-              style={{
-                pointerEvents: 'auto',
-                background: 'linear-gradient(135deg, #064e3b, #065f46)',
-                minWidth: '300px',
-                maxWidth: '460px',
-                padding: '2rem 2.5rem',
-                borderRadius: '1.25rem',
-                boxShadow: '0 25px 50px rgba(0,0,0,0.4)',
-                border: '1px solid rgba(74,222,128,0.25)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '0.75rem'
-              }}
-            >
-              <span style={{ fontSize: '2.5rem' }}>✅</span>
-              <p style={{ color: '#d1fae5', fontWeight: 700, textAlign: 'center', fontSize: '1rem', margin: 0 }}>{welcomeMessage}</p>
-              <button
-                onClick={() => setShowWelcome(false)}
-                style={{ marginTop: '0.25rem', padding: '0.375rem 1.25rem', borderRadius: '9999px', background: 'rgba(6,78,59,0.6)', color: '#a7f3d0', fontSize: '0.875rem', fontWeight: 600, border: 'none', cursor: 'pointer' }}
-              >Dismiss</button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Success Modal */}
       <AnimatePresence>
