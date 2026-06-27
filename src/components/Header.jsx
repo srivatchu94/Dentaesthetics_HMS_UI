@@ -289,6 +289,8 @@ export default function Header(){
   const prevIsLoggedInRef = useRef(isLoggedIn);
   const [userInfo, setUserInfo] = useState({ name: "", role: "" });
   const [doctorName, setDoctorName] = useState("");
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeMessage, setWelcomeMessage] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [formData, setFormData] = useState({
@@ -359,6 +361,12 @@ export default function Header(){
               name: userData.username || '',
               role: 'User'
             });
+            if (wasLoggedOut) {
+              const name = userData.username || 'Doctor';
+              setWelcomeMessage(`Welcome back, ${name}!`);
+              setShowWelcome(true);
+              setTimeout(() => setShowWelcome(false), 3000);
+            }
             // Try to fetch full doctor name if available (only once per session)
             if (!hasFetchedDoctorNameRef.current) {
               hasFetchedDoctorNameRef.current = true;
@@ -648,6 +656,7 @@ export default function Header(){
     
     // Clear local state
     setIsLoggedIn(false);
+    setShowWelcome(false);
     setUserInfo({ name: "", role: "" });
     setDoctorName("");
     
@@ -1012,6 +1021,44 @@ export default function Header(){
       </nav>
       {/* spacer so content starts below both fixed bars (header 80px + nav ~52px) */}
       <div className="h-[136px]" />
+
+      {/* Login success popup — dead-center via top/left/translate */}
+      <AnimatePresence>
+        {showWelcome && (
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            transition={{ duration: 0.25, type: 'spring', stiffness: 280, damping: 22 }}
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 9999,
+              background: 'linear-gradient(135deg, #064e3b, #065f46)',
+              minWidth: '300px',
+              maxWidth: '420px',
+              padding: '2rem 2.5rem',
+              borderRadius: '1.25rem',
+              boxShadow: '0 25px 50px rgba(0,0,0,0.45)',
+              border: '1px solid rgba(74,222,128,0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.75rem',
+              textAlign: 'center'
+            }}
+          >
+            <span style={{ fontSize: '2.5rem' }}>✅</span>
+            <p style={{ color: '#d1fae5', fontWeight: 700, fontSize: '1rem', margin: 0 }}>{welcomeMessage}</p>
+            <button
+              onClick={() => setShowWelcome(false)}
+              style={{ marginTop: '0.25rem', padding: '0.375rem 1.25rem', borderRadius: '9999px', background: 'rgba(6,78,59,0.6)', color: '#a7f3d0', fontSize: '0.875rem', fontWeight: 600, border: 'none', cursor: 'pointer' }}
+            >Dismiss</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Success Modal */}
       <AnimatePresence>
