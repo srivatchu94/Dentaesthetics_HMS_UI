@@ -559,7 +559,7 @@ export default function Header(){
         setSuccessMessage(randomMessage);
         setShowSuccessModal(true);
         
-        // Reset form and redirect to login after 3 seconds
+        // Reset form and redirect to login after 1.5 seconds
         setTimeout(() => {
           setShowSuccessModal(false);
           setIsSignUp(false);
@@ -567,7 +567,7 @@ export default function Header(){
           setConfirmPassword("");
           setPasswordMatchWarning("");
           setShowLoginModal(true);
-        }, 3000);
+        }, 1500);
       } catch (err) {
         if (err.response?.status === 409) {
           setAuthError("Username already exists. Please choose a different username.");
@@ -1026,6 +1026,11 @@ export default function Header(){
             >
               {/* Animated Background */}
               <div className="relative bg-gradient-to-br from-green-400 via-emerald-500 to-teal-600 p-8 text-center">
+                <button
+                  onClick={() => setShowSuccessModal(false)}
+                  className="absolute top-3 right-3 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/40 text-white font-bold text-lg transition"
+                  title="Close"
+                >×</button>
                 <motion.div
                   animate={{ 
                     scale: [1, 1.2, 1],

@@ -307,7 +307,10 @@ export default function RegisterPatient() {
         phoneNumber: "",
         alternatePhoneNumber: "",
         postalCode: "",
-        emergencyContactPhone: ""
+        emergencyContactPhone: "",
+        city: "",
+        state: "",
+        country: ""
     });
 
     // Validation functions
@@ -349,6 +352,14 @@ export default function RegisterPatient() {
         const digitsOnly = postalCode.replace(/\D/g, "");
         if (digitsOnly.length !== 6) {
             return `❌ Postal code must be exactly 6 digits (you entered ${digitsOnly.length})`;
+        }
+        return "";
+    };
+
+    const validateAlphaOnly = (value, fieldName) => {
+        if (!value) return "";
+        if (!/^[a-zA-Z\s]+$/.test(value)) {
+            return `❌ ${fieldName} must contain letters only`;
         }
         return "";
     };
@@ -798,17 +809,27 @@ export default function RegisterPatient() {
                                                 label="City"
                                                 name="city"
                                                 value={contactData.city}
-                                                onChange={(e) => setContactData({ ...contactData, city: e.target.value })}
+                                                onChange={(e) => {
+                                                    setContactData({ ...contactData, city: e.target.value });
+                                                    setErrors(prev => ({ ...prev, city: validateAlphaOnly(e.target.value, "City") }));
+                                                }}
+                                                onBlur={(e) => handleFieldBlur("city", e.target.value, (v) => validateAlphaOnly(v, "City"))}
                                                 required
                                                 placeholder="City"
+                                                error={errors.city}
                                             />
                                             <InputField
                                                 label="State"
                                                 name="state"
                                                 value={contactData.state}
-                                                onChange={(e) => setContactData({ ...contactData, state: e.target.value })}
+                                                onChange={(e) => {
+                                                    setContactData({ ...contactData, state: e.target.value });
+                                                    setErrors(prev => ({ ...prev, state: validateAlphaOnly(e.target.value, "State") }));
+                                                }}
+                                                onBlur={(e) => handleFieldBlur("state", e.target.value, (v) => validateAlphaOnly(v, "State"))}
                                                 required
                                                 placeholder="State"
+                                                error={errors.state}
                                             />
                                             <InputField
                                                 label="Postal Code"
@@ -824,9 +845,14 @@ export default function RegisterPatient() {
                                                 label="Country"
                                                 name="country"
                                                 value={contactData.country}
-                                                onChange={(e) => setContactData({ ...contactData, country: e.target.value })}
+                                                onChange={(e) => {
+                                                    setContactData({ ...contactData, country: e.target.value });
+                                                    setErrors(prev => ({ ...prev, country: validateAlphaOnly(e.target.value, "Country") }));
+                                                }}
+                                                onBlur={(e) => handleFieldBlur("country", e.target.value, (v) => validateAlphaOnly(v, "Country"))}
                                                 required
                                                 placeholder="Country"
+                                                error={errors.country}
                                             />
                                             <InputField
                                                 label="Emergency Contact Name"

@@ -376,7 +376,7 @@ export default function Patients() {
         firstName: appointmentFromRegistration.firstName,
         lastName: appointmentFromRegistration.lastName,
         email: appointmentFromRegistration.email,
-        phoneNumber: appointmentFromRegistration.phoneNumber,
+        phoneNumber: normalizeIndianPhoneDigits(appointmentFromRegistration.phoneNumber),
         dateOfBirth: appointmentFromRegistration.dateOfBirth
       }));
       // Enable form editing when prepopulated from registration

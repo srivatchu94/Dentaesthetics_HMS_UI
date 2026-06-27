@@ -3649,7 +3649,7 @@ export default function Doctors() {
         patientName: `${appointmentDetails.firstName} ${appointmentDetails.lastName}`,
         patientId: appointmentDetails.patientId,
         patientAge: appointmentDetails.age || 'N/A',
-        doctorName: appointmentDetails.doctorName || userData.username || 'Doctor',
+        doctorName: appointmentDetails.doctorName || userData.username || '',
         registrationNumber: appointmentDetails.registrationNumber || 'N/A',
         diagnosis: visitForm.diagnosis,
         medications: inlineMedications,
@@ -3742,7 +3742,7 @@ export default function Doctors() {
           Treatments: visitForm.treatmentProvided,
           Notes: visitForm.notes || '',
           NextAppointmentDate: visitForm.followUpDate || null,
-          AttendingPhysician: appointmentDetails.doctorName || userData.username || 'Doctor',
+          AttendingPhysician: appointmentDetails.doctorName || userData.username || '',
           BillingAmount: Number(appointmentDetails.billableAmount) || 0,
           PaymentStatus: appointmentDetails.paymentStatus || 'Pending',
           CreatedBy: userData.username || userData.fullName || 'Doctor',
@@ -9987,7 +9987,7 @@ export default function Doctors() {
         medicalHistory={patientMedicalInfo}
         doctorInfo={{
           doctorId: JSON.parse(localStorage.getItem("userData") || "{}").doctorId || 0,
-          doctorName: JSON.parse(localStorage.getItem("userData") || "{}").username || "Doctor",
+          doctorName: JSON.parse(localStorage.getItem("userData") || "{}").username || "",
           registrationNumber: JSON.parse(localStorage.getItem("userData") || "{}").registrationNumber || ""
         }}
         appointmentId={selectedAppointmentDetails?.appointmentId}
@@ -10343,7 +10343,7 @@ export default function Doctors() {
                   prescription={prescriptionToPrint}
                   patientInfo={selectedAppointmentDetails}
                   doctorInfo={{
-                    doctorName: JSON.parse(localStorage.getItem("userData") || "{}").username || "Doctor",
+                    doctorName: JSON.parse(localStorage.getItem("userData") || "{}").username || "",
                     registrationNumber: JSON.parse(localStorage.getItem("userData") || "{}").registrationNumber || ""
                   }}
                   clinicInfo={SAMPLE_CLINIC_DETAILS}

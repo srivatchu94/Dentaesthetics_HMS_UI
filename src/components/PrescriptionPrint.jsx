@@ -70,7 +70,7 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
     doctorInfo?.doctorName ||
     (doctorInfo?.firstName ? `${doctorInfo.firstName} ${doctorInfo.lastName || ""}`.trim() : "") ||
     doctorInfo?.name ||
-    "Doctor";
+    "";
   const regNo =
     doctorInfo?.registrationNumber ||
     doctorInfo?.licenseNumber ||
@@ -126,7 +126,7 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
             {/* Doctor line */}
             <div className="border-l-2 border-teal-500 pl-3 print:border-black">
               <p className="font-black text-base print:text-black">
-                Dr. {doctorName}{speciality ? ` — ${speciality}` : ""}
+                {doctorName ? `Dr. ${doctorName}` : ""}{speciality ? ` — ${speciality}` : ""}
               </p>
               {regNo && <p className="text-indigo-300 text-xs print:text-black">Reg. No: {regNo}</p>}
             </div>
@@ -155,7 +155,7 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
         </div>
         <div className="p-5 bg-white print:py-3">
           <p className="text-xs font-black text-teal-600 uppercase tracking-widest mb-2 print:text-black">Issued By</p>
-          <p className="text-sm font-bold text-slate-800 print:text-black">Dr. {doctorName}</p>
+          {doctorName && <p className="text-sm font-bold text-slate-800 print:text-black">Dr. {doctorName}</p>}
           {regNo && <p className="text-xs text-slate-500 mt-0.5 print:text-black">Reg: {regNo}</p>}
           <p className="text-xs text-slate-400 mt-1 print:text-black">{formatDate(prescription?.prescriptionDate)}</p>
         </div>
@@ -231,7 +231,7 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
         <div className="px-6 py-4 flex justify-end">
           <div className="text-right border-t-2 border-dashed border-slate-300 pt-3 min-w-48 print:border-black">
             <p className="text-xs text-slate-400 mb-0.5 print:text-black">Electronically signed by</p>
-            <p className="text-sm font-black text-slate-800 print:text-black">Dr. {doctorName}</p>
+            {doctorName && <p className="text-sm font-black text-slate-800 print:text-black">Dr. {doctorName}</p>}
             {regNo && <p className="text-xs text-slate-500 print:text-black">(Reg No.: {regNo})</p>}
             <p className="text-xs text-slate-400 mt-0.5 print:text-black">Dentist</p>
           </div>
