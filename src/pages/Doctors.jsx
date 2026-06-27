@@ -10680,6 +10680,15 @@ export default function Doctors() {
                     display: block;
                   }
                   
+                  #printable-prescription,
+                  #printable-prescription * {
+                    color: #000 !important;
+                    background-color: white !important;
+                    border-color: #333 !important;
+                    -webkit-print-color-adjust: economy;
+                    print-color-adjust: economy;
+                  }
+
                   @page {
                     margin: 15mm;
                     size: A4;

@@ -25,6 +25,13 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
           print-color-adjust: exact;
           color-adjust: exact;
         }
+        .prescription-print-container *:not(img) {
+          color: #000 !important;
+          background-color: white !important;
+          border-color: #333 !important;
+          -webkit-print-color-adjust: economy;
+          print-color-adjust: economy;
+        }
         @page { margin: 15mm; }
       }
     `;

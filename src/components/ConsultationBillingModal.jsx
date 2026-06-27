@@ -278,6 +278,25 @@ export function ConsultationBillingModal({ show, onClose }) {
     `;
   };
 
+  const toGrayscalePreservingImages = (canvas, sourceEl) => {
+    const ctx = canvas.getContext('2d');
+    const id = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const g = Math.round(d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+      d[i] = d[i + 1] = d[i + 2] = g;
+    }
+    ctx.putImageData(id, 0, 0);
+    const er = sourceEl.getBoundingClientRect();
+    const sx = canvas.width / sourceEl.offsetWidth;
+    const sy = canvas.height / sourceEl.offsetHeight;
+    sourceEl.querySelectorAll('img').forEach(img => {
+      if (!img.complete || !img.naturalWidth) return;
+      const r = img.getBoundingClientRect();
+      ctx.drawImage(img, (r.left - er.left) * sx, (r.top - er.top) * sy, r.width * sx, r.height * sy);
+    });
+  };
+
   const handleDownloadPDF = async () => {
     const invoiceElement = document.getElementById("consultation-invoice-print");
     if (!invoiceElement) {
@@ -292,6 +311,7 @@ export function ConsultationBillingModal({ show, onClose }) {
         useCORS: true,
         backgroundColor: "#ffffff"
       });
+      toGrayscalePreservingImages(canvas, invoiceElement);
       const imgData = canvas.toDataURL("image/jpeg", 0.85);
       const pdf = new jsPDF({
         orientation: "portrait",

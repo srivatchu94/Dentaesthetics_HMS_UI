@@ -5883,7 +5883,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                                     ...appointmentForm,
                                     firstName: p.patientFirstName || '',
                                     lastName: p.patientLastName || '',
-                                    phoneNumber: p.patientPhone || '',
+                                    phoneNumber: normalizeIndianPhoneDigits(p.patientPhone || ''),
                                     email: p.patientEmail || ''
                                   });
                                 }}
@@ -5940,7 +5940,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                                 ...appointmentForm,
                                 firstName: results[0].patientFirstName || '',
                                 lastName: results[0].patientLastName || '',
-                                phoneNumber: results[0].patientPhone || '',
+                                phoneNumber: normalizeIndianPhoneDigits(results[0].patientPhone || ''),
                                 email: results[0].patientEmail || ''
                               });
                             } else if (results && results.length > 1) {

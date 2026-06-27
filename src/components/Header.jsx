@@ -366,7 +366,7 @@ export default function Header(){
               const name = userData.username || 'Doctor';
               setWelcomeMessage(`Welcome back, ${name}! Successfully logged in.`);
               setShowWelcome(true);
-              setTimeout(() => setShowWelcome(false), 2000);
+              setTimeout(() => setShowWelcome(false), 1200);
             }
             // Try to fetch full doctor name if available (only once per session)
             if (!hasFetchedDoctorNameRef.current) {
@@ -620,8 +620,6 @@ export default function Header(){
         setWelcomeMessage(randomWelcome);
         setIsLoggedIn(true);
         setShowLoginModal(false);
-        setShowWelcome(true);
-        setTimeout(() => setShowWelcome(false), 2000);
         setFormData({ username: "", emailid: "", mobileNumber: "", password: "" });
         
         // Fetch doctor's profile to get their actual name
@@ -1028,7 +1026,7 @@ export default function Header(){
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.25 }}
-            className="fixed top-20 left-1/2 z-[9999] flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl border border-green-400/40"
+            className="fixed top-[156px] left-1/2 z-[9999] flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl border border-green-400/40"
             style={{ transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #064e3b, #065f46)', minWidth: '260px', maxWidth: '420px' }}
           >
             <span className="text-xl">✅</span>
