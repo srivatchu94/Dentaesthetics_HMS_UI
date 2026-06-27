@@ -1074,9 +1074,6 @@ export const loginUser = async (loginData: LoginRequest): Promise<LoginResponse>
       console.log('\n🧪 TEST MODE: Refresh will happen in 2 minutes (set TEST_MODE_FAST_REFRESH=false to disable)\n');
     }
     
-    // Show success popup
-    showLoginSuccessPopup(response.username);
-    
     return response;
   } catch (error) {
     console.error('❌ Login failed:', error);

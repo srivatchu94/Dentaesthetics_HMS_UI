@@ -362,10 +362,9 @@ export default function Header(){
               role: 'User'
             });
             if (wasLoggedOut) {
-              const name = userData.username || 'Doctor';
-              setWelcomeMessage(`Welcome back, ${name}!`);
+              setWelcomeMessage(userData.username || 'Doctor');
               setShowWelcome(true);
-              setTimeout(() => setShowWelcome(false), 3000);
+              setTimeout(() => setShowWelcome(false), 4000);
             }
             // Try to fetch full doctor name if available (only once per session)
             if (!hasFetchedDoctorNameRef.current) {
@@ -1022,41 +1021,43 @@ export default function Header(){
       {/* spacer so content starts below both fixed bars (header 80px + nav ~52px) */}
       <div className="h-[136px]" />
 
-      {/* Login success popup — dead-center via top/left/translate */}
+      {/* Login success popup — outer div centers, inner motion.div animates (no transform conflict) */}
       <AnimatePresence>
         {showWelcome && (
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ duration: 0.25, type: 'spring', stiffness: 280, damping: 22 }}
-            style={{
-              position: 'fixed',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 9999,
-              background: 'linear-gradient(135deg, #064e3b, #065f46)',
-              minWidth: '300px',
-              maxWidth: '420px',
-              padding: '2rem 2.5rem',
-              borderRadius: '1.25rem',
-              boxShadow: '0 25px 50px rgba(0,0,0,0.45)',
-              border: '1px solid rgba(74,222,128,0.25)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '0.75rem',
-              textAlign: 'center'
-            }}
-          >
-            <span style={{ fontSize: '2.5rem' }}>✅</span>
-            <p style={{ color: '#d1fae5', fontWeight: 700, fontSize: '1rem', margin: 0 }}>{welcomeMessage}</p>
-            <button
-              onClick={() => setShowWelcome(false)}
-              style={{ marginTop: '0.25rem', padding: '0.375rem 1.25rem', borderRadius: '9999px', background: 'rgba(6,78,59,0.6)', color: '#a7f3d0', fontSize: '0.875rem', fontWeight: 600, border: 'none', cursor: 'pointer' }}
-            >Dismiss</button>
-          </motion.div>
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 999999 }}>
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ duration: 0.3, type: 'spring', stiffness: 260, damping: 20 }}
+              style={{
+                background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                color: 'white',
+                minWidth: '320px',
+                maxWidth: '440px',
+                padding: '1.5rem 2rem',
+                borderRadius: '15px',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '0.5rem',
+                textAlign: 'center'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', width: '100%' }}>
+                <span style={{ fontSize: '2rem', flexShrink: 0 }}>🎉</span>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px' }}>Welcome Back!</div>
+                  <div style={{ fontSize: '14px', opacity: 0.9 }}>Successfully logged in as {welcomeMessage}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowWelcome(false)}
+                style={{ marginTop: '0.5rem', padding: '0.3rem 1.25rem', borderRadius: '9999px', background: 'rgba(0,0,0,0.15)', color: 'white', fontSize: '0.8rem', fontWeight: 600, border: 'none', cursor: 'pointer' }}
+              >Dismiss</button>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
