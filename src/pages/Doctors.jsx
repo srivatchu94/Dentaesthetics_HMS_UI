@@ -322,7 +322,7 @@ const FullEditAppointmentModal = ({
   }, [handleUpdateAppointmentSubmit, editFormData, validateField, setActiveEditSection]);
   
   // Tab navigation logic
-  const editSections = ['patient', 'appointment', 'billing', 'other'];
+  const editSections = ['patient', 'appointment', 'other'];
   const currentSectionIndex = editSections.indexOf(activeEditSection);
   const isLastSection = currentSectionIndex === editSections.length - 1;
   
