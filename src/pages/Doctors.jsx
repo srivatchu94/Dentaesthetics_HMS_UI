@@ -7859,8 +7859,8 @@ export default function Doctors() {
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => {
-                            // Navigate to view patient details
-                            navigate(`/patients`, { state: { selectedPatient: patient, isModal: true } });
+                            // Navigate to view patient details and preserve return path to Doctors page
+                            navigate(`/patients`, { state: { selectedPatient: patient, isModal: true, origin: 'doctors', returnTo: '/doctors' } });
                           }}
                           className="w-full mt-4 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group/btn"
                         >

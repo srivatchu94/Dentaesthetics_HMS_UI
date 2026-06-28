@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { getAccessToken, getClinicIdFromToken } from "../services/tokenManager";
@@ -1568,6 +1568,21 @@ export default function Patients() {
     }
   }, [location?.state]);
 
+  const handleClosePatientModal = useCallback(() => {
+    const routeState = location?.state || {};
+    const returnRoute = routeState.returnTo || (routeState.origin === 'doctors' ? '/doctors' : null);
+
+    if (returnRoute) {
+      navigate(returnRoute);
+      return;
+    }
+
+    setShowPatientModal(false);
+    setSelectedPatient(null);
+    setIsEditMode(false);
+    setEditedPatient(null);
+  }, [location?.state, navigate]);
+
   // Delete modal states
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [showDeleteSuccessModal, setShowDeleteSuccessModal] = useState(false);
@@ -2979,7 +2994,7 @@ export default function Patients() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4 overflow-y-auto"
-            onClick={() => setShowPatientModal(false)}
+            onClick={handleClosePatientModal}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -3001,7 +3016,7 @@ export default function Patients() {
                     </p>
                   </div>
                   <button
-                    onClick={() => setShowPatientModal(false)}
+                    onClick={handleClosePatientModal}
                     className="text-white hover:bg-white/20 rounded-lg p-2.5 transition-all duration-200"
                     title="Close"
                   >
@@ -3506,10 +3521,10 @@ export default function Patients() {
                         whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
                         onClick={() => {
-                          setShowPatientModal(false);
                           setIsEditMode(false);
                           setEditedPatient(null);
                           setSelectedPatient(null);
+                          handleClosePatientModal();
                         }}
                         className="flex-1 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold shadow-sm hover:shadow-md transition-all duration-200"
                       >
@@ -3554,7 +3569,7 @@ export default function Patients() {
                       <motion.button
                         whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
-                        onClick={() => setShowPatientModal(false)}
+                        onClick={handleClosePatientModal}
                         className="flex-1 px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold shadow-sm hover:shadow-md transition-all duration-200"
                       >
                         Close
