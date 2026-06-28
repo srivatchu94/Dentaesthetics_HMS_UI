@@ -197,6 +197,17 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
     }
   }, [patientSearchId, patientSearchPhone]);
 
+  const getAppointmentDoctorName = (appt) => {
+    return appt?.doctorName || appt?.DoctorName || appt?.attendingPhysician || appt?.AttendingPhysician || 'N/A';
+  };
+
+  const getInvoiceDoctorName = (invoice, appt) => {
+    const rawDoctor = invoice?.header?.doctorName || invoice?.header?.DoctorName || invoice?.header?.attendingPhysician || invoice?.header?.AttendingPhysician || getAppointmentDoctorName(appt);
+    const trimmed = String(rawDoctor || '').trim();
+    if (!trimmed || trimmed === 'N/A') return 'N/A';
+    return trimmed.toLowerCase().startsWith('dr.') ? trimmed : `Dr. ${trimmed}`;
+  };
+
   // Load invoices for specific appointment
   const loadInvoicesForAppointment = useCallback(async (appointmentId) => {
     if (!appointmentId) {
@@ -642,7 +653,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                               <span className="text-sm font-medium text-stone-700">{appt.appointmentType || 'Consultation'}</span>
                             </td>
                             <td className="px-4 py-3">
-                              <span className="text-sm font-medium text-stone-700">{appt.doctorName || 'N/A'}</span>
+                              <span className="text-sm font-medium text-stone-700">{getAppointmentDoctorName(appt)}</span>
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center justify-center gap-2">
@@ -761,7 +772,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                                       </div>
                                                       <div className="flex items-center justify-between mb-3 text-xs">
                                                         <span className="text-slate-500 truncate max-w-[55%]">
-                                                          {invoice.header?.doctorName ? `Dr. ${invoice.header.doctorName}` : ''}
+                                                          {getInvoiceDoctorName(invoice, appt)}
                                                         </span>
                                                         <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-bold">
                                                           {invoice.header?.modeOfPayment || 'Cash'}
@@ -1098,7 +1109,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                         <span className="text-sm font-medium text-slate-700">{appt.appointmentType || 'Consultation'}</span>
                                       </td>
                                       <td className="px-4 py-3">
-                                        <span className="text-sm font-medium text-slate-700">{appt.doctorName || appt.DoctorName || 'N/A'}</span>
+                                        <span className="text-sm font-medium text-slate-700">{getAppointmentDoctorName(appt)}</span>
                                       </td>
                                       <td className="px-4 py-3">
                                         <div className="flex items-center justify-center gap-2">
@@ -1215,7 +1226,7 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
                                                                 </div>
                                                                 <div className="flex items-center justify-between mb-3 text-xs">
                                                                   <span className="text-slate-500 truncate max-w-[55%]">
-                                                                    {invoice.header?.doctorName ? `Dr. ${invoice.header.doctorName}` : ''}
+                                                                    {getInvoiceDoctorName(invoice, appt)}
                                                                   </span>
                                                                   <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-bold">
                                                                     {invoice.header?.modeOfPayment || 'Cash'}
