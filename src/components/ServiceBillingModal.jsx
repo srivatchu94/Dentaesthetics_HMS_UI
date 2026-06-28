@@ -543,7 +543,77 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
 
   // Print function
   const handlePrint = () => {
-    window.print();
+    const invoiceElement = document.getElementById('consultation-invoice-print');
+    if (!invoiceElement) {
+      toast.error('Invoice element not found');
+      return;
+    }
+
+    const runPrint = async () => {
+      const existingPrintRoot = document.getElementById('prescription-print');
+      const printRoot = existingPrintRoot || document.createElement('div');
+
+      const cleanup = () => {
+        if (!existingPrintRoot) {
+          printRoot.remove();
+        } else {
+          printRoot.innerHTML = '';
+        }
+        window.removeEventListener('afterprint', cleanup);
+      };
+
+      try {
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        const canvas = await html2canvas(invoiceElement, {
+          scale: 1.5,
+          logging: false,
+          useCORS: true,
+          backgroundColor: '#ffffff'
+        });
+        const imgData = canvas.toDataURL('image/jpeg', 0.9);
+
+        if (!existingPrintRoot) {
+          printRoot.id = 'prescription-print';
+          document.body.appendChild(printRoot);
+        }
+
+        printRoot.innerHTML = '';
+        const wrapper = document.createElement('div');
+        wrapper.style.width = '210mm';
+        wrapper.style.minHeight = '297mm';
+        wrapper.style.margin = '0 auto';
+        wrapper.style.display = 'flex';
+        wrapper.style.alignItems = 'center';
+        wrapper.style.justifyContent = 'center';
+        wrapper.style.background = 'white';
+
+        const image = document.createElement('img');
+        image.style.width = '190mm';
+        image.style.maxHeight = '277mm';
+        image.style.objectFit = 'contain';
+        image.style.display = 'block';
+
+        await new Promise((resolve, reject) => {
+          image.onload = resolve;
+          image.onerror = reject;
+          image.src = imgData;
+        });
+
+        wrapper.appendChild(image);
+        printRoot.appendChild(wrapper);
+
+        window.addEventListener('afterprint', cleanup);
+        window.print();
+        setTimeout(cleanup, 1200);
+      } catch (error) {
+        console.error('Failed to print service invoice:', error);
+        toast.error('Failed to print invoice');
+        cleanup();
+      }
+    };
+
+    runPrint();
   };
 
   const toGrayscalePreservingImages = (canvas, sourceEl) => {
