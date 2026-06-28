@@ -98,17 +98,6 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
     }
   }, [fromDate, toDate, filterPatientId, filterMobile]);
 
-  // Clear invoice cache when refreshTrigger changes (after update)
-  useEffect(() => {
-    if (refreshTrigger === 0) return;
-    console.log("🔄 Refresh triggered - clearing invoice cache");
-    setInvoicesByAppointment({});
-    if (hasSearched) {
-      loadBillingAppointments();
-    }
-  }, [refreshTrigger]);
-
-
 
   // Validate mobile number
   const validateMobileNumber = (mobileNumber) => {
@@ -241,6 +230,26 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
       setLoadingInvoices(prev => ({ ...prev, [appointmentId]: false }));
     }
   }, []);
+
+  // Refresh billing appointments and preserve the currently expanded appointment's invoice cache
+  useEffect(() => {
+    if (refreshTrigger === 0) return;
+    console.log("🔄 Refresh triggered - preserving current invoice cache if expanded");
+    const preservedExpandedAppointmentId = expandedAppointmentId;
+    setInvoicesByAppointment((prev) => {
+      if (!preservedExpandedAppointmentId || !prev[preservedExpandedAppointmentId]) {
+        return {};
+      }
+      return { [preservedExpandedAppointmentId]: prev[preservedExpandedAppointmentId] };
+    });
+
+    if (hasSearched) {
+      loadBillingAppointments();
+    }
+    if (preservedExpandedAppointmentId) {
+      loadInvoicesForAppointment(preservedExpandedAppointmentId);
+    }
+  }, [refreshTrigger, expandedAppointmentId, hasSearched, loadBillingAppointments, loadInvoicesForAppointment]);
 
   // Handle showing invoices for an appointment
   const handleShowInvoices = useCallback((appointmentId) => {

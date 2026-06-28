@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { getAccessToken, getClinicIdFromToken } from "../services/tokenManager";
 import { createPatient, getPatientsByClinic, getPatientFullProfile, updatePatientFullProfile, searchPatients, deletePatient, getAllPatientsByClinicID, getPatientVisit } from "../services/patientService";
 import { visitService } from "../services/visitService";
@@ -14,6 +14,66 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
 const API_BASE_URL = (import.meta).env?.VITE_API_BASE_URL || "https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api";
+
+const normalizePatientPayloadForModal = (payload) => {
+  if (!payload) return null;
+
+  const patient = payload.patient || {
+    patientId: payload.patientId || payload.id || payload.patientID || payload.patientId,
+    patientEntityID: payload.patientEntityID || payload.patientEntityId || payload.patientEntityID || "",
+    patientFirstName: payload.patientFirstName || payload.firstName || "",
+    patientLastName: payload.patientLastName || payload.lastName || "",
+    patientDOB: payload.patientDOB || payload.dateOfBirth || "",
+    patientGender: payload.patientGender || payload.gender || "",
+    patientBloodType: payload.patientBloodType || payload.bloodType || "",
+    clinicID: payload.clinicID || payload.clinicId || payload.clinic || ""
+  };
+
+  const patientContact = payload.patientContact || {
+    patientPhone: payload.patientPhone || payload.phoneNumber || payload.primaryPhoneNumber || payload.patientPhoneNumber || "",
+    patientEmail: payload.patientEmail || payload.email || "",
+    patientAddress: payload.patientAddress || payload.address || "",
+    patientCity: payload.patientCity || payload.city || "",
+    patientEmergencyContact: payload.patientEmergencyContact || ""
+  };
+
+  const patientMedicalInfo = payload.patientMedicalInfo || {
+    patientId: patient.patientId,
+    patientAllergies: payload.patientAllergies || payload.allergies || "",
+    patientCurrentMedications: payload.patientCurrentMedications || payload.currentMedications || "",
+    patientPrimaryPhysician: payload.patientPrimaryPhysician || payload.primaryPhysician || "",
+    no_of_visits: payload.patientMedicalInfo?.no_of_visits || payload.no_of_visits || 0,
+    lastVisitedDate: payload.patientMedicalInfo?.lastVisitedDate || payload.lastVisitedDate || "",
+    chronicDiseases: payload.patientMedicalInfo?.chronicDiseases || payload.chronicDiseases || "",
+    medicalHistory: payload.patientMedicalInfo?.medicalHistory || payload.medicalHistory || ""
+  };
+
+  const patientInsurance = payload.patientInsurance || {
+    patientId: patient.patientId,
+    patientInsuranceProvider: payload.patientInsuranceProvider || payload.insuranceProvider || "",
+    insuranceProviderId: payload.insuranceProviderId || null,
+    policyNumber: payload.policyNumber || "",
+    groupNumber: payload.groupNumber || "",
+    policyHolderName: payload.policyHolderName || "",
+    relationshipToPolicyHolder: payload.relationshipToPolicyHolder || "",
+    coverageStartDate: payload.coverageStartDate || "",
+    coverageEndDate: payload.coverageEndDate || "",
+    isPrimary: payload.isPrimary || false,
+    copayAmount: payload.copayAmount || "",
+    deductibleAmount: payload.deductibleAmount || "",
+    coveragePercentage: payload.coveragePercentage || null,
+    insurancePhone: payload.insurancePhone || "",
+    providerEmail: payload.providerEmail || "",
+    providerAddress: payload.providerAddress || ""
+  };
+
+  return {
+    patient,
+    patientContact,
+    patientMedicalInfo,
+    patientInsurance
+  };
+};
 
 // Reusable InputField component - moved outside to prevent re-creation on renders
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false, error = "" }) => (
@@ -1478,7 +1538,36 @@ export default function Patients() {
   const [loadingPatientDetails, setLoadingPatientDetails] = useState(false);
   const [showUpdateSuccessModal, setShowUpdateSuccessModal] = useState(false);
   const [updatingPatient, setUpdatingPatient] = useState(false);
-  
+  const location = useLocation();
+
+  useEffect(() => {
+    const incomingPatient = location?.state?.selectedPatient;
+    const shouldOpenModal = location?.state?.isModal === true && incomingPatient;
+
+    if (!shouldOpenModal) return;
+
+    const normalizedIncomingPatient = normalizePatientPayloadForModal(incomingPatient);
+    setSelectedPatient(normalizedIncomingPatient);
+    setShowPatientModal(true);
+
+    const patientId = Number(incomingPatient?.patientId || incomingPatient?.id || incomingPatient?.patient?.patientId || incomingPatient?.patient?.id);
+    if (!isNaN(patientId) && patientId > 0) {
+      setLoadingPatientDetails(true);
+      getPatientFullProfile(patientId)
+        .then((profile) => {
+          if (profile) {
+            setSelectedPatient(normalizePatientPayloadForModal(profile));
+          }
+        })
+        .catch((error) => {
+          console.error("Failed to load full patient profile from route state:", error);
+        })
+        .finally(() => {
+          setLoadingPatientDetails(false);
+        });
+    }
+  }, [location?.state]);
+
   // Delete modal states
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [showDeleteSuccessModal, setShowDeleteSuccessModal] = useState(false);

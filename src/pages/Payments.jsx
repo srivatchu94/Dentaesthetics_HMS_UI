@@ -174,15 +174,14 @@ export default function Payments() {
 
   // Handle showing invoices for an appointment
   const handleShowInvoices = useCallback((appointmentId) => {
-    if (expandedAppointmentId === appointmentId) {
-      setExpandedAppointmentId(null);
-    } else {
-      setExpandedAppointmentId(appointmentId);
-      if (!invoicesByAppointment[appointmentId]) {
+    setExpandedAppointmentId((prevId) => {
+      const nextId = prevId === appointmentId ? null : appointmentId;
+      if (nextId !== null && !invoicesByAppointment[appointmentId]) {
         loadInvoicesForAppointment(appointmentId);
       }
-    }
-  }, [expandedAppointmentId, invoicesByAppointment, loadInvoicesForAppointment]);
+      return nextId;
+    });
+  }, [invoicesByAppointment, loadInvoicesForAppointment]);
 
   // Download invoice as PDF
   const downloadInvoicePDF = (invoice) => {
@@ -633,6 +632,7 @@ export default function Payments() {
                     <AnimatePresence>
                       {expandedAppointmentId === appt.appointmentId && (
                         <motion.div
+                          layout
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
                           exit={{ opacity: 0, height: 0 }}
