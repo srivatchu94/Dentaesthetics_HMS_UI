@@ -1491,7 +1491,10 @@ export default function Patients() {
   const [registerFormErrors, setRegisterFormErrors] = useState({
     email: "",
     providerEmail: "",
-    postalCode: ""
+    postalCode: "",
+    city: "",
+    state: "",
+    country: ""
   });
 
   const [medicalData, setMedicalData] = useState({
@@ -1836,8 +1839,12 @@ export default function Patients() {
   };
 
   const isContactTabValid = () => {
-    return contactData.phoneNumber && contactData.addressLine1 && 
-           contactData.city && contactData.state && contactData.postalCode && contactData.country;
+    const alphaOnly = (v) => v && /^[a-zA-Z\s]+$/.test(String(v).trim());
+    return contactData.phoneNumber && contactData.addressLine1 &&
+           contactData.city && alphaOnly(contactData.city) &&
+           contactData.state && alphaOnly(contactData.state) &&
+           contactData.postalCode && !registerFormErrors.postalCode &&
+           contactData.country && alphaOnly(contactData.country);
   };
 
   const isAllTabsValid = () => {
@@ -2395,26 +2402,60 @@ export default function Patients() {
                   />
                 </div>
                 <div>
-                  <InputField
-                    label="City"
+                  <label className="block text-xs font-medium mb-1 text-gray-700">City <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
                     name="city"
                     value={contactData.city}
-                    onChange={(e) => setContactData({ ...contactData, city: e.target.value })}
-                    required
                     placeholder="City"
+                    required
+                    onKeyDown={(e) => {
+                      if (/[0-9]/.test(e.key)) {
+                        e.preventDefault();
+                        setRegisterFormErrors(prev => ({ ...prev, city: 'City must contain letters only — no numbers allowed' }));
+                      }
+                    }}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                      setContactData({ ...contactData, city: v });
+                      setRegisterFormErrors(prev => ({ ...prev, city: v !== e.target.value ? 'City must contain letters only — no numbers allowed' : '' }));
+                    }}
+                    onBlur={(e) => {
+                      setRegisterFormErrors(prev => ({ ...prev, city: /[0-9]/.test(e.target.value) ? 'City must contain letters only — no numbers allowed' : '' }));
+                    }}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg transition focus:outline-none focus:ring-1 ${registerFormErrors.city ? 'border-red-500 focus:ring-red-400 bg-red-50' : 'border-purple-300 focus:ring-indigo-500'}`}
                   />
-                  {isCityLookupLoading && (
-                    <p className="text-xs text-indigo-600 -mt-1">Auto-filling state and country...</p>
+                  {registerFormErrors.city && <p className="text-xs text-red-600 font-medium mt-1">⚠ {registerFormErrors.city}</p>}
+                  {isCityLookupLoading && !registerFormErrors.city && (
+                    <p className="text-xs text-indigo-600 mt-1">Auto-filling state and country...</p>
                   )}
                 </div>
-                <InputField
-                  label="State/Province"
-                  name="state"
-                  value={contactData.state}
-                  onChange={(e) => setContactData({ ...contactData, state: e.target.value })}
-                  required
-                  placeholder="State"
-                />
+                <div className="mb-2">
+                  <label className="block text-xs font-medium mb-1 text-gray-700">State/Province <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    name="state"
+                    value={contactData.state}
+                    placeholder="State"
+                    required
+                    onKeyDown={(e) => {
+                      if (/[0-9]/.test(e.key)) {
+                        e.preventDefault();
+                        setRegisterFormErrors(prev => ({ ...prev, state: 'State must contain letters only — no numbers allowed' }));
+                      }
+                    }}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                      setContactData({ ...contactData, state: v });
+                      setRegisterFormErrors(prev => ({ ...prev, state: v !== e.target.value ? 'State must contain letters only — no numbers allowed' : '' }));
+                    }}
+                    onBlur={(e) => {
+                      setRegisterFormErrors(prev => ({ ...prev, state: /[0-9]/.test(e.target.value) ? 'State must contain letters only — no numbers allowed' : '' }));
+                    }}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg transition focus:outline-none focus:ring-1 ${registerFormErrors.state ? 'border-red-500 focus:ring-red-400 bg-red-50' : 'border-purple-300 focus:ring-indigo-500'}`}
+                  />
+                  {registerFormErrors.state && <p className="text-xs text-red-600 font-medium mt-1">⚠ {registerFormErrors.state}</p>}
+                </div>
                 <InputField
                   label="Postal Code"
                   name="postalCode"
@@ -2433,14 +2474,32 @@ export default function Patients() {
                   placeholder="123456"
                   error={registerFormErrors.postalCode}
                 />
-                <InputField
-                  label="Country"
-                  name="country"
-                  value={contactData.country}
-                  onChange={(e) => setContactData({ ...contactData, country: e.target.value })}
-                  required
-                  placeholder="Country"
-                />
+                <div className="mb-2">
+                  <label className="block text-xs font-medium mb-1 text-gray-700">Country <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    name="country"
+                    value={contactData.country}
+                    placeholder="Country"
+                    required
+                    onKeyDown={(e) => {
+                      if (/[0-9]/.test(e.key)) {
+                        e.preventDefault();
+                        setRegisterFormErrors(prev => ({ ...prev, country: 'Country must contain letters only — no numbers allowed' }));
+                      }
+                    }}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                      setContactData({ ...contactData, country: v });
+                      setRegisterFormErrors(prev => ({ ...prev, country: v !== e.target.value ? 'Country must contain letters only — no numbers allowed' : '' }));
+                    }}
+                    onBlur={(e) => {
+                      setRegisterFormErrors(prev => ({ ...prev, country: /[0-9]/.test(e.target.value) ? 'Country must contain letters only — no numbers allowed' : '' }));
+                    }}
+                    className={`w-full px-3 py-1.5 text-sm border rounded-lg transition focus:outline-none focus:ring-1 ${registerFormErrors.country ? 'border-red-500 focus:ring-red-400 bg-red-50' : 'border-purple-300 focus:ring-indigo-500'}`}
+                  />
+                  {registerFormErrors.country && <p className="text-xs text-red-600 font-medium mt-1">⚠ {registerFormErrors.country}</p>}
+                </div>
                 <div className="md:col-span-3 mt-2 pt-2 border-t border-gray-200">
                   <h4 className="text-sm font-semibold text-gray-700 mb-2">Emergency Contact</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -2746,21 +2805,28 @@ export default function Patients() {
                       ← Previous
                     </motion.button>
                   )}
-                  {registerActiveTab !== "insurance" && (
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      type="button"
-                      onClick={() => {
-                        const tabs = ["patient", "contact", "medical", "insurance"];
-                        const currentIndex = tabs.indexOf(registerActiveTab);
-                        if (currentIndex < tabs.length - 1) setRegisterActiveTab(tabs[currentIndex + 1]);
-                      }}
-                      className="px-6 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-semibold hover:from-teal-700 hover:to-cyan-700 transition shadow-md"
-                    >
-                      Next →
-                    </motion.button>
-                  )}
+                  {registerActiveTab !== "insurance" && (() => {
+                    const canProceed =
+                      registerActiveTab === "patient" ? isPatientTabValid() :
+                      registerActiveTab === "contact" ? isContactTabValid() : true;
+                    return canProceed ? (
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        type="button"
+                        onClick={() => {
+                          const tabs = ["patient", "contact", "medical", "insurance"];
+                          const currentIndex = tabs.indexOf(registerActiveTab);
+                          if (currentIndex < tabs.length - 1) setRegisterActiveTab(tabs[currentIndex + 1]);
+                        }}
+                        className="px-6 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 text-white rounded-lg font-semibold hover:from-teal-700 hover:to-cyan-700 transition shadow-md"
+                      >
+                        Next →
+                      </motion.button>
+                    ) : (
+                      <p className="text-xs text-red-500 font-medium self-center">Fill all required fields (*) to continue</p>
+                    );
+                  })()}
                 </div>
 
                 {/* Register Button (available once required tabs are valid) */}
