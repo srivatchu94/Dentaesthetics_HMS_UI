@@ -853,24 +853,8 @@ export default function Header(){
           </Link>
           </div>
 
-          {/* Center: Clinic Name */}
-          <div className="flex-1 flex justify-center">
-            {isLoggedIn && clinicName && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '6px 18px', borderRadius: '24px',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                backdropFilter: 'blur(8px)',
-              }}>
-                <span style={{ fontSize: '12px', color: 'rgba(203,213,225,0.7)' }}>🏥</span>
-                <span style={{
-                  fontSize: '13px', fontWeight: '600', letterSpacing: '0.04em',
-                  color: '#e2e8f0',
-                }}>{clinicName}</span>
-              </div>
-            )}
-          </div>
+          {/* Center: spacer */}
+          <div className="flex-1" />
 
           {/* Right: Actions */}
           <div className="flex-1 flex justify-end">
