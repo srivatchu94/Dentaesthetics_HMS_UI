@@ -8805,12 +8805,6 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       </motion.div>
                     )}
                   </div>
-                ) : (
-                  <div className="text-center py-20">
-                    <div className="text-6xl mb-4">❌</div>
-                    <p className="text-gray-700 text-lg font-semibold">No diagnosis details found</p>
-                    <p className="text-gray-500 text-sm mt-2">This appointment may not have diagnosis information yet.</p>
-                  </div>
                 )}
               </div>
 
