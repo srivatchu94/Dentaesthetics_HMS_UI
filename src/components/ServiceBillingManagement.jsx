@@ -458,18 +458,6 @@ export default function ServiceBillingManagement({ onPaymentClick, refreshTrigge
             >
               📅 By Appointment
             </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setActiveTab('patient')}
-              className={`px-4 py-3 font-semibold rounded-t-lg transition-all ${
-                activeTab === 'patient'
-                  ? 'bg-blue-600 text-white shadow-lg'
-                  : 'bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              👤 By Patient
-            </motion.button>
           </div>
         </div>
 

@@ -3641,20 +3641,22 @@ export default function Doctors() {
       }
     };
 
-    // Print prescription handler
+    // Print prescription handler — uses the professional PrescriptionPrint modal
     const handlePrintPrescription = () => {
-      const userData = JSON.parse(localStorage.getItem("userData") || "{}");
-      const appointmentDetails = selectedAppointmentForVisit;
-      setPrintPrescriptionData({
-        patientName: `${appointmentDetails.firstName} ${appointmentDetails.lastName}`,
-        patientId: appointmentDetails.patientId,
-        patientAge: appointmentDetails.age || 'N/A',
-        doctorName: appointmentDetails.doctorName || userData.username || '',
-        registrationNumber: appointmentDetails.registrationNumber || 'N/A',
+      const prescriptionObj = {
+        prescriptionContent: JSON.stringify(inlineMedications.map(m => ({
+          medicineName: m.name,
+          dosage: m.dosage,
+          frequency: m.frequency,
+          duration: m.duration,
+          specialInstructions: m.instructions
+        }))),
         diagnosis: visitForm.diagnosis,
-        medications: inlineMedications,
-        notes: visitForm.notes
-      });
+        treatment: visitForm.notes,
+        prescriptionDate: new Date().toISOString()
+      };
+      setPrescriptionToPrint(prescriptionObj);
+      setShowPrescriptionPrintModal(true);
     };
 
     // Memoized input handler to prevent focus loss
@@ -4466,9 +4468,7 @@ export default function Doctors() {
                       <motion.button
                         whileHover={{ scale: 1.05, y: -1 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={() => {
-                          setShowPrescriptionPrintModal(true);
-                        }}
+                        onClick={handlePrintPrescription}
                         className="px-3 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg font-semibold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-1 text-sm"
                       >
                         <span>🖨️</span>

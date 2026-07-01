@@ -6,7 +6,7 @@ import { getClinicsByEnterpriseId } from "../services/doctorService";
 import { getSelectedAccess } from "../services/tokenManager";
 
 // Reusable InputField component with validation
-const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false, error = "", onBlur = null }) => (
+const InputField = ({ label, name, value, onChange, onKeyDown = null, type = "text", required = false, placeholder = "", options = null, disabled = false, error = "", onBlur = null }) => (
     <div className="mb-2">
         {type === "date" ? (
             <>
@@ -94,6 +94,7 @@ const InputField = ({ label, name, value, onChange, type = "text", required = fa
                     value={value}
                     onChange={onChange}
                     onBlur={onBlur}
+                    onKeyDown={onKeyDown}
                     required={required}
                     placeholder={placeholder}
                     disabled={disabled}
@@ -812,7 +813,14 @@ export default function RegisterPatient() {
                                                 onChange={(e) => {
                                                     const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
                                                     setContactData({ ...contactData, city: v });
-                                                    setErrors(prev => ({ ...prev, city: '' }));
+                                                    if (v !== e.target.value) setErrors(prev => ({ ...prev, city: 'Only letters are allowed' }));
+                                                    else setErrors(prev => ({ ...prev, city: '' }));
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (/[0-9]/.test(e.key)) {
+                                                        e.preventDefault();
+                                                        setErrors(prev => ({ ...prev, city: 'Only letters are allowed' }));
+                                                    }
                                                 }}
                                                 onBlur={(e) => handleFieldBlur("city", e.target.value, (v) => validateAlphaOnly(v, "City"))}
                                                 required
@@ -826,7 +834,14 @@ export default function RegisterPatient() {
                                                 onChange={(e) => {
                                                     const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
                                                     setContactData({ ...contactData, state: v });
-                                                    setErrors(prev => ({ ...prev, state: '' }));
+                                                    if (v !== e.target.value) setErrors(prev => ({ ...prev, state: 'Only letters are allowed' }));
+                                                    else setErrors(prev => ({ ...prev, state: '' }));
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (/[0-9]/.test(e.key)) {
+                                                        e.preventDefault();
+                                                        setErrors(prev => ({ ...prev, state: 'Only letters are allowed' }));
+                                                    }
                                                 }}
                                                 onBlur={(e) => handleFieldBlur("state", e.target.value, (v) => validateAlphaOnly(v, "State"))}
                                                 required
@@ -850,7 +865,14 @@ export default function RegisterPatient() {
                                                 onChange={(e) => {
                                                     const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
                                                     setContactData({ ...contactData, country: v });
-                                                    setErrors(prev => ({ ...prev, country: '' }));
+                                                    if (v !== e.target.value) setErrors(prev => ({ ...prev, country: 'Only letters are allowed' }));
+                                                    else setErrors(prev => ({ ...prev, country: '' }));
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (/[0-9]/.test(e.key)) {
+                                                        e.preventDefault();
+                                                        setErrors(prev => ({ ...prev, country: 'Only letters are allowed' }));
+                                                    }
                                                 }}
                                                 onBlur={(e) => handleFieldBlur("country", e.target.value, (v) => validateAlphaOnly(v, "Country"))}
                                                 required
