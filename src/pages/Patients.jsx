@@ -820,13 +820,18 @@ export default function Patients() {
       console.log('📋 Loading diagnosis for appointment ID:', appointmentId);
       const diagnosisData = await getPatientVisit(appointmentId);
       console.log('✅ Diagnosis data received:', diagnosisData);
-      
+
+      // 204 No Content or empty response — show friendly empty state
+      if (!diagnosisData) {
+        setSelectedDiagnosis(null);
+        setLoadingDiagnosis(false);
+        return;
+      }
+
       // Transform diagnosis data to ensure patient name and gender are populated
       const transformedData = {
         ...diagnosisData,
-        // Construct patient name from components if not present
         patientName: diagnosisData.patientName || `${diagnosisData.patientFirstName || ''} ${diagnosisData.patientLastName || ''}`.trim() || 'N/A',
-        // Ensure gender is populated
         patientGender: diagnosisData.patientGender || diagnosisData.gender || 'N/A'
       };
 
@@ -877,8 +882,7 @@ export default function Patients() {
       setSelectedDiagnosis(transformedData);
     } catch (error) {
       console.error("❌ Error loading diagnosis:", error);
-      alert('❌ Could not load diagnosis details. Please try again! 🩺');
-      setShowDiagnosisModal(false);
+      setSelectedDiagnosis(null);
     } finally {
       setLoadingDiagnosis(false);
     }
@@ -8399,7 +8403,13 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     </motion.div>
                     <p className="text-indigo-700 text-lg font-semibold">Loading diagnosis details...</p>
                   </div>
-                ) : selectedDiagnosis ? (
+                ) : !selectedDiagnosis ? (
+                  <div className="text-center py-20">
+                    <div className="text-6xl mb-4">🩺</div>
+                    <h3 className="text-xl font-bold text-slate-700 mb-2">No Diagnostic Details Found</h3>
+                    <p className="text-slate-500 text-sm">No diagnosis or prescription has been recorded for this appointment yet.</p>
+                  </div>
+                ) : (
                   <div className="space-y-6">
                     {/* Clinic Header - Only visible in print */}
                     <div className="hidden print:block text-center border-b-4 border-gray-800 pb-6 mb-6">
