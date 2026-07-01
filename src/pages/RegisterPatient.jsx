@@ -806,48 +806,63 @@ export default function RegisterPatient() {
                                                 onChange={(e) => setContactData({ ...contactData, addressLine2: e.target.value })}
                                                 placeholder="Apt, suite, etc."
                                             />
-                                            <InputField
-                                                label="City"
-                                                name="city"
-                                                value={contactData.city}
-                                                onChange={(e) => {
-                                                    const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
-                                                    setContactData({ ...contactData, city: v });
-                                                    if (v !== e.target.value) setErrors(prev => ({ ...prev, city: 'Only letters are allowed' }));
-                                                    else setErrors(prev => ({ ...prev, city: '' }));
-                                                }}
-                                                onKeyDown={(e) => {
-                                                    if (/[0-9]/.test(e.key)) {
-                                                        e.preventDefault();
-                                                        setErrors(prev => ({ ...prev, city: 'Only letters are allowed' }));
-                                                    }
-                                                }}
-                                                onBlur={(e) => handleFieldBlur("city", e.target.value, (v) => validateAlphaOnly(v, "City"))}
-                                                required
-                                                placeholder="City"
-                                                error={errors.city}
-                                            />
-                                            <InputField
-                                                label="State"
-                                                name="state"
-                                                value={contactData.state}
-                                                onChange={(e) => {
-                                                    const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
-                                                    setContactData({ ...contactData, state: v });
-                                                    if (v !== e.target.value) setErrors(prev => ({ ...prev, state: 'Only letters are allowed' }));
-                                                    else setErrors(prev => ({ ...prev, state: '' }));
-                                                }}
-                                                onKeyDown={(e) => {
-                                                    if (/[0-9]/.test(e.key)) {
-                                                        e.preventDefault();
-                                                        setErrors(prev => ({ ...prev, state: 'Only letters are allowed' }));
-                                                    }
-                                                }}
-                                                onBlur={(e) => handleFieldBlur("state", e.target.value, (v) => validateAlphaOnly(v, "State"))}
-                                                required
-                                                placeholder="State"
-                                                error={errors.state}
-                                            />
+                                            {/* City — letters only */}
+                                            <div className="mb-2">
+                                                <label className="block text-xs font-medium mb-1 text-gray-700">City <span className="text-red-500">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    name="city"
+                                                    value={contactData.city}
+                                                    placeholder="City"
+                                                    required
+                                                    onKeyDown={(e) => {
+                                                        if (/[0-9]/.test(e.key)) {
+                                                            e.preventDefault();
+                                                            setErrors(prev => ({ ...prev, city: 'City must contain letters only — no numbers allowed' }));
+                                                        }
+                                                    }}
+                                                    onChange={(e) => {
+                                                        const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                                                        setContactData({ ...contactData, city: v });
+                                                        setErrors(prev => ({ ...prev, city: v !== e.target.value ? 'City must contain letters only — no numbers allowed' : '' }));
+                                                    }}
+                                                    onBlur={(e) => {
+                                                        if (/[0-9]/.test(e.target.value)) setErrors(prev => ({ ...prev, city: 'City must contain letters only — no numbers allowed' }));
+                                                        else setErrors(prev => ({ ...prev, city: '' }));
+                                                    }}
+                                                    className={`w-full px-3 py-1.5 text-sm border rounded-lg transition focus:outline-none focus:ring-2 ${errors.city ? 'border-red-500 focus:ring-red-400 bg-red-50' : 'border-stone-300 focus:ring-teal-400'}`}
+                                                />
+                                                {errors.city && <p className="text-xs text-red-600 font-medium mt-1">⚠ {errors.city}</p>}
+                                            </div>
+
+                                            {/* State — letters only */}
+                                            <div className="mb-2">
+                                                <label className="block text-xs font-medium mb-1 text-gray-700">State/Province <span className="text-red-500">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    name="state"
+                                                    value={contactData.state}
+                                                    placeholder="State"
+                                                    required
+                                                    onKeyDown={(e) => {
+                                                        if (/[0-9]/.test(e.key)) {
+                                                            e.preventDefault();
+                                                            setErrors(prev => ({ ...prev, state: 'State must contain letters only — no numbers allowed' }));
+                                                        }
+                                                    }}
+                                                    onChange={(e) => {
+                                                        const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                                                        setContactData({ ...contactData, state: v });
+                                                        setErrors(prev => ({ ...prev, state: v !== e.target.value ? 'State must contain letters only — no numbers allowed' : '' }));
+                                                    }}
+                                                    onBlur={(e) => {
+                                                        if (/[0-9]/.test(e.target.value)) setErrors(prev => ({ ...prev, state: 'State must contain letters only — no numbers allowed' }));
+                                                        else setErrors(prev => ({ ...prev, state: '' }));
+                                                    }}
+                                                    className={`w-full px-3 py-1.5 text-sm border rounded-lg transition focus:outline-none focus:ring-2 ${errors.state ? 'border-red-500 focus:ring-red-400 bg-red-50' : 'border-stone-300 focus:ring-teal-400'}`}
+                                                />
+                                                {errors.state && <p className="text-xs text-red-600 font-medium mt-1">⚠ {errors.state}</p>}
+                                            </div>
                                             <InputField
                                                 label="Postal Code"
                                                 name="postalCode"
@@ -858,27 +873,34 @@ export default function RegisterPatient() {
                                                 placeholder="6-digit postal code"
                                                 error={errors.postalCode}
                                             />
-                                            <InputField
-                                                label="Country"
-                                                name="country"
-                                                value={contactData.country}
-                                                onChange={(e) => {
-                                                    const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
-                                                    setContactData({ ...contactData, country: v });
-                                                    if (v !== e.target.value) setErrors(prev => ({ ...prev, country: 'Only letters are allowed' }));
-                                                    else setErrors(prev => ({ ...prev, country: '' }));
-                                                }}
-                                                onKeyDown={(e) => {
-                                                    if (/[0-9]/.test(e.key)) {
-                                                        e.preventDefault();
-                                                        setErrors(prev => ({ ...prev, country: 'Only letters are allowed' }));
-                                                    }
-                                                }}
-                                                onBlur={(e) => handleFieldBlur("country", e.target.value, (v) => validateAlphaOnly(v, "Country"))}
-                                                required
-                                                placeholder="Country"
-                                                error={errors.country}
-                                            />
+                                            {/* Country — letters only */}
+                                            <div className="mb-2">
+                                                <label className="block text-xs font-medium mb-1 text-gray-700">Country <span className="text-red-500">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    name="country"
+                                                    value={contactData.country}
+                                                    placeholder="Country"
+                                                    required
+                                                    onKeyDown={(e) => {
+                                                        if (/[0-9]/.test(e.key)) {
+                                                            e.preventDefault();
+                                                            setErrors(prev => ({ ...prev, country: 'Country must contain letters only — no numbers allowed' }));
+                                                        }
+                                                    }}
+                                                    onChange={(e) => {
+                                                        const v = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                                                        setContactData({ ...contactData, country: v });
+                                                        setErrors(prev => ({ ...prev, country: v !== e.target.value ? 'Country must contain letters only — no numbers allowed' : '' }));
+                                                    }}
+                                                    onBlur={(e) => {
+                                                        if (/[0-9]/.test(e.target.value)) setErrors(prev => ({ ...prev, country: 'Country must contain letters only — no numbers allowed' }));
+                                                        else setErrors(prev => ({ ...prev, country: '' }));
+                                                    }}
+                                                    className={`w-full px-3 py-1.5 text-sm border rounded-lg transition focus:outline-none focus:ring-2 ${errors.country ? 'border-red-500 focus:ring-red-400 bg-red-50' : 'border-stone-300 focus:ring-teal-400'}`}
+                                                />
+                                                {errors.country && <p className="text-xs text-red-600 font-medium mt-1">⚠ {errors.country}</p>}
+                                            </div>
                                             <InputField
                                                 label="Emergency Contact Name"
                                                 name="emergencyContactName"
