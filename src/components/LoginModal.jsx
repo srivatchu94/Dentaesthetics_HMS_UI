@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { loginUser, saveAuthToken, convertOtpResponseToLoginResponse } from '../services/authService';
 import { request } from '../services/apiClient';
 import ForgotPasswordModal from './ForgotPasswordModal';
+import { sessionDebugLogger } from '../utils/sessionDebugLogger';
 
 const API_BASE_URL = (import.meta)?.env?.VITE_API_BASE_URL || 'https://cliniassistsapi-cmb3dcceapfwa6ah.centralus-01.azurewebsites.net/api';
 const AUTH_BASE_URL = '/Authentication';
@@ -151,24 +152,41 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
     e.preventDefault();
     if (!credentials.username.trim() || !credentials.password.trim()) {
       setError('Please enter both username and password');
+      sessionDebugLogger.logError('LOGIN_VALIDATION', new Error('Missing username or password'));
       return;
     }
 
     setLoading(true);
+    sessionDebugLogger.logLoginAttempt(credentials.username);
+    
     try {
+      sessionDebugLogger.addLog('LOGIN_CREDENTIALS', 'DEBUG', 'Sending credentials to API', {
+        username: credentials.username,
+        userType: userType
+      });
+
       const response = await loginUser({
         username: credentials.username,
         password: credentials.password
       });
 
+      sessionDebugLogger.logApiResponse('/Authentication/login', 200, response ? Object.keys(response) : []);
+
       if (response && response.accessToken) {
-        console.log('✅ Login response received:', {
+        sessionDebugLogger.addLog('LOGIN_RESPONSE', 'SUCCESS', 'Login response received from API', {
           hasAccessToken: !!response.accessToken,
+          hasRefreshToken: !!response.refreshToken,
           hasAccess: !!response.access,
-          accessLength: response.access?.length || 0,
-          accessContent: response.access
+          accessCount: response.access?.length || 0,
+          accessTokenExpiresAt: response.accessTokenExpiresAt,
+          responseKeys: Object.keys(response)
         });
         
+        sessionDebugLogger.addLog('SAVE_AUTH_TOKEN', 'DEBUG', 'Starting to save auth token and user data', {
+          username: response.user?.username || credentials.username,
+          userId: response.user?.userId
+        });
+
         saveAuthToken({
           accessToken: response.accessToken,
           refreshToken: response.refreshToken || '',
@@ -183,16 +201,37 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
 
         localStorage.setItem('userType', userType);
 
+        sessionDebugLogger.addLog('LOGIN_STORAGE_VERIFICATION', 'DEBUG', 'Verifying tokens and user data were saved', {
+          accessTokenInSessionStorage: !!sessionStorage.getItem('accessToken_session'),
+          refreshTokenInSessionStorage: !!sessionStorage.getItem('refreshToken_session'),
+          userDataInLocalStorage: !!localStorage.getItem('userData'),
+          selectedAccessInLocalStorage: !!localStorage.getItem('selectedAccess'),
+          sessionStorageKeys: Array.from({ length: sessionStorage.length }, (_, i) => sessionStorage.key(i)),
+          localStorageKeys: Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i))
+        });
+
+        sessionDebugLogger.addLog('LOGIN_SUCCESS', 'SUCCESS', 'Login completed successfully, closing modal', {
+          username: credentials.username,
+          nextStep: 'Modal will close and app will initialize'
+        });
+
         // Close modal and redirect immediately on successful authentication
         resetForm();
         onClose();
         window.dispatchEvent(new Event('auth-login-success'));
         if (onLoginSuccess) onLoginSuccess();
       } else {
-        setError('Invalid credentials. Please try again.');
+        const errorMsg = 'Invalid credentials. Please try again.';
+        setError(errorMsg);
+        sessionDebugLogger.addLog('LOGIN_NO_TOKEN', 'ERROR', errorMsg, {
+          response: response ? Object.keys(response) : null,
+          hasAccessToken: !!response?.accessToken
+        });
       }
     } catch (err) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      const errorMsg = err.message || 'Login failed. Please check your credentials.';
+      setError(errorMsg);
+      sessionDebugLogger.logError('LOGIN_EXCEPTION', err);
     } finally {
       setLoading(false);
     }
@@ -241,12 +280,22 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
     e.preventDefault();
     if (!otpState.otp || otpState.otp.length !== 6) {
       setError('Please enter a valid 6-digit OTP');
+      sessionDebugLogger.logError('OTP_VALIDATION', new Error('Invalid OTP format'));
       return;
     }
 
     setLoading(true);
+    sessionDebugLogger.logLoginAttempt(otpState.email + ' (OTP method)');
+    
     try {
       console.log('🔐 Verifying OTP for email:', otpState.email, 'OTP:', otpState.otp.replace(/./g, '*'));
+      
+      sessionDebugLogger.addLog('OTP_VERIFICATION_ATTEMPT', 'DEBUG', 'Sending OTP verification to API', {
+        email: otpState.email,
+        otpLength: otpState.otp.length,
+        userType: userType
+      });
+      
       const response = await request(`${OTP_BASE_URL}/VerifyOtp`, {
         method: 'POST',
         body: JSON.stringify({
@@ -263,6 +312,8 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
         loginMethod: response.loginMethod
       });
 
+      sessionDebugLogger.logApiResponse('/OtpAuthentication/VerifyOtp', 200, response ? Object.keys(response) : []);
+
       // Convert OTP response (with PascalCase) to standard LoginResponse format (camelCase)
       const convertedResponse = convertOtpResponseToLoginResponse(response);
       console.log('📝 Converted response:', {
@@ -271,9 +322,26 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
         accessCount: convertedResponse.access?.length || 0
       });
       
+      sessionDebugLogger.addLog('OTP_LOGIN_RESPONSE', 'SUCCESS', 'OTP verification successful', {
+        username: convertedResponse.username,
+        userId: convertedResponse.userId,
+        accessCount: convertedResponse.access?.length || 0
+      });
+      
+      sessionDebugLogger.addLog('SAVE_AUTH_TOKEN_OTP', 'DEBUG', 'Starting to save auth token from OTP flow', {
+        username: convertedResponse.username,
+        userId: convertedResponse.userId
+      });
+      
       saveAuthToken(convertedResponse);
       localStorage.setItem('userType', userType);
       localStorage.setItem('email', otpState.email);
+
+      sessionDebugLogger.addLog('OTP_LOGIN_SUCCESS', 'SUCCESS', 'OTP login completed successfully', {
+        username: convertedResponse.username,
+        email: otpState.email,
+        nextStep: 'Modal will close and app will initialize'
+      });
 
       // Close modal and redirect immediately on successful authentication
       resetForm();
@@ -282,7 +350,9 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }) => {
       if (onLoginSuccess) onLoginSuccess();
     } catch (err) {
       console.error('❌ OTP verification failed:', err);
-      setError(err.message || 'Invalid OTP. Please try again.');
+      const errorMsg = err.message || 'Invalid OTP. Please try again.';
+      setError(errorMsg);
+      sessionDebugLogger.logError('OTP_VERIFICATION_FAILED', err);
     } finally {
       setLoading(false);
     }

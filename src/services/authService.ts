@@ -28,6 +28,7 @@ import {
   exportDebugLogs,
   getStoredLogs
 } from '../utils/persistentDebugLogger';
+import { sessionDebugLogger } from '../utils/sessionDebugLogger';
 import { API_BASE_URL } from '../config/apiConfig';
 
 const AUTH_BASE_URL = '/Authentication';
@@ -218,6 +219,11 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
     console.log('💾 User Data: localStorage (non-sensitive)');
     console.log('🔐 ======================================================================\n');
     
+    // ⭐ SESSION DEBUG LOGGER - Log successful token save
+    sessionDebugLogger.logTokenSaved('BOTH', 'BOTH', accessTokenExpiresAt);
+    sessionDebugLogger.logUserDataSaved({ username, userId });
+    sessionDebugLogger.logSessionInitialized(access, getSelectedAccess());
+    
     // Start timers - UNIFIED MECHANISM ONLY
     // ✨ Single refresh timer at 13-minute mark for seamless session expansion
     startTokenRefreshTimer();
@@ -363,6 +369,12 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.log('═══════════════════════════════════════════════════════════════════');
     console.log(`⏰ Timestamp: ${new Date().toLocaleTimeString()}`);
     
+    // ✨ SESSION DEBUG LOGGER - Log refresh attempt
+    sessionDebugLogger.addLog('TOKEN_REFRESH_ATTEMPT', 'INFO', 'Attempting to refresh access token', {
+      timestamp: new Date().toLocaleString(),
+      mechanism: 'Unified Mechanism'
+    });
+    
     // ✅ Use the same proven mechanism as manual refresh
     const result = await manualRefreshToken();
     
@@ -371,11 +383,18 @@ export const refreshAccessToken = async (): Promise<boolean> => {
     console.log(`   Message: ${result.message}`);
     console.log('═══════════════════════════════════════════════════════════════════\n');
     
+    // ✨ SESSION DEBUG LOGGER - Log refresh result
+    sessionDebugLogger.logTokenRefresh(result.success, result.message);
+    
     return result.success;
   } catch (error) {
     console.error('\n❌ REFRESH FAILED (Unified Mechanism)');
     console.error(`   Error: ${(error as Error).message}`);
     console.error('═══════════════════════════════════════════════════════════════════\n');
+    
+    // ✨ SESSION DEBUG LOGGER - Log refresh error
+    sessionDebugLogger.logError('TOKEN_REFRESH', error as Error);
+    sessionDebugLogger.logTokenRefresh(false, (error as Error).message);
     
     logTokenRefreshEvent('REFRESH FAILED - Exception caught', {
       timestamp: new Date().toLocaleString(),
@@ -1364,6 +1383,14 @@ const handleLogout = (): void => {
   }
   
   logLogoutEvent('Session terminated - printing full debug logs');
+  
+  // ⭐ SESSION DEBUG LOGGER - Download logs BEFORE clearing tokens
+  sessionDebugLogger.logLogout('User initiated logout');
+  try {
+    sessionDebugLogger.downloadLogs(); // Auto-download as .log file with timestamp
+  } catch (error) {
+    console.error('⚠️ Failed to download session debug logs:', error);
+  }
   
   // Clear all timers
   if (refreshTokenTimer) clearTimeout(refreshTokenTimer);
