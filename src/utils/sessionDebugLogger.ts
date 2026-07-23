@@ -277,17 +277,58 @@ SessionStorage Keys: ${Array.from({ length: sessionStorage.length }, (_, i) => s
   /**
    * Download logs as a text file
    */
-  downloadLogs(): void {
-    const logsText = this.getLogsAsText();
-    const element = document.createElement('a');
-    const file = new Blob([logsText], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = `session-debug-${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-    
-    console.log('✅ Session debug logs downloaded successfully');
+  downloadLogs(): Promise<void> {
+    return new Promise((resolve) => {
+      try {
+        console.log('🔍 SESSION DEBUG LOGGER - Preparing to download logs...');
+        console.log(`📊 Total log entries: ${this.logs.length}`);
+        
+        const logsText = this.getLogsAsText();
+        console.log(`📝 Generated log text: ${logsText.length} characters`);
+        
+        const element = document.createElement('a');
+        const file = new Blob([logsText], { type: 'text/plain' });
+        const url = URL.createObjectURL(file);
+        
+        element.href = url;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + new Date().toISOString().split('T')[1].replace(/[:.]/g, '-').substring(0, 8);
+        element.download = `HMS_DEBUG_LOGS_${timestamp}.log`;
+        
+        console.log(`💾 Triggering download: ${element.download}`);
+        
+        document.body.appendChild(element);
+        
+        // Trigger the download
+        element.click();
+        console.log('✅ Download triggered successfully');
+        
+        // Clean up after a small delay to ensure download starts
+        setTimeout(() => {
+          document.body.removeChild(element);
+          URL.revokeObjectURL(url);
+          console.log('✅ Cleanup completed - file should be downloading');
+          resolve();
+        }, 100);
+        
+      } catch (error) {
+        console.error('❌ CRITICAL: Failed to download session debug logs:', error);
+        console.error('Error details:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        });
+        
+        // Try fallback: log to console for user to copy
+        try {
+          console.log('\n⚠️ FALLBACK: Logs cannot be auto-downloaded. Copy logs from below:\n');
+          console.log(this.getLogsAsText());
+        } catch (fallbackError) {
+          console.error('❌ FALLBACK ALSO FAILED:', fallbackError);
+        }
+        
+        resolve();
+      }
+    });
   }
 
   /**

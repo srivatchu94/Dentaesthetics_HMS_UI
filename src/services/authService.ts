@@ -1384,34 +1384,42 @@ const handleLogout = (): void => {
   
   logLogoutEvent('Session terminated - printing full debug logs');
   
-  // ⭐ SESSION DEBUG LOGGER - Download logs BEFORE clearing tokens
+  // ⭐ SESSION DEBUG LOGGER - Download logs BEFORE clearing tokens (with async handling)
   sessionDebugLogger.logLogout('User initiated logout');
-  try {
-    sessionDebugLogger.downloadLogs(); // Auto-download as .log file with timestamp
-  } catch (error) {
-    console.error('⚠️ Failed to download session debug logs:', error);
-  }
+  console.log('\n🔴 STEP 1: Initiating session debug log download...');
   
-  // Clear all timers
-  if (refreshTokenTimer) clearTimeout(refreshTokenTimer);
-  if (inactivityTimer) clearInterval(inactivityTimer);
-  if (sessionExpiryTimer) clearTimeout(sessionExpiryTimer);
-  stopContinuousTokenRefreshPolling(); // NEW: Stop continuous polling
-  stopProactiveRefreshTimer();          // NEW: Stop proactive refresh
-  stopTokenRefreshHeartbeat(); // Stop heartbeat on logout
-  stopPollingGuardian();        // 🛡️ Stop polling guardian on logout
-  
-  // Remove activity listeners
-  removeActivityListeners();
-  
-  // Clear all tokens and session data using hybrid storage manager
-  // This ensures cleanup across: memory, sessionStorage, localStorage, and HttpOnly cookies
-  clearAllTokens();
-  
-  console.log('🔓 Complete logout - All tokens cleared from memory, sessionStorage, and localStorage');
-  console.log('🔐 Refresh token in HttpOnly cookie will be invalidated by server on next request');
-  console.log('📁 Logs have been exported to your Downloads folder as HMS-Diagnostic-Logs_*.txt');
-  console.log('\n🔵 ════════════════════════════════════════════════════════════════\n');
+  // Use async IIFE to handle the async download and then proceed with logout
+  (async () => {
+    try {
+      await sessionDebugLogger.downloadLogs(); // Wait for download to complete
+      console.log('🔴 STEP 2: Log download complete - proceeding with token clearance');
+    } catch (error) {
+      console.error('🔴 STEP 2 ERROR: Download failed but continuing logout:', error);
+    }
+    
+    // AFTER download completes, clear timers
+    console.log('🔴 STEP 3: Clearing timers...');
+    if (refreshTokenTimer) clearTimeout(refreshTokenTimer);
+    if (inactivityTimer) clearInterval(inactivityTimer);
+    if (sessionExpiryTimer) clearTimeout(sessionExpiryTimer);
+    stopContinuousTokenRefreshPolling(); // NEW: Stop continuous polling
+    stopProactiveRefreshTimer();          // NEW: Stop proactive refresh
+    stopTokenRefreshHeartbeat(); // Stop heartbeat on logout
+    stopPollingGuardian();        // 🛡️ Stop polling guardian on logout
+    
+    // Remove activity listeners
+    removeActivityListeners();
+    
+    // Clear all tokens and session data using hybrid storage manager
+    // This ensures cleanup across: memory, sessionStorage, localStorage, and HttpOnly cookies
+    console.log('🔴 STEP 4: Clearing all tokens from storage...');
+    clearAllTokens();
+    
+    console.log('🔓 Complete logout - All tokens cleared from memory, sessionStorage, and localStorage');
+    console.log('🔐 Refresh token in HttpOnly cookie will be invalidated by server on next request');
+    console.log('📁 Logs should have been downloaded as HMS_DEBUG_LOGS_*.log to your Downloads folder');
+    console.log('\n🔵 ════════════════════════════════════════════════════════════════\n');
+  })();
 };
 
 /**
