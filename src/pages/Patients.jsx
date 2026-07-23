@@ -1548,6 +1548,18 @@ export default function Patients() {
   const location = useLocation();
 
   useEffect(() => {
+    if (location?.state?.openNewAppointment) {
+      const token = getAccessToken();
+      if (token) {
+        setIsUserLoggedIn(true);
+        setShowNewAppointmentModal(true);
+      } else {
+        setShowNotLoggedInModal(true);
+      }
+    }
+  }, [location?.state?.openNewAppointment]);
+
+  useEffect(() => {
     const incomingPatient = location?.state?.selectedPatient;
     const shouldOpenModal = location?.state?.isModal === true && incomingPatient;
 

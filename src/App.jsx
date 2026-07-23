@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import Header from "./components/Header";
 import ErrorPage from "./components/ErrorPage";
+import useKeepAlive from "./pages/hooks/useKeepAlive";
 import ErrorBoundary from "./components/ErrorBoundary";
 import TokenExpiryModal from "./components/TokenExpiryModal";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -55,6 +56,8 @@ import { initializeTabFocusListener, startTokenRefreshHeartbeat, getAuthToken, i
 export default function App(){
   const navigate = useNavigate();
   const { showTokenExpiryModal, setShowTokenExpiryModal } = useTokenExpiry();
+
+  useKeepAlive();
 
   useEffect(() => {
     // 🔄 STEP 1: PAGE RELOAD REHYDRATION

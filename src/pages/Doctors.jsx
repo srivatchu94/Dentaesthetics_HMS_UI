@@ -1336,37 +1336,8 @@ export default function Doctors() {
   }, []);
   
   // New appointment booking functions
-  const handleOpenBooking = async () => {
-    setBookingModalOpen(true);
-    setNewAppointment({
-      firstName: "",
-      lastName: "",
-      date: "",
-      time: "",
-      type: "",
-      doctor: "",
-      notes: "",
-      phone: "",
-      email: "",
-      isWalkIn: false
-    });
-
-    // Fetch doctors list for the clinic
-    try {
-      setLoadingDoctors(true);
-      // Get clinic ID from clinicData or from selected access
-      const clinicId = clinicData?.clinicId || selectedAccess?.clinicId;
-      if (clinicId) {
-        const doctors = await getDoctorsByClinicId(clinicId);
-        setDoctorsList(doctors || []);
-        console.log('✅ Doctors fetched:', doctors);
-      }
-    } catch (error) {
-      console.error('❌ Error fetching doctors:', error);
-      setDoctorsList([]);
-    } finally {
-      setLoadingDoctors(false);
-    }
+  const handleOpenBooking = () => {
+    navigate('/patients', { state: { openNewAppointment: true } });
   };
   
   const handleBookAppointment = () => {

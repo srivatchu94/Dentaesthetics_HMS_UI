@@ -214,6 +214,14 @@ export default function SuperAdmin() {
   const [viewSaveLoading, setViewSaveLoading] = useState(false);
   const [viewSaveError, setViewSaveError] = useState("");
   const [viewSaveSuccess, setViewSaveSuccess] = useState("");
+  
+  // Onboard Staff (TeamHub parity)
+  const [showOnboardStaffModal, setShowOnboardStaffModal] = useState(false);
+  const [staffFormError, setStaffFormError] = useState("");
+  const [creatingStaff, setCreatingStaff] = useState(false);
+  const [onboardStaffActiveStep, setOnboardStaffActiveStep] = useState("personal");
+  const [roles, setRoles] = useState([]);
+  const [rolesLoading, setRolesLoading] = useState(false);
 
   // Route guard: Only Super Admin (roleId = 1) can access this page
   useEffect(() => {
@@ -230,13 +238,13 @@ export default function SuperAdmin() {
     }
   }, [navigate]);
 
-  // Onboard Staff (TeamHub parity)
-  const [showOnboardStaffModal, setShowOnboardStaffModal] = useState(false);
-  const [staffFormError, setStaffFormError] = useState("");
-  const [creatingStaff, setCreatingStaff] = useState(false);
-  const [onboardStaffActiveStep, setOnboardStaffActiveStep] = useState("personal");
-  const [roles, setRoles] = useState([]);
-  const [rolesLoading, setRolesLoading] = useState(false);
+// Fetch roles when Onboard Staff modal opens
+useEffect(() => {
+  if (showOnboardStaffModal) {
+    fetchRoles();   // ✅ call your roles API
+  }
+}, [showOnboardStaffModal]);
+
   const staffSteps = [
     { key: "personal", icon: "👤", label: "Personal Info" },
     { key: "contact", icon: "📞", label: "Contact" },
