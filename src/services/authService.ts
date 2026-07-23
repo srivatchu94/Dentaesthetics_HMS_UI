@@ -1646,10 +1646,15 @@ export const startProactiveRefreshTimer = (): void => {
       const minutesLeft = Math.floor(timeUntilExpiry / 1000 / 60);
 
       // If token expires in less than 2 minutes, refresh immediately
-      if (timeUntilExpiry < 2 * 60 * 1000) {
+      if (timeUntilExpiry < 2 * 60 * 1000 && !isTokenRefreshInProgress) {
         console.log(`⏱️ Token expires in ${minutesLeft}m - Refreshing NOW`);
-        // Call refresh from apiClient (will be auto-called on 401 anyway)
-        // This is just proactive
+        // CRITICAL FIX: Actually call the refresh function instead of just logging!
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          console.log('✅ Proactive refresh succeeded - Token extended');
+        } else {
+          console.warn('⚠️ Proactive refresh failed - Will retry on next check');
+        }
       } else if (checkCount % 5 === 0) {
         // Log status periodically (every 5 checks = every 5 minutes)
         console.log(`💚 Token healthy: ${minutesLeft}m remaining`);
