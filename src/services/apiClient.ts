@@ -5,6 +5,7 @@ export const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || "https://
 
 // Import token refresh status check
 import { isRefreshInProgress } from './authService';
+import { saveAccessToken, saveRefreshToken } from './tokenManager';
 
 type ApiDebugEntry = {
   time: string;
@@ -133,26 +134,33 @@ export async function refreshTokenInterceptor(): Promise<boolean> {
     const data = await response.json();
     console.log(`\n✅ Refresh succeeded!`);
     console.log(`   Response keys: ${Object.keys(data).join(', ')}`);
+    console.log(`   Full response data: ${JSON.stringify(data)}`);
     
-    if (data.accessToken) {
-      console.log(`✅ New access token received: ${data.accessToken.substring(0, 20)}...`);
-      console.log(`   Expires: ${data.accessTokenExpiresAt || 'N/A'}`);
-      
-      // Save new token to storage
-      sessionStorage.setItem('accessToken_session', data.accessToken);
-      if (data.accessTokenExpiresAt) {
-        sessionStorage.setItem('accessTokenExpiry', data.accessTokenExpiresAt);
-      }
-      
-      // Also update memory token via saveAccessToken if needed
-      console.log('✅ Token saved to sessionStorage');
-      console.log('═══════════════════════════════════════════\n');
-      return true;
-    } else {
-      console.error('❌ Response missing accessToken field');
-      console.error(`   Received: ${JSON.stringify(data)}`);
+    // CRITICAL: Check if backend returned tokens
+    if (!data.accessToken) {
+      console.error('❌ CRITICAL: Backend refresh response missing accessToken!');
+      console.error(`   Response keys: ${Object.keys(data).join(', ')}`);
+      console.error(`   Full response: ${JSON.stringify(data)}`);
       return false;
     }
+    
+    console.log(`✅ New access token received: ${data.accessToken.substring(0, 20)}...`);
+    console.log(`   Expires: ${data.accessTokenExpiresAt || 'N/A'}`);
+    
+    // CRITICAL FIX: Use tokenManager functions with fallback expiry
+    // Save new access token with backend-provided expiry
+    saveAccessToken(data.accessToken, data.accessTokenExpiresAt);
+    
+    // Also save refresh token if backend returned it
+    if (data.refreshToken) {
+      console.log(`✅ New refresh token received`);
+      saveRefreshToken(data.refreshToken);
+    } else {
+      console.warn('⚠️ Backend did not return new refresh token in response');
+    }
+    
+    console.log('═══════════════════════════════════════════\n');
+    return true;
   } catch (error) {
     console.error('❌ Refresh token error:', error);
     console.error(`   Error message: ${(error as Error).message}`);

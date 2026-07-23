@@ -174,16 +174,35 @@ export const saveAccessToken = (token: string, backendExpiryTime?: string): void
   try {
     console.log('\n📋 SAVING ACCESS TOKEN STEP-BY-STEP:');
     
-    // Extract expiry from JWT token's exp claim
-    const jwtExpiry = extractTokenExpiryFromJWT(token);
-    
-    if (!jwtExpiry) {
-      console.error('❌ CRITICAL: Could not extract expiry from JWT token');
+    if (!token) {
+      console.error('❌ CRITICAL: No token provided to saveAccessToken');
       return;
     }
     
-    const expiryTime = jwtExpiry;
-    console.log(`   ✓ JWT Expiry extracted: ${expiryTime}`);
+    // CRITICAL FIX: Try to extract JWT expiry, but fall back to backend-provided expiry if JWT parsing fails
+    let expiryTime: string | null = null;
+    
+    try {
+      const jwtExpiry = extractTokenExpiryFromJWT(token);
+      if (jwtExpiry) {
+        expiryTime = jwtExpiry;
+        console.log(`   ✓ JWT Expiry extracted: ${expiryTime}`);
+      }
+    } catch (jwtError) {
+      console.warn('⚠️ Could not extract JWT expiry, will use backend-provided expiry', jwtError);
+    }
+    
+    // If JWT extraction failed, use backend-provided expiry or generate default
+    if (!expiryTime) {
+      if (backendExpiryTime) {
+        expiryTime = backendExpiryTime;
+        console.log(`   ✓ Using backend-provided expiry: ${expiryTime}`);
+      } else {
+        // Default to 15 minutes from now if backend doesn't provide expiry
+        expiryTime = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        console.warn(`   ⚠️ No JWT exp claim and no backend expiry - using 15-minute default: ${expiryTime}`);
+      }
+    }
     
     // Store in memory (primary)
     memoryAccessToken = token;
@@ -211,7 +230,12 @@ export const saveAccessToken = (token: string, backendExpiryTime?: string): void
       if (!verifyExpiry) console.error(`      - accessTokenExpiry not found after setItem!`);
     }
     
-    decodeAndLogTokenClaims(token);
+    // Try to decode and log claims, but don't fail if JWT is malformed
+    try {
+      decodeAndLogTokenClaims(token);
+    } catch (decodeError) {
+      console.warn('⚠️ Could not decode JWT claims:', decodeError);
+    }
     
   } catch (error) {
     console.error('❌ Failed to save access token:', error);
@@ -299,18 +323,34 @@ export const getRefreshToken = (): string | null => {
  */
 export const saveRefreshToken = (token: string): void => {
   try {
+    if (!token) {
+      console.error('❌ CRITICAL: saveRefreshToken called with EMPTY TOKEN');
+      console.error('   This means the backend did not return a refresh token!');
+      console.error('   Session will not be able to refresh - user will be logged out on first 401');
+      return;
+    }
+    
+    console.log(`\n📋 SAVING REFRESH TOKEN:`);
+    console.log(`   Token length: ${token.length} characters`);
+    console.log(`   First 20 chars: ${token.substring(0, 20)}...`);
+    
     sessionStorage.setItem(REFRESH_TOKEN_SS_KEY, token);
-    console.log('✅ Refresh token saved to sessionStorage for later API calls');
+    console.log('   ✓ Set to sessionStorage');
     
     // Verify
     const verify = sessionStorage.getItem(REFRESH_TOKEN_SS_KEY);
     if (verify) {
-      console.log('✅ VERIFIED: Refresh token ready to be sent in API requests');
+      console.log('   ✅ VERIFIED: Refresh token ready for API refresh calls');
     } else {
-      console.error('❌ ERROR: Refresh token not saved properly!');
+      console.error('   ❌ CRITICAL VERIFICATION FAILED: Refresh token not in sessionStorage after setItem!');
+      console.error('   This likely means sessionStorage is full or disabled');
     }
   } catch (error) {
-    console.error('❌ Failed to save refresh token:', error);
+    console.error('❌ CRITICAL: Failed to save refresh token:', error);
+    if (error instanceof Error) {
+      console.error('   Error name:', error.name);
+      console.error('   Error message:', error.message);
+    }
   }
 };
 
