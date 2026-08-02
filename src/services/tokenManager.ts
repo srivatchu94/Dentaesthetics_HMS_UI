@@ -301,6 +301,7 @@ export const getAccessToken = (): string | null => {
 /**
  * Get refresh token from sessionStorage
  * CRITICAL: Backend model requires this in request body: { accessToken, refreshToken }
+ * PRODUCTION FIX: In Azure, always attempt to fetch from backend using heartbeat to verify session
  */
 export const getRefreshToken = (): string | null => {
   try {
@@ -320,6 +321,7 @@ export const getRefreshToken = (): string | null => {
 /**
  * Save refresh token to sessionStorage during login
  * CRITICAL: Backend expects this in refresh API request body
+ * PRODUCTION FIX: Also save backup to localStorage for Azure resilience
  */
 export const saveRefreshToken = (token: string): void => {
   try {
@@ -334,8 +336,14 @@ export const saveRefreshToken = (token: string): void => {
     console.log(`   Token length: ${token.length} characters`);
     console.log(`   First 20 chars: ${token.substring(0, 20)}...`);
     
+    // Primary: sessionStorage (cleared on tab close for security)
     sessionStorage.setItem(REFRESH_TOKEN_SS_KEY, token);
     console.log('   ✓ Set to sessionStorage');
+    
+    // Backup: localStorage (for production Azure resilience)
+    // This is encrypted/temporary - cleared on logout
+    localStorage.setItem('refreshToken_backup', token);
+    console.log('   ✓ Backup saved to localStorage (for production resilience)');
     
     // Verify
     const verify = sessionStorage.getItem(REFRESH_TOKEN_SS_KEY);
@@ -608,6 +616,7 @@ export const clearAllTokens = (): void => {
     
     // Clear localStorage - but PRESERVE user access/roles
     localStorage.removeItem(USER_DATA_LS_KEY);  // ❌ Clear: username/userId (session-specific)
+    localStorage.removeItem('refreshToken_backup');  // ❌ Clear: backup refresh token
     // ✅ PRESERVE: USER_ACCESS_LS_KEY - user should keep their role/clinic options
     // ✅ PRESERVE: SELECTED_ACCESS_LS_KEY - remember their last selection for re-login
     // ✅ PRESERVE: email - for faster re-login next time

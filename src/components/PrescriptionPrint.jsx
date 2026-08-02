@@ -104,25 +104,29 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
       className="prescription-print-container bg-white w-full max-w-3xl mx-auto text-slate-800 print:text-black"
       id="prescription-print-main"
     >
-      {/* ── TOP CENTERED LOGO ── */}
-      <div className="flex justify-center pt-6 pb-2">
-        <img
-          src={dantaLogo}
-          alt="Danta Logo"
-          className="logo-color w-16 h-16 object-cover"
-          style={{
-            printColorAdjust: 'exact',
-            WebkitPrintColorAdjust: 'exact',
-            borderRadius: '8px',
-          }}
-        />
-      </div>
+      {/* ── HEADER: LOGO (LEFT) + CLINIC NAME (CENTER) ── */}
+      <div className="flex items-start justify-between px-6 pt-4 pb-2 border-b border-slate-200">
+        {/* Logo on left */}
+        <div className="w-16">
+          <img
+            src={dantaLogo}
+            alt="Danta Logo"
+            className="logo-color w-16 h-16 object-cover"
+            style={{
+              printColorAdjust: 'exact',
+              WebkitPrintColorAdjust: 'exact',
+              borderRadius: '8px',
+            }}
+          />
+        </div>
 
-      {/* ── DOCTOR INFO HEADER ── */}
-      <div className="text-center border-b border-slate-200 pb-4 px-6">
-        <h2 className="text-lg font-bold text-slate-900 print:text-black">{clinicName}</h2>
-        <p className="text-xs text-slate-600 print:text-black">Dr. {doctorName}</p>
-        <p className="text-xs text-slate-600 font-semibold print:text-black">REG NO: {regNo}</p>
+        {/* Clinic name centered */}
+        <div className="flex-1 text-center">
+          <h2 className="text-lg font-bold text-slate-900 print:text-black">{clinicName}</h2>
+        </div>
+
+        {/* Empty space for alignment */}
+        <div className="w-16"></div>
       </div>
 
       {/* ── PATIENT INFO SECTION ── */}
@@ -137,7 +141,7 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
           </div>
           <div>
             <p className="text-xs uppercase font-bold text-slate-500 print:text-black">Contact</p>
-            <p className="text-sm text-slate-700 print:text-black">{phone || "N/A"}</p>
+            <p className="text-sm text-slate-700 print:text-black">{phone}</p>
           </div>
           <div>
             <p className="text-xs uppercase font-bold text-slate-500 print:text-black">Visit Date & Time</p>
@@ -146,7 +150,7 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
         </div>
       </div>
 
-      {/* ── INVOICE SECTION ── */}
+      {/* ── INVOICE SECTION (NO doctor name here) ── */}
       <div className="px-6 py-3 border-b border-slate-200 flex justify-between items-center">
         <div>
           <p className="text-sm font-semibold text-slate-800 print:text-black">
@@ -205,7 +209,7 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
         )}
       </div>
 
-      {/* ── SIGNATURE SECTION ── */}
+      {/* ── SIGNATURE SECTION (ONLY doctor name here) ── */}
       <div className="px-6 py-6 border-t border-slate-200 text-right">
         <p className="text-xs text-slate-600 print:text-black mb-2">Electronically signed by:</p>
         <div className="border-t-2 border-slate-400 pt-3 inline-block min-w-64 print:border-black">

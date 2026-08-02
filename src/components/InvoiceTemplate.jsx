@@ -6,24 +6,27 @@ export function InvoiceTemplate({ data }) {
   return (
     <div className="hidden print-only p-8 bg-white">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
+        {/* Header: Logo (Left) + Clinic Name (Center) + Invoice Info (Right) */}
         <div className="mb-8 pb-6 border-b-2 border-gray-200">
-          <div className="flex items-center justify-between">
-            {/* Logo + Brand */}
-            <div className="flex items-center gap-3">
+          <div className="flex items-start justify-between gap-4">
+            {/* Logo on left */}
+            <div className="flex-shrink-0">
               <img
                 src={dantaLogo}
                 alt="Dentaesthetics Logo"
-                style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #e2e8f0' }}
+                style={{ width: '56px', height: '56px', borderRadius: '8px', objectFit: 'cover' }}
               />
-              <div>
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">DENTAESTHETICS</h2>
-                <p className="text-xs text-slate-500 font-semibold tracking-widest uppercase">The Dental Company</p>
-                {data.clinic && <p className="text-xs text-slate-400 mt-0.5">{data.clinic}</p>}
-              </div>
             </div>
-            {/* Invoice Meta */}
-            <div className="text-right">
+
+            {/* Clinic name centered */}
+            <div className="flex-1 text-center">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">DENTAESTHETICS</h2>
+              <p className="text-xs text-slate-500 font-semibold tracking-widest uppercase">The Dental Company</p>
+              {data.clinic && <p className="text-xs text-slate-400 mt-0.5">{data.clinic}</p>}
+            </div>
+
+            {/* Invoice Info on right */}
+            <div className="text-right flex-shrink-0 min-w-fit">
               <h1 className="text-3xl font-black text-slate-800 tracking-wide">INVOICE</h1>
               <p className="text-sm text-slate-500 mt-1">Date: {data.date}</p>
               <p className="text-sm text-slate-500">Invoice #: {data.invoiceNumber || "INV-2026-001"}</p>
@@ -43,7 +46,7 @@ export function InvoiceTemplate({ data }) {
           </div>
         </div>
 
-        {/* Items Table */}
+        {/* Items Table - BILLING SECTION (kept as is) */}
         <table className="w-full mb-8">
           <thead>
             <tr className="border-b-2 border-gray-300">
@@ -63,7 +66,7 @@ export function InvoiceTemplate({ data }) {
           </tbody>
         </table>
 
-        {/* Totals */}
+        {/* Totals - BILLING SECTION (kept as is) */}
         <div className="flex justify-end mb-8">
           <div className="w-64">
             <div className="flex justify-between py-2 border-b-2 border-gray-300 mb-4">

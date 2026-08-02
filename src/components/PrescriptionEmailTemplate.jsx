@@ -84,16 +84,14 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif;color:#1f2937;">
   <div style="max-width:720px;margin:24px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
 
-    <!-- CENTERED LOGO -->
-    <div style="text-align:center;padding:24px 0 8px;">
-      <img src="cid:logo" alt="Danta" style="width:60px;height:60px;border-radius:8px;" />
+    <!-- CENTERED LOGO + CLINIC NAME -->
+    <div style="text-align:center;padding:24px 0 0;">
+      <img src="cid:logo" alt="Danta" style="width:60px;height:60px;border-radius:8px;margin-bottom:12px;" />
+      <div style="font-size:18px;font-weight:700;color:#1f2937;padding:0 24px;">${clinicName}</div>
     </div>
 
-    <!-- DOCTOR INFO HEADER -->
     <div style="text-align:center;padding:0 24px 16px;border-bottom:1px solid #e5e7eb;">
-      <div style="font-size:18px;font-weight:700;color:#1f2937;">${clinicName}</div>
-      <div style="font-size:12px;color:#6b7280;">Dr. ${doctorName}</div>
-      <div style="font-size:11px;color:#6b7280;font-weight:600;">REG NO: ${regNo}</div>
+      <!-- Doctor name REMOVED from header -->
     </div>
 
     <!-- PATIENT INFO SECTION -->
@@ -108,7 +106,7 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
           </td>
           <td style="width:33.33%;vertical-align:top;padding-right:12px;">
             <div style="font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Contact</div>
-            <div style="font-size:12px;color:#374151;">${phone || "N/A"}</div>
+            <div style="font-size:12px;color:#374151;">${phone}</div>
           </td>
           <td style="width:33.33%;vertical-align:top;">
             <div style="font-size:9px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Visit Date & Time</div>
@@ -118,7 +116,7 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
       </table>
     </div>
 
-    <!-- INVOICE SECTION -->
+    <!-- INVOICE SECTION (NO doctor name here) -->
     <div style="padding:12px 24px;border-bottom:1px solid #e5e7eb;">
       <table width="100%" cellpadding="0" cellspacing="0">
         <tr>
@@ -166,7 +164,7 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
       </table>` : `<p style="font-size:12px;color:#9ca3af;font-style:italic;">No medications prescribed.</p>`}
     </div>
 
-    <!-- SIGNATURE SECTION -->
+    <!-- SIGNATURE SECTION (ONLY doctor name here) -->
     <div style="padding:20px 24px;border-top:1px solid #e5e7eb;text-align:right;">
       <div style="font-size:10px;color:#6b7280;margin-bottom:4px;">Electronically signed by:</div>
       <div style="display:inline-block;border-top:2px solid #9ca3af;padding-top:8px;text-align:right;">

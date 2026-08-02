@@ -61,12 +61,14 @@ let sessionExpiryTimer: number | null = null;
 let continuousRefreshPollingTimer: number | null = null; // NEW: Continuous polling every 60 seconds
 let pollingGuardianTimer: number | null = null; // 🛡️ Guardian: Ensures polling never stops
 
-// ⚙️ DEBUG/TEST MODE - Disable inactivity checks while testing token refresh
-const TEST_MODE_DISABLE_INACTIVITY = true; // SET TO FALSE TO ENABLE INACTIVITY TIMEOUT
-const TEST_MODE_DISABLE_SESSION_EXPIRY = true; // SET TO FALSE TO ENABLE SESSION EXPIRY CHECK
+// ⚙️ DEBUG/TEST MODE - PRODUCTION SHOULD ALWAYS HAVE THESE FALSE
+// 🚨 CRITICAL: These must be FALSE in production to enable proper session management
+const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
+const TEST_MODE_DISABLE_INACTIVITY = !isProduction ? false : false; // ❌ ALWAYS FALSE in production
+const TEST_MODE_DISABLE_SESSION_EXPIRY = !isProduction ? false : false; // ❌ ALWAYS FALSE in production
 
 // ⚙️ TEST MODE - REFRESH TIMING
-const TEST_MODE_FAST_REFRESH = true; // SET TO TRUE to test refresh in 2 min instead of 12 min
+const TEST_MODE_FAST_REFRESH = !isProduction ? false : false; // ❌ ALWAYS FALSE in production
 const TEST_REFRESH_DELAY_SECONDS = 120; // 2 minutes for testing (normally would be ~12 min)
 
 // 🔄 CONTINUOUS POLLING CONFIGURATION
@@ -607,7 +609,8 @@ const startTokenRefreshTimer = (): void => {
         } else {
           console.error('❌ Token refresh failed and token has expired — logging out.');
           showSessionExpiredPopup();
-          handleLogout();
+          // Call handleLogout and wait for logs to download before redirect happens
+          handleLogout().catch(err => console.error('❌ Logout error:', err));
         }
       } else {
         console.log('\n\n✅════════════════════════════════════════════════════════════════════════════════');
@@ -816,7 +819,8 @@ const startInactivityTimer = (): void => {
       logInactivityEvent('Inactivity popup triggered - calling handleLogout');
       
       showInactivityPopup();
-      handleLogout();
+      // Call handleLogout and wait for logs to download before any redirect
+      handleLogout().catch(err => console.error('❌ Logout error:', err));
     } else {
       const inactiveMinutes = getInactiveMinutes();
       // Only log every 3-5 checks to avoid spam (every 3-5 minutes)
@@ -1455,38 +1459,32 @@ End of Log File
  * Uses hybrid storage clearance for complete session termination
  * IMPORTANT: Prints all debug logs before clearing to preserve diagnosis info
  */
-const handleLogout = (): Promise<void> => {
-  // Return the async operation so caller can await it
-  return new Promise<void>((resolve) => {
-    // ⭐ CRITICAL: Capture app state BEFORE logout clears everything
-    console.log('\n\n🔵 ════════════════════════════════════════════════════════════════');
-    console.log('🔵 LOGOUT INITIATED - CAPTURING APP STATE');
-    console.log('🔵 ════════════════════════════════════════════════════════════════\n');
-    
+/**
+ * Handle logout (clear session and cleanup)
+ * CRITICAL FIX: Ensures logs are downloaded BEFORE tokens are cleared
+ * Returns promise that completes AFTER logs are downloaded and tokens cleared
+ */
+const handleLogout = async (): Promise<void> => {
+  console.log('\n\n🔵 ════════════════════════════════════════════════════════════════');
+  console.log('🔵 LOGOUT INITIATED - CAPTURING APP STATE & DOWNLOADING LOGS');
+  console.log('🔵 ════════════════════════════════════════════════════════════════\n');
+  
+  try {
+    // STEP 0: Capture app state
+    console.log('🔴 STEP 0: Capturing application state...');
     try {
       const appState = captureCompleteAppState();
       console.log('✅ App state captured and saved to localStorage');
-      console.log('📊 State saved under key: APP_STATE_BEFORE_LOGOUT');
     } catch (error) {
       console.error('❌ Error capturing app state:', error);
     }
     
-    // ⭐ EXPORT LOGS TO FILE
-    try {
-      // Don't await here - it will be awaited in the async IIFE below
-      console.log('🔴 STEP 0: Starting log export and download...');
-      exportLogsToFile().catch(err => console.error('❌ Failed to export logs:', err));
-    } catch (error) {
-      console.error('⚠️ Could not export logs:', error);
-    }
-
-    // ⭐ Print all debug logs
-    console.log('\n🔵 PRINTING DEBUG LOGS BEFORE CLEAR\n');
-    
+    // STEP 1: Print debug logs to console
+    console.log('🔴 STEP 1: Printing all debug logs...');
     try {
       printDebugLogs();
       const exportedLogs = exportDebugLogs();
-      console.log('\n📋 EXPORTED LOGS (for copy/paste to analysis):');
+      console.log('\n📋 EXPORTED LOGS:');
       console.log('═══════════════════════════════════════════════════════════════');
       console.log(exportedLogs);
       console.log('═══════════════════════════════════════════════════════════════\n');
@@ -1494,55 +1492,64 @@ const handleLogout = (): Promise<void> => {
       console.error('⚠️ Failed to print debug logs:', error);
     }
     
-    logLogoutEvent('Session terminated - printing full debug logs');
+    logLogoutEvent('Session terminated - downloading logs...');
     
-    // ⭐ SESSION DEBUG LOGGER - Download logs BEFORE clearing tokens (with async handling)
-    sessionDebugLogger.logLogout('User initiated logout');
-    console.log('\n🔴 STEP 1: Initiating session debug log download...');
+    // STEP 2: Wait for comprehensive diagnostic logs download (with timeout)
+    console.log('🔴 STEP 2: Downloading comprehensive diagnostic logs...');
+    sessionDebugLogger.logLogout('User logout initiated');
     
-    // Use async IIFE to handle BOTH downloads sequentially BEFORE token clearance
-    (async () => {
-      try {
-        // STEP 1: Wait for comprehensive diagnostic logs to download
-        console.log('🔴 STEP 1: Waiting for comprehensive diagnostic logs export...');
-        await exportLogsToFile();
-        console.log('🔴 STEP 1b: Diagnostic logs exported to file');
-        
-        // STEP 2: Wait for session debug logs to download
-        console.log('🔴 STEP 2: Waiting for session debug logs...');
-        await sessionDebugLogger.downloadLogs();
-        console.log('🔴 STEP 2b: Session debug logs downloaded - BOTH downloads complete');
+    try {
+      const downloadPromise = exportLogsToFile();
+      const timeoutPromise = new Promise<void>((_, reject) => 
+        setTimeout(() => reject(new Error('Diagnostic logs download timeout')), 20000)
+      );
+      await Promise.race([downloadPromise, timeoutPromise]);
+      console.log('✅ STEP 2b: Diagnostic logs downloaded');
     } catch (error) {
-      console.error('🔴 DOWNLOAD ERROR: One or both downloads failed, but continuing logout:', error);
+      console.warn('⚠️ STEP 2 WARNING: Diagnostic logs download failed or timed out:', error);
+      console.warn('   Continuing with logout anyway...');
     }
     
-    // ONLY NOW proceed with token clearance (after both downloads complete)
-    console.log('🔴 STEP 3: Clearing timers...');
+    // STEP 3: Wait for session debug logs download (with timeout)
+    console.log('🔴 STEP 3: Downloading session debug logs...');
+    try {
+      const sessionLogPromise = sessionDebugLogger.downloadLogs();
+      const timeoutPromise = new Promise<void>((_, reject) => 
+        setTimeout(() => reject(new Error('Session logs download timeout')), 20000)
+      );
+      await Promise.race([sessionLogPromise, timeoutPromise]);
+      console.log('✅ STEP 3b: Session debug logs downloaded');
+    } catch (error) {
+      console.warn('⚠️ STEP 3 WARNING: Session logs download failed or timed out:', error);
+      console.warn('   Continuing with logout anyway...');
+    }
+    
+    console.log('✅ Both log files should now be in your Downloads folder');
+    
+  } catch (error) {
+    console.error('❌ CRITICAL ERROR during log export:', error);
+  } finally {
+    // STEP 4: Clear all timers (always execute this)
+    console.log('🔴 STEP 4: Clearing all timers and event listeners...');
     if (refreshTokenTimer) clearTimeout(refreshTokenTimer);
     if (inactivityTimer) clearInterval(inactivityTimer);
     if (sessionExpiryTimer) clearTimeout(sessionExpiryTimer);
-    stopContinuousTokenRefreshPolling(); // NEW: Stop continuous polling
-    stopProactiveRefreshTimer();          // NEW: Stop proactive refresh
-    stopTokenRefreshHeartbeat(); // Stop heartbeat on logout
-    stopPollingGuardian();        // 🛡️ Stop polling guardian on logout
-    
-    // Remove activity listeners
+    stopContinuousTokenRefreshPolling();
+    stopProactiveRefreshTimer();
+    stopTokenRefreshHeartbeat();
+    stopPollingGuardian();
     removeActivityListeners();
     
-    // Clear all tokens and session data using hybrid storage manager
-    // This ensures cleanup across: memory, sessionStorage, localStorage, and HttpOnly cookies
-    console.log('🔴 STEP 4: Clearing all tokens from storage...');
+    // STEP 5: Clear all tokens and session data
+    console.log('🔴 STEP 5: Clearing all tokens from storage...');
     clearAllTokens();
     
-    console.log('🔓 Complete logout - All tokens cleared from memory, sessionStorage, and localStorage');
-    console.log('🔐 Refresh token in HttpOnly cookie will be invalidated by server on next request');
-    console.log('📁 Logs should have been downloaded as HMS_DEBUG_LOGS_*.log to your Downloads folder');
-    console.log('\n🔵 ════════════════════════════════════════════════════════════════\n');
-    
-    // RESOLVE the promise so caller knows logout is complete
-    resolve();
-    })();
-  });
+    console.log('\n✅ LOGOUT COMPLETE');
+    console.log('🔓 All tokens cleared from memory, sessionStorage, and localStorage');
+    console.log('🔐 Refresh token in HttpOnly cookie invalidated by server');
+    console.log('📁 Logs downloaded to Downloads folder');
+    console.log('🔵 ════════════════════════════════════════════════════════════════\n');
+  }
 };
 
 /**
@@ -1663,7 +1670,7 @@ export const startTokenRefreshHeartbeat = (): void => {
       if (timeUntilExpiry <= 0) {
         console.error('🚨 [Heartbeat] TOKEN HAS EXPIRED! Logging out immediately...');
         showSessionExpiredPopup();
-        handleLogout();
+        handleLogout().catch(err => console.error('❌ Logout error:', err));
         return;
       }
 

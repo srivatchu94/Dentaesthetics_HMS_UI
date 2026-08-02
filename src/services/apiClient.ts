@@ -73,13 +73,26 @@ export async function refreshTokenInterceptor(): Promise<boolean> {
     console.log('═══════════════════════════════════════════');
     
     const accessToken = getAuthToken();
-    const refreshToken = sessionStorage.getItem('refreshToken_session');
+    let refreshToken = sessionStorage.getItem('refreshToken_session');
     
     console.log(`   Access Token: ${accessToken ? '✅ Found' : '❌ MISSING (rehydration?)'}`);
-    console.log(`   Refresh Token: ${refreshToken ? '✅ Found' : '❌ MISSING'}`);
+    console.log(`   Refresh Token (sessionStorage): ${refreshToken ? '✅ Found' : '❌ MISSING'}`);
+    
+    // CRITICAL PRODUCTION FIX: If refresh token missing, try to restore from localStorage backup
+    // In production Azure, HttpOnly cookies sometimes don't transmit properly
+    if (!refreshToken) {
+      const backupRefreshToken = localStorage.getItem('refreshToken_backup');
+      if (backupRefreshToken) {
+        console.warn('   ⚠️ Refresh token missing from sessionStorage, restoring from backup...');
+        sessionStorage.setItem('refreshToken_session', backupRefreshToken);
+        refreshToken = backupRefreshToken;
+      }
+    }
     
     if (!refreshToken) {
-      console.error('❌ Cannot refresh: Refresh token missing!');
+      console.error('❌ Cannot refresh: Refresh token missing from both sessionStorage and backup!');
+      console.error('   User session is lost. Forcing logout...');
+      // Force logout since we can't refresh
       return false;
     }
     
