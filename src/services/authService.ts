@@ -819,7 +819,8 @@ const startInactivityTimer = (): void => {
       logInactivityEvent('Inactivity popup triggered - calling handleLogout');
       
       showInactivityPopup();
-      // Call handleLogout and wait for logs to download before any redirect
+      // Call handleLogout and AWAIT it fully before any redirect
+      // This BLOCKS the setInterval until logout completes
       handleLogout().catch(err => console.error('❌ Logout error:', err));
     } else {
       const inactiveMinutes = getInactiveMinutes();
@@ -929,7 +930,7 @@ const startSessionExpiryTimer = (refreshTokenExpiresAt: string): void => {
 // ============================================
 
 /**
- * Show session expired popup
+ * Show session expired popup with log download before redirect
  */
 const showSessionExpiredPopup = (): void => {
   const popup = document.createElement('div');
@@ -941,29 +942,39 @@ const showSessionExpiredPopup = (): void => {
     z-index: 999999; text-align: center; min-width: 400px;
     animation: slideIn 0.3s ease-out;
   `;
+  popup.id = 'session-expired-popup';
+  
+  // CRITICAL: Don't redirect immediately - wait for handleLogout to complete
   popup.innerHTML = `
     <div style="font-size: 48px; margin-bottom: 15px;">⏰</div>
     <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">Session Expired</div>
-    <div style="font-size: 16px; opacity: 0.9; margin-bottom: 20px;">Your session has expired. Please login again to continue.</div>
-    <button onclick="window.location.href='/'" style="
-      background: white; color: #667eea; border: none; padding: 12px 30px;
-      border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer;
-      transition: transform 0.2s;
-    " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-      Login Again
-    </button>
+    <div style="font-size: 16px; opacity: 0.9; margin-bottom: 20px;">Downloading logs... Please wait.</div>
+    <div style="font-size: 14px; opacity: 0.8; margin-top: 15px;">
+      <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      Saving session data...
+    </div>
+    <style>
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
   `;
   document.body.appendChild(popup);
-  
-  // Remove after 5 seconds and redirect
-  setTimeout(() => {
-    popup.remove();
-    window.location.href = '/';
-  }, 5000);
 };
 
 /**
- * Show inactivity popup
+ * Close session expired popup and redirect after logs downloaded
+ */
+const closeSessionExpiredPopupAndRedirect = async (): Promise<void> => {
+  const popup = document.getElementById('session-expired-popup');
+  if (popup) {
+    popup.remove();
+  }
+  // Small delay to ensure UI updates before redirect
+  await new Promise(resolve => setTimeout(resolve, 500));
+  window.location.href = '/';
+};
+
+/**
+ * Show inactivity popup with log download before redirect
  */
 const showInactivityPopup = (): void => {
   const timeoutStr = getSessionMetadata(STORAGE_KEYS.INACTIVITY_TIMEOUT_LS);
@@ -978,24 +989,35 @@ const showInactivityPopup = (): void => {
     z-index: 999999; text-align: center; min-width: 400px;
     animation: slideIn 0.3s ease-out;
   `;
+  popup.id = 'inactivity-popup';
+  
+  // CRITICAL: Don't redirect immediately - wait for handleLogout to complete
   popup.innerHTML = `
     <div style="font-size: 48px; margin-bottom: 15px;">😴</div>
     <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">Inactive Session</div>
-    <div style="font-size: 16px; opacity: 0.9; margin-bottom: 20px;">You've been inactive for ${timeoutMinutes} minutes. Please login again.</div>
-    <button onclick="window.location.href='/'" style="
-      background: white; color: #f5576c; border: none; padding: 12px 30px;
-      border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer;
-      transition: transform 0.2s;
-    " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-      Login Again
-    </button>
+    <div style="font-size: 16px; opacity: 0.9; margin-bottom: 20px;">Inactive for ${timeoutMinutes} minutes. Downloading logs...</div>
+    <div style="font-size: 14px; opacity: 0.8; margin-top: 15px;">
+      <div style="display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      Saving session data...
+    </div>
+    <style>
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
   `;
   document.body.appendChild(popup);
-  
-  setTimeout(() => {
+};
+
+/**
+ * Close inactivity popup and redirect after logs downloaded
+ */
+const closeInactivityPopupAndRedirect = async (): Promise<void> => {
+  const popup = document.getElementById('inactivity-popup');
+  if (popup) {
     popup.remove();
-    window.location.href = '/';
-  }, 5000);
+  }
+  // Small delay to ensure UI updates before redirect
+  await new Promise(resolve => setTimeout(resolve, 500));
+  window.location.href = '/';
 };
 
 /**
@@ -1460,6 +1482,65 @@ End of Log File
  * IMPORTANT: Prints all debug logs before clearing to preserve diagnosis info
  */
 /**
+ * Extract and manually download logs from localStorage
+ * Call this if automatic download fails for debugging
+ */
+export const manuallyDownloadStoredLogs = (): void => {
+  try {
+    const diagnosticLogs = localStorage.getItem('PERSISTED_DEBUG_LOGS') || '';
+    const sessionLogs = localStorage.getItem('SESSION_DEBUG_LOGS') || '';
+    const appState = localStorage.getItem('APP_STATE_BEFORE_LOGOUT') || '';
+    
+    const combinedLogs = `
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                      MANUALLY EXTRACTED LOGS                                  ║
+║                    Generated: ${new Date().toLocaleString()}                     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+═════════════════════════════════════════════════════════════════════════════════
+📋 DIAGNOSTIC LOGS
+═════════════════════════════════════════════════════════════════════════════════
+${diagnosticLogs}
+
+═════════════════════════════════════════════════════════════════════════════════
+📋 SESSION DEBUG LOGS
+═════════════════════════════════════════════════════════════════════════════════
+${sessionLogs}
+
+═════════════════════════════════════════════════════════════════════════════════
+📊 APPLICATION STATE
+═════════════════════════════════════════════════════════════════════════════════
+${appState}
+
+═════════════════════════════════════════════════════════════════════════════════
+End of Manual Extraction
+═════════════════════════════════════════════════════════════════════════════════
+`;
+    
+    const blob = new Blob([combinedLogs], { type: 'text/plain;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `HMS-Manual-Logs-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    console.log('✅ Manual logs download triggered');
+  } catch (error) {
+    console.error('❌ Failed to manually extract logs:', error);
+  }
+};
+
+// Expose to window for console access
+if (typeof window !== 'undefined') {
+  (window as any).manuallyDownloadStoredLogs = manuallyDownloadStoredLogs;
+  (window as any).downloadLogsNow = manuallyDownloadStoredLogs;
+  // Helper function to check available logs\n  (window as any).checkAvailableLogs = (): void => {\n    console.log('\\n🔍 CHECKING AVAILABLE LOGS IN LOCALSTORAGE:\\n');\n    const diagnosticLogs = localStorage.getItem('PERSISTED_DEBUG_LOGS');\n    const sessionLogs = localStorage.getItem('SESSION_DEBUG_LOGS');\n    const appState = localStorage.getItem('APP_STATE_BEFORE_LOGOUT');\n    \n    console.log(`📄 Diagnostic Logs: ${diagnosticLogs ? '✅ AVAILABLE (' + Math.round(diagnosticLogs.length / 1024) + ' KB)' : '❌ NOT FOUND'}`);\n    console.log(`📄 Session Logs: ${sessionLogs ? '✅ AVAILABLE (' + Math.round(sessionLogs.length / 1024) + ' KB)' : '❌ NOT FOUND'}`);\n    console.log(`📄 App State: ${appState ? '✅ AVAILABLE (' + Math.round(appState.length / 1024) + ' KB)' : '❌ NOT FOUND'}`);\n    \n    if (diagnosticLogs || sessionLogs || appState) {\n      console.log('\\n✅ LOGS AVAILABLE! To download them manually:');\n      console.log('   → window.downloadLogsNow()');\n      console.log('   → window.manuallyDownloadStoredLogs()\\n');\n    } else {\n      console.log('\\n⚠️  No logs found in storage. They may not have been saved yet.\\n');\n    }\n  };\n  \n  console.log('\\n🔧 MANUAL LOG DOWNLOAD HELPERS AVAILABLE:');\n  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');\n  console.log('window.downloadLogsNow()           → Download logs from localStorage');\n  console.log('window.checkAvailableLogs()        → Check what logs are available');\n  console.log('window.sessionDebugLogger          → Access session logger directly');\n  console.log('window.sessionDebugLogger.getLogsAsText() → View logs in console');\n  console.log('\\n💡 If automatic download fails on logout:');\n  console.log('   1. Before closing browser: Run window.downloadLogsNow()');\n  console.log('   2. This will save ALL logs to your Downloads folder');\n  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n');
+}
+
+/**
  * Handle logout (clear session and cleanup)
  * CRITICAL FIX: Ensures logs are downloaded BEFORE tokens are cleared
  * Returns promise that completes AFTER logs are downloaded and tokens cleared
@@ -1549,6 +1630,13 @@ const handleLogout = async (): Promise<void> => {
     console.log('🔐 Refresh token in HttpOnly cookie invalidated by server');
     console.log('📁 Logs downloaded to Downloads folder');
     console.log('🔵 ════════════════════════════════════════════════════════════════\n');
+    
+    // Close popups and redirect ONLY after ALL logs downloaded
+    if (document.getElementById('session-expired-popup')) {
+      await closeSessionExpiredPopupAndRedirect();
+    } else if (document.getElementById('inactivity-popup')) {
+      await closeInactivityPopupAndRedirect();
+    }
   }
 };
 
@@ -1654,7 +1742,7 @@ export const startTokenRefreshHeartbeat = (): void => {
   console.log('   This ensures token is refreshed even if browser tab loses focus');
 
   // Check more frequently for short-lived tokens (15 mins)
-  tokenRefreshHeartbeatTimer = window.setInterval(() => {
+  tokenRefreshHeartbeatTimer = window.setInterval(async () => {
     try {
       const expiryStr = getTokenExpiry();
       if (!expiryStr) {
@@ -1670,7 +1758,8 @@ export const startTokenRefreshHeartbeat = (): void => {
       if (timeUntilExpiry <= 0) {
         console.error('🚨 [Heartbeat] TOKEN HAS EXPIRED! Logging out immediately...');
         showSessionExpiredPopup();
-        handleLogout().catch(err => console.error('❌ Logout error:', err));
+        // AWAIT the full logout with logs download
+        await handleLogout().catch(err => console.error('❌ Logout error:', err));
         return;
       }
 
