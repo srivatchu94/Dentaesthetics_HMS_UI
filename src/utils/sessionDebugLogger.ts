@@ -284,10 +284,11 @@ SessionStorage Keys: ${Array.from({ length: sessionStorage.length }, (_, i) => s
         console.log(`📊 Total log entries: ${this.logs.length}`);
         
         const logsText = this.getLogsAsText();
-        console.log(`📝 Generated log text: ${logsText.length} characters`);
+        const fileSizeKB = (logsText.length / 1024).toFixed(2);
+        console.log(`📝 Generated log text: ${logsText.length} characters (${fileSizeKB} KB)`);
         
         const element = document.createElement('a');
-        element.style.display = 'none';  // Ensure element is invisible
+        element.style.display = 'none';
         const file = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(file);
         
@@ -295,43 +296,49 @@ SessionStorage Keys: ${Array.from({ length: sessionStorage.length }, (_, i) => s
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + new Date().toISOString().split('T')[1].replace(/[:.]/g, '-').substring(0, 8);
         element.download = `HMS_DEBUG_LOGS_${timestamp}.log`;
         
-        console.log(`💾 Triggering download: ${element.download}`);
+        console.log(`💾 Triggering download: ${element.download} (${fileSizeKB} KB)`);
         
-        // Append to body and click
+        // Append to body
         document.body.appendChild(element);
         
-        // Use requestAnimationFrame to ensure DOM is ready
-        requestAnimationFrame(() => {
-          element.click();
-          console.log('✅ Download click triggered');
-        });
+        // Direct click - REMOVED requestAnimationFrame (was causing variable delays in production)
+        element.click();
+        console.log('✅ Download click executed');
         
-        // Wait longer to ensure browser's download manager receives the file
-        // Different browsers have different timings
+        // PRODUCTION TIMEOUT: 15 seconds for network latency + large files
+        const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
+        const cleanupDelay = isProduction ? 15000 : 2000;  // 15s production, 2s dev
+        
+        console.log(`⏱️ Cleanup in ${cleanupDelay}ms (${isProduction ? 'PRODUCTION' : 'dev'})`);
+        
         const cleanupTimeout = setTimeout(() => {
           try {
             if (element.parentNode) {
               document.body.removeChild(element);
             }
             URL.revokeObjectURL(url);
-            console.log('✅ Cleanup completed - logs should be in Downloads folder');
+            console.log(`✅ Cleanup done after ${cleanupDelay}ms - check Downloads`);
             resolve();
           } catch (cleanupError) {
-            console.error('Error during cleanup:', cleanupError);
-            resolve();  // Still resolve even if cleanup fails
+            console.error('Cleanup error:', cleanupError);
+            resolve();
           }
-        }, 2000);  // Increased from 100ms to 2000ms to ensure browser processes download
+        }, cleanupDelay);
         
-        // Add timeout to prevent promise hanging indefinitely
+        // Safety: max wait 2x the cleanup delay
         const maxWaitTimeout = setTimeout(() => {
           clearTimeout(cleanupTimeout);
-          if (element.parentNode) {
-            document.body.removeChild(element);
+          try {
+            if (element.parentNode) {
+              document.body.removeChild(element);
+            }
+            URL.revokeObjectURL(url);
+          } catch (e) {
+            console.error('Safety timeout error:', e);
           }
-          URL.revokeObjectURL(url);
-          console.log('⚠️ Max wait timeout reached - resolving download');
+          console.log('⚠️ Safety timeout - forcing resolve');
           resolve();
-        }, 5000);  // Absolute max wait is 5 seconds
+        }, cleanupDelay * 2);
         
       } catch (error) {
         console.error('❌ CRITICAL: Failed to download session debug logs:', error);

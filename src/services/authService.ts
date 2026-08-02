@@ -1343,13 +1343,15 @@ export const captureCompleteAppState = (): string => {
  * File saved to: C:\Users\{username}\Desktop\app-logs-{timestamp}.txt
  */
 export const exportLogsToFile = async (): Promise<void> => {
-  try {
-    // Capture current state
-    const appState = captureCompleteAppState();
-    const exportedLogs = exportDebugLogs();
+  return new Promise<void>((resolve) => {
+    try {
+      console.log('📄 exportLogsToFile: Starting comprehensive log export...');
+      
+      const appState = captureCompleteAppState();
+      const exportedLogs = exportDebugLogs();
     
-    // Create comprehensive log content
-    const logContent = `
+      // Create comprehensive log content
+      const logContent = `
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                      APPLICATION DIAGNOSTIC LOGS                            ║
 ║                    Generated: ${new Date().toLocaleString()}                     ║
@@ -1387,64 +1389,65 @@ End of Log File
 ════════════════════════════════════════════════════════════════════════════════
 `;
 
-    return new Promise<void>((resolve) => {
-      try {
-        // Create blob and download
-        const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.style.display = 'none';  // Ensure hidden
-        
-        // Generate filename with timestamp
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + new Date().toLocaleTimeString().replace(/[:.]/g, '-');
-        link.download = `HMS-Diagnostic-Logs_${timestamp}.txt`;
-        
-        console.log(`💾 exportLogsToFile: Triggering download: ${link.download}`);
-        
-        // Append and trigger
-        document.body.appendChild(link);
-        
-        // Use requestAnimationFrame to ensure DOM is ready
-        requestAnimationFrame(() => {
-          link.click();
-          console.log('✅ exportLogsToFile: Download triggered');
-        });
-        
-        // Wait for browser to receive download before cleanup
-        const cleanupTimeout = setTimeout(() => {
-          try {
-            if (link.parentNode) {
-              document.body.removeChild(link);
-            }
-            window.URL.revokeObjectURL(url);
-            console.log('✅ exportLogsToFile: Cleanup completed - logs should be in Downloads folder');
-            resolve();
-          } catch (cleanupError) {
-            console.error('Error during exportLogsToFile cleanup:', cleanupError);
-            resolve();  // Still resolve
-          }
-        }, 2000);  // Wait 2 seconds
-        
-        // Add safety timeout
-        const maxWait = setTimeout(() => {
-          clearTimeout(cleanupTimeout);
+      // Create blob and download
+      const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.style.display = 'none';
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + new Date().toLocaleTimeString().replace(/[:.]/g, '-');
+      link.download = `HMS-Diagnostic-Logs_${timestamp}.txt`;
+      const fileSizeKB = (logContent.length / 1024).toFixed(2);
+      
+      console.log(`💾 exportLogsToFile: Download ${link.download} (${fileSizeKB} KB)`);
+      
+      document.body.appendChild(link);
+      
+      // Direct click - NO requestAnimationFrame (was causing delays)
+      link.click();
+      console.log('✅ exportLogsToFile: Click executed');
+      
+      // PRODUCTION TIMEOUT: 15 seconds
+      const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
+      const cleanupDelay = isProduction ? 15000 : 2000;
+      
+      console.log(`⏱️ exportLogsToFile: Cleanup in ${cleanupDelay}ms (${isProduction ? 'PRODUCTION' : 'dev'})`);
+      
+      const cleanupTimeout = setTimeout(() => {
+        try {
           if (link.parentNode) {
             document.body.removeChild(link);
           }
           window.URL.revokeObjectURL(url);
-          console.log('⚠️ exportLogsToFile: Max wait timeout - resolving');
+          console.log(`✅ exportLogsToFile: Cleanup done after ${cleanupDelay}ms`);
           resolve();
-        }, 5000);
+        } catch (cleanupError) {
+          console.error('exportLogsToFile cleanup error:', cleanupError);
+          resolve();
+        }
+      }, cleanupDelay);
+      
+      // Safety timeout - 2x cleanup delay
+      const maxWait = setTimeout(() => {
+        clearTimeout(cleanupTimeout);
+        try {
+          if (link.parentNode) {
+            document.body.removeChild(link);
+          }
+          window.URL.revokeObjectURL(url);
+        } catch (e) {
+          console.error('exportLogsToFile safety error:', e);
+        }
+        console.log('⚠️ exportLogsToFile: Safety timeout - forcing resolve');
+        resolve();
+      }, cleanupDelay * 2);
         
-      } catch (error) {
-        console.error('❌ Error in exportLogsToFile download:', error);
-        resolve();  // Still resolve to not block
-      }
-    });
-  } catch (error) {
-    console.error('❌ Error exporting logs:', error);
-  }
+    } catch (error) {
+      console.error('❌ exportLogsToFile error:', error);
+      resolve();
+    }
+  });
 };
 
 /**
@@ -1470,6 +1473,8 @@ const handleLogout = (): Promise<void> => {
     
     // ⭐ EXPORT LOGS TO FILE
     try {
+      // Don't await here - it will be awaited in the async IIFE below
+      console.log('🔴 STEP 0: Starting log export and download...');
       exportLogsToFile().catch(err => console.error('❌ Failed to export logs:', err));
     } catch (error) {
       console.error('⚠️ Could not export logs:', error);
@@ -1495,16 +1500,23 @@ const handleLogout = (): Promise<void> => {
     sessionDebugLogger.logLogout('User initiated logout');
     console.log('\n🔴 STEP 1: Initiating session debug log download...');
     
-    // Use async IIFE to handle the async download and then proceed with logout
+    // Use async IIFE to handle BOTH downloads sequentially BEFORE token clearance
     (async () => {
-    try {
-      await sessionDebugLogger.downloadLogs(); // Wait for download to complete
-      console.log('🔴 STEP 2: Log download complete - proceeding with token clearance');
+      try {
+        // STEP 1: Wait for comprehensive diagnostic logs to download
+        console.log('🔴 STEP 1: Waiting for comprehensive diagnostic logs export...');
+        await exportLogsToFile();
+        console.log('🔴 STEP 1b: Diagnostic logs exported to file');
+        
+        // STEP 2: Wait for session debug logs to download
+        console.log('🔴 STEP 2: Waiting for session debug logs...');
+        await sessionDebugLogger.downloadLogs();
+        console.log('🔴 STEP 2b: Session debug logs downloaded - BOTH downloads complete');
     } catch (error) {
-      console.error('🔴 STEP 2 ERROR: Download failed but continuing logout:', error);
+      console.error('🔴 DOWNLOAD ERROR: One or both downloads failed, but continuing logout:', error);
     }
     
-    // AFTER download completes, clear timers
+    // ONLY NOW proceed with token clearance (after both downloads complete)
     console.log('🔴 STEP 3: Clearing timers...');
     if (refreshTokenTimer) clearTimeout(refreshTokenTimer);
     if (inactivityTimer) clearInterval(inactivityTimer);

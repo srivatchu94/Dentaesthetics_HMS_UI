@@ -651,18 +651,28 @@ export default function Header(){
 
   const handleLogout = async () => {
     // Clear token and user data from storage - MUST AWAIT
-    // This ensures logs are downloaded before page clears
-    console.log('🔴 Header: Starting logout process...');
-    await logoutUser();
-    console.log('🔴 Header: Logout service completed');
+    // This ensures ALL logs are downloaded before page clears
+    console.log('🔴 Header: Starting logout - awaiting all log downloads...');
+    try {
+      await logoutUser();
+      console.log('🔴 Header: Logout complete - ALL logs downloaded and tokens cleared');
+    } catch (error) {
+      console.error('🔴 Header: Logout error:', error);
+    }
     
-    // Clear local state AFTER logout completes
+    // Clear local state AFTER logout completes AND logs downloaded
+    console.log('🔴 Header: Clearing local UI state...');
     setIsLoggedIn(false);
     setShowWelcome(false);
     setUserInfo({ name: "", role: "" });
     setDoctorName("");
     
-    console.log('🔓 Logged out - token cleared from all tabs');
+    // Explicit redirect after all state cleared and downloads complete
+    // Use setTimeout to give browser final opportunity to complete downloads
+    setTimeout(() => {
+      console.log('🔴 Header: Force redirecting to login...');
+      window.location.href = '/';
+    }, 1000);
   };
 
   const handleTokenRefresh = async () => {
