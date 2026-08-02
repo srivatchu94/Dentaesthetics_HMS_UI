@@ -51,7 +51,7 @@ import { useTokenExpiry } from "./context/TokenExpiryContext";
 import { ModalProvider } from "./context/ModalContext";
 import { tokenExpiryEmitter, refreshTokenInterceptor } from "./services/apiClient";
 import GlobalOnboardStaffModal from "./components/GlobalOnboardStaffModal";
-import { initializeTabFocusListener, startTokenRefreshHeartbeat, getAuthToken, initActivityListeners, updateLastActivity, startProactiveRefreshTimer } from "./services/authService";
+import { initializeTabFocusListener, startTokenRefreshHeartbeat, getAuthToken, initActivityListeners, updateLastActivity, startProactiveRefreshTimer, initializeDiagnosticsGlobals } from "./services/authService";
 
 export default function App(){
   const navigate = useNavigate();
@@ -112,6 +112,9 @@ export default function App(){
     // ✅ FIXED: Properly await rehydration with async IIFE
     (async () => {
       await rehydrateSession();
+      
+      // Initialize diagnostics globals AFTER session rehydration
+      initializeDiagnosticsGlobals();
     })();
     
     // Subscribe to token expiry events

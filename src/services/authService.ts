@@ -30,6 +30,7 @@ import {
 } from '../utils/persistentDebugLogger';
 import { sessionDebugLogger } from '../utils/sessionDebugLogger';
 import { API_BASE_URL } from '../config/apiConfig';
+import { azureTokenRefreshManager, sessionSyncManager, printTokenRefreshDiagnostics } from './azureTokenRefreshManager';
 
 const AUTH_BASE_URL = '/Authentication';
 
@@ -103,17 +104,49 @@ export const convertOtpResponseToLoginResponse = (otpResponse: OtpLoginResponseF
  * - Refresh Token: HttpOnly Cookie (Backend managed, automatic)
  * - User Data: localStorage (non-sensitive)
  */
+// 🛡️ GUARD: Prevent duplicate token saves during a single login
+let lastSaveTimestamp: number = 0;
+const MIN_SAVE_INTERVAL = 1000; // At least 1 second between saves
+
 export const saveAuthToken = (loginResponse: LoginResponse): void => {
   try {
+    const now = Date.now();
+    if (now - lastSaveTimestamp < MIN_SAVE_INTERVAL) {
+      console.warn('⚠️ DUPLICATE SAVE PREVENTED: saveAuthToken called too quickly (< 1 second)');
+      return;
+    }
+    lastSaveTimestamp = now;
+    
     const { accessToken, refreshToken, username, userId, access, accessTokenExpiresAt, refreshTokenExpiresAt, inactivityTimeoutMinutes, maxSessionDurationHours } = loginResponse;
     
     console.log('\n🔐 ==================== SAVING AUTHENTICATION TOKENS ====================');
+    console.log('📋 STEP 0: VALIDATING CRITICAL DATA BEFORE SAVE');
+    
+    // 🛡️ CRITICAL VALIDATION: Check all required fields
+    const validationErrors: string[] = [];
+    if (!accessToken) validationErrors.push('accessToken is missing or empty');
+    if (!refreshToken) validationErrors.push('refreshToken is missing or empty');
+    if (!username) validationErrors.push('username is missing or empty');
+    if (!userId || userId === '' || userId === '0') validationErrors.push(`userId is invalid (received: "${userId}")`);
+    if (!access || access.length === 0) validationErrors.push('access array is empty - user has no roles');
+    if (!accessTokenExpiresAt) validationErrors.push('accessTokenExpiresAt is missing');
+    
+    if (validationErrors.length > 0) {
+      console.error('❌ VALIDATION FAILED - Cannot save incomplete auth data:');
+      validationErrors.forEach((err, i) => {
+        console.error(`   ${i + 1}. ${err}`);
+      });
+      console.error('\n🚫 LOGIN WILL FAIL - Incomplete response from server');
+      throw new Error(`Invalid login response: ${validationErrors.join(', ')}`);
+    }
+    
+    console.log('✅ All critical data validated successfully');
     console.log('📋 STEP 1: Validating Login Response');
     console.log('   Response Keys:', Object.keys(loginResponse));
     console.log(`   ✓ accessToken: ${accessToken ? 'YES (' + accessToken.substring(0, 20) + '...)' : 'MISSING ❌'}`);
     console.log(`   ✓ refreshToken: ${refreshToken ? 'YES' : 'MISSING ❌'}`);
     console.log(`   ✓ username: ${username || 'MISSING ❌'}`);
-    console.log(`   ✓ userId: ${userId || 'MISSING ❌'}`);
+    console.log(`   ✓ userId: ${userId || 'MISSING ❌'} (VALIDATED: NOT EMPTY)`);
     console.log(`   ✓ access: ${access && access.length > 0 ? `YES (${access.length} items)` : 'MISSING ❌'}`);
     console.log(`   ✓ accessTokenExpiresAt: ${accessTokenExpiresAt || 'MISSING ❌'}`);
     
@@ -138,13 +171,23 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
     
     // 💾 Save NON-SENSITIVE user data
     console.log('\n📋 STEP 3: Saving User Data to localStorage');
-    saveUserData({ username, userId });
+    // 🛡️ VALIDATE userId is NOT empty before saving
+    const userIdToSave = userId && userId !== '' && userId !== '0' ? userId : null;
+    if (!userIdToSave) {
+      throw new Error('Cannot save user data: userId is empty or invalid after validation');
+    }
+    saveUserData({ username, userId: userIdToSave });
     
     // Verify user data was saved
     const savedUserData = localStorage.getItem('userData');
     console.log(`   ✓ userData saved: ${savedUserData ? 'YES' : 'MISSING ❌'}`);
     if (savedUserData) {
+      const parsedData = JSON.parse(savedUserData);
       console.log(`      Content: ${savedUserData}`);
+      console.log(`      userId verification: ${parsedData.userId ? '✅ PRESENT' : '❌ EMPTY - CRITICAL ERROR'}`);
+      if (!parsedData.userId) {
+        throw new Error('userId was saved as empty - data integrity check failed');
+      }
     }
     
     console.log('\n📋 STEP 4: Saving User Access Rights');
@@ -1105,83 +1148,108 @@ export const loginUser = async (loginData: LoginRequest): Promise<LoginResponse>
  * This hits the API with the current access token and refresh token
  */
 export const manualRefreshToken = async (): Promise<{ success: boolean; message: string; newToken?: string }> => {
-  try {
-    console.log('\n🔄 =============== MANUAL TOKEN REFRESH (USER INITIATED) ===============');
-    console.log('⏰ Timestamp:', new Date().toLocaleTimeString());
-    
-    const accessToken = getAuthToken();
-    const refreshToken = sessionStorage.getItem('refreshToken_session');
-    
-    console.log(`   Current Access Token: ${accessToken ? '✅ Found' : '❌ MISSING'}`);
-    console.log(`   Current Refresh Token: ${refreshToken ? '✅ Found' : '❌ MISSING'}`);
-    
-    if (!refreshToken) {
-      console.error('❌ Cannot refresh: No refresh token available');
-      return { success: false, message: 'No refresh token available. Please login again.' };
-    }
-    
-    // Import the API function
-    const { manualRefreshToken: apiManualRefreshToken } = await import('../api/hmsApi');
-    
-    console.log('\n📡 Calling API endpoint: /Authentication/refresh-token');
-    console.log('   Method: POST');
-    console.log(`   Access Token: ${accessToken ? `✅ Including (${accessToken.substring(0, 20)}...)` : '❌ Not including'}`);
-    console.log(`   Refresh Token: ${refreshToken ? `✅ Including (${refreshToken.substring(0, 20)}...)` : '❌ Not including'}`);
-    
-    const response = await apiManualRefreshToken({
-      accessToken: accessToken || undefined,
-      refreshToken: refreshToken
-    });
-    
-    console.log('\n✅ API Response Received');
-    console.log('   Status: Success');
-    console.log(`   New Access Token: ${response.accessToken ? `✅ Received (${response.accessToken.substring(0, 20)}...)` : '❌ Missing'}`);
-    console.log(`   Expires At: ${response.accessTokenExpiresAt || 'N/A'}`);
-    
-    // Save new token
-    if (response.accessToken) {
-      console.log('\n💾 Saving new token to storage');
-      saveAccessToken(response.accessToken, response.accessTokenExpiresAt);
+  const baseRefreshLogic = async (): Promise<{ success: boolean; message: string; newToken?: string }> => {
+    try {
+      console.log('\n🔄 =============== MANUAL TOKEN REFRESH ===============');
+      console.log('⏰ Timestamp:', new Date().toLocaleTimeString());
       
-      // Update refresh token if returned
-      if (response.refreshToken) {
-        saveRefreshToken(response.refreshToken);
-        console.log('   ✅ Refresh token updated');
+      const accessToken = getAuthToken();
+      const refreshToken = sessionStorage.getItem('refreshToken_session');
+      
+      console.log(`   Current Access Token: ${accessToken ? '✅ Found' : '❌ MISSING'}`);
+      console.log(`   Current Refresh Token: ${refreshToken ? '✅ Found' : '❌ MISSING'}`);
+      
+      if (!refreshToken) {
+        console.error('❌ Cannot refresh: No refresh token available');
+        return { success: false, message: 'No refresh token available. Please login again.' };
       }
       
-      console.log('✅ Token saved to sessionStorage');
+      // Import the API function
+      const { manualRefreshToken: apiManualRefreshToken } = await import('../api/hmsApi');
       
-      // Log the event
-      logTokenRefreshEvent('✅ Manual token refresh successful (user initiated)', {
-        timestamp: new Date().toISOString(),
-        newTokenExpiry: response.accessTokenExpiresAt
+      console.log('\n📡 Calling API endpoint: /Authentication/refresh-token');
+      console.log('   Method: POST');
+      console.log(`   Access Token: ${accessToken ? `✅ Including (${accessToken.substring(0, 20)}...)` : '❌ Not including'}`);
+      console.log(`   Refresh Token: ${refreshToken ? `✅ Including (${refreshToken.substring(0, 20)}...)` : '❌ Not including'}`);
+      
+      const response = await apiManualRefreshToken({
+        accessToken: accessToken || undefined,
+        refreshToken: refreshToken
       });
       
-      console.log('🔄 =============== MANUAL TOKEN REFRESH COMPLETED ===============\n');
+      console.log('\n✅ API Response Received');
+      console.log('   Status: Success');
+      console.log(`   New Access Token: ${response.accessToken ? `✅ Received (${response.accessToken.substring(0, 20)}...)` : '❌ Missing'}`);
+      console.log(`   Expires At: ${response.accessTokenExpiresAt || 'N/A'}`);
       
-      return {
-        success: true,
-        message: 'Token refreshed successfully! ✅',
-        newToken: response.accessToken
-      };
-    } else {
-      console.error('❌ No access token in response');
-      return { success: false, message: 'Failed to refresh token. Please try again.' };
+      // Save new token
+      if (response.accessToken) {
+        console.log('\n💾 Saving new token to storage');
+        saveAccessToken(response.accessToken, response.accessTokenExpiresAt);
+        
+        // Update refresh token if returned
+        if (response.refreshToken) {
+          saveRefreshToken(response.refreshToken);
+          console.log('   ✅ Refresh token updated');
+        }
+        
+        console.log('✅ Token saved to sessionStorage');
+        
+        // Log the event
+        logTokenRefreshEvent('✅ Manual token refresh successful', {
+          timestamp: new Date().toISOString(),
+          newTokenExpiry: response.accessTokenExpiresAt
+        });
+        
+        console.log('🔄 =============== MANUAL TOKEN REFRESH COMPLETED ===============\n');
+        
+        return {
+          success: true,
+          message: 'Token refreshed successfully! ✅',
+          newToken: response.accessToken
+        };
+      } else {
+        console.error('❌ No access token in response');
+        return { success: false, message: 'Failed to refresh token. Please try again.' };
+      }
+    } catch (error) {
+      console.error('\n❌ MANUAL TOKEN REFRESH FAILED');
+      console.error('   Error:', error);
+      console.error('   Details:', (error as any)?.message);
+      
+      logTokenRefreshEvent('❌ Manual token refresh failed', {
+        timestamp: new Date().toISOString(),
+        error: (error as any)?.message
+      });
+      
+      // Re-throw to let Azure manager handle retry logic
+      throw error;
     }
-  } catch (error) {
-    console.error('\n❌ MANUAL TOKEN REFRESH FAILED');
-    console.error('   Error:', error);
-    console.error('   Details:', (error as any)?.message);
+  };
+
+  // ✨ NEW: Use Azure Production Manager for retry logic and resilience
+  // This provides automatic retries, connection health checks, and graceful degradation
+  if (API_BASE_URL && API_BASE_URL.includes('azure')) {
+    console.log('🔵 AZURE PRODUCTION ENVIRONMENT DETECTED - Using retry logic');
     
-    logTokenRefreshEvent('❌ Manual token refresh failed (user initiated)', {
-      timestamp: new Date().toISOString(),
-      error: (error as any)?.message
-    });
+    const result = await azureTokenRefreshManager.refreshWithRetry(baseRefreshLogic);
     
-    return {
-      success: false,
-      message: (error as any)?.message || 'Failed to refresh token. Please try again.'
-    };
+    // Log retry statistics
+    console.log(`\n📊 Retry Statistics: ${result.retriesUsed} retries used`);
+    
+    return result;
+  } else {
+    // Local development: use simple refresh without retries
+    console.log('🟢 LOCAL DEVELOPMENT - Using simple refresh (no retry logic)');
+    
+    try {
+      return await baseRefreshLogic();
+    } catch (error) {
+      return {
+        success: false,
+        message: (error as any)?.message || 'Failed to refresh token. Please try again.'
+      };
+    }
   }
 };
 
@@ -1646,8 +1714,185 @@ export const initializeTabFocusListener = (): (() => void) => {
   // Return cleanup function
   return () => {
     window.removeEventListener('focus', handleFocus);
-    console.log('📱 Tab focus listener removed');
   };
+};
+
+/**
+ * ==========================================
+ * 📊 PRODUCTION DIAGNOSTICS & DEBUGGING
+ * ==========================================
+ * 
+ * Use these functions to diagnose Azure production token refresh issues
+ */
+
+/**
+ * Export comprehensive token refresh diagnostics for debugging
+ * Call this in browser console to get full diagnostic report
+ */
+export const exportTokenRefreshDiagnostics = (): any => {
+  const diagnostics = {
+    timestamp: new Date().toISOString(),
+    environment: {
+      apiBaseUrl: API_BASE_URL,
+      isProduction: API_BASE_URL && API_BASE_URL.includes('azure'),
+      userAgent: navigator.userAgent,
+    },
+    auth: {
+      isAuthenticated: isAuthenticated(),
+      tokenExpired: checkTokenExpired(),
+      tokenExpiry: getTokenExpiry(),
+      hasAccessToken: !!getAuthToken(),
+      hasRefreshToken: !!sessionStorage.getItem('refreshToken_session'),
+    },
+    storage: {
+      sessionStorageKeys: Array.from({ length: sessionStorage.length }, (_, i) => sessionStorage.key(i)),
+      localStorageKeys: Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)),
+    },
+    tokenRefresh: azureTokenRefreshManager.getRefreshStatistics(),
+    connectionHealth: azureTokenRefreshManager.getConnectionHealth(),
+    recentAttempts: azureTokenRefreshManager.getRefreshHistory().slice(-10),
+  };
+
+  return diagnostics;
+};
+
+/**
+ * Print detailed token refresh diagnostics to console
+ */
+export const printTokenRefreshDiagnosticsReport = (): void => {
+  const diagnostics = exportTokenRefreshDiagnostics();
+
+  console.log('\n╔════════════════════════════════════════════════════════════════════════════════╗');
+  console.log('║ 📊 TOKEN REFRESH PRODUCTION DIAGNOSTICS REPORT                                ║');
+  console.log('╠════════════════════════════════════════════════════════════════════════════════╣');
+
+  console.log('║ ENVIRONMENT:                                                                 ║');
+  console.log(`║   API Base URL: ${diagnostics.environment.apiBaseUrl}                                            ║`);
+  console.log(
+    `║   Environment: ${diagnostics.environment.isProduction ? '🔴 PRODUCTION (Azure)' : '🟢 LOCAL DEVELOPMENT'}                              ║`
+  );
+
+  console.log('║ AUTHENTICATION STATUS:                                                       ║');
+  console.log(`║   Is Authenticated: ${diagnostics.auth.isAuthenticated ? '✅ YES' : '❌ NO'}                                                   ║`);
+  console.log(`║   Token Expired: ${diagnostics.auth.tokenExpired ? '🔴 YES' : '✅ NO'}                                                       ║`);
+  console.log(`║   Token Expiry: ${diagnostics.auth.tokenExpiry || 'N/A'}                                    ║`);
+  console.log(`║   Access Token Present: ${diagnostics.auth.hasAccessToken ? '✅ YES' : '❌ NO'}                                                ║`);
+  console.log(`║   Refresh Token Present: ${diagnostics.auth.hasRefreshToken ? '✅ YES' : '❌ NO'}                                              ║`);
+
+  console.log('║ REFRESH STATISTICS:                                                         ║');
+  console.log(`║   Total Attempts: ${diagnostics.tokenRefresh.totalAttempts}                                                              ║`);
+  console.log(`║   Successful: ${diagnostics.tokenRefresh.successfulAttempts}                                                                  ║`);
+  console.log(`║   Failed: ${diagnostics.tokenRefresh.failedAttempts}                                                                     ║`);
+  console.log(`║   Success Rate: ${diagnostics.tokenRefresh.successRate}%                                                              ║`);
+  console.log(`║   Last Successful: ${diagnostics.tokenRefresh.lastSuccessfulRefresh}                                ║`);
+
+  console.log('║ CONNECTION HEALTH:                                                          ║');
+  console.log(
+    `║   Status: ${diagnostics.connectionHealth.isHealthy ? '✅ HEALTHY' : '⚠️ DEGRADED'}                                                       ║`
+  );
+  console.log(
+    `║   Consecutive Failures: ${diagnostics.connectionHealth.consecutiveFailures}                                                            ║`
+  );
+  console.log(
+    `║   Avg Response Time: ${diagnostics.connectionHealth.avgResponseTimeMs.toFixed(0)}ms                                                  ║`
+  );
+
+  console.log('║ RECENT ATTEMPTS:                                                             ║');
+  diagnostics.recentAttempts.forEach((attempt, idx) => {
+    const status = attempt.success ? '✅' : '❌';
+    const time = new Date(attempt.timestamp).toLocaleTimeString();
+    console.log(`║   [${idx + 1}] ${status} ${time} - Attempt #${attempt.attemptNumber}${attempt.errorType ? ` (${attempt.errorType})` : ''}           ║`);
+  });
+
+  console.log('╚════════════════════════════════════════════════════════════════════════════════╝\n');
+
+  // Also print Azure manager diagnostics
+  console.log('\n🔧 Printing detailed Azure Token Refresh Manager diagnostics:\n');
+  printTokenRefreshDiagnostics();
+};
+
+/**
+ * Display token refresh diagnostics in a formatted table (if console supports it)
+ */
+export const displayTokenRefreshTable = (): void => {
+  const diagnostics = exportTokenRefreshDiagnostics();
+
+  console.log('\n📊 TOKEN REFRESH DIAGNOSTICS TABLE:');
+  console.table({
+    Environment: diagnostics.environment.isProduction ? 'Production (Azure)' : 'Local Dev',
+    'API URL': diagnostics.environment.apiBaseUrl,
+    'Is Authenticated': diagnostics.auth.isAuthenticated ? 'Yes' : 'No',
+    'Token Expired': diagnostics.auth.tokenExpired ? 'Yes' : 'No',
+    'Token Expiry': diagnostics.auth.tokenExpiry || 'N/A',
+    'Total Attempts': diagnostics.tokenRefresh.totalAttempts,
+    'Successful': diagnostics.tokenRefresh.successfulAttempts,
+    'Failed': diagnostics.tokenRefresh.failedAttempts,
+    'Success Rate': diagnostics.tokenRefresh.successRate + '%',
+    'Connection Health': diagnostics.connectionHealth.isHealthy ? 'Healthy' : 'Degraded',
+    'Consecutive Failures': diagnostics.connectionHealth.consecutiveFailures,
+  });
+};
+
+/**
+ * Export diagnostics as JSON file
+ */
+export const downloadTokenRefreshDiagnostics = (): void => {
+  const diagnostics = exportTokenRefreshDiagnostics();
+  const json = JSON.stringify(diagnostics, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `token-refresh-diagnostics-${Date.now()}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  console.log('✅ Diagnostics exported to:', link.download);
+};
+
+/**
+ * Initialize global diagnostics for easy access in browser console
+ * Accessible as: window.__HMS_DIAGNOSTICS__
+ */
+export const initializeDiagnosticsGlobals = (): void => {
+  (window as any).__HMS_DIAGNOSTICS__ = {
+    // Core diagnostic functions
+    getDiagnostics: exportTokenRefreshDiagnostics,
+    printDiagnostics: printTokenRefreshDiagnosticsReport,
+    showTable: displayTokenRefreshTable,
+    download: downloadTokenRefreshDiagnostics,
+    
+    // Auth state functions
+    checkAuthState: debugAuthState,
+    
+    // Token functions
+    getToken: getAuthToken,
+    getTokenExpiry: getTokenExpiry,
+    isExpired: checkTokenExpired,
+    refreshNow: manualRefreshToken,
+    
+    // Session functions
+    getUserData: getUserData,
+    getUserAccess: getUserAccess,
+    getSelectedAccess: getSelectedAccess,
+    
+    // Timer and polling functions
+    startRefreshTimer: startTokenRefreshTimer,
+    stopPolling: stopContinuousTokenRefreshPolling,
+    
+    // Logging functions
+    printLogs: printDebugLogs,
+    exportLogs: exportDebugLogs,
+  };
+
+  console.log('✅ HMS Diagnostics initialized. Use window.__HMS_DIAGNOSTICS__ in console:');
+  console.log('   • window.__HMS_DIAGNOSTICS__.getDiagnostics() - Get diagnostics object');
+  console.log('   • window.__HMS_DIAGNOSTICS__.printDiagnostics() - Print full report');
+  console.log('   • window.__HMS_DIAGNOSTICS__.showTable() - Show table view');
+  console.log('   • window.__HMS_DIAGNOSTICS__.download() - Download as JSON');
+  console.log('   • window.__HMS_DIAGNOSTICS__.checkAuthState() - Check auth state');
+  console.log('   • window.__HMS_DIAGNOSTICS__.refreshNow() - Refresh token immediately');
 };
 
 // ============================================
