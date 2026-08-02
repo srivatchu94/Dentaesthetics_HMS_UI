@@ -286,13 +286,10 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
 /**
  * Get access token from HYBRID storage
  * Priority: Memory → SessionStorage → null
+ * NOTE: Silent method - no logging to avoid spam in background timers
  */
 export const getAuthToken = (): string | null => {
-  const token = getAccessToken();
-  if (!token) {
-    console.warn('⚠️ getAuthToken(): NO TOKEN FOUND - User is not authenticated');
-  }
-  return token;
+  return getAccessToken();
 };
 
 /**
@@ -659,6 +656,12 @@ const startContinuousTokenRefreshPolling = (): void => {
   const sessionStartTime = new Date();
 
   continuousRefreshPollingTimer = window.setInterval(async () => {
+    // 🛡️ SAFETY: If no token exists, silently return - user has logged out
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      return; // Silent return - normal after logout
+    }
+    
     pollCount++;
     const pollStartTime = new Date();
     const pollStartMs = pollStartTime.getTime();
@@ -672,7 +675,6 @@ const startContinuousTokenRefreshPolling = (): void => {
       
       // STEP 1: Get current token status
       console.log('║ STEP 1️⃣ : CHECK CURRENT TOKEN STATUS                                           ║');
-      const accessToken = getAuthToken();
       const expiryStr = getTokenExpiry();
       const refreshToken = sessionStorage.getItem('refreshToken_session');
       
@@ -800,6 +802,11 @@ const startInactivityTimer = (): void => {
   
   // Check every minute
   inactivityTimer = window.setInterval(() => {
+    // 🛡️ SAFETY: If no token exists, don't check inactivity - user already logged out
+    if (!getAccessToken()) {
+      return;
+    }
+    
     checkCount++;
     const now = new Date();
     
@@ -1547,10 +1554,20 @@ if (typeof window !== 'undefined') {
  */
 const handleLogout = async (): Promise<void> => {
   console.log('\n\n🔵 ════════════════════════════════════════════════════════════════');
-  console.log('🔵 LOGOUT INITIATED - CAPTURING APP STATE & DOWNLOADING LOGS');
+  console.log('🔵 LOGOUT INITIATED - STOPPING TIMERS & DOWNLOADING LOGS');
   console.log('🔵 ════════════════════════════════════════════════════════════════\n');
   
   try {
+    // 🛡️ STEP 0: IMMEDIATELY STOP ALL TIMERS (before anything else)
+    console.log('🔴 PRE-STEP: Stopping all active timers...');
+    if (refreshTokenTimer) clearTimeout(refreshTokenTimer);
+    if (inactivityTimer) clearInterval(inactivityTimer);
+    if (sessionExpiryTimer) clearTimeout(sessionExpiryTimer);
+    stopContinuousTokenRefreshPolling();
+    stopProactiveRefreshTimer();
+    stopTokenRefreshHeartbeat();
+    stopPollingGuardian();
+    console.log('✅ All timers stopped - logs download will not be interrupted');
     // STEP 0: Capture app state
     console.log('🔴 STEP 0: Capturing application state...');
     try {
@@ -1610,20 +1627,18 @@ const handleLogout = async (): Promise<void> => {
   } catch (error) {
     console.error('❌ CRITICAL ERROR during log export:', error);
   } finally {
-    // STEP 4: Clear all timers (always execute this)
-    console.log('🔴 STEP 4: Clearing all timers and event listeners...');
-    if (refreshTokenTimer) clearTimeout(refreshTokenTimer);
-    if (inactivityTimer) clearInterval(inactivityTimer);
-    if (sessionExpiryTimer) clearTimeout(sessionExpiryTimer);
-    stopContinuousTokenRefreshPolling();
-    stopProactiveRefreshTimer();
-    stopTokenRefreshHeartbeat();
-    stopPollingGuardian();
+    // STEP 4: Clear all tokens and session data
+    console.log('🔴 STEP 4: Clearing all tokens from storage...');
     removeActivityListeners();
-    
-    // STEP 5: Clear all tokens and session data
-    console.log('🔴 STEP 5: Clearing all tokens from storage...');
     clearAllTokens();
+    
+    // Also explicitly clear refresh token backup
+    try {
+      localStorage.removeItem('refreshToken_backup');
+      sessionStorage.removeItem('refreshToken_session');
+    } catch (e) {
+      // Ignore errors
+    }
     
     console.log('\n✅ LOGOUT COMPLETE');
     console.log('🔓 All tokens cleared from memory, sessionStorage, and localStorage');
@@ -1744,10 +1759,15 @@ export const startTokenRefreshHeartbeat = (): void => {
   // Check more frequently for short-lived tokens (15 mins)
   tokenRefreshHeartbeatTimer = window.setInterval(async () => {
     try {
+      // 🛡️ SAFETY: If no token exists, silently return - user has logged out
+      const token = getAccessToken();
+      if (!token) {
+        return; // Silent return - normal after logout
+      }
+      
       const expiryStr = getTokenExpiry();
       if (!expiryStr) {
-        console.warn('⚠️ [Heartbeat] No token expiry found');
-        return;
+        return; // Silent return - token metadata missing
       }
 
       const expiryTime = new Date(expiryStr).getTime();
