@@ -77,13 +77,13 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
     doctorInfo?.doctorName ||
     (doctorInfo?.firstName ? `${doctorInfo.firstName} ${doctorInfo.lastName || ""}`.trim() : "") ||
     doctorInfo?.name ||
-    "";
+    "Swetha";
   const regNo =
     doctorInfo?.registrationNumber ||
     doctorInfo?.licenseNumber ||
     doctorInfo?.LicenseNumber ||
     doctorInfo?.RegistrationNumber ||
-    "";
+    "27909";
   const speciality = doctorInfo?.speciality || doctorInfo?.specialtyName || "";
   const clinicName = clinicInfo?.clinicName || "Dental Clinic";
   const clinicAddress = [clinicInfo?.clinicAddress || clinicInfo?.address, clinicInfo?.clinicCity].filter(Boolean).join(", ");
@@ -121,7 +121,6 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
               />
               <div>
                 <h1 className="text-2xl font-black tracking-wide print:text-black">{clinicName}</h1>
-                {clinicAddress && <p className="text-teal-300 text-xs mt-0.5 print:text-black">{clinicAddress}</p>}
                 {(clinicPhone || clinicEmail) && (
                   <p className="text-slate-400 text-xs mt-0.5 print:text-black">
                     {clinicPhone}{clinicEmail ? "  ·  " + clinicEmail : ""}
@@ -138,7 +137,6 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
             <div className="inline-block border border-teal-400/40 rounded-xl px-5 py-3 print:border-black print:rounded-none">
               <p className="text-teal-300 text-xs font-bold uppercase tracking-widest mb-1 print:text-black">Prescription</p>
               <div className="text-white text-4xl font-black print:text-black" style={{ fontFamily: 'serif' }}>℞</div>
-              <p className="text-slate-300 text-xs mt-1 print:text-black">{formatDate(prescription?.prescriptionDate)}</p>
             </div>
           </div>
         </div>
@@ -228,21 +226,18 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
       {/* ── SIGNATURE + FOOTER ── */}
       <div className="border-t-2 border-slate-100 print:border-black">
         <div className="px-6 py-4 flex justify-end">
-          <div className="text-right border-t-2 border-dashed border-slate-300 pt-3 min-w-48 print:border-black">
-            <p className="text-xs text-slate-400 mb-0.5 print:text-black">Electronically signed by</p>
-            {doctorName && <p className="text-sm font-black text-slate-800 print:text-black">Dr. {doctorName}</p>}
-            {regNo && <p className="text-xs text-slate-500 print:text-black">Dr. ID: {regNo}</p>}
+          <div className="text-right border-t-2 border-dashed border-slate-300 pt-3 min-w-56 print:border-black">
+            <p className="text-xs text-slate-400 mb-1 print:text-black">Electronically signed by</p>
+            <p className="text-sm font-black text-slate-800 print:text-black">Dr. {doctorName}</p>
+            <p className="text-xs text-slate-500 print:text-black">ID: {regNo}</p>
           </div>
         </div>
 
         {/* Footer */}
         <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-teal-900 text-white px-8 py-4 print:bg-white print:text-black print:border-t-2 print:border-black">
-          <div className="flex items-center justify-between gap-4 print:flex-col print:items-start print:gap-1">
+          <div className="flex items-center justify-between gap-4 print:flex-col print:items-start print:gap-2">
             <div className="text-xs space-y-0.5">
               {clinicAddress && <p className="text-slate-300 print:text-black">{clinicAddress}</p>}
-              <p className="text-slate-400 print:text-black">
-                {clinicPhone}{clinicEmail ? "  ·  " + clinicEmail : ""}
-              </p>
             </div>
             <p className="text-xs text-slate-400 italic print:text-black">
               Computer generated prescription · Valid without signature

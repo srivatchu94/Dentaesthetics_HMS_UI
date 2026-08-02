@@ -37,13 +37,13 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
     doctorInfo?.doctorName ||
     (doctorInfo?.firstName ? `${doctorInfo.firstName} ${doctorInfo.lastName || ""}`.trim() : "") ||
     doctorInfo?.name ||
-    "Doctor";
+    "Swetha";
   const regNo =
     doctorInfo?.registrationNumber ||
     doctorInfo?.licenseNumber ||
     doctorInfo?.LicenseNumber ||
     doctorInfo?.RegistrationNumber ||
-    "";
+    "27909";
   const speciality = doctorInfo?.speciality || doctorInfo?.specialtyName || "";
   const clinicName = clinicInfo?.clinicName || "Dental Clinic";
   const clinicAddress = [clinicInfo?.clinicAddress || clinicInfo?.address, clinicInfo?.clinicCity].filter(Boolean).join(", ");
@@ -88,7 +88,7 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
         <tr>
           <td>
             <div style="font-size:22px;font-weight:900;letter-spacing:0.5px;">${clinicName}</div>
-            ${clinicAddress ? `<div style="font-size:11px;color:#5eead4;margin-top:3px;">${clinicAddress}</div>` : ""}
+
             ${clinicPhone || clinicEmail ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">${clinicPhone}${clinicEmail ? "  ·  " + clinicEmail : ""}</div>` : ""}
             ${clinicReg ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Reg: ${clinicReg}</div>` : ""}
           </td>
@@ -96,7 +96,6 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
             <div style="border:1px solid rgba(45,212,191,0.4);border-radius:10px;padding:12px 16px;display:inline-block;">
               <div style="font-size:10px;color:#5eead4;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Prescription</div>
               <div style="font-size:36px;font-weight:900;font-family:Georgia,serif;line-height:1;">&#8478;</div>
-              <div style="font-size:10px;color:#94a3b8;margin-top:4px;">${formatDate(prescription?.prescriptionDate)}</div>
             </div>
           </td>
         </tr>
@@ -168,7 +167,7 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
       <div style="display:inline-block;border-top:2px dashed #94a3b8;padding-top:10px;text-align:right;">
         <div style="font-size:11px;color:#94a3b8;">Electronically signed by</div>
         <div style="font-size:14px;font-weight:900;color:#0f172a;">Dr. ${doctorName}</div>
-        ${regNo ? `<div style="font-size:11px;color:#64748b;">Dr. ID: ${regNo}</div>` : ""}
+        <div style="font-size:11px;color:#64748b;">ID: ${regNo}</div>
       </div>
     </div>
 
@@ -178,9 +177,8 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
         <tr>
           <td style="font-size:11px;">
             ${clinicAddress ? `<div>${clinicAddress}</div>` : ""}
-            <div>${clinicPhone}${clinicEmail ? "  ·  " + clinicEmail : ""}</div>
+            <div style="margin-top:8px;font-size:10px;color:#64748b;font-style:italic;">Computer generated prescription · Valid without signature</div>
           </td>
-          <td style="text-align:right;font-size:11px;font-style:italic;">Computer generated prescription</td>
         </tr>
       </table>
     </div>
