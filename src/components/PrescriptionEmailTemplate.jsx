@@ -91,10 +91,6 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
             ${clinicAddress ? `<div style="font-size:11px;color:#5eead4;margin-top:3px;">${clinicAddress}</div>` : ""}
             ${clinicPhone || clinicEmail ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">${clinicPhone}${clinicEmail ? "  ·  " + clinicEmail : ""}</div>` : ""}
             ${clinicReg ? `<div style="font-size:11px;color:#94a3b8;margin-top:2px;">Reg: ${clinicReg}</div>` : ""}
-            <div style="margin-top:12px;border-left:2px solid #14b8a6;padding-left:10px;">
-              <div style="font-weight:700;font-size:14px;">Dr. ${doctorName}${speciality ? ` &mdash; ${speciality}` : ""}</div>
-              ${regNo ? `<div style="font-size:11px;color:#a5b4fc;">Reg. No: ${regNo}</div>` : ""}
-            </div>
           </td>
           <td style="text-align:right;vertical-align:top;min-width:110px;">
             <div style="border:1px solid rgba(45,212,191,0.4);border-radius:10px;padding:12px 16px;display:inline-block;">
@@ -119,9 +115,7 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
             </div>
           </td>
           <td style="padding-left:16px;vertical-align:top;">
-            <div style="font-size:10px;font-weight:700;color:#0d9488;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Issued By</div>
-            <div style="font-size:13px;font-weight:700;color:#0f172a;">Dr. ${doctorName}</div>
-            ${regNo ? `<div style="font-size:11px;color:#64748b;margin-top:2px;">Reg: ${regNo}</div>` : ""}
+            <div style="font-size:10px;font-weight:700;color:#0d9488;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Date</div>
             <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${formatDate(prescription?.prescriptionDate)}</div>
           </td>
         </tr>
@@ -174,8 +168,7 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
       <div style="display:inline-block;border-top:2px dashed #94a3b8;padding-top:10px;text-align:right;">
         <div style="font-size:11px;color:#94a3b8;">Electronically signed by</div>
         <div style="font-size:14px;font-weight:900;color:#0f172a;">Dr. ${doctorName}</div>
-        ${regNo ? `<div style="font-size:11px;color:#64748b;">(Reg No.: ${regNo})</div>` : ""}
-        <div style="font-size:11px;color:#94a3b8;">Dentist</div>
+        ${regNo ? `<div style="font-size:11px;color:#64748b;">Dr. ID: ${regNo}</div>` : ""}
       </div>
     </div>
 
