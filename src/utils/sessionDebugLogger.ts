@@ -275,7 +275,7 @@ SessionStorage Keys: ${Array.from({ length: sessionStorage.length }, (_, i) => s
   }
 
   /**
-   * Download logs as a text file
+   * Download logs as a text file - with proper timing to ensure browser receives it
    */
   downloadLogs(): Promise<void> {
     return new Promise((resolve) => {
@@ -287,7 +287,8 @@ SessionStorage Keys: ${Array.from({ length: sessionStorage.length }, (_, i) => s
         console.log(`📝 Generated log text: ${logsText.length} characters`);
         
         const element = document.createElement('a');
-        const file = new Blob([logsText], { type: 'text/plain' });
+        element.style.display = 'none';  // Ensure element is invisible
+        const file = new Blob([logsText], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(file);
         
         element.href = url;
@@ -296,37 +297,61 @@ SessionStorage Keys: ${Array.from({ length: sessionStorage.length }, (_, i) => s
         
         console.log(`💾 Triggering download: ${element.download}`);
         
+        // Append to body and click
         document.body.appendChild(element);
         
-        // Trigger the download
-        element.click();
-        console.log('✅ Download triggered successfully');
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => {
+          element.click();
+          console.log('✅ Download click triggered');
+        });
         
-        // Clean up after a small delay to ensure download starts
-        setTimeout(() => {
-          document.body.removeChild(element);
+        // Wait longer to ensure browser's download manager receives the file
+        // Different browsers have different timings
+        const cleanupTimeout = setTimeout(() => {
+          try {
+            if (element.parentNode) {
+              document.body.removeChild(element);
+            }
+            URL.revokeObjectURL(url);
+            console.log('✅ Cleanup completed - logs should be in Downloads folder');
+            resolve();
+          } catch (cleanupError) {
+            console.error('Error during cleanup:', cleanupError);
+            resolve();  // Still resolve even if cleanup fails
+          }
+        }, 2000);  // Increased from 100ms to 2000ms to ensure browser processes download
+        
+        // Add timeout to prevent promise hanging indefinitely
+        const maxWaitTimeout = setTimeout(() => {
+          clearTimeout(cleanupTimeout);
+          if (element.parentNode) {
+            document.body.removeChild(element);
+          }
           URL.revokeObjectURL(url);
-          console.log('✅ Cleanup completed - file should be downloading');
+          console.log('⚠️ Max wait timeout reached - resolving download');
           resolve();
-        }, 100);
+        }, 5000);  // Absolute max wait is 5 seconds
         
       } catch (error) {
         console.error('❌ CRITICAL: Failed to download session debug logs:', error);
         console.error('Error details:', {
-          name: error.name,
-          message: error.message,
-          stack: error.stack
+          name: error?.name,
+          message: error?.message,
+          stack: error?.stack
         });
         
         // Try fallback: log to console for user to copy
         try {
           console.log('\n⚠️ FALLBACK: Logs cannot be auto-downloaded. Copy logs from below:\n');
-          console.log(this.getLogsAsText());
+          const fallbackLogs = this.getLogsAsText();
+          console.log(fallbackLogs);
+          console.log('\n⚠️ You can right-click → Save as to save the logs above');
         } catch (fallbackError) {
           console.error('❌ FALLBACK ALSO FAILED:', fallbackError);
         }
         
-        resolve();
+        resolve();  // Always resolve to not block logout
       }
     });
   }

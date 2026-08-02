@@ -649,11 +649,14 @@ export default function Header(){
     }
   };
 
-  const handleLogout = () => {
-    // Clear token and user data from storage
-    logoutUser();
+  const handleLogout = async () => {
+    // Clear token and user data from storage - MUST AWAIT
+    // This ensures logs are downloaded before page clears
+    console.log('🔴 Header: Starting logout process...');
+    await logoutUser();
+    console.log('🔴 Header: Logout service completed');
     
-    // Clear local state
+    // Clear local state AFTER logout completes
     setIsLoggedIn(false);
     setShowWelcome(false);
     setUserInfo({ name: "", role: "" });

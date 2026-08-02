@@ -1271,7 +1271,8 @@ export const logoutUser = async (): Promise<void> => {
   } catch (error) {
     console.error('❌ Logout error:', error);
   } finally {
-    handleLogout();
+    // IMPORTANT: Await handleLogout to ensure logs are downloaded before return
+    await handleLogout();
   }
 };
 
@@ -1386,25 +1387,61 @@ End of Log File
 ════════════════════════════════════════════════════════════════════════════════
 `;
 
-    // Create blob and download
-    const blob = new Blob([logContent], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    
-    // Generate filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + new Date().toLocaleTimeString().replace(/[:.]/g, '-');
-    link.download = `HMS-Diagnostic-Logs_${timestamp}.txt`;
-    
-    // Trigger download
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-    
-    console.log('✅ Logs exported to file:', link.download);
-    console.log('📁 File saved to your Downloads folder');
-    console.log('📄 You can also find logs at: localStorage.getItem("APP_STATE_BEFORE_LOGOUT")');
+    return new Promise<void>((resolve) => {
+      try {
+        // Create blob and download
+        const blob = new Blob([logContent], { type: 'text/plain;charset=utf-8' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.style.display = 'none';  // Ensure hidden
+        
+        // Generate filename with timestamp
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + new Date().toLocaleTimeString().replace(/[:.]/g, '-');
+        link.download = `HMS-Diagnostic-Logs_${timestamp}.txt`;
+        
+        console.log(`💾 exportLogsToFile: Triggering download: ${link.download}`);
+        
+        // Append and trigger
+        document.body.appendChild(link);
+        
+        // Use requestAnimationFrame to ensure DOM is ready
+        requestAnimationFrame(() => {
+          link.click();
+          console.log('✅ exportLogsToFile: Download triggered');
+        });
+        
+        // Wait for browser to receive download before cleanup
+        const cleanupTimeout = setTimeout(() => {
+          try {
+            if (link.parentNode) {
+              document.body.removeChild(link);
+            }
+            window.URL.revokeObjectURL(url);
+            console.log('✅ exportLogsToFile: Cleanup completed - logs should be in Downloads folder');
+            resolve();
+          } catch (cleanupError) {
+            console.error('Error during exportLogsToFile cleanup:', cleanupError);
+            resolve();  // Still resolve
+          }
+        }, 2000);  // Wait 2 seconds
+        
+        // Add safety timeout
+        const maxWait = setTimeout(() => {
+          clearTimeout(cleanupTimeout);
+          if (link.parentNode) {
+            document.body.removeChild(link);
+          }
+          window.URL.revokeObjectURL(url);
+          console.log('⚠️ exportLogsToFile: Max wait timeout - resolving');
+          resolve();
+        }, 5000);
+        
+      } catch (error) {
+        console.error('❌ Error in exportLogsToFile download:', error);
+        resolve();  // Still resolve to not block
+      }
+    });
   } catch (error) {
     console.error('❌ Error exporting logs:', error);
   }
@@ -1415,49 +1452,51 @@ End of Log File
  * Uses hybrid storage clearance for complete session termination
  * IMPORTANT: Prints all debug logs before clearing to preserve diagnosis info
  */
-const handleLogout = (): void => {
-  // ⭐ CRITICAL: Capture app state BEFORE logout clears everything
-  console.log('\n\n🔵 ════════════════════════════════════════════════════════════════');
-  console.log('🔵 LOGOUT INITIATED - CAPTURING APP STATE');
-  console.log('🔵 ════════════════════════════════════════════════════════════════\n');
-  
-  try {
-    const appState = captureCompleteAppState();
-    console.log('✅ App state captured and saved to localStorage');
-    console.log('📊 State saved under key: APP_STATE_BEFORE_LOGOUT');
-  } catch (error) {
-    console.error('❌ Error capturing app state:', error);
-  }
-  
-  // ⭐ EXPORT LOGS TO FILE
-  try {
-    exportLogsToFile().catch(err => console.error('❌ Failed to export logs:', err));
-  } catch (error) {
-    console.error('⚠️ Could not export logs:', error);
-  }
+const handleLogout = (): Promise<void> => {
+  // Return the async operation so caller can await it
+  return new Promise<void>((resolve) => {
+    // ⭐ CRITICAL: Capture app state BEFORE logout clears everything
+    console.log('\n\n🔵 ════════════════════════════════════════════════════════════════');
+    console.log('🔵 LOGOUT INITIATED - CAPTURING APP STATE');
+    console.log('🔵 ════════════════════════════════════════════════════════════════\n');
+    
+    try {
+      const appState = captureCompleteAppState();
+      console.log('✅ App state captured and saved to localStorage');
+      console.log('📊 State saved under key: APP_STATE_BEFORE_LOGOUT');
+    } catch (error) {
+      console.error('❌ Error capturing app state:', error);
+    }
+    
+    // ⭐ EXPORT LOGS TO FILE
+    try {
+      exportLogsToFile().catch(err => console.error('❌ Failed to export logs:', err));
+    } catch (error) {
+      console.error('⚠️ Could not export logs:', error);
+    }
 
-  // ⭐ Print all debug logs
-  console.log('\n🔵 PRINTING DEBUG LOGS BEFORE CLEAR\n');
-  
-  try {
-    printDebugLogs();
-    const exportedLogs = exportDebugLogs();
-    console.log('\n📋 EXPORTED LOGS (for copy/paste to analysis):');
-    console.log('═══════════════════════════════════════════════════════════════');
-    console.log(exportedLogs);
-    console.log('═══════════════════════════════════════════════════════════════\n');
-  } catch (error) {
-    console.error('⚠️ Failed to print debug logs:', error);
-  }
-  
-  logLogoutEvent('Session terminated - printing full debug logs');
-  
-  // ⭐ SESSION DEBUG LOGGER - Download logs BEFORE clearing tokens (with async handling)
-  sessionDebugLogger.logLogout('User initiated logout');
-  console.log('\n🔴 STEP 1: Initiating session debug log download...');
-  
-  // Use async IIFE to handle the async download and then proceed with logout
-  (async () => {
+    // ⭐ Print all debug logs
+    console.log('\n🔵 PRINTING DEBUG LOGS BEFORE CLEAR\n');
+    
+    try {
+      printDebugLogs();
+      const exportedLogs = exportDebugLogs();
+      console.log('\n📋 EXPORTED LOGS (for copy/paste to analysis):');
+      console.log('═══════════════════════════════════════════════════════════════');
+      console.log(exportedLogs);
+      console.log('═══════════════════════════════════════════════════════════════\n');
+    } catch (error) {
+      console.error('⚠️ Failed to print debug logs:', error);
+    }
+    
+    logLogoutEvent('Session terminated - printing full debug logs');
+    
+    // ⭐ SESSION DEBUG LOGGER - Download logs BEFORE clearing tokens (with async handling)
+    sessionDebugLogger.logLogout('User initiated logout');
+    console.log('\n🔴 STEP 1: Initiating session debug log download...');
+    
+    // Use async IIFE to handle the async download and then proceed with logout
+    (async () => {
     try {
       await sessionDebugLogger.downloadLogs(); // Wait for download to complete
       console.log('🔴 STEP 2: Log download complete - proceeding with token clearance');
@@ -1487,7 +1526,11 @@ const handleLogout = (): void => {
     console.log('🔐 Refresh token in HttpOnly cookie will be invalidated by server on next request');
     console.log('📁 Logs should have been downloaded as HMS_DEBUG_LOGS_*.log to your Downloads folder');
     console.log('\n🔵 ════════════════════════════════════════════════════════════════\n');
-  })();
+    
+    // RESOLVE the promise so caller knows logout is complete
+    resolve();
+    })();
+  });
 };
 
 /**
