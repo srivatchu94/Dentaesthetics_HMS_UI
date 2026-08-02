@@ -54,12 +54,14 @@ export const isRefreshInProgress = (): boolean => {
   return isTokenRefreshInProgress;
 };
 
-// Timers
+// ⏰ TIMERS - Kept minimal for clean session management
+// Only 3 essential timers:
+// 1. refreshTokenTimer - Refreshes token at 13-minute mark
+// 2. inactivityTimer - Logs out after 1 hour of inactivity
+// 3. sessionExpiryTimer - Logs out after max session duration (8 hours)
 let refreshTokenTimer: number | null = null;
 let inactivityTimer: number | null = null;
 let sessionExpiryTimer: number | null = null;
-let continuousRefreshPollingTimer: number | null = null; // NEW: Continuous polling every 60 seconds
-let pollingGuardianTimer: number | null = null; // 🛡️ Guardian: Ensures polling never stops
 
 // ⚙️ DEBUG/TEST MODE - PRODUCTION SHOULD ALWAYS HAVE THESE FALSE
 // 🚨 CRITICAL: These must be FALSE in production to enable proper session management
@@ -71,9 +73,7 @@ const TEST_MODE_DISABLE_SESSION_EXPIRY = !isProduction ? false : false; // ❌ A
 const TEST_MODE_FAST_REFRESH = !isProduction ? false : false; // ❌ ALWAYS FALSE in production
 const TEST_REFRESH_DELAY_SECONDS = 120; // 2 minutes for testing (normally would be ~12 min)
 
-// 🔄 CONTINUOUS POLLING CONFIGURATION
-const CONTINUOUS_POLLING_INTERVAL = 60 * 1000; // 60 seconds (user requirement: "every minute")
-const MIN_TIME_BEFORE_EXPIRY = 5 * 60 * 1000; // Refresh if less than 5 minutes before expiry
+
 
 // Activity tracking
 let lastActivityTime: number = Date.now();
@@ -250,8 +250,8 @@ export const saveAuthToken = (loginResponse: LoginResponse): void => {
     console.log('\n📋 STEP 7: Saving Session Metadata');
     saveSessionMetadata(STORAGE_KEYS.INACTIVITY_TIMEOUT_LS, inactivityTimeoutMinutes.toString());
     updateLastActivity();
-    console.log(`   ✓ Inactivity timeout: ${inactivityTimeoutMinutes} minutes`);
-    console.log(`   ✓ Max session duration: ${maxSessionDurationHours} hours`);
+    console.log(`   ✓ Inactivity timeout: ${inactivityTimeoutMinutes || 60} minutes`);
+    console.log(`   ✓ Max session duration: ${maxSessionDurationHours || 8} hours`);
     
     // Final verification
     console.log('\n📋 STEP 8: Final Storage Verification');
@@ -635,148 +635,13 @@ const startTokenRefreshTimer = (): void => {
  * Refreshes token every 60 seconds (user requirement: "every minute")
  * This is more reliable than a single timer and ensures session never expires
  */
-const startContinuousTokenRefreshPolling = (): void => {
-  // Clear any existing polling timer
-  if (continuousRefreshPollingTimer) {
-    clearInterval(continuousRefreshPollingTimer);
-    console.log('🔄 Cleared previous continuous polling timer');
-  }
-
-  console.log('\n╔════════════════════════════════════════════════════════════════════════════════════╗');
-  console.log('║ 🔄 AUTOMATIC TOKEN REFRESH POLLING STARTED                                       ║');
-  console.log('╠════════════════════════════════════════════════════════════════════════════════════╣');
-  console.log('║ Interval: EVERY 60 SECONDS (Every 1 minute)                                      ║');
-  console.log('║ Purpose: Automatically expand token before expiry                                ║');
-  console.log('║ Behavior: Silent background refresh - no user interruption                       ║');
-  console.log('║ Logging: Step-by-step logs for each refresh attempt                              ║');
-  console.log('║ Result: User NEVER gets logged out as long as token exists                       ║');
-  console.log('╚════════════════════════════════════════════════════════════════════════════════════╝\n');
-
-  let pollCount = 0;
-  const sessionStartTime = new Date();
-
-  continuousRefreshPollingTimer = window.setInterval(async () => {
-    // 🛡️ SAFETY: If no token exists, silently return - user has logged out
-    const accessToken = getAccessToken();
-    if (!accessToken) {
-      return; // Silent return - normal after logout
-    }
-    
-    pollCount++;
-    const pollStartTime = new Date();
-    const pollStartMs = pollStartTime.getTime();
-    const secondsSinceSessionStart = Math.floor((pollStartMs - sessionStartTime.getTime()) / 1000);
-
-    try {
-      console.log('\n╔════════════════════════════════════════════════════════════════════════════════════╗');
-      console.log(`║ 🔄 AUTO-REFRESH TICK #${pollCount} - ${pollStartTime.toLocaleTimeString()}                                       ║`);
-      console.log(`║ Session Duration: ${Math.floor(secondsSinceSessionStart / 60)}m ${secondsSinceSessionStart % 60}s                                                   ║`);
-      console.log('╠════════════════════════════════════════════════════════════════════════════════════╣');
-      
-      // STEP 1: Get current token status
-      console.log('║ STEP 1️⃣ : CHECK CURRENT TOKEN STATUS                                           ║');
-      const expiryStr = getTokenExpiry();
-      const refreshToken = sessionStorage.getItem('refreshToken_session');
-      
-      console.log(`║   ✓ Access Token Present: ${accessToken ? '✅ YES' : '❌ NO'}                                                   ║`);
-      console.log(`║   ✓ Refresh Token Present: ${refreshToken ? '✅ YES' : '❌ NO'}                                                  ║`);
-      
-      if (!expiryStr) {
-        console.log('║   ⚠️ Warning: No token expiry found - skipping refresh this tick                   ║');
-        console.log('╚════════════════════════════════════════════════════════════════════════════════════╝\n');
-        return;
-      }
-      
-      const expiryTime = new Date(expiryStr).getTime();
-      const timeUntilExpiry = expiryTime - pollStartMs;
-      const minutesLeft = Math.floor(timeUntilExpiry / 1000 / 60);
-      const secondsLeft = Math.floor((timeUntilExpiry % 60000) / 1000);
-      
-      console.log(`║   ✓ Current Time: ${pollStartTime.toLocaleTimeString()}                                                  ║`);
-      console.log(`║   ✓ Token Expiry: ${new Date(expiryStr).toLocaleTimeString()}                                                 ║`);
-      console.log(`║   ✓ Time Until Expiry: ${minutesLeft}m ${secondsLeft}s                                                       ║`);
-      
-      // STEP 2: Prepare refresh request
-      console.log('║                                                                                ║');
-      console.log('║ STEP 2️⃣ : PREPARE TOKEN REFRESH REQUEST                                         ║');
-      console.log('║   Building request payload with:                                              ║');
-      console.log(`║   • Access Token: ${accessToken ? '✅ Including' : '⚠️ Not including'}                                                 ║`);
-      console.log(`║   • Refresh Token: ${refreshToken ? '✅ From sessionStorage' : '⚠️ Will use HttpOnly cookie'}                               ║`);
-      console.log('║                                                                                ║');
-      console.log('║ STEP 3️⃣ : CALLING MANUAL REFRESH FUNCTION                                       ║');
-      console.log('║   Endpoint: /Authentication/refresh-token                                     ║');
-      console.log('║   Method: POST                                                                ║');
-      console.log('║   Protocol: HTTPS                                                             ║');
-      
-      // STEP 3: Call manual refresh function
-      const startRefreshTime = Date.now();
-      const refreshResult = await manualRefreshToken();
-      const refreshDuration = Date.now() - startRefreshTime;
-      
-      console.log('║                                                                                ║');
-      console.log('║ STEP 4️⃣ : PROCESS REFRESH RESPONSE                                              ║');
-      console.log(`║   API Response Time: ${refreshDuration}ms                                                      ║`);
-      console.log(`║   Refresh Success: ${refreshResult.success ? '✅ YES' : '❌ NO'}                                                    ║`);
-      console.log(`║   Message: ${refreshResult.message}                                          ║`);
-      
-      if (refreshResult.success) {
-        console.log('║                                                                                ║');
-        console.log('║ STEP 5️⃣ : TOKEN REFRESHED SUCCESSFULLY                                         ║');
-        console.log('║   Status: ✅ Token expanded                                                   ║');
-        const newExpiryStr = getTokenExpiry();
-        if (newExpiryStr) {
-          const newExpiryTime = new Date(newExpiryStr).getTime();
-          const newMinutesLeft = Math.floor((newExpiryTime - Date.now()) / 1000 / 60);
-          console.log(`║   New Expiry: ${new Date(newExpiryStr).toLocaleTimeString()}                                                  ║`);
-          console.log(`║   Token Valid For: ${newMinutesLeft}+ minutes more                                                  ║`);
-        }
-        console.log('║   Action: User remains logged in ✅                                           ║');
-        console.log('║   No user interruption                                                       ║');
-      } else {
-        console.log('║                                                                                ║');
-        console.log('║ STEP 5️⃣ : TOKEN REFRESH FAILED ❌                                               ║');
-        console.log(`║   Error: ${refreshResult.message}                                          ║`);
-        console.log('║   Status: ⚠️ Will retry on next tick                                          ║');
-        console.log('║   Next Retry: In 60 seconds                                                  ║');
-      }
-      
-      console.log('║                                                                                ║');
-      console.log('║ STEP 6️⃣ : SUMMARY & TIMELINE                                                    ║');
-      console.log(`║   Total Polls So Far: #${pollCount}                                                      ║`);
-      console.log(`║   Session Active For: ${Math.floor(secondsSinceSessionStart / 60)}m ${secondsSinceSessionStart % 60}s                                                    ║`);
-      console.log(`║   Refresh Frequency: Every 60 seconds                                          ║`);
-      console.log(`║   Next Refresh: In 60s at approximately ${new Date(pollStartMs + 60000).toLocaleTimeString()}                ║`);
-      console.log('╚════════════════════════════════════════════════════════════════════════════════════╝\n');
-      
-    } catch (error) {
-      console.log('║                                                                                ║');
-      console.log('║ STEP 5️⃣ : ERROR IN REFRESH PROCESS ❌                                             ║');
-      console.error(`║   Error Type: ${(error as any)?.name || 'Unknown'}                                                ║`);
-      console.error(`║   Error Message: ${(error as any)?.message || 'No message'}                                     ║`);
-      console.log('║   Action: Will retry on next tick                                             ║');
-      console.log('╚════════════════════════════════════════════════════════════════════════════════════╝\n');
-    }
-  }, CONTINUOUS_POLLING_INTERVAL);
-};
-
-/**
- * Stop continuous token refresh polling
- */
-const stopContinuousTokenRefreshPolling = (): void => {
-  if (continuousRefreshPollingTimer) {
-    clearInterval(continuousRefreshPollingTimer);
-    continuousRefreshPollingTimer = null;
-    console.log('🛑 Continuous token refresh polling stopped');
-  }
-};
-
 // ============================================
 // ⏱️ INACTIVITY MONITORING
 // ============================================
 
 /**
  * Start inactivity timer
- * Checks every minute if user has been inactive for too long
+ * Checks every minute if user has been inactive for too long (default: 1 hour)
  * ⭐ LOGS ALL INACTIVITY CHECKS TO PERSISTENT STORAGE
  */
 const startInactivityTimer = (): void => {
@@ -793,7 +658,7 @@ const startInactivityTimer = (): void => {
   }
   
   const timeoutStr = getSessionMetadata(STORAGE_KEYS.INACTIVITY_TIMEOUT_LS);
-  const timeoutMinutes = parseInt(timeoutStr || '30');
+  const timeoutMinutes = parseInt(timeoutStr || '60'); // 1 hour default inactivity timeout
   
   logInactivityEvent(`Inactivity timer started - will check every 60 seconds for ${timeoutMinutes} minutes idle time`);
   console.log(`⏱️ Inactivity Timer Setup: Will timeout after ${timeoutMinutes} minutes of no activity`);
@@ -1563,10 +1428,6 @@ const handleLogout = async (): Promise<void> => {
     if (refreshTokenTimer) clearTimeout(refreshTokenTimer);
     if (inactivityTimer) clearInterval(inactivityTimer);
     if (sessionExpiryTimer) clearTimeout(sessionExpiryTimer);
-    stopContinuousTokenRefreshPolling();
-    stopProactiveRefreshTimer();
-    stopTokenRefreshHeartbeat();
-    stopPollingGuardian();
     console.log('✅ All timers stopped - logs download will not be interrupted');
     // STEP 0: Capture app state
     console.log('🔴 STEP 0: Capturing application state...');
@@ -1739,136 +1600,6 @@ export const handleTabFocus = (): void => {
     }
   } catch (error) {
     console.error('❌ Error handling tab focus:', error);
-  }
-};
-
-/**
- * Heartbeat mechanism to ensure token refresh timer is always running
- * Runs every 30 seconds to check and restart timer if needed
- */
-let tokenRefreshHeartbeatTimer: number | null = null;
-
-export const startTokenRefreshHeartbeat = (): void => {
-  if (tokenRefreshHeartbeatTimer) {
-    clearInterval(tokenRefreshHeartbeatTimer);
-  }
-
-  console.log('💓 Starting token refresh heartbeat (checks every 15 seconds)');
-  console.log('   This ensures token is refreshed even if browser tab loses focus');
-
-  // Check more frequently for short-lived tokens (15 mins)
-  tokenRefreshHeartbeatTimer = window.setInterval(async () => {
-    try {
-      // 🛡️ SAFETY: If no token exists, silently return - user has logged out
-      const token = getAccessToken();
-      if (!token) {
-        return; // Silent return - normal after logout
-      }
-      
-      const expiryStr = getTokenExpiry();
-      if (!expiryStr) {
-        return; // Silent return - token metadata missing
-      }
-
-      const expiryTime = new Date(expiryStr).getTime();
-      const now = Date.now();
-      const timeUntilExpiry = expiryTime - now;
-
-      // If token is already expired, trigger immediate logout
-      if (timeUntilExpiry <= 0) {
-        console.error('🚨 [Heartbeat] TOKEN HAS EXPIRED! Logging out immediately...');
-        showSessionExpiredPopup();
-        // AWAIT the full logout with logs download
-        await handleLogout().catch(err => console.error('❌ Logout error:', err));
-        return;
-      }
-
-      // If less than 3.5 minutes until expiry and refresh timer not running, refresh NOW.
-      // Skip if a refresh is already in progress — prevents duplicate timer setup.
-      if (timeUntilExpiry < 3.5 * 60 * 1000 && !refreshTokenTimer && !isTokenRefreshInProgress) {
-        console.warn(`⚠️ [Heartbeat] Token expires in ${Math.floor(timeUntilExpiry / 1000 / 60)}m and no refresh timer! Refreshing NOW...`);
-        refreshAccessToken();
-        return;
-      }
-
-      // If refresh timer is not set but token still valid, restart it.
-      // Only restart when no refresh is currently running — avoids the double-setup bug.
-      if (!refreshTokenTimer && timeUntilExpiry > 60000 && !isTokenRefreshInProgress) {
-        console.warn(`⚠️ [Heartbeat] Refresh timer not running but token valid (${Math.floor(timeUntilExpiry / 1000 / 60)}m left). Restarting...`);
-        startTokenRefreshTimer();
-        return;
-      }
-
-      // Log heartbeat status periodically (every 2 minutes)
-      const minutesLeft = Math.floor(timeUntilExpiry / 1000 / 60);
-      if (minutesLeft > 0 && timeUntilExpiry % 120000 < 15000) { // Log every 2 minutes
-        console.log(`💓 [Heartbeat OK] Token valid for ${minutesLeft}m ${Math.floor((timeUntilExpiry % 60000) / 1000)}s (Unified Timer Active)`);
-      }
-    } catch (error) {
-      console.error('❌ [Heartbeat] error:', error);
-    }
-  }, 15 * 1000); // Check every 15 seconds (was 30 seconds)
-};
-
-/**
- * Stop the token refresh heartbeat
- */
-export const stopTokenRefreshHeartbeat = (): void => {
-  if (tokenRefreshHeartbeatTimer) {
-    clearInterval(tokenRefreshHeartbeatTimer);
-    tokenRefreshHeartbeatTimer = null;
-    console.log('💓 Token refresh heartbeat stopped');
-  }
-};
-
-/**
- * 🛡️ POLLING GUARDIAN - Super aggressive safety mechanism
- * Runs every 5 seconds to ensure continuous polling NEVER stops
- * Even if something breaks the polling, it will be restarted within 5 seconds
- */
-let pollingGuardianCheckCount = 0;
-export const startPollingGuardian = (): void => {
-  if (pollingGuardianTimer) {
-    clearInterval(pollingGuardianTimer);
-  }
-
-  console.log('🛡️ 🛡️ 🛡️ POLLING GUARDIAN ACTIVATED 🛡️ 🛡️ 🛡️');
-  console.log('   Purpose: Ensure continuous token refresh NEVER stops');
-  console.log('   Check Frequency: Every 5 seconds');
-  console.log('   Action: If polling is stopped, immediately restart it');
-  console.log('   Benefit: Session remains active even during tab inactivity\n');
-
-  pollingGuardianCheckCount = 0;
-
-  pollingGuardianTimer = window.setInterval(() => {
-    pollingGuardianCheckCount++;
-
-    // Check if continuous polling is still running
-    if (!continuousRefreshPollingTimer) {
-      console.error('🚨 🛡️ [Guardian] CRITICAL: Continuous polling has STOPPED!');
-      console.error('   Check #' + pollingGuardianCheckCount);
-      console.error('   Immediate Action: RESTARTING polling NOW');
-      
-      // Immediately restart the polling
-      startContinuousTokenRefreshPolling();
-      console.log('✅ Polling restarted by Guardian');
-    } else {
-      // Every 20 checks (every 100 seconds), log that guardian is active
-      if (pollingGuardianCheckCount % 20 === 0) {
-        console.log(`🛡️ [Guardian] Check #${pollingGuardianCheckCount}: Continuous polling is RUNNING ✅`);
-      }
-    }
-  }, 5 * 1000); // Check every 5 seconds - aggressive!
-};
-
-/**
- * Stop the polling guardian
- */
-export const stopPollingGuardian = (): void => {
-  if (pollingGuardianTimer) {
-    clearInterval(pollingGuardianTimer);
-    pollingGuardianTimer = null;
-    console.log('🛡️ Polling guardian stopped');
   }
 };
 
@@ -2048,9 +1779,8 @@ export const initializeDiagnosticsGlobals = (): void => {
     getUserAccess: getUserAccess,
     getSelectedAccess: getSelectedAccess,
     
-    // Timer and polling functions
+    // Timer functions
     startRefreshTimer: startTokenRefreshTimer,
-    stopPolling: stopContinuousTokenRefreshPolling,
     
     // Logging functions
     printLogs: printDebugLogs,
@@ -2064,64 +1794,6 @@ export const initializeDiagnosticsGlobals = (): void => {
   console.log('   • window.__HMS_DIAGNOSTICS__.download() - Download as JSON');
   console.log('   • window.__HMS_DIAGNOSTICS__.checkAuthState() - Check auth state');
   console.log('   • window.__HMS_DIAGNOSTICS__.refreshNow() - Refresh token immediately');
-};
-
-// ============================================
-// ⏱️ PROACTIVE REFRESH TIMER (NEW SIMPLIFIED VERSION)
-// ============================================
-/**
- * Simple proactive refresh: every 60 seconds, check if token expires in < 2 minutes
- * If so, refresh it immediately
- * This is the PRIMARY token refresh mechanism (simpler than the old polling)
- */
-let proactiveRefreshTimer: number | null = null;
-
-export const startProactiveRefreshTimer = (): void => {
-  if (proactiveRefreshTimer) {
-    clearInterval(proactiveRefreshTimer);
-  }
-
-  console.log('⏱️ Starting proactive token refresh (every 60 seconds)');
-
-  let checkCount = 0;
-
-  proactiveRefreshTimer = window.setInterval(async () => {
-    checkCount++;
-    
-    try {
-      const expiryStr = getTokenExpiry();
-      if (!expiryStr) return;
-
-      const expiryTime = new Date(expiryStr).getTime();
-      const timeUntilExpiry = expiryTime - Date.now();
-      const minutesLeft = Math.floor(timeUntilExpiry / 1000 / 60);
-
-      // If token expires in less than 2 minutes, refresh immediately
-      if (timeUntilExpiry < 2 * 60 * 1000 && !isTokenRefreshInProgress) {
-        console.log(`⏱️ Token expires in ${minutesLeft}m - Refreshing NOW`);
-        // CRITICAL FIX: Actually call the refresh function instead of just logging!
-        const refreshed = await refreshAccessToken();
-        if (refreshed) {
-          console.log('✅ Proactive refresh succeeded - Token extended');
-        } else {
-          console.warn('⚠️ Proactive refresh failed - Will retry on next check');
-        }
-      } else if (checkCount % 5 === 0) {
-        // Log status periodically (every 5 checks = every 5 minutes)
-        console.log(`💚 Token healthy: ${minutesLeft}m remaining`);
-      }
-    } catch (error) {
-      console.error('❌ Proactive refresh error:', error);
-    }
-  }, 60 * 1000); // Every 60 seconds
-};
-
-export const stopProactiveRefreshTimer = (): void => {
-  if (proactiveRefreshTimer) {
-    clearInterval(proactiveRefreshTimer);
-    proactiveRefreshTimer = null;
-    console.log('⏱️ Proactive refresh timer stopped');
-  }
 };
 
 // Add CSS animation

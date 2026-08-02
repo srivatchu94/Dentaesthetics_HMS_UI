@@ -51,7 +51,7 @@ import { useTokenExpiry } from "./context/TokenExpiryContext";
 import { ModalProvider } from "./context/ModalContext";
 import { tokenExpiryEmitter, refreshTokenInterceptor } from "./services/apiClient";
 import GlobalOnboardStaffModal from "./components/GlobalOnboardStaffModal";
-import { initializeTabFocusListener, startTokenRefreshHeartbeat, getAuthToken, initActivityListeners, updateLastActivity, startProactiveRefreshTimer, initializeDiagnosticsGlobals } from "./services/authService";
+import { initializeTabFocusListener, getAuthToken, initActivityListeners, updateLastActivity, initializeDiagnosticsGlobals } from "./services/authService";
 
 export default function App(){
   const navigate = useNavigate();
@@ -83,9 +83,7 @@ export default function App(){
           console.log('   New access token saved to sessionStorage');
           console.log('   Starting session monitoring timers...');
           
-          // ✅ NEW: Start timers NOW that we have a valid token
-          startTokenRefreshHeartbeat();
-          startProactiveRefreshTimer();
+          // Timers automatically started by saveAuthToken during refresh
           initActivityListeners();
           
           console.log('═══════════════════════════════════════════\n');
