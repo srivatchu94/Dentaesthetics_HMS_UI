@@ -1,5 +1,4 @@
 import React from "react";
-import clinicLogo from "../assets/dhantha-logo-new.svg";
 import dantaLogo from "../assets/danta-logo.jpg";
 
 const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorInfo, clinicInfo }, ref) => {
@@ -39,9 +38,15 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
     return () => { document.head.removeChild(style); };
   }, []);
 
-  const formatDate = (dateString) => {
-    if (!dateString || dateString === "0001-01-01T00:00:00") return new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    return new Date(dateString).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const formatDateTime = (dateString) => {
+    if (!dateString || dateString === "0001-01-01T00:00:00") {
+      const now = new Date();
+      return now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · ' +
+             now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · ' +
+           date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
   const calculateAge = (dob) => {
@@ -71,8 +76,9 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
   const patientLastName = patientInfo?.lastName || patientInfo?.patientLastName || "";
   const fullPatientName = `${patientFirstName} ${patientLastName}`.trim() || patientInfo?.patientName || "Patient";
   const age = patientInfo?.dateOfBirth ? calculateAge(patientInfo.dateOfBirth) : null;
-  const gender = patientInfo?.gender || patientInfo?.Gender || "";
   const phone = patientInfo?.phone || patientInfo?.patientPhone || patientInfo?.phoneNumber || "";
+  const invoiceNumber = prescription?.prescriptionId || "RX-001";
+  
   const doctorName =
     doctorInfo?.doctorName ||
     (doctorInfo?.firstName ? `${doctorInfo.firstName} ${doctorInfo.lastName || ""}`.trim() : "") ||
@@ -84,117 +90,109 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
     doctorInfo?.LicenseNumber ||
     doctorInfo?.RegistrationNumber ||
     "27909";
-  const speciality = doctorInfo?.speciality || doctorInfo?.specialtyName || "";
+  
   const clinicName = clinicInfo?.clinicName || "Dental Clinic";
   const clinicAddress = [clinicInfo?.clinicAddress || clinicInfo?.address, clinicInfo?.clinicCity].filter(Boolean).join(", ");
   const clinicPhone = clinicInfo?.clinicPhone || clinicInfo?.phone || "";
   const clinicEmail = clinicInfo?.clinicEmail || clinicInfo?.email || "";
-  const clinicReg = clinicInfo?.registrationNumber || clinicInfo?.gstNumber || "";
-  const notes = prescription?.notes || prescription?.additionalNotes || "";
-  const diagnosis = prescription?.diagnosis || "";
-  const treatment = prescription?.treatment || "";
 
   return (
     <div
       ref={(node) => {
         if (ref) { if (typeof ref === 'function') ref(node); else ref.current = node; }
       }}
-      className="prescription-print-container bg-white w-full max-w-2xl mx-auto"
+      className="prescription-print-container bg-white w-full max-w-3xl mx-auto text-slate-800 print:text-black"
       id="prescription-print-main"
     >
-      {/* ── HEADER ── screen: dark gradient | print: white + black border */}
-      <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-teal-900 text-white px-8 pt-7 pb-6 print:bg-white print:text-black print:border-b-2 print:border-black">
-        <div className="flex items-start justify-between gap-6">
-          {/* Left: clinic + doctor identity */}
-          <div className="flex-1">
-            <div className="flex items-start gap-4 mb-4">
-              <img
-                src={dantaLogo}
-                alt="Dentaesthetics Logo"
-                className="logo-color w-14 h-14 object-cover flex-shrink-0"
-                style={{
-                  printColorAdjust: 'exact',
-                  WebkitPrintColorAdjust: 'exact',
-                  borderRadius: '50%',
-                  border: '2px solid rgba(255,255,255,0.3)',
-                }}
-              />
-              <div>
-                <h1 className="text-2xl font-black tracking-wide print:text-black">{clinicName}</h1>
-                {(clinicPhone || clinicEmail) && (
-                  <p className="text-slate-400 text-xs mt-0.5 print:text-black">
-                    {clinicPhone}{clinicEmail ? "  ·  " + clinicEmail : ""}
-                  </p>
-                )}
-                {clinicReg && <p className="text-slate-400 text-xs mt-0.5 print:text-black">Reg: {clinicReg}</p>}
-              </div>
-            </div>
+      {/* ── TOP CENTERED LOGO ── */}
+      <div className="flex justify-center pt-6 pb-2">
+        <img
+          src={dantaLogo}
+          alt="Danta Logo"
+          className="logo-color w-16 h-16 object-cover"
+          style={{
+            printColorAdjust: 'exact',
+            WebkitPrintColorAdjust: 'exact',
+            borderRadius: '8px',
+          }}
+        />
+      </div>
 
+      {/* ── DOCTOR INFO HEADER ── */}
+      <div className="text-center border-b border-slate-200 pb-4 px-6">
+        <h2 className="text-lg font-bold text-slate-900 print:text-black">{clinicName}</h2>
+        <p className="text-xs text-slate-600 print:text-black">Dr. {doctorName}</p>
+        <p className="text-xs text-slate-600 font-semibold print:text-black">REG NO: {regNo}</p>
+      </div>
+
+      {/* ── PATIENT INFO SECTION ── */}
+      <div className="px-6 py-4 border-b border-slate-200">
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <p className="text-xs uppercase font-bold text-slate-500 print:text-black">Patient</p>
+            <p className="text-sm font-semibold text-slate-900 print:text-black">
+              {fullPatientName}
+              {age && <span className="text-xs text-slate-600 print:text-black"> ({age}y)</span>}
+            </p>
           </div>
-
-          {/* Right: Rx badge */}
-          <div className="text-right flex-shrink-0">
-            <div className="inline-block border border-teal-400/40 rounded-xl px-5 py-3 print:border-black print:rounded-none">
-              <p className="text-teal-300 text-xs font-bold uppercase tracking-widest mb-1 print:text-black">Prescription</p>
-              <div className="text-white text-4xl font-black print:text-black" style={{ fontFamily: 'serif' }}>℞</div>
-            </div>
+          <div>
+            <p className="text-xs uppercase font-bold text-slate-500 print:text-black">Contact</p>
+            <p className="text-sm text-slate-700 print:text-black">{phone || "N/A"}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase font-bold text-slate-500 print:text-black">Visit Date & Time</p>
+            <p className="text-sm text-slate-700 print:text-black">{formatDateTime(prescription?.prescriptionDate)}</p>
           </div>
         </div>
       </div>
 
-      {/* ── PATIENT STRIP ── screen: 2-col | print: stacked */}
-      <div className="grid grid-cols-2 print:grid-cols-1 border-b-2 border-slate-100 print:border-black">
-        <div className="p-5 bg-gradient-to-br from-indigo-50 to-slate-50 border-r border-slate-100 print:bg-white print:border-r-0 print:border-b print:border-black">
-          <p className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-2 print:text-black">Patient</p>
-          <p className="text-xl font-black text-slate-900 print:text-black">{fullPatientName}</p>
-          <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-600 print:text-black">
-            {age && <span>{age} yrs</span>}
-            {gender && <span>{gender}</span>}
-          </div>
+      {/* ── INVOICE SECTION ── */}
+      <div className="px-6 py-3 border-b border-slate-200 flex justify-between items-center">
+        <div>
+          <p className="text-sm font-semibold text-slate-800 print:text-black">
+            Invoiced by: Dr. {doctorName}
+          </p>
         </div>
-        <div className="p-5 bg-white print:py-3">
-          <p className="text-xs font-black text-teal-600 uppercase tracking-widest mb-2 print:text-black">Date</p>
-          <p className="text-xs text-slate-400 mt-1 print:text-black">{formatDate(prescription?.prescriptionDate)}</p>
+        <div className="text-right">
+          <p className="text-xs text-slate-600 print:text-black">Invoice #</p>
+          <p className="text-sm font-bold text-slate-900 print:text-black">{invoiceNumber}</p>
         </div>
       </div>
 
-      {/* ── DIAGNOSIS (if present) ── */}
-      {diagnosis && (
-        <div className="px-6 pt-5 pb-0">
-          <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 print:text-black">Diagnosis</p>
-          <p className="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 print:bg-white print:border-gray-300 print:text-black">{diagnosis}</p>
+      {/* ── RX SYMBOL + PRESCRIPTIONS ── */}
+      <div className="px-6 py-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="text-3xl font-black text-slate-800 print:text-black" style={{ fontFamily: 'serif' }}>℞</div>
+          <p className="text-sm font-bold uppercase text-slate-700 print:text-black">PRESCRIPTIONS</p>
         </div>
-      )}
 
-      {/* ── MEDICATIONS TABLE ── */}
-      <div className="px-6 py-5">
-        <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3 print:text-black">Prescription / Medications</p>
+        {/* ── MEDICATIONS TABLE ── */}
         {medications.length > 0 ? (
-          <div className="rounded-xl border border-slate-200 overflow-hidden shadow-sm print:rounded-none print:shadow-none">
-            <table className="w-full">
+          <div className="border border-slate-300 rounded overflow-hidden print:rounded-none print:border-black">
+            <table className="w-full text-xs">
               <thead>
-                <tr className="bg-gradient-to-r from-indigo-600 to-teal-600 text-white print:bg-white print:text-black print:border-b-2 print:border-black">
-                  <th className="px-3 py-3 text-left text-xs font-bold uppercase w-8">#</th>
-                  <th className="px-3 py-3 text-left text-xs font-bold uppercase">Medicine</th>
-                  <th className="px-3 py-3 text-left text-xs font-bold uppercase">Dosage</th>
-                  <th className="px-3 py-3 text-left text-xs font-bold uppercase">Frequency</th>
-                  <th className="px-3 py-3 text-left text-xs font-bold uppercase">Duration</th>
-                  <th className="px-3 py-3 text-left text-xs font-bold uppercase">Instructions</th>
+                <tr className="bg-slate-100 border-b border-slate-300 print:bg-white print:text-black print:border-black">
+                  <th className="px-3 py-2 text-left font-bold">#</th>
+                  <th className="px-3 py-2 text-left font-bold">Medicine</th>
+                  <th className="px-3 py-2 text-left font-bold">Dosage</th>
+                  <th className="px-3 py-2 text-left font-bold">Frequency</th>
+                  <th className="px-3 py-2 text-left font-bold">Duration</th>
+                  <th className="px-3 py-2 text-left font-bold">Instructions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 print:divide-gray-300">
+              <tbody className="divide-y divide-slate-200 print:divide-black">
                 {medications.map((med, idx) => (
-                  <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/60 print:bg-white"}>
-                    <td className="px-3 py-3 text-sm font-black text-indigo-600 print:text-black">{idx + 1}</td>
+                  <tr key={idx} className="hover:bg-slate-50 print:bg-white">
+                    <td className="px-3 py-2 font-bold text-slate-700 print:text-black">{idx + 1}</td>
                     {med.raw ? (
-                      <td colSpan={5} className="px-3 py-3 text-sm text-slate-800 print:text-black">{med.raw}</td>
+                      <td colSpan={5} className="px-3 py-2 text-slate-700 print:text-black">{med.raw}</td>
                     ) : (
                       <>
-                        <td className="px-3 py-3 text-sm font-semibold text-slate-900 print:text-black">{med.medicineName || med.name || "—"}</td>
-                        <td className="px-3 py-3 text-sm text-slate-700 print:text-black">{med.dosage || "—"}</td>
-                        <td className="px-3 py-3 text-sm text-slate-700 print:text-black">{med.frequency || "—"}</td>
-                        <td className="px-3 py-3 text-sm text-slate-700 print:text-black">{med.duration || "—"}</td>
-                        <td className="px-3 py-3 text-sm text-slate-600 print:text-black">{med.specialInstructions || med.instructions || "—"}</td>
+                        <td className="px-3 py-2 font-semibold text-slate-800 print:text-black">{med.medicineName || med.name || "—"}</td>
+                        <td className="px-3 py-2 text-slate-700 print:text-black">{med.dosage || "—"}</td>
+                        <td className="px-3 py-2 text-slate-700 print:text-black">{med.frequency || "—"}</td>
+                        <td className="px-3 py-2 text-slate-700 print:text-black">{med.duration || "—"}</td>
+                        <td className="px-3 py-2 text-slate-700 print:text-black">{med.specialInstructions || med.instructions || "—"}</td>
                       </>
                     )}
                   </tr>
@@ -203,47 +201,25 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
             </table>
           </div>
         ) : (
-          <p className="text-sm text-slate-500 italic print:text-black">No medications prescribed.</p>
+          <p className="text-sm text-slate-500 italic py-4">No medications prescribed.</p>
         )}
       </div>
 
-      {/* ── TREATMENT / DOCTOR ADVICE ── */}
-      {treatment && (
-        <div className="px-6 pb-5">
-          <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 print:text-black">Treatment / Doctor Advice</p>
-          <p className="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 print:bg-white print:border-gray-300 print:text-black whitespace-pre-wrap">{treatment}</p>
+      {/* ── SIGNATURE SECTION ── */}
+      <div className="px-6 py-6 border-t border-slate-200 text-right">
+        <p className="text-xs text-slate-600 print:text-black mb-2">Electronically signed by:</p>
+        <div className="border-t-2 border-slate-400 pt-3 inline-block min-w-64 print:border-black">
+          <p className="text-sm font-bold text-slate-800 print:text-black">Dr. {doctorName}</p>
+          <p className="text-xs text-slate-600 print:text-black">ID: {regNo}</p>
         </div>
-      )}
-
-      {/* ── IMPORTANT NOTE ── */}
-      <div className="mx-6 mb-5 px-4 py-3 bg-amber-50 border-l-4 border-amber-400 rounded print:bg-white print:border-black">
-        <p className="text-xs font-bold text-amber-800 print:text-black">Important:</p>
-        <p className="text-xs text-amber-900 mt-0.5 print:text-black">
-          Follow the dosage and frequency as prescribed. If you experience any adverse effects, consult your doctor immediately.
-        </p>
       </div>
 
-      {/* ── SIGNATURE + FOOTER ── */}
-      <div className="border-t-2 border-slate-100 print:border-black">
-        <div className="px-6 py-4 flex justify-end">
-          <div className="text-right border-t-2 border-dashed border-slate-300 pt-3 min-w-56 print:border-black">
-            <p className="text-xs text-slate-400 mb-1 print:text-black">Electronically signed by</p>
-            <p className="text-sm font-black text-slate-800 print:text-black">Dr. {doctorName}</p>
-            <p className="text-xs text-slate-500 print:text-black">ID: {regNo}</p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="bg-gradient-to-r from-slate-900 via-indigo-900 to-teal-900 text-white px-8 py-4 print:bg-white print:text-black print:border-t-2 print:border-black">
-          <div className="flex items-center justify-between gap-4 print:flex-col print:items-start print:gap-2">
-            <div className="text-xs space-y-0.5">
-              {clinicAddress && <p className="text-slate-300 print:text-black">{clinicAddress}</p>}
-            </div>
-            <p className="text-xs text-slate-400 italic print:text-black">
-              Computer generated prescription · Valid without signature
-            </p>
-          </div>
-        </div>
+      {/* ── FOOTER WITH ADDRESS ── */}
+      <div className="border-t-2 border-slate-300 print:border-black px-6 py-3 text-center bg-slate-50 print:bg-white">
+        <p className="text-xs text-slate-600 print:text-black">{clinicAddress}</p>
+        {clinicPhone && <p className="text-xs text-slate-600 print:text-black">Ph: {clinicPhone}</p>}
+        {clinicEmail && <p className="text-xs text-slate-600 print:text-black">{clinicEmail}</p>}
+        <p className="text-xs text-slate-500 italic mt-2 print:text-black">Computer generated prescription · Valid without signature</p>
       </div>
     </div>
   );

@@ -17,6 +17,35 @@ class SessionDebugLogger {
   private readonly MAX_LOGS = 10000;
   private startTime: number = Date.now();
 
+  constructor() {
+    // 🔴 CRITICAL FIX: Restore logs from previous session on app load
+    // This ensures logs are NOT lost between logout and next login
+    this.restoreLogsFromPreviousSession();
+  }
+
+  /**
+   * Restore logs from localStorage (from previous session)
+   * IMPORTANT: Logs are preserved across logout/login cycles
+   */
+  private restoreLogsFromPreviousSession(): void {
+    try {
+      const stored = localStorage.getItem('SESSION_DEBUG_LOGS');
+      const storedTimestamp = localStorage.getItem('SESSION_DEBUG_LOGS_TIMESTAMP');
+      
+      if (stored) {
+        const previousLogs = JSON.parse(stored);
+        if (Array.isArray(previousLogs) && previousLogs.length > 0) {
+          this.logs = previousLogs;
+          console.log(`✅ SESSION DEBUG LOGGER: Restored ${previousLogs.length} logs from previous session (${storedTimestamp})`);
+          console.log('   Logs will be available to download on next logout');
+        }
+      }
+    } catch (error) {
+      console.error('⚠️ Failed to restore logs from previous session:', error);
+      this.logs = [];
+    }
+  }
+
   /**
    * Add a log entry
    */
@@ -336,12 +365,12 @@ SessionStorage Keys: ${Array.from({ length: sessionStorage.length }, (_, i) => s
           } catch (e) {
             console.error('Safety timeout error:', e);
           }
-          console.log('⚠️ Safety timeout - forcing resolve');
+          console.log('Safety timeout - forcing resolve');
           resolve();
         }, cleanupDelay * 2);
         
       } catch (error) {
-        console.error('❌ CRITICAL: Failed to download session debug logs:', error);
+        console.error('CRITICAL: Failed to download session debug logs:', error);
         console.error('Error details:', {
           name: error?.name,
           message: error?.message,
@@ -350,12 +379,12 @@ SessionStorage Keys: ${Array.from({ length: sessionStorage.length }, (_, i) => s
         
         // Try fallback: log to console for user to copy
         try {
-          console.log('\n⚠️ FALLBACK: Logs cannot be auto-downloaded. Copy logs from below:\n');
+          console.log('\nFALLBACK: Logs cannot be auto-downloaded. Copy logs from below:\n');
           const fallbackLogs = this.getLogsAsText();
           console.log(fallbackLogs);
-          console.log('\n⚠️ You can right-click → Save as to save the logs above');
+          console.log('\nYou can right-click → Save as to save the logs above');
         } catch (fallbackError) {
-          console.error('❌ FALLBACK ALSO FAILED:', fallbackError);
+          console.error('FALLBACK ALSO FAILED:', fallbackError);
         }
         
         resolve();  // Always resolve to not block logout
@@ -364,13 +393,25 @@ SessionStorage Keys: ${Array.from({ length: sessionStorage.length }, (_, i) => s
   }
 
   /**
-   * Clear logs
+   * Clear logs from memory
+   * IMPORTANT: Only call this after logs have been downloaded
+   * Logs are preserved in localStorage and restored on next app load
    */
   clearLogs(): void {
     this.logs = [];
     this.startTime = Date.now();
+    // DO NOT CLEAR localStorage - logs must persist for next session
+    console.log('Session debug logs cleared from memory (still persisted in localStorage)');
+  }
+
+  /**
+   * Explicitly clear stored logs from localStorage
+   * Only call this when user wants to permanently delete all logs
+   */
+  clearStoredLogs(): void {
     localStorage.removeItem('SESSION_DEBUG_LOGS');
-    console.log('🗑️ Session debug logs cleared');
+    localStorage.removeItem('SESSION_DEBUG_LOGS_TIMESTAMP');
+    console.log('Stored session debug logs permanently deleted from localStorage');
   }
 
   /**
