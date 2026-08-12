@@ -65,13 +65,22 @@ const VisitInfoModal = ({
   
   const [savingVisit, setSavingVisit] = useState(false);
   const [isExistingVisit, setIsExistingVisit] = useState(false);
-  const [localCurrentMedication, setLocalCurrentMedication] = useState({
+  // Full visit history for this appointment (latest first), the visitId currently
+  // loaded into the form (null = fresh "new visit" entry), and whether the
+  // reference panel of other visits is expanded.
+  const [allVisits, setAllVisits] = useState([]);
+  const [activeVisitId, setActiveVisitId] = useState(null);
+  const [showPreviousVisits, setShowPreviousVisits] = useState(false);
+  const EMPTY_MEDICATION = {
     name: '',
+    medicationType: 'Tablet',
     dosage: '',
     frequency: '',
     duration: '',
-    instructions: ''
-  });
+    instructions: '',
+    mealTiming: 'Before Food'
+  };
+  const [localCurrentMedication, setLocalCurrentMedication] = useState({ ...EMPTY_MEDICATION });
   const [localInlineMedications, setLocalInlineMedications] = useState([]);
   const [localEditingMedicationIndex, setLocalEditingMedicationIndex] = useState(null);
   const [localMedicineDropdownOpen, setLocalMedicineDropdownOpen] = useState(false);
@@ -95,6 +104,60 @@ const VisitInfoModal = ({
   const medicineDropdownOpen = localMedicineDropdownOpen;
   const setMedicineDropdownOpen = setLocalMedicineDropdownOpen;
   const medicineInputRef = localMedicineInputRef;
+
+  const EMPTY_VISIT_FORM = {
+    visitDate: new Date().toISOString().split('T')[0],
+    chiefComplaint: '',
+    diagnosis: '',
+    treatmentProvided: '',
+    prescriptions: '',
+    followUpDate: '',
+    notes: ''
+  };
+
+  const getVisitId = (v) => v?.visitId ?? v?.VisitId ?? null;
+
+  const mapVisitToForm = (v) => ({
+    visitDate: v.visitDate ? v.visitDate.split('T')[0] : new Date().toISOString().split('T')[0],
+    chiefComplaint: v.chiefComplaint || v.reasonForVisit || '',
+    diagnosis: v.diagnosis || v.diagnoses || '',
+    treatmentProvided: v.treatmentProvided || v.treatments || '',
+    prescriptions: v.prescriptions || '',
+    followUpDate: v.followUpDate ? v.followUpDate.split('T')[0] : '',
+    notes: v.notes || ''
+  });
+
+  const mapVisitMedications = (v) => Array.isArray(v.prescriptions)
+    ? v.prescriptions.map(med => ({
+        name: med.medicineName || med.name || '',
+        medicationType: med.medicationType || med.MedicationType || 'Tablet',
+        dosage: med.dosage || '',
+        frequency: med.frequency || '',
+        duration: med.duration || '',
+        instructions: med.specialInstructions || med.instructions || '',
+        mealTiming: med.mealTiming || med.MealTiming || 'Before Food'
+      }))
+    : [];
+
+  // Load a specific past visit into the active form for editing.
+  const loadVisitIntoForm = (visit) => {
+    setIsExistingVisit(true);
+    setActiveVisitId(getVisitId(visit));
+    setVisitForm(mapVisitToForm(visit));
+    setLocalInlineMedications(mapVisitMedications(visit));
+    setLocalCurrentMedication({ ...EMPTY_MEDICATION });
+    setLocalEditingMedicationIndex(null);
+  };
+
+  // Blank the form for a brand new visit record (same appointment, new date).
+  const startNewVisit = () => {
+    setIsExistingVisit(false);
+    setActiveVisitId(null);
+    setVisitForm({ ...EMPTY_VISIT_FORM, visitDate: new Date().toISOString().split('T')[0] });
+    setLocalInlineMedications([]);
+    setLocalCurrentMedication({ ...EMPTY_MEDICATION });
+    setLocalEditingMedicationIndex(null);
+  };
 
   // Initialize form state with new data when modal opens
   useEffect(() => {
@@ -133,335 +196,47 @@ const VisitInfoModal = ({
     console.log('🔄 PROP CHANGED (notes):', notes ? `"${notes}"` : '(empty)');
   }, [notes]);
 
-  // Load existing visit data - Reload every time modal opens
+  // Load visit history - reload every time the modal opens for an appointment.
+  // Default behavior: if the latest visit on record is from TODAY, keep editing it
+  // (matches prior behavior). If the latest visit is from an earlier date, this is a
+  // repeat visit for the same appointment — default to a fresh blank entry so the
+  // doctor records a new visit, while every past visit stays available to reference
+  // (and edit, if needed) in the collapsible Previous Visits panel.
   useEffect(() => {
-    // Only run when modal is shown
-    if (!show) {
-      return;
-    }
+    if (!show) return;
 
     const appointmentId = selectedAppointment?.appointmentId;
-    const existingData = selectedAppointment?.existingVisitData;
-    
     if (!appointmentId) {
-      console.log('📝 No appointment ID, initializing empty form');
-      setIsExistingVisit(false);
-      setVisitForm({
-        visitDate: new Date().toISOString().split('T')[0],
-        chiefComplaint: '',
-        diagnosis: '',
-        treatmentProvided: '',
-        prescriptions: '',
-        followUpDate: '',
-        notes: ''
-      });
-      setLocalInlineMedications([]);
+      setAllVisits([]);
+      startNewVisit();
       return;
     }
 
-    if (!existingData) {
-      console.log('📝 No existing data yet for appointment', appointmentId, '- initializing empty form');
-      setIsExistingVisit(false);
-      setVisitForm({
-        visitDate: new Date().toISOString().split('T')[0],
-        chiefComplaint: '',
-        diagnosis: '',
-        treatmentProvided: '',
-        prescriptions: '',
-        followUpDate: '',
-        notes: ''
-      });
-      setLocalInlineMedications([]);
+    const history = Array.isArray(selectedAppointment?.visitHistory)
+      ? selectedAppointment.visitHistory
+      : (selectedAppointment?.existingVisitData ? [selectedAppointment.existingVisitData] : []);
+
+    console.log('📚 Visit history for appointment', appointmentId, '— count:', history.length);
+    setAllVisits(history);
+    setShowPreviousVisits(false);
+
+    if (history.length === 0) {
+      startNewVisit();
       return;
     }
 
-    console.log('📥 Loading existing visit data - Appointment:', appointmentId);
-    console.log('📦 Existing data:', existingData);
-    
-    const hasExistingData = existingData.visitDate || existingData.diagnosis || existingData.reasonForVisit;
-    if (hasExistingData) {
-      setIsExistingVisit(true);
+    const latest = history[0];
+    const latestDateStr = latest.visitDate ? new Date(latest.visitDate).toDateString() : null;
+    const todayStr = new Date().toDateString();
+
+    if (latestDateStr === todayStr) {
+      console.log('📥 Latest visit is from today — loading it for editing');
+      loadVisitIntoForm(latest);
     } else {
-      setIsExistingVisit(false);
+      console.log('🆕 Latest visit is from a past date — starting a fresh visit entry');
+      startNewVisit();
     }
-    
-    setVisitForm({
-      visitDate: existingData.visitDate ? existingData.visitDate.split('T')[0] : new Date().toISOString().split('T')[0],
-      chiefComplaint: existingData.chiefComplaint || existingData.reasonForVisit || '',
-      diagnosis: existingData.diagnosis || existingData.diagnoses || '',
-      treatmentProvided: existingData.treatmentProvided || existingData.treatments || '',
-      prescriptions: existingData.prescriptions || '',
-      followUpDate: existingData.followUpDate ? existingData.followUpDate.split('T')[0] : '',
-      notes: existingData.notes || ''
-    });
-    
-    if (existingData.prescriptions && Array.isArray(existingData.prescriptions)) {
-      console.log('💊 Loading existing prescriptions into medications grid:', existingData.prescriptions);
-      const mappedMeds = existingData.prescriptions.map(med => ({
-        name: med.medicineName || med.name || '',
-        dosage: med.dosage || '',
-        frequency: med.frequency || '',
-        duration: med.duration || '',
-        instructions: med.specialInstructions || med.instructions || ''
-      }));
-      console.log('💊 Mapped medications for grid:', mappedMeds);
-      setLocalInlineMedications(mappedMeds);
-    } else {
-      console.log('💊 No existing prescriptions to load');
-      setLocalInlineMedications([]);
-    }
-  }, [show, selectedAppointment?.appointmentId, selectedAppointment?.existingVisitData]);
-
-  // Track visitForm state changes
-  useEffect(() => {
-    console.log('📝 VISITFORM STATE UPDATED:', {
-      diagnosis: visitForm.diagnosis ? visitForm.diagnosis.substring(0, 50) + '...' : '(empty)',
-      treatmentProvided: visitForm.treatmentProvided ? visitForm.treatmentProvided.substring(0, 50) + '...' : '(empty)',
-      notes: visitForm.notes ? visitForm.notes.substring(0, 50) + '...' : '(empty)'
-    });
-  }, [visitForm.diagnosis, visitForm.treatmentProvided, visitForm.notes]);
-
-  // Specific effect: when loading completes, fill the form
-  useEffect(() => {
-    if (show && !loadingMedicalInfo && medicalInfoError === false) {
-      console.log('✅ LOADING COMPLETE! Medical info available. Triggering auto-fill.');
-      console.log('   diagnosis prop value:', diagnosis ? `"${diagnosis}"` : '(empty)');
-      console.log('   treatment prop value:', treatment ? `"${treatment}"` : '(empty)');
-      console.log('   medications prop value:', medications ? `"${medications}"` : '(empty)');
-      console.log('   notes prop value:', notes ? `"${notes}"` : '(empty)');
-      console.log('   reasonForVisit prop value:', reasonForVisit ? `"${reasonForVisit}"` : '(empty)');
-      
-      // Force fill all fields when loading completes
-      if (diagnosis || treatment || notes || reasonForVisit) {
-        console.log('📋 DATA DETECTED - FILLING FORM NOW');
-        setVisitForm(prev => {
-          const updated = { ...prev };
-          let changed = false;
-          
-          if (reasonForVisit && updated.chiefComplaint === '') {
-            console.log('   ✅ Setting chiefComplaint:', reasonForVisit);
-            updated.chiefComplaint = reasonForVisit;
-            changed = true;
-          }
-          
-          if (diagnosis && updated.diagnosis === '') {
-            console.log('   ✅ Setting diagnosis:', diagnosis);
-            updated.diagnosis = diagnosis;
-            changed = true;
-          }
-          
-          if (treatment && updated.treatmentProvided === '') {
-            console.log('   ✅ Setting treatmentProvided:', treatment);
-            updated.treatmentProvided = treatment;
-            changed = true;
-          }
-          
-          if (notes && updated.notes === '') {
-            console.log('   ✅ Setting notes:', notes);
-            updated.notes = notes;
-            changed = true;
-          }
-          
-          if (changed) {
-            console.log('   📤 Form state updated:', { diagnosis: updated.diagnosis, treatment: updated.treatmentProvided, notes: updated.notes });
-          }
-          
-          return updated;
-        });
-      } else {
-        console.log('⚠️ NO DATA TO FILL FORM - All props are empty');
-      }
-      
-      // Handle medications
-      if (medications && inlineMedications.length === 0) {
-        console.log('   → Processing medications on load complete:', medications);
-        const medArray = medications
-          .split(',')
-          .map(med => {
-            const parts = med.trim().split('-');
-            return {
-              name: parts[0]?.trim() || '',
-              dosage: parts[1]?.trim() || '',
-              frequency: parts[2]?.trim() || 'As needed',
-              duration: parts[3]?.trim() || '7 days',
-              instructions: parts[4]?.trim() || ''
-            };
-          })
-          .filter(med => med.name);
-        
-        if (medArray.length > 0) {
-          console.log('   ✅ Adding medications to form:', medArray);
-          setLocalInlineMedications(medArray);
-        }
-      }
-    }
-  }, [show, loadingMedicalInfo, medicalInfoError, diagnosis, treatment, medications, notes, reasonForVisit, inlineMedications.length]);
-
-  // Separate effect to forcefully fill form when medical data props arrive
-  useEffect(() => {
-    if (show && reasonForVisit && visitForm.chiefComplaint === '') {
-      console.log('💥 FORCE FILL: ReasonForVisit detected, forcing form update');
-      setVisitForm(prev => ({
-        ...prev,
-        chiefComplaint: reasonForVisit
-      }));
-    }
-  }, [reasonForVisit, show]);
-
-  useEffect(() => {
-    if (show && diagnosis && visitForm.diagnosis === '') {
-      console.log('💥 FORCE FILL: Diagnosis detected, forcing form update');
-      setVisitForm(prev => ({
-        ...prev,
-        diagnosis: diagnosis
-      }));
-    }
-  }, [diagnosis, show]);
-
-  useEffect(() => {
-    if (show && treatment && visitForm.treatmentProvided === '') {
-      console.log('💥 FORCE FILL: Treatment detected, forcing form update');
-      setVisitForm(prev => ({
-        ...prev,
-        treatmentProvided: treatment
-      }));
-    }
-  }, [treatment, show]);
-
-  useEffect(() => {
-    if (show && notes && visitForm.notes === '') {
-      console.log('💥 FORCE FILL: Notes detected, forcing form update');
-      setVisitForm(prev => ({
-        ...prev,
-        notes: notes
-      }));
-    }
-  }, [notes, show]);
-
-  // Medications separate effect
-  useEffect(() => {
-    if (show && medications && inlineMedications.length === 0 && typeof medications === 'string' && medications.trim()) {
-      console.log('💥 FORCE FILL: Medications detected, parsing and forking form update');
-      const medArray = medications
-        .split(',')
-        .map(med => {
-          const parts = med.trim().split('-');
-          return {
-            name: parts[0]?.trim() || '',
-            dosage: parts[1]?.trim() || '',
-            frequency: parts[2]?.trim() || 'As needed',
-            duration: parts[3]?.trim() || '7 days',
-            instructions: parts[4]?.trim() || ''
-          };
-        })
-        .filter(med => med.name);
-      
-      if (medArray.length > 0) {
-        console.log('💥 FORCE FILL: Setting medications array:', medArray);
-        setLocalInlineMedications(medArray);
-      }
-    }
-  }, [medications, show, inlineMedications.length]);
-
-  // Separate effect just to track when critical props change
-  useEffect(() => {
-    console.log('⚡ CRITICAL PROPS CHANGED - New values available');
-    console.log('   diagnosis:', diagnosis ? `"${diagnosis}"` : '(empty)');
-    console.log('   treatment:', treatment ? `"${treatment}"` : '(empty)');
-    console.log('   notes:', notes ? `"${notes}"` : '(empty)');
-    console.log('   loadingMedicalInfo:', loadingMedicalInfo);
-  }, [diagnosis, treatment, notes, loadingMedicalInfo]);
-
-  // Auto-fill form with medical info when available - fills empty fields with API data
-  useEffect(() => {
-    console.log('🔍 Auto-fill Effect Running:');
-    console.log('   show:', show);
-    console.log('   loadingMedicalInfo:', loadingMedicalInfo);
-    console.log('   medicalInfoError:', medicalInfoError);
-    console.log('   diagnosis prop:', diagnosis);
-    console.log('   treatment prop:', treatment);
-    console.log('   medications prop:', medications);
-    console.log('   notes prop:', notes);
-    
-    // If modal is open and loading is done
-    if (show && !loadingMedicalInfo && !medicalInfoError) {
-      // Check if we have data to fill
-      const hasDataToFill = diagnosis || treatment || medications || notes;
-      console.log('   hasDataToFill:', hasDataToFill);
-      
-      if (hasDataToFill) {
-        console.log('📋 TRIGGER: AUTO-FILLING FORM WITH API DATA');
-        
-        // Fill form with API data - ALWAYS update if new data differs from current form data
-        setVisitForm(prev => {
-          const updated = { ...prev };
-          let anyChanges = false;
-          
-          // Update diagnosis if API data differs from current form data
-          if (diagnosis && prev.diagnosis !== diagnosis) {
-            console.log('   ✅ Updating diagnosis:', prev.diagnosis || '(empty)', '→', diagnosis);
-            updated.diagnosis = diagnosis;
-            anyChanges = true;
-          } else if (!diagnosis && prev.diagnosis) {
-            console.log('   ℹ️ No diagnosis in API, keeping existing:', prev.diagnosis);
-          }
-          
-          // Update treatment if API data differs from current form data 
-          if (treatment && prev.treatmentProvided !== treatment) {
-            console.log('   ✅ Updating treatmentProvided:', prev.treatmentProvided || '(empty)', '→', treatment);
-            updated.treatmentProvided = treatment;
-            anyChanges = true;
-          } else if (!treatment && prev.treatmentProvided) {
-            console.log('   ℹ️ No treatment in API, keeping existing:', prev.treatmentProvided);
-          }
-          
-          // Update notes if API data differs from current form data
-          if (notes && prev.notes !== notes) {
-            console.log('   ✅ Updating notes:', prev.notes || '(empty)', '→', notes);
-            updated.notes = notes;
-            anyChanges = true;
-          } else if (!notes && prev.notes) {
-            console.log('   ℹ️ No notes in API, keeping existing:', prev.notes);
-          }
-          
-          if (anyChanges) {
-            console.log('   📤 Updated visitForm state:', { diagnosis: updated.diagnosis, treatmentProvided: updated.treatmentProvided, notes: updated.notes });
-          } else {
-            console.log('   ℹ️ No changes needed, form already has data');
-          }
-          
-          return updated;
-        });
-        
-        // Handle medications - add to existing medications array
-        if (medications && typeof medications === 'string' && medications.trim()) {
-          console.log('   → Processing medications string:', medications);
-          const medArray = medications
-            .split(',')
-            .map(med => {
-              const parts = med.trim().split('-');
-              return {
-                name: parts[0]?.trim() || '',
-                dosage: parts[1]?.trim() || '',
-                frequency: parts[2]?.trim() || 'As needed',
-                duration: parts[3]?.trim() || '7 days',
-                instructions: parts[4]?.trim() || ''
-              };
-            })
-            .filter(med => med.name);
-          
-          if (medArray.length > 0) {
-            console.log('   ✅ Adding medications array:', medArray);
-            setLocalInlineMedications(medArray);
-          } else {
-            console.log('   ⚠️ No valid medications after parsing');
-          }
-        }
-      } else {
-        console.log('⚠️ NO DATA TO FILL FORM - All props are empty');
-      }
-    }
-  }, [show, diagnosis, treatment, medications, notes, loadingMedicalInfo, medicalInfoError]);
+  }, [show, selectedAppointment?.appointmentId, selectedAppointment?.existingVisitData, selectedAppointment?.visitHistory]);
 
   useEffect(() => {
     if (!show) {
@@ -491,8 +266,8 @@ const VisitInfoModal = ({
 
   const handleAddMedication = useCallback(() => {
     console.log('➕ Adding medication:', currentMedication);
-    if (!currentMedication.name || !currentMedication.dosage || !currentMedication.frequency || !currentMedication.duration) {
-      alert('❌ Please fill in all required fields (Name, Dosage, Frequency, Duration)');
+    if (!currentMedication.name || !currentMedication.frequency || !currentMedication.duration) {
+      alert('❌ Please fill in all required fields (Medicine Name, Frequency, Duration). Dosage is optional.');
       return;
     }
 
@@ -505,7 +280,7 @@ const VisitInfoModal = ({
       setInlineMedications([...inlineMedications, { ...currentMedication }]);
     }
 
-    setCurrentMedication({ name: '', dosage: '', frequency: '', duration: '', instructions: '' });
+    setCurrentMedication({ ...EMPTY_MEDICATION });
   }, [currentMedication, editingMedicationIndex, inlineMedications]);
 
   const handleEditMedication = (index) => {
@@ -518,7 +293,7 @@ const VisitInfoModal = ({
   };
 
   const handleCancelEdit = () => {
-    setCurrentMedication({ name: '', dosage: '', frequency: '', duration: '', instructions: '' });
+    setCurrentMedication({ ...EMPTY_MEDICATION });
     setEditingMedicationIndex(null);
   };
 
@@ -596,7 +371,7 @@ const VisitInfoModal = ({
       medications: inlineMedications,
       notes: visitForm.notes,
       prescriptionContent: inlineMedications.map(m =>
-        `${m.name} - ${m.dosage} - ${m.frequency} - ${m.duration}`
+        `${m.name} (${m.medicationType || 'Tablet'})${m.dosage ? ' - ' + m.dosage : ''} - ${m.frequency} - ${m.duration} - ${m.mealTiming || 'Before Food'}`
       ).join('\n')
     });
     setShowPrintPreviewModal(true);
@@ -633,8 +408,8 @@ const VisitInfoModal = ({
       const prescriptionData = {
         prescriptionId: selectedAppointment.appointmentId,
         prescriptionDate: new Date().toISOString(),
-        prescriptionContent: inlineMedications.map(med => 
-          `${med.name} - ${med.dosage} - ${med.frequency} - ${med.duration}`
+        prescriptionContent: inlineMedications.map(med =>
+          `${med.name} (${med.medicationType || 'Tablet'})${med.dosage ? ' - ' + med.dosage : ''} - ${med.frequency} - ${med.duration} - ${med.mealTiming || 'Before Food'}`
         ).join('\n')
       };
 
@@ -777,6 +552,11 @@ const VisitInfoModal = ({
       return;
     }
 
+    if (inlineMedications.length === 0) {
+      alert('❌ Please add at least one medication in the Write Prescription section before saving.');
+      return;
+    }
+
     setSavingVisit(true);
     try {
       const selectedAccess = JSON.parse(localStorage.getItem("selectedAccess") || "{}");
@@ -791,14 +571,17 @@ const VisitInfoModal = ({
 
       const prescriptions = inlineMedications.map(med => ({
         MedicineName: med.name,
-        Dosage: med.dosage,
+        MedicationType: med.medicationType || 'Tablet',
+        Dosage: med.dosage || '',
         Frequency: med.frequency,
         Duration: med.duration,
+        MealTiming: med.mealTiming || 'Before Food',
         SpecialInstructions: med.instructions || '',
-        GeneralPrescriptionNotes: ''
+        GeneralPrescriptionNotes: `Type: ${med.medicationType || 'Tablet'} | ${med.mealTiming || 'Before Food'}`
       }));
 
       const visitData = {
+        ...(isExistingVisit && activeVisitId ? { VisitId: activeVisitId } : {}),
         AppointmentId: parseInt(selectedAppointment.appointmentId || 0),
         PatientId: parseInt(selectedAppointment.patientId || 0),
         ClinicId: parseInt(selectedAccess.clinicId || selectedAppointment.clinicId || 0),
@@ -1045,6 +828,83 @@ const VisitInfoModal = ({
               transition={{ delay: 0.2 }}
               className="lg:col-span-2 space-y-5"
             >
+              {/* Previous Visit Info - collapsible reference panel */}
+              {allVisits.length > 0 && allVisits.filter(v => getVisitId(v) !== activeVisitId).length > 0 && (
+                <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-2xl border-2 border-slate-300 shadow-md overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setShowPreviousVisits(prev => !prev)}
+                    className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-100/60 transition"
+                  >
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                      <span>📜</span> Previous Visit Info ({allVisits.filter(v => getVisitId(v) !== activeVisitId).length})
+                    </h3>
+                    <span className={`text-xl transition-transform ${showPreviousVisits ? 'rotate-180' : ''}`}>▾</span>
+                  </button>
+                  {showPreviousVisits && (
+                    <div className="px-6 pb-6 space-y-3">
+                      {allVisits.filter(v => getVisitId(v) !== activeVisitId).map((v, idx) => (
+                        <div key={getVisitId(v) ?? idx} className="bg-white rounded-xl p-4 border-2 border-slate-200">
+                          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                            <p className="font-bold text-slate-800">
+                              🗓️ {v.visitDate ? new Date(v.visitDate).toLocaleDateString() : 'Unknown date'}
+                            </p>
+                            <motion.button
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => loadVisitIntoForm(v)}
+                              className="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-200 transition whitespace-nowrap"
+                            >
+                              ✏️ Edit This Visit
+                            </motion.button>
+                          </div>
+                          {(v.chiefComplaint || v.reasonForVisit) && (
+                            <p className="text-sm text-stone-700 mb-1"><span className="font-semibold">Chief Complaint:</span> {v.chiefComplaint || v.reasonForVisit}</p>
+                          )}
+                          {(v.diagnosis || v.diagnoses) && (
+                            <p className="text-sm text-stone-700 mb-1"><span className="font-semibold">Diagnosis:</span> {v.diagnosis || v.diagnoses}</p>
+                          )}
+                          {(v.treatmentProvided || v.treatments) && (
+                            <p className="text-sm text-stone-700 mb-1"><span className="font-semibold">Treatment:</span> {v.treatmentProvided || v.treatments}</p>
+                          )}
+                          {Array.isArray(v.prescriptions) && v.prescriptions.length > 0 && (
+                            <div className="text-sm text-stone-700 mt-2">
+                              <span className="font-semibold">Prescriptions:</span>
+                              <ul className="list-disc list-inside mt-1 space-y-0.5">
+                                {v.prescriptions.map((p, pIdx) => (
+                                  <li key={pIdx}>
+                                    {p.medicineName || p.name}{p.dosage ? ` - ${p.dosage}` : ''} - {p.frequency} - {p.duration}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Current mode indicator + Start New Visit action */}
+              <div className={`rounded-2xl p-4 border-2 flex items-center justify-between flex-wrap gap-3 ${isExistingVisit ? 'bg-blue-50 border-blue-300' : 'bg-emerald-50 border-emerald-300'}`}>
+                <p className={`font-bold flex items-center gap-2 ${isExistingVisit ? 'text-blue-800' : 'text-emerald-800'}`}>
+                  {isExistingVisit
+                    ? `✏️ Editing visit from ${visitForm.visitDate ? new Date(visitForm.visitDate).toLocaleDateString() : ''}`
+                    : '🆕 New Visit — enter details for this appointment'}
+                </p>
+                {allVisits.length > 0 && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={startNewVisit}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold shadow-md hover:bg-emerald-700 transition text-sm whitespace-nowrap"
+                  >
+                    🆕 Start New Visit
+                  </motion.button>
+                )}
+              </div>
+
               {/* Visit Dates */}
               <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md">
                 <h3 className="text-lg font-bold text-yellow-900 mb-4 flex items-center gap-2">
@@ -1086,11 +946,11 @@ const VisitInfoModal = ({
                 />
               </div>
 
-              {/* Diagnosis */}
+              {/* Diagnostics */}
               <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md ring-2 ring-indigo-100">
                 <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                   <h3 className="text-lg font-bold text-green-900 flex items-center gap-2">
-                    <span>🔬</span> Diagnosis <span className="text-red-500">*</span>
+                    <span>🔬</span> Diagnostics <span className="text-red-500">*</span>
                   </h3>
                 </div>
                 <textarea
@@ -1102,18 +962,34 @@ const VisitInfoModal = ({
                 />
               </div>
 
-              {/* Inline Prescription Section */}
-              <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border-2 border-purple-300 shadow-lg">
+              {/* Treatment Provided */}
+              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md">
+                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
+                  <span>⚕️</span> Treatment Provided <span className="text-red-500">*</span>
+                </h3>
+                <textarea
+                  value={visitForm.treatmentProvided}
+                  onChange={(e) => handleVisitFormChange('treatmentProvided', e.target.value)}
+                  placeholder="Describe the treatment provided during this visit..."
+                  rows={3}
+                  className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition resize-none"
+                />
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Inline Prescription Section - full width so the row fits with no horizontal scroll */}
+          <div className="mt-5 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border-2 border-purple-300 shadow-lg">
                 <h3 className="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
-                  <span>💊</span> Write Prescription
+                  <span>💊</span> Write Prescription <span className="text-red-500 text-sm font-semibold">(at least 1 medication required)</span>
                 </h3>
 
                 {/* Medication Input Form */}
                 <div className="bg-white rounded-xl p-5 mb-5 border-2 border-purple-200">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                  <div className="grid grid-cols-[1.8fr_1fr_0.8fr_1fr_0.8fr_1.6fr_1fr_auto] gap-3 items-end mb-4">
                     {/* Medicine Name Searchable Dropdown */}
-                    <div className="md:col-span-2" ref={medicineInputRef}>
-                      <label className="block text-sm font-semibold text-stone-700 mb-2">
+                    <div className="min-w-0" ref={medicineInputRef}>
+                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">
                         Medicine Name <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
@@ -1133,8 +1009,8 @@ const VisitInfoModal = ({
                             }
                             setMedicineDropdownOpen(true);
                           }}
-                          placeholder="Search or type medication name..."
-                          className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                          placeholder="Search medicine..."
+                          className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                           autoComplete="off"
                         />
                         {currentMedication.name && !medicineDropdownOpen && (
@@ -1220,28 +1096,48 @@ const VisitInfoModal = ({
                       </div>
                     </div>
 
-                    {/* Dosage */}
-                    <div>
-                      <label className="block text-sm font-bold text-stone-700 mb-2">Dosage <span className="text-red-500">*</span></label>
+                    {/* Medication Type */}
+                    <div className="min-w-0">
+                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Type <span className="text-red-500">*</span></label>
+                      <select
+                        value={currentMedication.medicationType || "Tablet"}
+                        onChange={(e) => setCurrentMedication(prev => ({ ...prev, medicationType: e.target.value }))}
+                        className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition bg-white"
+                      >
+                        <option value="Tablet">Tablet</option>
+                        <option value="Syrup">Syrup</option>
+                        <option value="Capsule">Capsule</option>
+                        <option value="Injection">Injection</option>
+                        <option value="Cream">Cream</option>
+                        <option value="Gel">Gel</option>
+                        <option value="Powder">Powder</option>
+                        <option value="Liquid">Liquid</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+
+                    {/* Dosage - optional */}
+                    <div className="min-w-0">
+                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Dosage</label>
                       <input
                         type="text"
                         value={currentMedication.dosage || ""}
                         onChange={(e) => setCurrentMedication(prev => ({ ...prev, dosage: e.target.value }))}
-                        placeholder="e.g., 500mg"
-                        className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                        placeholder="500mg"
+                        className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
                         autoComplete="off"
                       />
                     </div>
 
                     {/* Frequency */}
-                    <div>
-                      <label className="block text-sm font-bold text-stone-700 mb-2">Frequency <span className="text-red-500">*</span></label>
+                    <div className="min-w-0">
+                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Frequency <span className="text-red-500">*</span></label>
                       <select
                         value={currentMedication.frequency || ""}
                         onChange={(e) => setCurrentMedication(prev => ({ ...prev, frequency: e.target.value }))}
-                        className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                        className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
                       >
-                        <option value="">Select frequency...</option>
+                        <option value="">Select...</option>
                         <option value="Once daily">Once daily</option>
                         <option value="Twice daily">Twice daily</option>
                         <option value="Three times daily">Three times daily</option>
@@ -1250,53 +1146,78 @@ const VisitInfoModal = ({
                     </div>
 
                     {/* Duration */}
-                    <div>
-                      <label className="block text-sm font-bold text-stone-700 mb-2">Duration <span className="text-red-500">*</span></label>
+                    <div className="min-w-0">
+                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Duration <span className="text-red-500">*</span></label>
                       <input
                         type="text"
                         value={currentMedication.duration || ""}
                         onChange={(e) => setCurrentMedication(prev => ({ ...prev, duration: e.target.value }))}
-                        placeholder="e.g., 7 days"
-                        className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                        placeholder="7 days"
+                        className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
                         autoComplete="off"
                       />
                     </div>
 
+                    {/* Meal Timing */}
+                    <div className="min-w-0">
+                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Meal Timing</label>
+                      <div className="flex items-center gap-3 h-[38px]">
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="radio"
+                            checked={currentMedication.mealTiming === 'Before Food'}
+                            onChange={() => setCurrentMedication(prev => ({ ...prev, mealTiming: 'Before Food' }))}
+                            className="w-4 h-4 text-purple-600 shrink-0"
+                          />
+                          <span className="text-xs text-stone-700 whitespace-nowrap">Before</span>
+                        </label>
+                        <label className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="radio"
+                            checked={currentMedication.mealTiming === 'After Food'}
+                            onChange={() => setCurrentMedication(prev => ({ ...prev, mealTiming: 'After Food' }))}
+                            className="w-4 h-4 text-purple-600 shrink-0"
+                          />
+                          <span className="text-xs text-stone-700 whitespace-nowrap">After</span>
+                        </label>
+                      </div>
+                    </div>
+
                     {/* Instructions */}
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-bold text-stone-700 mb-2">Special Instructions</label>
+                    <div className="min-w-0">
+                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Instructions</label>
                       <input
                         type="text"
                         value={currentMedication.instructions || ""}
                         onChange={(e) => setCurrentMedication(prev => ({ ...prev, instructions: e.target.value }))}
-                        placeholder="e.g., Take with food"
-                        className="w-full px-4 py-2 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                        placeholder="Take with food"
+                        className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
                         autoComplete="off"
                       />
                     </div>
-                  </div>
 
-                  {/* Add Button */}
-                  <div className="flex gap-3">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleAddMedication}
-                      className="px-6 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center gap-2"
-                    >
-                      <span>{editingMedicationIndex !== null ? '✏️' : '➕'}</span>
-                      <span>{editingMedicationIndex !== null ? 'Update' : 'Add Medication'}</span>
-                    </motion.button>
-                    {editingMedicationIndex !== null && (
+                    {/* Add / Cancel Buttons */}
+                    <div className="flex flex-col gap-2 min-w-0">
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
-                        onClick={handleCancelEdit}
-                        className="px-6 py-2 bg-gray-500 text-white rounded-lg font-bold"
+                        onClick={handleAddMedication}
+                        className="px-4 py-2 h-[38px] bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-1 whitespace-nowrap text-sm"
                       >
-                        Cancel
+                        <span>{editingMedicationIndex !== null ? '✏️' : '➕'}</span>
+                        <span>{editingMedicationIndex !== null ? 'Update' : 'Add'}</span>
                       </motion.button>
-                    )}
+                      {editingMedicationIndex !== null && (
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={handleCancelEdit}
+                          className="px-4 py-1.5 bg-gray-500 text-white rounded-lg font-bold whitespace-nowrap text-xs"
+                        >
+                          Cancel
+                        </motion.button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1316,11 +1237,11 @@ const VisitInfoModal = ({
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
-                              <h5 className="font-bold text-stone-800 text-lg mb-2">{med.name}</h5>
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                              <h5 className="font-bold text-stone-800 text-lg mb-2">{med.name} <span className="text-sm font-medium text-purple-700">({med.medicationType || 'Tablet'})</span></h5>
+                              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                                 <div>
                                   <span className="font-semibold text-stone-600">Dosage:</span>
-                                  <p className="text-stone-800">{med.dosage}</p>
+                                  <p className="text-stone-800">{med.dosage || 'N/A'}</p>
                                 </div>
                                 <div>
                                   <span className="font-semibold text-stone-600">Frequency:</span>
@@ -1330,6 +1251,16 @@ const VisitInfoModal = ({
                                   <span className="font-semibold text-stone-600">Duration:</span>
                                   <p className="text-stone-800">{med.duration}</p>
                                 </div>
+                                <div>
+                                  <span className="font-semibold text-stone-600">Meal Timing:</span>
+                                  <p className="text-stone-800">{med.mealTiming || 'Before Food'}</p>
+                                </div>
+                                {med.instructions && (
+                                  <div>
+                                    <span className="font-semibold text-stone-600">Instructions:</span>
+                                    <p className="text-stone-800">{med.instructions}</p>
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div className="flex gap-2 ml-4">
@@ -1388,7 +1319,7 @@ const VisitInfoModal = ({
                               alert('Patient phone number not available');
                               return;
                             }
-                            const medicationsText = inlineMedications.map(m => `${m.name} - ${m.dosage} - ${m.frequency} - ${m.duration}`).join('\n');
+                            const medicationsText = inlineMedications.map(m => `${m.name} (${m.medicationType || 'Tablet'})${m.dosage ? ' - ' + m.dosage : ''} - ${m.frequency} - ${m.duration} - ${m.mealTiming || 'Before Food'}`).join('\n');
                             const prescriptionText = `🏥 *Prescription from Dr. ${selectedAppointment.doctorName || 'Doctor'}*\n\n📋 *Medications:*\n${medicationsText}\n\n📝 *Diagnosis:* ${visitForm.diagnosis}\n\n*For queries, please contact the clinic.* ☺️`;
                             const encodedText = encodeURIComponent(prescriptionText);
                             const whatsappURL = `https://api.whatsapp.com/send?phone=${patientPhone}&text=${encodedText}`;
@@ -1405,34 +1336,18 @@ const VisitInfoModal = ({
                 )}
               </div>
 
-              {/* Treatment Provided */}
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md">
-                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
-                  <span>⚕️</span> Treatment Provided <span className="text-red-500">*</span>
-                </h3>
-                <textarea
-                  value={visitForm.treatmentProvided}
-                  onChange={(e) => handleVisitFormChange('treatmentProvided', e.target.value)}
-                  placeholder="Describe the treatment provided during this visit..."
-                  rows={3}
-                  className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition resize-none"
-                />
-              </div>
-
-              {/* Notes */}
-              <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-2xl p-7 border-2 border-gray-300 shadow-md">
-                <h3 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-3">
-                  <span className="text-2xl">📝</span> Additional Notes
-                </h3>
-                <textarea
-                  value={visitForm.notes}
-                  onChange={(e) => handleVisitFormChange('notes', e.target.value)}
-                  placeholder="Document any additional observations..."
-                  rows={5}
-                  className="w-full px-4 py-3 border-2 border-gray-400 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition resize-none text-sm font-medium text-stone-800 bg-white"
-                />
-              </div>
-            </motion.div>
+          {/* Additional Notes - full width */}
+          <div className="mt-5 bg-gradient-to-br from-gray-50 to-slate-50 rounded-2xl p-7 border-2 border-gray-300 shadow-md">
+            <h3 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-3">
+              <span className="text-2xl">📝</span> Additional Notes
+            </h3>
+            <textarea
+              value={visitForm.notes}
+              onChange={(e) => handleVisitFormChange('notes', e.target.value)}
+              placeholder="Document any additional observations..."
+              rows={5}
+              className="w-full px-4 py-3 border-2 border-gray-400 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition resize-none text-sm font-medium text-stone-800 bg-white"
+            />
           </div>
         </div>
 
@@ -1520,9 +1435,11 @@ const VisitInfoModal = ({
                       prescriptionContent: JSON.stringify(
                         inlineMedications.map(m => ({
                           medicineName: m.name,
+                          medicationType: m.medicationType || 'Tablet',
                           dosage: m.dosage,
                           frequency: m.frequency,
                           duration: m.duration,
+                          mealTiming: m.mealTiming || 'Before Food',
                           specialInstructions: m.instructions
                         }))
                       )

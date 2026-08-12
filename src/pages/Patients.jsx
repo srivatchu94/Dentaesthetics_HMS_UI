@@ -367,6 +367,7 @@ export default function Patients() {
   const [clinicPatientsList, setClinicPatientsList] = useState([]);
   const [loadingClinicPatients, setLoadingClinicPatients] = useState(false);
   const [showAppointmentSuccessModal, setShowAppointmentSuccessModal] = useState(false);
+  const [returnToCalendarOnClose, setReturnToCalendarOnClose] = useState(false);
   const [createdAppointment, setCreatedAppointment] = useState(null);
   const [showBookingConflictMessage, setShowBookingConflictMessage] = useState(false);
   const [bookingConflictCount, setBookingConflictCount] = useState(0);
@@ -1281,6 +1282,7 @@ export default function Patients() {
     const startTimeFromQuery = searchParams.get("startTime") || "";
 
     setShowNewAppointmentModal(true);
+    setReturnToCalendarOnClose(true);
     setAppointmentForm((prev) => ({
       ...prev,
       ...(dateFromQuery ? { date: dateFromQuery } : {}),
@@ -1294,7 +1296,27 @@ export default function Patients() {
     nextParams.delete("startTime");
     setSearchParams(nextParams, { replace: true });
   }, [searchParams, setSearchParams]);
-  
+
+  // Closing the New Appointment modal (or its success modal) should return to the
+  // Calendar page when the modal was opened via Calendar's "New Appointment" redirect,
+  // instead of stranding the user on the Patients page background.
+  const closeNewAppointmentModal = () => {
+    setShowNewAppointmentModal(false);
+    if (returnToCalendarOnClose) {
+      setReturnToCalendarOnClose(false);
+      navigate('/calendar');
+    }
+  };
+
+  const closeAppointmentSuccessModal = () => {
+    setShowAppointmentSuccessModal(false);
+    if (returnToCalendarOnClose) {
+      setReturnToCalendarOnClose(false);
+      navigate('/calendar');
+    }
+  };
+
+
   // Apply local filtering based on status and appointment type when filters change
   useEffect(() => {
     if (appointmentsList.length === 0) return;
@@ -1974,7 +1996,7 @@ export default function Patients() {
         >
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-3">
             {[
-              { id: 'register', title: '📝 Register Patient', description: 'Add new patient records', icon: '📝', color: 'from-teal-400 to-cyan-400', action: () => setActiveView('register') },
+              { id: 'register', title: '📝 Register Patient', description: 'Add new patient records', icon: '📝', color: 'from-teal-400 to-cyan-400', action: () => navigate('/patients/register') },
               { id: 'list', title: '📋 View Patients', description: 'Browse patient records', icon: '📋', color: 'from-blue-400 to-indigo-400', action: () => setShowViewPatientsModal(true) }
             ].map((tile, index) => (
               <motion.div
@@ -5944,7 +5966,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-            onClick={() => setShowNewAppointmentModal(false)}
+            onClick={closeNewAppointmentModal}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -5984,7 +6006,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
               <motion.button
                 whileHover={{ scale: 1.1, rotate: 90 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => setShowNewAppointmentModal(false)}
+                onClick={closeNewAppointmentModal}
                 className="absolute top-4 right-4 z-50 w-10 h-10 bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white rounded-full flex items-center justify-center shadow-lg transition-all"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -6201,6 +6223,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => {
                           setShowNewAppointmentModal(false);
+                          setReturnToCalendarOnClose(false);
                           setActiveView('register');
                         }}
                         className="px-4 py-3 bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white rounded-lg font-bold transition-all flex items-center justify-center gap-2"
@@ -6804,7 +6827,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                       type="button"
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={() => setShowNewAppointmentModal(false)}
+                      onClick={closeNewAppointmentModal}
                       className="px-6 py-4 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold shadow-md hover:shadow-lg transition-all"
                     >
                       Cancel
@@ -7424,7 +7447,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[110] flex items-center justify-center p-4"
-            onClick={() => setShowAppointmentSuccessModal(false)}
+            onClick={closeAppointmentSuccessModal}
           >
             <motion.div
               initial={{ scale: 0.8, opacity: 0, y: 50 }}
@@ -7513,6 +7536,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                     whileTap={{ scale: 0.95 }}
                     onClick={() => {
                       setShowAppointmentSuccessModal(false);
+                      setReturnToCalendarOnClose(false);
                       setShowViewAppointmentsModal(true);
                     }}
                     className="flex-1 px-4 py-2.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm rounded-lg font-bold shadow-md hover:shadow-lg transition-all"
@@ -7523,7 +7547,7 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => setShowAppointmentSuccessModal(false)}
+                    onClick={closeAppointmentSuccessModal}
                     className="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm rounded-lg font-bold shadow-sm hover:shadow-md transition-all"
                   >
                     Done

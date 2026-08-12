@@ -5,12 +5,29 @@ import { getCalendarAppointments, updateAppointment, createAppointment } from ".
 import FancyDatePicker from "../components/FancyDatePicker";
 import PaymentDetailsModal from "../components/PaymentDetailsModal";
 
-// Time slots for booking
+// Time slots for booking - All 24 hours with bookable time constraint
 const TIME_SLOTS = [
+  "00:00", "00:30", "01:00", "01:30", "02:00", "02:30", "03:00", "03:30",
+  "04:00", "04:30", "05:00", "05:30", "06:00", "06:30", "07:00", "07:30",
   "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
   "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30",
-  "16:00", "16:30", "17:00", "17:30", "18:00"
+  "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30",
+  "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00", "23:30"
 ];
+
+// Booking hours: 10:00 AM to 8:30 PM
+const BOOKING_START_HOUR = 10;
+const BOOKING_END_HOUR = 20;
+const BOOKING_END_MINUTES = 30;
+
+const isTimeBookable = (timeStr) => {
+  if (!timeStr) return false;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  const totalMinutes = hours * 60 + minutes;
+  const startMinutes = BOOKING_START_HOUR * 60;
+  const endMinutes = BOOKING_END_HOUR * 60 + BOOKING_END_MINUTES;
+  return totalMinutes >= startMinutes && totalMinutes < endMinutes;
+};
 
 const TREATMENT_TYPES = ["Cleaning", "Checkup", "Filling", "Root Canal", "Extraction", "Crown", "Braces Adjustment", "Whitening", "X-Ray", "Consultation"];
 const APPOINTMENT_COLORS = ["emerald", "blue", "violet", "rose", "amber", "indigo"];
@@ -23,8 +40,12 @@ export default function Calendar() {
   const patientFromNav = location.state?.patientData || window.history.state?.usr?.patientData;
   
   const [currentDate, setCurrentDate] = useState(new Date()); // Today's date
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [viewMode, setViewMode] = useState("month");
+  const [selectedDate, setSelectedDate] = useState(() => {
+    // Default to today's date on component mount
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  });
+  const [viewMode, setViewMode] = useState("day"); // Default to day view
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -134,6 +155,19 @@ export default function Calendar() {
       setShowBookingModal(true);
     }
   }, [patientFromNav]);
+
+  // Freeze background scroll when modal is open
+  useEffect(() => {
+    if (showBookingModal || showAppointmentModal || showDoubleBookingModal || showSuccessModal || showPaymentDetailsModal || showDeleteConfirmModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showBookingModal, showAppointmentModal, showDoubleBookingModal, showSuccessModal, showPaymentDetailsModal, showDeleteConfirmModal]);
 
   // Load appointments from API
   useEffect(() => {
@@ -781,6 +815,7 @@ export default function Calendar() {
                 const startingAppointments = getAppointmentsStartingAtSlot(selectedDate, time);
                 const isBlocked = isSlotBlocked(selectedDate, time);
                 const isStartOfAppointment = startingAppointments.length > 0;
+                const isBookable = isTimeBookable(time);
 
                 return (
                   <div key={time} className="relative">
@@ -845,7 +880,7 @@ export default function Calendar() {
                           );
                         })}
                       </>
-                    ) : !isBlocked && (
+                    ) : !isBlocked && isBookable ? (
                       <motion.button
                         whileHover={{ backgroundColor: "#f3e8ff", scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
@@ -855,9 +890,12 @@ export default function Calendar() {
                         <span className="text-sm font-semibold text-gray-600 group-hover:text-purple-600">{time}</span>
                         <span className="ml-auto text-xs text-gray-400 group-hover:text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity">Click to book</span>
                       </motion.button>
-                    )}
-                    
-                    {isBlocked && !isStartOfAppointment && (
+                    ) : !isBookable ? (
+                      <div className="w-full h-[60px] border-2 border-gray-100 rounded-lg flex items-center px-4 bg-gray-100 cursor-not-allowed opacity-50">
+                        <span className="text-sm font-semibold text-gray-400">{time}</span>
+                        <span className="ml-auto text-xs text-gray-400">Not available</span>
+                      </div>
+                    ) : (
                       <div className="w-full h-[60px] border-2 border-transparent rounded-lg"></div>
                     )}
                   </div>
@@ -891,7 +929,7 @@ export default function Calendar() {
                     <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                       <span className="text-3xl">📅</span> New Appointment
                     </h2>
-                    <p className="text-teal-100 text-sm mt-0.5">Enter patient and appointment details</p>
+                    <p className="text-teal-100 text-sm mt-0.5">Enter patient and appointment details (Bookings available 10:00 AM to 8:30 PM)</p>
                   </div>
                   <motion.button 
                     onClick={() => setShowBookingModal(false)} 
@@ -947,14 +985,22 @@ export default function Calendar() {
                           <label className="block text-sm font-semibold text-slate-700 mb-2">Start Time *</label>
                           <select required value={bookingForm.startTime} onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white">
                             <option value="">Select time</option>
-                            {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                            {TIME_SLOTS.map(t => (
+                              <option key={t} value={t} disabled={!isTimeBookable(t)}>
+                                {t} {!isTimeBookable(t) ? '(Not available)' : ''}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div>
                           <label className="block text-sm font-semibold text-slate-700 mb-2">End Time *</label>
                           <select required value={bookingForm.endTime} onChange={(e) => setBookingForm({ ...bookingForm, endTime: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white">
                             <option value="">Select time</option>
-                            {TIME_SLOTS.map(t => <option key={t} value={t}>{t}</option>)}
+                            {TIME_SLOTS.map(t => (
+                              <option key={t} value={t} disabled={!isTimeBookable(t)}>
+                                {t} {!isTimeBookable(t) ? '(Not available)' : ''}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div>

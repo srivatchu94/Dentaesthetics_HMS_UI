@@ -208,7 +208,53 @@ const EmailModal = ({ isOpen, onClose, prescription, patientInfo, doctorInfo, cl
 };
 
 // Memoized content component to prevent unnecessary re-renders
-const DiagnosisContent = React.memo(({ loading, formData, onInputChange, onSave, isSaving, onClose, appointmentData, patientInfo, doctorInfo, clinicInfo, onPrint, onEmail, onWhatsApp }) => {
+const DiagnosisContent = React.memo(({ loading, formData, onInputChange, onSave, isSaving, onClose, appointmentData, initialData, patientInfo, doctorInfo, clinicInfo, onPrint, onEmail, onWhatsApp }) => {
+  const [medicationList, setMedicationList] = useState([]);
+  const [currentMedication, setCurrentMedication] = useState({
+    medicineName: '',
+    medicationType: 'Tablet',
+    dosage: '',
+    frequency: '',
+    duration: '',
+    mealTiming: 'Before Food'
+  });
+
+  // Update medication list when prescriptionContent changes
+  React.useEffect(() => {
+    if (formData.prescriptionContent) {
+      try {
+        const parsed = JSON.parse(formData.prescriptionContent);
+        setMedicationList(Array.isArray(parsed) ? parsed : [parsed]);
+      } catch (e) {
+        // Invalid JSON, ignore
+      }
+    }
+  }, [formData.prescriptionContent]);
+
+  const addMedication = () => {
+    if (!currentMedication.medicineName.trim()) {
+      alert('Please enter a medication name');
+      return;
+    }
+    const updated = [...medicationList, currentMedication];
+    setMedicationList(updated);
+    onInputChange('prescriptionContent', JSON.stringify(updated));
+    setCurrentMedication({
+      medicineName: '',
+      medicationType: 'Tablet',
+      dosage: '',
+      frequency: '',
+      duration: '',
+      mealTiming: 'Before Food'
+    });
+  };
+
+  const removeMedication = (index) => {
+    const updated = medicationList.filter((_, i) => i !== index);
+    setMedicationList(updated);
+    onInputChange('prescriptionContent', JSON.stringify(updated));
+  };
+
   return (
     <div className="p-8 space-y-6">
       {loading ? (
@@ -218,10 +264,49 @@ const DiagnosisContent = React.memo(({ loading, formData, onInputChange, onSave,
         </div>
       ) : (
         <>
-          {/* Diagnosis */}
+          {/* Visit Timeline */}
           <div>
             <label className="block text-sm font-bold text-slate-800 mb-2">
-              🔍 Diagnosis
+              🗓️ Visit Timeline
+            </label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-indigo-50 border-2 border-indigo-100 rounded-xl p-3">
+                <p className="text-xs text-slate-500 font-semibold">Visit Date</p>
+                <p className="text-sm font-bold text-slate-800">
+                  {initialData?.appointmentDate ? new Date(initialData.appointmentDate).toLocaleDateString() : (patientInfo?.visitDate ? new Date(patientInfo.visitDate).toLocaleDateString() : 'N/A')}
+                </p>
+              </div>
+              <div className="bg-purple-50 border-2 border-purple-100 rounded-xl p-3">
+                <p className="text-xs text-slate-500 font-semibold">Time</p>
+                <p className="text-sm font-bold text-slate-800">
+                  {initialData?.startTime || 'N/A'}{initialData?.endTime ? ` - ${initialData.endTime}` : ''}
+                </p>
+              </div>
+              <div className="bg-pink-50 border-2 border-pink-100 rounded-xl p-3">
+                <p className="text-xs text-slate-500 font-semibold">Status</p>
+                <p className="text-sm font-bold text-slate-800">{initialData?.status || 'Scheduled'}</p>
+              </div>
+              <div className="bg-cyan-50 border-2 border-cyan-100 rounded-xl p-3">
+                <p className="text-xs text-slate-500 font-semibold">Duration</p>
+                <p className="text-sm font-bold text-slate-800">{initialData?.durationMinutes ? `${initialData.durationMinutes} min` : 'N/A'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Chief Complaint */}
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-2">
+              💬 Chief Complaint
+            </label>
+            <div className="w-full p-4 border-2 border-amber-200 bg-amber-50 rounded-xl text-sm text-slate-800">
+              {initialData?.reasonForVisit || patientInfo?.reasonForVisit || 'Not specified'}
+            </div>
+          </div>
+
+          {/* Diagnostics */}
+          <div>
+            <label className="block text-sm font-bold text-slate-800 mb-2">
+              🔬 Diagnostics
             </label>
             <textarea
               value={formData.diagnosis}
@@ -232,47 +317,159 @@ const DiagnosisContent = React.memo(({ loading, formData, onInputChange, onSave,
             />
           </div>
 
-          {/* Treatment */}
+          {/* Treatment Provided - ABOVE PRESCRIPTIONS */}
           <div>
             <label className="block text-sm font-bold text-slate-800 mb-2">
-              💊 Treatment Plan
+              💊 Treatment Provided
             </label>
             <textarea
               value={formData.treatment}
               onChange={(e) => onInputChange('treatment', e.target.value)}
-              placeholder="Enter treatment plan..."
+              placeholder="Enter treatment provided..."
               className="w-full p-4 border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
               rows="3"
             />
           </div>
 
-          {/* Medications Input */}
+          {/* Write Prescription Form - SINGLE ROW FORMAT */}
           <div>
-            <label className="block text-sm font-bold text-slate-800 mb-2">
-              💉 Medications
+            <label className="block text-sm font-bold text-slate-800 mb-3">
+              📝 Write Prescription (Mandatory)
             </label>
-            <textarea
-              value={formData.medications}
-              onChange={(e) => onInputChange('medications', e.target.value)}
-              placeholder="Enter prescribed medications..."
-              className="w-full p-4 border-2 border-pink-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent resize-none"
-              rows="2"
-            />
-          </div>
 
-          {/* Prescription Content */}
-          <div>
-            <label className="block text-sm font-bold text-slate-800 mb-2">
-              📋 Prescription Details (JSON Format - Optional)
-            </label>
-            <textarea
-              value={formData.prescriptionContent}
-              onChange={(e) => onInputChange('prescriptionContent', e.target.value)}
-              placeholder='[{"medicineName":"Amoxicillin","dosage":"500mg","frequency":"3 times daily","duration":"7 days","specialInstructions":"Take with water"}]'
-              className="w-full p-4 border-2 border-cyan-200 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-transparent resize-none font-mono text-xs"
-              rows="2"
-            />
-            <p className="text-xs text-slate-600 mt-2">💡 Tip: Use JSON format for better formatting in print/email</p>
+            {/* Medication Input Form - Single Row */}
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-4">
+              <div className="flex flex-nowrap items-end gap-3 overflow-x-auto pb-1">
+                <div className="flex-[1.4] shrink-0 min-w-[140px]">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Medicine Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={currentMedication.medicineName}
+                    onChange={(e) => setCurrentMedication({ ...currentMedication, medicineName: e.target.value })}
+                    placeholder="e.g., Amoxicillin"
+                    className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex-1 shrink-0 min-w-[110px]">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Type
+                  </label>
+                  <select
+                    value={currentMedication.medicationType}
+                    onChange={(e) => setCurrentMedication({ ...currentMedication, medicationType: e.target.value })}
+                    className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    <option value="Tablet">Tablet</option>
+                    <option value="Syrup">Syrup</option>
+                    <option value="Capsule">Capsule</option>
+                    <option value="Injection">Injection</option>
+                    <option value="Cream">Cream</option>
+                    <option value="Gel">Gel</option>
+                    <option value="Powder">Powder</option>
+                    <option value="Liquid">Liquid</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="flex-1 shrink-0 min-w-[100px]">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Dosage
+                  </label>
+                  <input
+                    type="text"
+                    value={currentMedication.dosage}
+                    onChange={(e) => setCurrentMedication({ ...currentMedication, dosage: e.target.value })}
+                    placeholder="e.g., 500mg"
+                    className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex-1 shrink-0 min-w-[110px]">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Frequency
+                  </label>
+                  <input
+                    type="text"
+                    value={currentMedication.frequency}
+                    onChange={(e) => setCurrentMedication({ ...currentMedication, frequency: e.target.value })}
+                    placeholder="e.g., 3x daily"
+                    className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex-1 shrink-0 min-w-[100px]">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Duration
+                  </label>
+                  <input
+                    type="text"
+                    value={currentMedication.duration}
+                    onChange={(e) => setCurrentMedication({ ...currentMedication, duration: e.target.value })}
+                    placeholder="e.g., 7 days"
+                    className="w-full px-3 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex-[1.3] shrink-0 min-w-[190px]">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Meal Timing
+                  </label>
+                  <div className="flex items-center gap-4 h-[38px] px-1">
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={currentMedication.mealTiming === 'Before Food'}
+                        onChange={() => setCurrentMedication({ ...currentMedication, mealTiming: 'Before Food' })}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <span className="text-sm text-slate-700 whitespace-nowrap">Before Food</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={currentMedication.mealTiming === 'After Food'}
+                        onChange={() => setCurrentMedication({ ...currentMedication, mealTiming: 'After Food' })}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <span className="text-sm text-slate-700 whitespace-nowrap">After Food</span>
+                    </label>
+                  </div>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={addMedication}
+                  className="px-4 py-2 h-[38px] shrink-0 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition whitespace-nowrap"
+                >
+                  ➕ Add
+                </motion.button>
+              </div>
+            </div>
+
+            {/* Medications List */}
+            {medicationList.length > 0 && (
+              <div className="space-y-2 mb-4">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Added Medications ({medicationList.length}):
+                </label>
+                {medicationList.map((med, idx) => (
+                  <div key={idx} className="bg-slate-50 border-l-4 border-blue-500 p-3 rounded-lg flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="font-semibold text-slate-800">{med.medicineName}</p>
+                      <p className="text-xs text-slate-600">
+                        {med.medicationType} | {med.dosage || 'No dosage'} | {med.frequency} | {med.duration} | {med.mealTiming}
+                      </p>
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => removeMedication(idx)}
+                      className="px-3 py-1 bg-red-100 text-red-600 rounded-lg text-sm font-semibold hover:bg-red-200 transition"
+                    >
+                      ✕ Remove
+                    </motion.button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Notes */}
@@ -302,7 +499,13 @@ const DiagnosisContent = React.memo(({ loading, formData, onInputChange, onSave,
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={onSave}
+              onClick={() => {
+                if (medicationList.length === 0) {
+                  alert('Please add at least one medication before saving.');
+                  return;
+                }
+                onSave();
+              }}
               disabled={isSaving}
               className="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 text-sm"
             >
@@ -591,6 +794,7 @@ export default function DiagnosisModal({ isOpen, onClose, appointmentId, initial
                 isSaving={isSaving}
                 onClose={onClose}
                 appointmentData={appointmentData}
+                initialData={initialData}
                 patientInfo={patientInfo}
                 doctorInfo={doctorInfo}
                 clinicInfo={clinicInfo}

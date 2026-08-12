@@ -197,6 +197,16 @@ export default function ViewPatients() {
     copayAmount: ""
   });
 
+  const [editVitalsData, setEditVitalsData] = useState({
+    bloodsugar: "",
+    bloodpressure: "",
+    temperature: "",
+    heartRate: "",
+    weight: "",
+    height: "",
+    oxygenSaturation: ""
+  });
+
   // Appointments viewing state
   const [appointmentsList, setAppointmentsList] = useState([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
@@ -505,17 +515,30 @@ export default function ViewPatients() {
         providerAddress: insuranceInfo.providerAddress || ""
       };
 
+      const vitalsInfo = response.patientVitals || {};
+      const newVitalsData = {
+        bloodsugar: vitalsInfo.bloodsugar || "",
+        bloodpressure: vitalsInfo.bloodpressure || "",
+        temperature: vitalsInfo.temperature || "",
+        heartRate: vitalsInfo.heartRate || "",
+        weight: vitalsInfo.weight || "",
+        height: vitalsInfo.height || "",
+        oxygenSaturation: vitalsInfo.oxygenSaturation || ""
+      };
+
       console.log('✅ FINAL MAPPED STATE TO BE SET:');
       console.table(newPatientData);
       console.log('Contact Data:', newContactData);
       console.log('Medical Data:', newMedicalData);
       console.log('Insurance Data:', newInsuranceData);
+      console.log('Vitals Data:', newVitalsData);
 
       // SET THE STATE
       setEditPatientData(newPatientData);
       setEditContactData(newContactData);
       setEditMedicalData(newMedicalData);
       setEditInsuranceData(newInsuranceData);
+      setEditVitalsData(newVitalsData);
       setEditingPatientId(patientId);
       setIsEditMode(true);
       
@@ -610,6 +633,16 @@ export default function ViewPatients() {
           providerAddress: editInsuranceData.providerAddress,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
+        },
+        patientVitals: {
+          patientId: editPatientData.patientId,
+          bloodsugar: editVitalsData.bloodsugar ? parseFloat(editVitalsData.bloodsugar) : null,
+          bloodpressure: editVitalsData.bloodpressure || "",
+          temperature: editVitalsData.temperature ? parseFloat(editVitalsData.temperature) : null,
+          heartRate: editVitalsData.heartRate ? parseInt(editVitalsData.heartRate) : null,
+          weight: editVitalsData.weight ? parseFloat(editVitalsData.weight) : null,
+          height: editVitalsData.height ? parseFloat(editVitalsData.height) : null,
+          oxygenSaturation: editVitalsData.oxygenSaturation ? parseFloat(editVitalsData.oxygenSaturation) : null
         }
       };
 
@@ -1269,6 +1302,16 @@ export default function ViewPatients() {
                 Medical Info
               </button>
               <button
+                onClick={() => setEditActiveTab("vitals")}
+                className={`px-6 py-3 font-semibold transition-all ${
+                  editActiveTab === "vitals"
+                    ? "text-amber-700 border-b-2 border-amber-600"
+                    : "text-stone-500 hover:text-amber-600"
+                }`}
+              >
+                💉 Patient Vitals
+              </button>
+              <button
                 onClick={() => setEditActiveTab("insurance")}
                 className={`px-6 py-3 font-semibold transition-all ${
                   editActiveTab === "insurance"
@@ -1589,6 +1632,73 @@ export default function ViewPatients() {
                     value={editMedicalData.notes}
                     onChange={(e) => setEditMedicalData({...editMedicalData, notes: e.target.value})}
                     placeholder="Enter notes"
+                    disabled={!isEditMode}
+                  />
+                </div>
+              )}
+
+              {editActiveTab === "vitals" && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <InputField
+                    label="Blood Sugar"
+                    name="bloodsugar"
+                    type="number"
+                    value={editVitalsData.bloodsugar}
+                    onChange={(e) => setEditVitalsData({...editVitalsData, bloodsugar: e.target.value})}
+                    placeholder="mg/dL"
+                    disabled={!isEditMode}
+                  />
+                  <InputField
+                    label="Blood Pressure"
+                    name="bloodpressure"
+                    value={editVitalsData.bloodpressure}
+                    onChange={(e) => setEditVitalsData({...editVitalsData, bloodpressure: e.target.value})}
+                    placeholder="e.g., 120/80 mmHg"
+                    disabled={!isEditMode}
+                  />
+                  <InputField
+                    label="Temperature"
+                    name="temperature"
+                    type="number"
+                    value={editVitalsData.temperature}
+                    onChange={(e) => setEditVitalsData({...editVitalsData, temperature: e.target.value})}
+                    placeholder="°C"
+                    disabled={!isEditMode}
+                  />
+                  <InputField
+                    label="Heart Rate"
+                    name="heartRate"
+                    type="number"
+                    value={editVitalsData.heartRate}
+                    onChange={(e) => setEditVitalsData({...editVitalsData, heartRate: e.target.value})}
+                    placeholder="bpm"
+                    disabled={!isEditMode}
+                  />
+                  <InputField
+                    label="Weight"
+                    name="weight"
+                    type="number"
+                    value={editVitalsData.weight}
+                    onChange={(e) => setEditVitalsData({...editVitalsData, weight: e.target.value})}
+                    placeholder="kg"
+                    disabled={!isEditMode}
+                  />
+                  <InputField
+                    label="Height"
+                    name="height"
+                    type="number"
+                    value={editVitalsData.height}
+                    onChange={(e) => setEditVitalsData({...editVitalsData, height: e.target.value})}
+                    placeholder="cm"
+                    disabled={!isEditMode}
+                  />
+                  <InputField
+                    label="Oxygen Saturation"
+                    name="oxygenSaturation"
+                    type="number"
+                    value={editVitalsData.oxygenSaturation}
+                    onChange={(e) => setEditVitalsData({...editVitalsData, oxygenSaturation: e.target.value})}
+                    placeholder="%"
                     disabled={!isEditMode}
                   />
                 </div>

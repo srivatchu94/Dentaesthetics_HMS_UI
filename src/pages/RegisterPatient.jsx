@@ -273,10 +273,21 @@ export default function RegisterPatient() {
         familyMedicalHistory: "",
         smokingStatus: "",
         alcoholConsumption: "",
+        chewingTobaccoStatus: "",
         exerciseFrequency: "",
         dietaryRestrictions: "",
         lastDentalVisit: "",
         notes: ""
+    });
+
+    const [vitalsData, setVitalsData] = useState({
+        bloodsugar: "",
+        oxygenSaturation: "",
+        height: "",
+        weight: "",
+        bloodpressure: "",
+        temperature: "",
+        heartRate: ""
     });
 
     const [insuranceData, setInsuranceData] = useState({
@@ -541,7 +552,17 @@ export default function RegisterPatient() {
                 no_of_visits: 0,
                 lastVisitedDate: medicalData.lastDentalVisit || new Date().toISOString(),
                 chronicDiseases: medicalData.chronicConditions || "",
-                medicalHistory: `Past Surgeries: ${medicalData.pastSurgeries || 'None'}; Smoking: ${medicalData.smokingStatus || 'Unknown'}; Alcohol: ${medicalData.alcoholConsumption || 'Unknown'}; Exercise: ${medicalData.exerciseFrequency || 'Unknown'}; Diet: ${medicalData.dietaryRestrictions || 'None'}; Notes: ${medicalData.notes || 'None'}`
+                medicalHistory: `Past Surgeries: ${medicalData.pastSurgeries || 'None'}; Smoking: ${medicalData.smokingStatus || 'Unknown'}; Alcohol: ${medicalData.alcoholConsumption || 'Unknown'}; Chewing Tobacco: ${medicalData.chewingTobaccoStatus || 'Unknown'}; Exercise: ${medicalData.exerciseFrequency || 'Unknown'}; Diet: ${medicalData.dietaryRestrictions || 'None'}; Notes: ${medicalData.notes || 'None'}`
+            },
+            patientVitals: {
+                patientId: 0,
+                bloodsugar: vitalsData.bloodsugar ? parseFloat(vitalsData.bloodsugar) : null,
+                bloodpressure: vitalsData.bloodpressure || "",
+                temperature: vitalsData.temperature ? parseFloat(vitalsData.temperature) : null,
+                heartRate: vitalsData.heartRate ? parseInt(vitalsData.heartRate) : null,
+                weight: vitalsData.weight ? parseFloat(vitalsData.weight) : null,
+                height: vitalsData.height ? parseFloat(vitalsData.height) : null,
+                oxygenSaturation: vitalsData.oxygenSaturation ? parseFloat(vitalsData.oxygenSaturation) : null
             },
             patientInsurance: {
                 patientId: 0,
@@ -648,6 +669,7 @@ export default function RegisterPatient() {
                             { key: "patient", label: "Patient Info", icon: "👤" },
                             { key: "contact", label: "Contact", icon: "📞" },
                             { key: "medical", label: "Medical Info", icon: "🏥" },
+                            { key: "vitals", label: "Patient Vitals", icon: "💉" },
                             { key: "insurance", label: "Insurance", icon: "💳" }
                         ].map((tab) => (
                             <motion.button
@@ -998,6 +1020,13 @@ export default function RegisterPatient() {
                                                 options={["Never", "Occasionally", "Regularly"]}
                                             />
                                             <InputField
+                                                label="Chewing Tobacco"
+                                                name="chewingTobaccoStatus"
+                                                value={medicalData.chewingTobaccoStatus}
+                                                onChange={(e) => setMedicalData({ ...medicalData, chewingTobaccoStatus: e.target.value })}
+                                                options={["Never", "Occasionally", "Regularly", "Daily"]}
+                                            />
+                                            <InputField
                                                 label="Exercise Frequency"
                                                 name="exerciseFrequency"
                                                 value={medicalData.exerciseFrequency}
@@ -1026,6 +1055,80 @@ export default function RegisterPatient() {
                                                 value={medicalData.notes}
                                                 onChange={(e) => setMedicalData({ ...medicalData, notes: e.target.value })}
                                                 placeholder="Any other relevant medical information"
+                                            />
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {/* Patient Vitals Tab */}
+                                {registerActiveTab === "vitals" && (
+                                    <motion.div
+                                        key="vitals-tab"
+                                        initial={{ opacity: 0, x: 20 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -20 }}
+                                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                                    >
+                                        <h3 className="text-lg font-bold text-teal-900 mb-4 flex items-center gap-2">
+                                            <span className="text-xl">💉</span>
+                                            Patient Vitals
+                                        </h3>
+                                        <p className="text-xs text-gray-500 mb-4">Optional — fill in whatever is available</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <InputField
+                                                label="Blood Sugar"
+                                                name="bloodsugar"
+                                                type="number"
+                                                value={vitalsData.bloodsugar}
+                                                onChange={(e) => setVitalsData({ ...vitalsData, bloodsugar: e.target.value })}
+                                                placeholder="mg/dL"
+                                            />
+                                            <InputField
+                                                label="SPO2"
+                                                name="oxygenSaturation"
+                                                type="number"
+                                                value={vitalsData.oxygenSaturation}
+                                                onChange={(e) => setVitalsData({ ...vitalsData, oxygenSaturation: e.target.value })}
+                                                placeholder="%"
+                                            />
+                                            <InputField
+                                                label="Height"
+                                                name="height"
+                                                type="number"
+                                                value={vitalsData.height}
+                                                onChange={(e) => setVitalsData({ ...vitalsData, height: e.target.value })}
+                                                placeholder="cm"
+                                            />
+                                            <InputField
+                                                label="Weight"
+                                                name="weight"
+                                                type="number"
+                                                value={vitalsData.weight}
+                                                onChange={(e) => setVitalsData({ ...vitalsData, weight: e.target.value })}
+                                                placeholder="kg"
+                                            />
+                                            <InputField
+                                                label="Blood Pressure"
+                                                name="bloodpressure"
+                                                value={vitalsData.bloodpressure}
+                                                onChange={(e) => setVitalsData({ ...vitalsData, bloodpressure: e.target.value })}
+                                                placeholder="e.g., 120/80 mmHg"
+                                            />
+                                            <InputField
+                                                label="Temperature"
+                                                name="temperature"
+                                                type="number"
+                                                value={vitalsData.temperature}
+                                                onChange={(e) => setVitalsData({ ...vitalsData, temperature: e.target.value })}
+                                                placeholder="°F"
+                                            />
+                                            <InputField
+                                                label="Heart Rate"
+                                                name="heartRate"
+                                                type="number"
+                                                value={vitalsData.heartRate}
+                                                onChange={(e) => setVitalsData({ ...vitalsData, heartRate: e.target.value })}
+                                                placeholder="bpm"
                                             />
                                         </div>
                                     </motion.div>
@@ -1175,7 +1278,7 @@ export default function RegisterPatient() {
                                     whileTap={{ scale: 0.95 }}
                                     type="button"
                                     onClick={() => {
-                                        const tabs = ["patient", "contact", "medical", "insurance"];
+                                        const tabs = ["patient", "contact", "medical", "vitals", "insurance"];
                                         const currentIndex = tabs.indexOf(registerActiveTab);
                                         if (currentIndex > 0) setRegisterActiveTab(tabs[currentIndex - 1]);
                                     }}
@@ -1190,7 +1293,7 @@ export default function RegisterPatient() {
                                     whileTap={{ scale: 0.95 }}
                                     type="button"
                                     onClick={() => {
-                                        const tabs = ["patient", "contact", "medical", "insurance"];
+                                        const tabs = ["patient", "contact", "medical", "vitals", "insurance"];
                                         const currentIndex = tabs.indexOf(registerActiveTab);
                                         if (currentIndex < tabs.length - 1) setRegisterActiveTab(tabs[currentIndex + 1]);
                                     }}
@@ -1293,7 +1396,7 @@ export default function RegisterPatient() {
                                     onClick={() => {
                                         setShowBookingOptions(false);
                                         // Navigate to Calendar with patient data
-                                        navigate("/appointments", {
+                                        navigate("/calendar", {
                                             state: {
                                                 patientData: registeredPatient
                                             }

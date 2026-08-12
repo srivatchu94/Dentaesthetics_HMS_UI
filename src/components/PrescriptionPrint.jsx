@@ -163,11 +163,10 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
         </div>
       </div>
 
-      {/* ── RX SYMBOL + PRESCRIPTIONS ── */}
+      {/* ── RX SYMBOL ── */}
       <div className="px-6 py-4">
         <div className="flex items-center gap-3 mb-4">
           <div className="text-3xl font-black text-slate-800 print:text-black" style={{ fontFamily: 'serif' }}>℞</div>
-          <p className="text-sm font-bold uppercase text-slate-700 print:text-black">PRESCRIPTIONS</p>
         </div>
 
         {/* ── MEDICATIONS TABLE ── */}
@@ -178,9 +177,11 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
                 <tr className="bg-slate-100 border-b border-slate-300 print:bg-white print:text-black print:border-black">
                   <th className="px-3 py-2 text-left font-bold">#</th>
                   <th className="px-3 py-2 text-left font-bold">Medicine</th>
+                  <th className="px-3 py-2 text-left font-bold">Type</th>
                   <th className="px-3 py-2 text-left font-bold">Dosage</th>
                   <th className="px-3 py-2 text-left font-bold">Frequency</th>
                   <th className="px-3 py-2 text-left font-bold">Duration</th>
+                  <th className="px-3 py-2 text-left font-bold">Meal Timing</th>
                   <th className="px-3 py-2 text-left font-bold">Instructions</th>
                 </tr>
               </thead>
@@ -189,13 +190,15 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
                   <tr key={idx} className="hover:bg-slate-50 print:bg-white">
                     <td className="px-3 py-2 font-bold text-slate-700 print:text-black">{idx + 1}</td>
                     {med.raw ? (
-                      <td colSpan={5} className="px-3 py-2 text-slate-700 print:text-black">{med.raw}</td>
+                      <td colSpan={7} className="px-3 py-2 text-slate-700 print:text-black">{med.raw}</td>
                     ) : (
                       <>
                         <td className="px-3 py-2 font-semibold text-slate-800 print:text-black">{med.medicineName || med.name || "—"}</td>
+                        <td className="px-3 py-2 text-slate-700 print:text-black">{med.medicationType || "—"}</td>
                         <td className="px-3 py-2 text-slate-700 print:text-black">{med.dosage || "—"}</td>
                         <td className="px-3 py-2 text-slate-700 print:text-black">{med.frequency || "—"}</td>
                         <td className="px-3 py-2 text-slate-700 print:text-black">{med.duration || "—"}</td>
+                        <td className="px-3 py-2 text-slate-700 print:text-black">{med.mealTiming || "—"}</td>
                         <td className="px-3 py-2 text-slate-700 print:text-black">{med.specialInstructions || med.instructions || "—"}</td>
                       </>
                     )}
