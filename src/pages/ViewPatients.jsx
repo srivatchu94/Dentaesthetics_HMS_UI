@@ -12,6 +12,21 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import dantaLogo from "../assets/danta-logo.jpg";
 
+// Extracts a single "Label: value" segment out of the packed medicalHistory
+// string built by RegisterPatient.jsx (e.g. "Past Surgeries: X; Smoking: Y; ...").
+// Returns "" if the label isn't present (e.g. records saved before a field existed).
+const extractMedicalHistoryField = (historyStr, label) => {
+  if (!historyStr || !historyStr.includes(`${label}:`)) return "";
+  return historyStr.split(`${label}:`)[1].split(';')[0].trim();
+};
+
+// Rebuilds the packed medicalHistory string from the granular fields, in the
+// exact same format RegisterPatient.jsx uses, so edits to the dropdowns/fields
+// stay in sync with what's persisted.
+const buildMedicalHistoryString = (data) => (
+  `Past Surgeries: ${data.pastSurgeries || 'None'}; Smoking: ${data.smokingStatus || 'Unknown'}; Alcohol: ${data.alcoholConsumption || 'Unknown'}; Chewing Tobacco: ${data.chewingTobaccoStatus || 'Unknown'}; Exercise: ${data.exerciseFrequency || 'Unknown'}; Diet: ${data.dietaryRestrictions || 'None'}; Notes: ${data.notes || 'None'}`
+);
+
 // Reusable InputField component (similar to RegisterPatient)
 const InputField = ({ label, name, value, onChange, type = "text", required = false, placeholder = "", options = null, disabled = false }) => {
   // Debug logging for select fields
@@ -177,6 +192,7 @@ export default function ViewPatients() {
     familyMedicalHistory: "",
     smokingStatus: "",
     alcoholConsumption: "",
+    chewingTobaccoStatus: "",
     exerciseFrequency: "",
     dietaryRestrictions: "",
     lastDentalVisit: "",
@@ -275,18 +291,33 @@ export default function ViewPatients() {
     { value: "Widowed", label: "Widowed" }
   ];
 
+  // These option values must exactly match what RegisterPatient.jsx saves into
+  // the packed medicalHistory string, otherwise the <select> shows blank even
+  // though the value was parsed correctly.
   const smokingStatusOptions = [
+    { value: "Non-smoker", label: "Non-smoker" },
+    { value: "Former smoker", label: "Former smoker" },
+    { value: "Current smoker", label: "Current smoker" }
+  ];
+
+  const alcoholConsumptionOptions = [
     { value: "Never", label: "Never" },
-    { value: "Former", label: "Former" },
-    { value: "Current", label: "Current" }
+    { value: "Occasionally", label: "Occasionally" },
+    { value: "Regularly", label: "Regularly" }
+  ];
+
+  const chewingTobaccoOptions = [
+    { value: "Never", label: "Never" },
+    { value: "Occasionally", label: "Occasionally" },
+    { value: "Regularly", label: "Regularly" },
+    { value: "Daily", label: "Daily" }
   ];
 
   const exerciseFrequencyOptions = [
-    { value: "Daily", label: "Daily" },
-    { value: "3-4 times a week", label: "3-4 times a week" },
-    { value: "1-2 times a week", label: "1-2 times a week" },
-    { value: "Rarely", label: "Rarely" },
-    { value: "Never", label: "Never" }
+    { value: "Sedentary", label: "Sedentary" },
+    { value: "1-2 times/week", label: "1-2 times/week" },
+    { value: "3-4 times/week", label: "3-4 times/week" },
+    { value: "5+ times/week", label: "5+ times/week" }
   ];
 
   // Fetch clinics from token on mount
@@ -485,14 +516,15 @@ export default function ViewPatients() {
         currentMedications: medicalInfo.patientCurrentMedications || "",
         medicalHistory: medicalInfo.medicalHistory || "",
         patientMedicalHistory: medicalInfo.patientMedicalHistory || "",
-        pastSurgeries: medicalInfo.medicalHistory ? medicalInfo.medicalHistory.split(';')[0] : "",
+        pastSurgeries: extractMedicalHistoryField(medicalInfo.medicalHistory, 'Past Surgeries'),
         familyMedicalHistory: medicalInfo.patientPrimaryPhysician || "",
-        smokingStatus: medicalInfo.medicalHistory && medicalInfo.medicalHistory.includes('Smoking:') ? medicalInfo.medicalHistory.split('Smoking:')[1].split(';')[0].trim() : "",
-        alcoholConsumption: medicalInfo.medicalHistory && medicalInfo.medicalHistory.includes('Alcohol:') ? medicalInfo.medicalHistory.split('Alcohol:')[1].split(';')[0].trim() : "",
-        exerciseFrequency: medicalInfo.medicalHistory && medicalInfo.medicalHistory.includes('Exercise:') ? medicalInfo.medicalHistory.split('Exercise:')[1].split(';')[0].trim() : "",
-        dietaryRestrictions: medicalInfo.medicalHistory && medicalInfo.medicalHistory.includes('Diet:') ? medicalInfo.medicalHistory.split('Diet:')[1].split(';')[0].trim() : "",
+        smokingStatus: extractMedicalHistoryField(medicalInfo.medicalHistory, 'Smoking'),
+        alcoholConsumption: extractMedicalHistoryField(medicalInfo.medicalHistory, 'Alcohol'),
+        chewingTobaccoStatus: extractMedicalHistoryField(medicalInfo.medicalHistory, 'Chewing Tobacco'),
+        exerciseFrequency: extractMedicalHistoryField(medicalInfo.medicalHistory, 'Exercise'),
+        dietaryRestrictions: extractMedicalHistoryField(medicalInfo.medicalHistory, 'Diet'),
         lastDentalVisit: medicalInfo.lastVisitedDate ? medicalInfo.lastVisitedDate.split('T')[0] : "",
-        notes: medicalInfo.medicalHistory || "",
+        notes: extractMedicalHistoryField(medicalInfo.medicalHistory, 'Notes'),
         noOfVisits: medicalInfo.noOfVisits || 0,
         lastVisitedDate: medicalInfo.lastVisitedDate ? medicalInfo.lastVisitedDate.split('T')[0] : ""
       };
@@ -570,11 +602,6 @@ export default function ViewPatients() {
         return;
       }
       
-      if (!editMedicalData.medicalHistory || editMedicalData.medicalHistory.trim() === "") {
-        setEditError("Medical History (PatientMedicalInfo.MedicalHistory) is required. Please fill in the Medical History field.");
-        setEditIsLoading(false);
-        return;
-      }
 
       // Build payload in the nested structure that API expects (PatientDataModel)
       const updatePayload = {
@@ -610,7 +637,7 @@ export default function ViewPatients() {
           patientCurrentMedications: editMedicalData.currentMedications,
           patientPrimaryPhysician: editMedicalData.familyMedicalHistory,
           patientMedicalHistory: editMedicalData.patientMedicalHistory,
-          medicalHistory: editMedicalData.medicalHistory,
+          medicalHistory: buildMedicalHistoryString(editMedicalData),
           noOfVisits: editMedicalData.noOfVisits,
           lastVisitedDate: editMedicalData.lastVisitedDate
         },
@@ -1522,14 +1549,12 @@ export default function ViewPatients() {
               {editActiveTab === "medical" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InputField
-                    label="Medical History (Required)"
-                    name="medicalHistory"
+                    label="Medical History Summary (auto-generated from fields below)"
+                    name="medicalHistorySummary"
                     type="textarea"
-                    value={editMedicalData.medicalHistory}
-                    onChange={(e) => setEditMedicalData({...editMedicalData, medicalHistory: e.target.value})}
-                    placeholder="Enter medical history (required)"
-                    required
-                    disabled={!isEditMode}
+                    value={buildMedicalHistoryString(editMedicalData)}
+                    onChange={() => {}}
+                    disabled={true}
                   />
                   <InputField
                     label="Patient Medical History"
@@ -1598,7 +1623,15 @@ export default function ViewPatients() {
                     name="alcoholConsumption"
                     value={editMedicalData.alcoholConsumption}
                     onChange={(e) => setEditMedicalData({...editMedicalData, alcoholConsumption: e.target.value})}
-                    placeholder="Enter alcohol consumption"
+                    options={alcoholConsumptionOptions}
+                    disabled={!isEditMode}
+                  />
+                  <InputField
+                    label="Chewing Tobacco"
+                    name="chewingTobaccoStatus"
+                    value={editMedicalData.chewingTobaccoStatus}
+                    onChange={(e) => setEditMedicalData({...editMedicalData, chewingTobaccoStatus: e.target.value})}
+                    options={chewingTobaccoOptions}
                     disabled={!isEditMode}
                   />
                   <InputField

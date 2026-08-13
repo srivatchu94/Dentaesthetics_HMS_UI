@@ -1,0 +1,301 @@
+/* Structural/layout styles for the redesigned "Diagnosis & Patient Visit" modal.
+   Deliberately colorless: every background/border/text color is applied via
+   Tailwind utility classes in the JSX (matching the original modal's palette),
+   so this file only controls layout, spacing, and typography. Everything is
+   scoped under .dpv so it can never leak into the rest of the app. */
+
+.dpv {
+  font-family: 'IBM Plex Sans', sans-serif;
+}
+
+.dpv-serif { font-family: 'Fraunces', serif; }
+.dpv-mono { font-family: 'IBM Plex Mono', monospace; }
+
+/* ============ MODAL SHELL ============ */
+.dpv-modal {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  max-height: 92vh;
+  border-radius: 20px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============ HEADER ============ */
+.dpv-header {
+  position: relative;
+  padding: 22px 28px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.dpv-avatar {
+  width: 54px; height: 54px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 600; font-size: 19px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  flex: none;
+  z-index: 1;
+}
+.dpv-header-text { z-index: 1; min-width: 0; }
+.dpv-header-text h1 {
+  font-weight: 700;
+  font-size: 24px;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+}
+.dpv-header-meta { font-size: 13px; }
+.dpv-close-btn {
+  margin-left: auto;
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: .15s;
+  z-index: 1;
+  flex: none;
+}
+
+/* ============ BODY GRID ============ */
+.dpv-body {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---- LEFT CHART RAIL ---- */
+.dpv-rail {
+  padding: 22px 18px 22px 26px;
+  overflow-y: auto;
+  position: relative;
+}
+.dpv-rail::before {
+  /* vertical pulse spine connecting cards — fixed light indigo, purely decorative */
+  content: "";
+  position: absolute; left: 14px; top: 34px; bottom: 34px; width: 1.5px;
+  background: repeating-linear-gradient(to bottom, #A5B4FC 0 5px, transparent 5px 10px);
+  opacity: .5;
+}
+.dpv-rail-card {
+  position: relative;
+  margin-left: 14px;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  padding: 14px 15px;
+}
+.dpv-rail-card::before {
+  content: "";
+  position: absolute; left: -14px; top: 18px; width: 9px; height: 9px;
+  border-radius: 50%;
+  background: #818CF8; /* indigo-400 */
+  border: 2px solid #fff;
+}
+.dpv-rail-card.dpv-alert::before { background: #FB7185; /* rose-400 */ }
+.dpv-rail-eyebrow {
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px;
+}
+.dpv-rail-icon { width: 14px; height: 14px; flex: none; }
+.dpv-patient-name { font-weight: 700; font-size: 16.5px; margin: 0 0 8px; }
+.dpv-contact-row {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 12px;
+  padding: 5px 0;
+}
+.dpv-contact-row:first-of-type { border-top: none !important; }
+.dpv-contact-row span:last-child { font-size: 11.5px; }
+.dpv-empty-note { font-size: 12.5px; font-style: italic; }
+.dpv-appt-line { font-size: 12.5px; line-height: 1.7; }
+.dpv-appt-line b { font-weight: 700; font-size: 12px; }
+.dpv-tag-chip {
+  display: inline-block; font-size: 10.5px;
+  padding: 3px 8px; border-radius: 20px;
+  margin-top: 6px;
+}
+
+/* ---- MAIN AREA ---- */
+.dpv-main { overflow-y: auto; padding: 0; }
+.dpv-tabs {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; gap: 6px;
+  padding: 16px 28px 0;
+}
+.dpv-tab {
+  font-size: 12.5px; font-weight: 600; letter-spacing: .02em;
+  padding: 10px 16px 12px;
+  cursor: pointer;
+  border-bottom: 2.5px solid transparent;
+  display: flex; align-items: center; gap: 7px;
+  background: none; border-top: none; border-left: none; border-right: none;
+}
+.dpv-tab .dpv-count { font-size: 10.5px; padding: 1px 6px; border-radius: 20px; }
+
+.dpv-panel { padding: 22px 28px 28px; }
+
+/* History accordion */
+.dpv-accordion {
+  border-radius: 12px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.dpv-accordion summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 18px;
+  display: flex; align-items: center; gap: 12px;
+  font-size: 12.5px; font-weight: 600;
+}
+.dpv-accordion summary::-webkit-details-marker { display: none; }
+.dpv-accordion summary::before {
+  content: "›"; font-size: 18px;
+  font-family: sans-serif; transform: rotate(0deg); transition: transform .15s;
+}
+.dpv-accordion[open] summary::before { transform: rotate(90deg); }
+.dpv-accordion .dpv-badge-type {
+  margin-left: auto; font-size: 10.5px;
+  padding: 3px 9px; border-radius: 20px;
+  white-space: nowrap;
+}
+.dpv-accordion .dpv-acc-body {
+  padding: 2px 18px 18px 44px;
+  font-size: 13px; line-height: 1.7;
+}
+
+/* form section card */
+.dpv-card {
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin-bottom: 16px;
+}
+.dpv-card-title {
+  font-weight: 700; font-size: 16px;
+  margin: 0 0 14px;
+  display: flex; align-items: center; gap: 9px;
+  flex-wrap: wrap;
+}
+.dpv-card-title .dpv-req { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; }
+.dpv-card-title .dpv-hint { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 400; }
+.dpv-icon-badge {
+  width: 26px; height: 26px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; flex: none;
+}
+.dpv-icon-badge svg { width: 14px; height: 14px; }
+
+.dpv-field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.dpv label, .dpv-label {
+  display: block; font-size: 11.5px;
+  letter-spacing: .03em; text-transform: uppercase;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.dpv input[type=date],
+.dpv input[type=text],
+.dpv textarea,
+.dpv select,
+.dpv-input {
+  width: 100%;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13.5px;
+  border-radius: 9px;
+  padding: 10px 12px;
+  outline: none;
+  transition: .15s border-color;
+}
+.dpv textarea { resize: vertical; min-height: 78px; }
+
+/* Rx pad */
+.dpv-rx-pad {
+  border-radius: 10px;
+  padding: 16px;
+}
+.dpv-rx-symbol { font-family: 'Fraunces', serif; font-weight: 700; font-size: 20px; margin-right: 2px; }
+.dpv-rx-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px 10px;
+  margin-bottom: 10px;
+  position: relative;
+}
+.dpv-rx-field { min-width: 0; }
+.dpv-rx-field label {
+  font-size: 10px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 5px;
+}
+.dpv-step {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%;
+  font-size: 8.5px; font-weight: 700;
+  font-family: 'IBM Plex Sans', sans-serif; flex: none;
+}
+.dpv-rx-name { flex: 1 1 100%; position: relative; }
+.dpv-rx-type { flex: 1 1 130px; }
+.dpv-rx-dosage { flex: 1 1 110px; }
+.dpv-rx-freq { flex: 1 1 140px; }
+.dpv-rx-duration { flex: 1 1 110px; }
+.dpv-rx-meal { flex: 1 1 160px; }
+.dpv-rx-instructions { flex: 1.6 1 220px; }
+.dpv-rx-row input, .dpv-rx-row select { padding: 9px 11px; font-size: 13px; }
+.dpv-meal-toggle {
+  display: flex; gap: 8px; font-size: 12px; align-items: center;
+  border-radius: 9px;
+  padding: 9px 10px; white-space: nowrap; height: 39px;
+}
+.dpv-meal-toggle label { display: flex; align-items: center; gap: 4px; margin: 0; text-transform: none; font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 400; }
+.dpv-meal-toggle input[type=radio] { width: auto; }
+.dpv-add-btn {
+  border: none; border-radius: 9px;
+  padding: 10px 16px; font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 13px;
+  cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  transition: .15s; flex: 0 0 auto; align-self: flex-end; height: 39px;
+}
+.dpv-add-btn:disabled { opacity: .6; cursor: not-allowed; }
+.dpv-cancel-btn {
+  border-radius: 9px;
+  padding: 8px 14px; font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 12px;
+  cursor: pointer; flex: 0 0 auto; align-self: flex-end; height: 39px;
+}
+.dpv-rx-list { margin-top: 12px; }
+.dpv-rx-item {
+  border-radius: 9px;
+  padding: 10px 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 12.5px; margin-bottom: 8px;
+}
+.dpv-rx-item .dpv-pill { font-size: 11px; padding: 2px 8px; border-radius: 20px; }
+.dpv-rx-item .dpv-med-name { font-weight: 700; }
+.dpv-rx-item .dpv-rx-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+.dpv-rx-item .dpv-edit-med { cursor: pointer; font-size: 13px; background: none; border: none; padding: 0; font-family: inherit; }
+.dpv-rx-item .dpv-remove { cursor: pointer; font-size: 15px; background: none; border: none; padding: 0; line-height: 1; }
+
+.dpv-prescription-actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ============ FOOTER ============ */
+.dpv-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 28px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.dpv-footer-left, .dpv-footer-right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.dpv-btn {
+  font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 13.5px;
+  padding: 11px 20px; border-radius: 10px; cursor: pointer; border: 1.5px solid transparent;
+  display: flex; align-items: center; gap: 7px; transition: .15s;
+}
+.dpv-btn:disabled { opacity: .55; cursor: not-allowed; }
+.dpv-btn svg { width: 15px; height: 15px; }
+
+.dpv ::-webkit-scrollbar { width: 9px; }
+.dpv ::-webkit-scrollbar-track { background: transparent; }
+
+@media (max-width: 760px) {
+  .dpv-body { grid-template-columns: 1fr; }
+  .dpv-field-grid { grid-template-columns: 1fr; }
+}

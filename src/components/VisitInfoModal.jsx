@@ -10,6 +10,7 @@ import PrescriptionPrint from "./PrescriptionPrint";
 import PrescriptionEmailTemplate from "./PrescriptionEmailTemplate";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import "./VisitInfoModal.css";
 
 // Extracted and properly memoized VisitInfoModal Component
 const VisitInfoModal = ({
@@ -71,6 +72,8 @@ const VisitInfoModal = ({
   const [allVisits, setAllVisits] = useState([]);
   const [activeVisitId, setActiveVisitId] = useState(null);
   const [showPreviousVisits, setShowPreviousVisits] = useState(false);
+  // 'new' = the active visit-entry form, 'history' = browsing past visits
+  const [activeSectionTab, setActiveSectionTab] = useState('new');
   const EMPTY_MEDICATION = {
     name: '',
     medicationType: 'Tablet',
@@ -159,6 +162,12 @@ const VisitInfoModal = ({
     setLocalEditingMedicationIndex(null);
   };
 
+  // Jump from the Visit History tab into the New Visit tab with that record loaded.
+  const editVisitFromHistory = (visit) => {
+    loadVisitIntoForm(visit);
+    setActiveSectionTab('new');
+  };
+
   // Initialize form state with new data when modal opens
   useEffect(() => {
     if (show && selectedAppointment) {
@@ -219,6 +228,7 @@ const VisitInfoModal = ({
     console.log('📚 Visit history for appointment', appointmentId, '— count:', history.length);
     setAllVisits(history);
     setShowPreviousVisits(false);
+    setActiveSectionTab('new');
 
     if (history.length === 0) {
       startNewVisit();
@@ -663,6 +673,9 @@ const VisitInfoModal = ({
     }
   };
 
+  const requiredFieldsMissing = !visitForm.chiefComplaint || !visitForm.diagnosis || !visitForm.treatmentProvided;
+  const historyVisits = allVisits; // browse everything in the History tab, including the one being edited
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -678,706 +691,447 @@ const VisitInfoModal = ({
         exit={{ scale: 0.95, y: 20, opacity: 0 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[95vh] flex flex-col"
+        className="dpv w-full"
       >
-        {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-8 py-6 rounded-t-3xl flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-4xl shadow-lg">
-              🩺
+        <div className="dpv-modal">
+          {/* Header */}
+          <div className="dpv-header bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white">
+            <div className="dpv-avatar dpv-serif bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+              {selectedAppointment.firstName?.charAt(0)}{selectedAppointment.lastName?.charAt(0)}
             </div>
-            <div>
-              <h2 className="text-3xl font-bold text-white">Diagnosis & Patient Visit</h2>
-              <p className="text-teal-100 text-sm mt-1">
-                {selectedAppointment.firstName} {selectedAppointment.lastName} • ID: #{selectedAppointment.patientId}
-              </p>
+            <div className="dpv-header-text">
+              <h1 className="dpv-serif">Diagnosis &amp; Patient Visit</h1>
+              <div className="dpv-header-meta dpv-mono text-purple-100">
+                <b className="text-white">{selectedAppointment.firstName} {selectedAppointment.lastName}</b>&nbsp;·&nbsp;Patient ID #{selectedAppointment.patientId}
+              </div>
             </div>
+            <button type="button" className="dpv-close-btn bg-white/20 hover:bg-white/30 text-white" onClick={onClose} title="Close">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.1, rotate: 90 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={onClose}
-            className="flex-shrink-0 w-12 h-12 bg-white/20 hover:bg-red-500/30 text-white rounded-full flex items-center justify-center transition-all duration-300 border-2 border-white/40"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </motion.button>
-        </div>
 
-        {/* Body - Scrollable */}
-        <div className="flex-1 overflow-y-auto p-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* LEFT COLUMN */}
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="lg:col-span-1 space-y-4"
-            >
-              {/* Patient Card */}
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md h-fit">
-                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
-                  <span>👤</span> Patient Info
-                </h3>
-                <div className="space-y-3 text-sm">
-                  <div className="flex gap-3 pb-3 border-b border-blue-100">
-                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold shadow-md">
-                      {selectedAppointment.firstName?.charAt(0)}{selectedAppointment.lastName?.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-xs text-stone-600 font-medium">Name</p>
-                      <p className="font-bold text-stone-800">{selectedAppointment.firstName} {selectedAppointment.lastName}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-stone-600">Phone:</span>
-                      <span className="font-bold text-stone-800">{selectedAppointment.phoneNumber || 'N/A'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-stone-600">Email:</span>
-                      <span className="font-bold text-stone-800 truncate max-w-[140px]">{selectedAppointment.email || 'N/A'}</span>
-                    </div>
-                  </div>
+          {/* Body */}
+          <div className="dpv-body bg-white">
+            {/* LEFT CHART RAIL */}
+            <aside className="dpv-rail bg-gradient-to-b from-indigo-50/40 to-purple-50/40">
+              <div className="dpv-rail-card bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200">
+                <div className="dpv-rail-eyebrow text-blue-900">
+                  <svg className="dpv-rail-icon stroke-indigo-600" viewBox="0 0 24 24" fill="none" strokeWidth="1.8"><circle cx="12" cy="8" r="3.2" /><path d="M5 20c0-3.9 3.1-6.5 7-6.5s7 2.6 7 6.5" /></svg>
+                  Patient
                 </div>
+                <p className="dpv-patient-name dpv-serif text-stone-800">{selectedAppointment.firstName} {selectedAppointment.lastName}</p>
+                <div className="dpv-contact-row border-t border-blue-100 text-stone-600"><span>Phone</span><span className="text-stone-800 font-bold">{selectedAppointment.phoneNumber || 'N/A'}</span></div>
+                <div className="dpv-contact-row border-t border-blue-100 text-stone-600"><span>Email</span><span className="text-stone-800 font-bold">{selectedAppointment.email || 'N/A'}</span></div>
               </div>
 
-              {/* Chronic Diseases */}
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-md h-fit">
-                <h3 className="text-lg font-bold text-red-900 mb-4 flex items-center gap-2">
-                  <span>⚠️</span> Chronic Diseases
-                </h3>
-                <div className="space-y-2">
-                  {loadingMedicalInfo ? (
-                    <div className="text-sm text-stone-600 animate-pulse">⏳ Checking medical history...</div>
-                  ) : medicalInfoError ? (
-                    <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded">ℹ️ Medical history unavailable - backend error</div>
-                  ) : chronicDiseaseList.length === 0 ? (
-                    <div className="text-sm text-stone-500">No chronic diseases recorded.</div>
-                  ) : (
-                    chronicDiseaseList.map((disease, idx) => (
-                      <motion.div
-                        key={`${disease}-${idx}`}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.05 }}
-                        className="bg-white rounded-lg p-3 border-l-4 border-red-400 shadow-sm"
-                      >
-                        <p className="text-sm font-semibold text-stone-800">✓ {disease}</p>
-                      </motion.div>
-                    ))
+              <div className={`dpv-rail-card bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 ${!loadingMedicalInfo && !medicalInfoError && chronicDiseaseList.length > 0 ? 'dpv-alert' : ''}`}>
+                <div className="dpv-rail-eyebrow text-red-900">
+                  <svg className="dpv-rail-icon stroke-red-500" viewBox="0 0 24 24" fill="none" strokeWidth="1.8"><path d="M12 3l9 16H3z" /><line x1="12" y1="9" x2="12" y2="13" /><circle cx="12" cy="16" r="0.6" fill="currentColor" /></svg>
+                  Chronic Diseases
+                </div>
+                {loadingMedicalInfo ? (
+                  <p className="dpv-empty-note text-stone-500">Checking medical history...</p>
+                ) : medicalInfoError ? (
+                  <p className="dpv-empty-note text-amber-600">Unavailable — backend error</p>
+                ) : chronicDiseaseList.length === 0 ? (
+                  <p className="dpv-empty-note text-stone-500">None recorded</p>
+                ) : (
+                  chronicDiseaseList.map((disease, idx) => (
+                    <p key={`${disease}-${idx}`} className="text-stone-800 font-semibold" style={{ fontSize: 12.5, margin: '4px 0' }}>✓ {disease}</p>
+                  ))
+                )}
+              </div>
+
+              <div className={`dpv-rail-card bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 ${!loadingMedicalInfo && !medicalInfoError && allergyList.length > 0 ? 'dpv-alert' : ''}`}>
+                <div className="dpv-rail-eyebrow text-orange-900">
+                  <svg className="dpv-rail-icon stroke-orange-500" viewBox="0 0 24 24" fill="none" strokeWidth="1.8"><path d="M12 21s-7-4.35-9.5-9C.5 7.5 3 4 6.5 4c2 0 3.5 1.5 4.5 3 1-1.5 2.5-3 4.5-3 3.5 0 6 3.5 4 8-2.5 4.65-7.5 9-7.5 9z" transform="scale(0.9) translate(1.3,1.3)" /></svg>
+                  Allergies
+                </div>
+                {loadingMedicalInfo ? (
+                  <p className="dpv-empty-note text-stone-500">Checking allergy data...</p>
+                ) : medicalInfoError ? (
+                  <p className="dpv-empty-note text-amber-600">Unavailable — backend error</p>
+                ) : allergyList.length === 0 ? (
+                  <p className="dpv-empty-note text-stone-500">None recorded</p>
+                ) : (
+                  allergyList.map((allergy, idx) => (
+                    <p key={`${allergy}-${idx}`} className="text-stone-800 font-semibold" style={{ fontSize: 12.5, margin: '4px 0' }}>⚠ {allergy}</p>
+                  ))
+                )}
+              </div>
+
+              <div className="dpv-rail-card bg-gradient-to-br from-violet-50 to-purple-50 border-2 border-violet-200">
+                <div className="dpv-rail-eyebrow text-violet-900">
+                  <svg className="dpv-rail-icon stroke-violet-600" viewBox="0 0 24 24" fill="none" strokeWidth="1.8"><rect x="3" y="4.5" width="18" height="16" rx="2" /><line x1="3" y1="9.5" x2="21" y2="9.5" /><line x1="7" y1="2.5" x2="7" y2="6.5" /><line x1="17" y1="2.5" x2="17" y2="6.5" /></svg>
+                  Appointment
+                </div>
+                <div className="dpv-appt-line text-stone-600">Date &nbsp;<b className="text-stone-800">{selectedAppointment.appointmentDate ? new Date(selectedAppointment.appointmentDate).toLocaleDateString() : 'N/A'}</b></div>
+                <div className="dpv-appt-line text-stone-600">Time &nbsp;<b className="text-stone-800">{selectedAppointment.startTime || 'N/A'}</b></div>
+                {selectedAppointment.appointmentType && <span className="dpv-tag-chip bg-violet-100 text-violet-800">{selectedAppointment.appointmentType}</span>}
+              </div>
+            </aside>
+
+            {/* MAIN */}
+            <main className="dpv-main">
+              <div className="dpv-tabs bg-white border-b border-slate-200">
+                <button type="button" className={`dpv-tab ${activeSectionTab === 'new' ? 'dpv-active text-purple-700 border-purple-600' : 'text-stone-500'}`} onClick={() => setActiveSectionTab('new')}>
+                  {isExistingVisit ? 'Edit Visit' : 'New Visit'}
+                </button>
+                <button type="button" className={`dpv-tab ${activeSectionTab === 'history' ? 'dpv-active text-purple-700 border-purple-600' : 'text-stone-500'}`} onClick={() => setActiveSectionTab('history')}>
+                  Visit History <span className="dpv-count bg-purple-100 text-purple-800">{historyVisits.length}</span>
+                </button>
+              </div>
+
+              {/* NEW / EDIT VISIT PANEL */}
+              {activeSectionTab === 'new' && (
+                <div className="dpv-panel">
+                  {isExistingVisit && (
+                    <div className="flex items-center justify-between gap-3 flex-wrap bg-blue-50 border border-blue-300 text-blue-800" style={{ borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12.5 }}>
+                      <span>✏️ Editing the visit from <b>{visitForm.visitDate ? new Date(visitForm.visitDate).toLocaleDateString() : ''}</b></span>
+                      {allVisits.length > 0 && (
+                        <button type="button" className="dpv-acc-edit bg-blue-100 text-blue-800 hover:bg-blue-200" onClick={startNewVisit}>Start Fresh Instead</button>
+                      )}
+                    </div>
                   )}
-                </div>
-              </div>
 
-              {/* Allergies */}
-              <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-md h-fit">
-                <h3 className="text-lg font-bold text-orange-900 mb-4 flex items-center gap-2">
-                  <span>🚨</span> Allergies
-                </h3>
-                <div className="space-y-2">
-                  {loadingMedicalInfo ? (
-                    <div className="text-sm text-stone-600 animate-pulse">⏳ Checking allergy data...</div>
-                  ) : medicalInfoError ? (
-                    <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded">ℹ️ Allergy data unavailable - backend error</div>
-                  ) : allergyList.length === 0 ? (
-                    <div className="text-sm text-stone-500">No allergies recorded.</div>
-                  ) : (
-                    allergyList.map((allergy, idx) => (
-                      <motion.div
-                        key={`${allergy}-${idx}`}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.05 }}
-                        className="bg-white rounded-lg p-3 border-l-4 border-orange-400 shadow-sm"
-                      >
-                        <p className="text-sm font-semibold text-stone-800">⚠️ {allergy}</p>
-                      </motion.div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Appointment Summary */}
-              <div className="bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl p-6 border-2 border-violet-200 shadow-md h-fit">
-                <h3 className="text-lg font-bold text-violet-900 mb-4 flex items-center gap-2">
-                  <span>📅</span> Appointment
-                </h3>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between pb-2 border-b border-violet-100">
-                    <span className="text-stone-600">Date:</span>
-                    <span className="font-bold text-stone-800">{new Date(selectedAppointment.appointmentDate).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-600">Time:</span>
-                    <span className="font-bold text-stone-800">{selectedAppointment.startTime || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between pt-2 border-t border-violet-100">
-                    <span className="text-stone-600">Type:</span>
-                    <span className="font-bold text-stone-800">{selectedAppointment.appointmentType || 'N/A'}</span>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* CENTER & RIGHT COLUMNS - FORM */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="lg:col-span-2 space-y-5"
-            >
-              {/* Previous Visit Info - collapsible reference panel */}
-              {allVisits.length > 0 && allVisits.filter(v => getVisitId(v) !== activeVisitId).length > 0 && (
-                <div className="bg-gradient-to-br from-slate-50 to-gray-100 rounded-2xl border-2 border-slate-300 shadow-md overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setShowPreviousVisits(prev => !prev)}
-                    className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-100/60 transition"
-                  >
-                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                      <span>📜</span> Previous Visit Info ({allVisits.filter(v => getVisitId(v) !== activeVisitId).length})
+                  <div className="dpv-card bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200">
+                    <h3 className="dpv-card-title dpv-serif text-yellow-900">
+                      <span className="dpv-icon-badge bg-indigo-100"><svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" className="stroke-indigo-700"><rect x="3" y="4.5" width="18" height="16" rx="2" /><line x1="3" y1="9.5" x2="21" y2="9.5" /><line x1="7" y1="2.5" x2="7" y2="6.5" /><line x1="17" y1="2.5" x2="17" y2="6.5" /></svg></span>
+                      Visit Timeline
                     </h3>
-                    <span className={`text-xl transition-transform ${showPreviousVisits ? 'rotate-180' : ''}`}>▾</span>
-                  </button>
-                  {showPreviousVisits && (
-                    <div className="px-6 pb-6 space-y-3">
-                      {allVisits.filter(v => getVisitId(v) !== activeVisitId).map((v, idx) => (
-                        <div key={getVisitId(v) ?? idx} className="bg-white rounded-xl p-4 border-2 border-slate-200">
-                          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-                            <p className="font-bold text-slate-800">
-                              🗓️ {v.visitDate ? new Date(v.visitDate).toLocaleDateString() : 'Unknown date'}
-                            </p>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => loadVisitIntoForm(v)}
-                              className="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-200 transition whitespace-nowrap"
-                            >
-                              ✏️ Edit This Visit
-                            </motion.button>
-                          </div>
-                          {(v.chiefComplaint || v.reasonForVisit) && (
-                            <p className="text-sm text-stone-700 mb-1"><span className="font-semibold">Chief Complaint:</span> {v.chiefComplaint || v.reasonForVisit}</p>
+                    <div className="dpv-field-grid">
+                      <div>
+                        <label className="text-stone-700">Visit Date <span className="dpv-req text-red-500">*</span></label>
+                        <input type="date" className="border-2 border-green-300 bg-white focus:border-green-500" value={visitForm.visitDate} onChange={(e) => handleVisitFormChange('visitDate', e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-stone-700">Follow-up Date</label>
+                        <input type="date" className="border-2 border-green-300 bg-white focus:border-green-500" value={visitForm.followUpDate} onChange={(e) => handleVisitFormChange('followUpDate', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="dpv-card dpv-required bg-gradient-to-br from-pink-50 to-rose-50 border-2 border-pink-200">
+                    <h3 className="dpv-card-title dpv-serif text-pink-900">
+                      <span className="dpv-icon-badge bg-pink-100"><svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" className="stroke-pink-700"><path d="M9 12h6M9 16h6M9 8h3" /><path d="M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" /></svg></span>
+                      Chief Complaint <span className="dpv-req text-red-500">*</span>
+                    </h3>
+                    <textarea
+                      className="border-2 border-pink-300 bg-white focus:border-pink-500"
+                      value={visitForm.chiefComplaint}
+                      onChange={(e) => handleVisitFormChange('chiefComplaint', e.target.value)}
+                      placeholder="What is the main reason for the visit?"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="dpv-card dpv-required bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 ring-2 ring-indigo-100">
+                    <h3 className="dpv-card-title dpv-serif text-green-900">
+                      <span className="dpv-icon-badge bg-green-100"><svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" className="stroke-green-700"><circle cx="11" cy="11" r="6.5" /><line x1="20" y1="20" x2="15.7" y2="15.7" /></svg></span>
+                      Diagnostics <span className="dpv-req text-red-500">*</span>
+                    </h3>
+                    <textarea
+                      className="border-2 border-green-300 bg-white focus:border-green-500 font-medium text-stone-800"
+                      value={visitForm.diagnosis}
+                      onChange={(e) => handleVisitFormChange('diagnosis', e.target.value)}
+                      placeholder="Enter detailed diagnosis based on examination and findings..."
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="dpv-card dpv-required bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200">
+                    <h3 className="dpv-card-title dpv-serif text-blue-900">
+                      <span className="dpv-icon-badge bg-blue-100"><svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" className="stroke-blue-700"><path d="M4 15l5-5 3.5 3.5L20 6" /><path d="M14 6h6v6" /></svg></span>
+                      Treatment Provided <span className="dpv-req text-red-500">*</span>
+                    </h3>
+                    <textarea
+                      className="border-2 border-blue-300 bg-white focus:border-blue-500"
+                      value={visitForm.treatmentProvided}
+                      onChange={(e) => handleVisitFormChange('treatmentProvided', e.target.value)}
+                      placeholder="Describe the treatment provided during this visit..."
+                      rows={3}
+                    />
+                  </div>
+
+                  {/* WRITE PRESCRIPTION */}
+                  <div className="dpv-card dpv-gold bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-300">
+                    <h3 className="dpv-card-title dpv-serif text-purple-900">
+                      <span className="dpv-icon-badge bg-purple-100"><svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" className="stroke-purple-700"><rect x="5" y="9" width="14" height="10" rx="2" /><path d="M8 9V6a4 4 0 0 1 8 0v3" /></svg></span>
+                      Write Prescription
+                      <span className="dpv-hint text-red-500 font-semibold" style={{ fontFamily: 'inherit' }}>— at least 1 medication required</span>
+                    </h3>
+
+                    <div className="dpv-rx-pad bg-white border-2 border-purple-200">
+                      <div className="dpv-rx-row">
+                        <div className="dpv-rx-field dpv-rx-name" ref={medicineInputRef}>
+                          <label className="text-stone-700"><span className="dpv-step bg-purple-600 text-white">1</span>Medicine Name *</label>
+                          <input
+                            type="text"
+                            className="border-2 border-purple-300 bg-white focus:border-purple-500"
+                            value={currentMedication.name || ""}
+                            onChange={(e) => {
+                              const newValue = e.target.value;
+                              setCurrentMedication(prev => ({ ...prev, name: newValue }));
+                              if (!medicineDropdownOpen) setMedicineDropdownOpen(true);
+                            }}
+                            onFocus={() => {
+                              if (inventoryMeds.length === 0 && !loadingMeds) loadInventoryMedications();
+                              setMedicineDropdownOpen(true);
+                            }}
+                            placeholder="Search medicine..."
+                            autoComplete="off"
+                          />
+                          {currentMedication.name && !medicineDropdownOpen && (
+                            <div className="bg-green-50 border border-green-300" style={{ marginTop: 4, padding: '6px 10px', borderRadius: 8, fontSize: 12 }}>
+                              <span className="text-green-700 font-semibold">✓ Selected:</span> {currentMedication.name}
+                            </div>
                           )}
-                          {(v.diagnosis || v.diagnoses) && (
-                            <p className="text-sm text-stone-700 mb-1"><span className="font-semibold">Diagnosis:</span> {v.diagnosis || v.diagnoses}</p>
-                          )}
-                          {(v.treatmentProvided || v.treatments) && (
-                            <p className="text-sm text-stone-700 mb-1"><span className="font-semibold">Treatment:</span> {v.treatmentProvided || v.treatments}</p>
-                          )}
-                          {Array.isArray(v.prescriptions) && v.prescriptions.length > 0 && (
-                            <div className="text-sm text-stone-700 mt-2">
-                              <span className="font-semibold">Prescriptions:</span>
-                              <ul className="list-disc list-inside mt-1 space-y-0.5">
-                                {v.prescriptions.map((p, pIdx) => (
-                                  <li key={pIdx}>
-                                    {p.medicineName || p.name}{p.dosage ? ` - ${p.dosage}` : ''} - {p.frequency} - {p.duration}
-                                  </li>
-                                ))}
-                              </ul>
+                          {medicineDropdownOpen && (
+                            <div className="absolute z-30 mt-1 bg-white border-2 border-purple-200 rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto" style={{ width: '100%', minWidth: 280 }}>
+                              {loadingMeds ? (
+                                <div className="px-3 py-8 text-center">
+                                  <div className="inline-block w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                  <p className="text-sm text-stone-600">Loading medicines...</p>
+                                </div>
+                              ) : inventoryMeds.length === 0 ? (
+                                <div className="px-4 py-6 text-center">
+                                  <p className="text-sm mb-3 text-stone-600">No medicines in inventory. Add one to get started!</p>
+                                  <button
+                                    type="button"
+                                    onClick={() => { handleOpenAddMedicineModal(currentMedication.name); setMedicineDropdownOpen(false); }}
+                                    className="dpv-add-btn bg-purple-600 text-white hover:bg-purple-700"
+                                    style={{ margin: '0 auto' }}
+                                  >
+                                    + Add to Inventory
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  {inventoryMeds
+                                    .filter(med => {
+                                      const searchVal = (currentMedication.name || "").toLowerCase();
+                                      return !searchVal || med.itemName?.toLowerCase().includes(searchVal) || med.itemCode?.toLowerCase().includes(searchVal);
+                                    })
+                                    .map((m) => (
+                                    <button
+                                      type="button"
+                                      key={m.itemId || m.id}
+                                      onClick={() => { setCurrentMedication(prev => ({ ...prev, name: m.itemName })); setMedicineDropdownOpen(false); }}
+                                      className="w-full text-left px-4 py-3 hover:bg-purple-50 transition border-b border-purple-50 last:border-b-0"
+                                    >
+                                      <div className="font-semibold text-stone-800">{m.itemName}{m.itemCode ? ` (${m.itemCode})` : ""}</div>
+                                      <div className="text-xs flex gap-3 flex-wrap text-stone-500">
+                                        {m.category && <span>Category: {m.category}</span>}
+                                        {m.unit && <span>Unit: {m.unit}</span>}
+                                      </div>
+                                    </button>
+                                  ))}
+                                  <div className="sticky bottom-0 p-3 border-t border-purple-200 bg-slate-100">
+                                    <button
+                                      type="button"
+                                      onClick={() => { handleOpenAddMedicineModal(currentMedication.name); setMedicineDropdownOpen(false); }}
+                                      className="dpv-add-btn bg-purple-600 text-white hover:bg-purple-700"
+                                      style={{ width: '100%', justifyContent: 'center' }}
+                                    >
+                                      + Add New Medicine
+                                    </button>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           )}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
 
-              {/* Current mode indicator + Start New Visit action */}
-              <div className={`rounded-2xl p-4 border-2 flex items-center justify-between flex-wrap gap-3 ${isExistingVisit ? 'bg-blue-50 border-blue-300' : 'bg-emerald-50 border-emerald-300'}`}>
-                <p className={`font-bold flex items-center gap-2 ${isExistingVisit ? 'text-blue-800' : 'text-emerald-800'}`}>
-                  {isExistingVisit
-                    ? `✏️ Editing visit from ${visitForm.visitDate ? new Date(visitForm.visitDate).toLocaleDateString() : ''}`
-                    : '🆕 New Visit — enter details for this appointment'}
-                </p>
-                {allVisits.length > 0 && (
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={startNewVisit}
-                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold shadow-md hover:bg-emerald-700 transition text-sm whitespace-nowrap"
-                  >
-                    🆕 Start New Visit
-                  </motion.button>
-                )}
-              </div>
+                        <div className="dpv-rx-field dpv-rx-type">
+                          <label className="text-stone-700"><span className="dpv-step bg-purple-600 text-white">2</span>Type *</label>
+                          <select className="border-2 border-purple-300 bg-white focus:border-purple-500" value={currentMedication.medicationType || "Tablet"} onChange={(e) => setCurrentMedication(prev => ({ ...prev, medicationType: e.target.value }))}>
+                            <option value="Tablet">Tablet</option>
+                            <option value="Syrup">Syrup</option>
+                            <option value="Capsule">Capsule</option>
+                            <option value="Injection">Injection</option>
+                            <option value="Cream">Cream</option>
+                            <option value="Gel">Gel</option>
+                            <option value="Powder">Powder</option>
+                            <option value="Liquid">Liquid</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
 
-              {/* Visit Dates */}
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md">
-                <h3 className="text-lg font-bold text-yellow-900 mb-4 flex items-center gap-2">
-                  <span>📆</span> Visit Timeline
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-stone-700 mb-2">Visit Date <span className="text-red-500">*</span></label>
-                    <input
-                      type="date"
-                      value={visitForm.visitDate}
-                      onChange={(e) => handleVisitFormChange('visitDate', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-stone-700 mb-2">Follow-up Date</label>
-                    <input
-                      type="date"
-                      value={visitForm.followUpDate}
-                      onChange={(e) => handleVisitFormChange('followUpDate', e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
-                    />
-                  </div>
-                </div>
-              </div>
+                        <div className="dpv-rx-field dpv-rx-dosage">
+                          <label className="text-stone-700"><span className="dpv-step bg-purple-600 text-white">3</span>Dosage</label>
+                          <input type="text" className="border-2 border-purple-300 bg-white focus:border-purple-500" value={currentMedication.dosage || ""} onChange={(e) => setCurrentMedication(prev => ({ ...prev, dosage: e.target.value }))} placeholder="500mg" autoComplete="off" />
+                        </div>
 
-              {/* Chief Complaint */}
-              <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-2xl p-6 border-2 border-pink-200 shadow-md">
-                <h3 className="text-lg font-bold text-pink-900 mb-4 flex items-center gap-2">
-                  <span>🤕</span> Chief Complaint <span className="text-red-500">*</span>
-                </h3>
-                <textarea
-                  value={visitForm.chiefComplaint}
-                  onChange={(e) => handleVisitFormChange('chiefComplaint', e.target.value)}
-                  placeholder="What is the main reason for the visit?"
-                  rows={2}
-                  className="w-full px-4 py-2 border-2 border-pink-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-pink-500 transition resize-none"
-                />
-              </div>
+                        <div className="dpv-rx-field dpv-rx-freq">
+                          <label className="text-stone-700"><span className="dpv-step bg-purple-600 text-white">4</span>Frequency *</label>
+                          <select className="border-2 border-purple-300 bg-white focus:border-purple-500" value={currentMedication.frequency || ""} onChange={(e) => setCurrentMedication(prev => ({ ...prev, frequency: e.target.value }))}>
+                            <option value="">Select...</option>
+                            <option value="Once daily">Once daily</option>
+                            <option value="Twice daily">Twice daily</option>
+                            <option value="Three times daily">Three times daily</option>
+                            <option value="As needed">As needed</option>
+                          </select>
+                        </div>
 
-              {/* Diagnostics */}
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md ring-2 ring-indigo-100">
-                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                  <h3 className="text-lg font-bold text-green-900 flex items-center gap-2">
-                    <span>🔬</span> Diagnostics <span className="text-red-500">*</span>
-                  </h3>
-                </div>
-                <textarea
-                  value={visitForm.diagnosis}
-                  onChange={(e) => handleVisitFormChange('diagnosis', e.target.value)}
-                  placeholder="Enter detailed diagnosis based on examination and findings..."
-                  rows={3}
-                  className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition resize-none font-medium text-stone-800"
-                />
-              </div>
+                        <div className="dpv-rx-field dpv-rx-duration">
+                          <label className="text-stone-700"><span className="dpv-step bg-purple-600 text-white">5</span>Duration *</label>
+                          <input type="text" className="border-2 border-purple-300 bg-white focus:border-purple-500" value={currentMedication.duration || ""} onChange={(e) => setCurrentMedication(prev => ({ ...prev, duration: e.target.value }))} placeholder="7 days" autoComplete="off" />
+                        </div>
 
-              {/* Treatment Provided */}
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border-2 border-indigo-200 shadow-md">
-                <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
-                  <span>⚕️</span> Treatment Provided <span className="text-red-500">*</span>
-                </h3>
-                <textarea
-                  value={visitForm.treatmentProvided}
-                  onChange={(e) => handleVisitFormChange('treatmentProvided', e.target.value)}
-                  placeholder="Describe the treatment provided during this visit..."
-                  rows={3}
-                  className="w-full px-4 py-3 border-2 border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition resize-none"
-                />
-              </div>
-            </motion.div>
-          </div>
-
-          {/* Inline Prescription Section - full width so the row fits with no horizontal scroll */}
-          <div className="mt-5 bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-6 border-2 border-purple-300 shadow-lg">
-                <h3 className="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
-                  <span>💊</span> Write Prescription <span className="text-red-500 text-sm font-semibold">(at least 1 medication required)</span>
-                </h3>
-
-                {/* Medication Input Form */}
-                <div className="bg-white rounded-xl p-5 mb-5 border-2 border-purple-200">
-                  <div className="grid grid-cols-[1.8fr_1fr_0.8fr_1fr_0.8fr_1.6fr_1fr_auto] gap-3 items-end mb-4">
-                    {/* Medicine Name Searchable Dropdown */}
-                    <div className="min-w-0" ref={medicineInputRef}>
-                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">
-                        Medicine Name <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={currentMedication.name || ""}
-                          onChange={(e) => {
-                            const newValue = e.target.value;
-                            setCurrentMedication(prev => ({ ...prev, name: newValue }));
-                            if (!medicineDropdownOpen) {
-                              setMedicineDropdownOpen(true);
-                            }
-                          }}
-                          onFocus={() => {
-                            if (inventoryMeds.length === 0 && !loadingMeds) {
-                              loadInventoryMedications();
-                            }
-                            setMedicineDropdownOpen(true);
-                          }}
-                          placeholder="Search medicine..."
-                          className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-                          autoComplete="off"
-                        />
-                        {currentMedication.name && !medicineDropdownOpen && (
-                          <div className="mt-1 px-3 py-2 bg-green-50 border border-green-300 rounded-lg text-sm">
-                            <span className="text-green-700">✓ Selected:</span> <span className="font-bold text-stone-900">{currentMedication.name}</span>
+                        <div className="dpv-rx-field dpv-rx-meal">
+                          <label className="text-stone-700"><span className="dpv-step bg-purple-600 text-white">6</span>Meal Timing</label>
+                          <div className="dpv-meal-toggle border-2 border-purple-300 bg-white text-stone-700">
+                            <label>
+                              <input type="radio" className="accent-purple-600" checked={currentMedication.mealTiming === 'Before Food'} onChange={() => setCurrentMedication(prev => ({ ...prev, mealTiming: 'Before Food' }))} />
+                              Before
+                            </label>
+                            <label>
+                              <input type="radio" className="accent-purple-600" checked={currentMedication.mealTiming === 'After Food'} onChange={() => setCurrentMedication(prev => ({ ...prev, mealTiming: 'After Food' }))} />
+                              After
+                            </label>
                           </div>
-                        )}
-                        
-                        {/* Dropdown Panel */}
-                        {medicineDropdownOpen && (
-                          <div className="absolute z-30 mt-1 w-full bg-white border-2 border-purple-200 rounded-xl shadow-2xl overflow-hidden max-h-80 overflow-y-auto">
-                            {loadingMeds ? (
-                              <div className="px-3 py-8 text-center">
-                                <div className="inline-block w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-2"></div>
-                                <p className="text-sm text-stone-600 font-medium">Loading medicines...</p>
-                              </div>
-                            ) : inventoryMeds.length === 0 ? (
-                              <div className="px-4 py-6 text-center">
-                                <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                                  <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                                  </svg>
-                                </div>
-                                <p className="text-sm text-stone-600 mb-4">No medicines in inventory. Add one to get started!</p>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleOpenAddMedicineModal(currentMedication.name);
-                                    setMedicineDropdownOpen(false);
-                                  }}
-                                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center gap-2"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                  </svg>
-                                  Add to Inventory
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                {inventoryMeds
-                                  .filter(med => {
-                                    const searchVal = (currentMedication.name || "").toLowerCase();
-                                    return !searchVal || med.itemName?.toLowerCase().includes(searchVal) || med.itemCode?.toLowerCase().includes(searchVal);
-                                  })
-                                  .map((m) => (
-                                  <button
-                                    type="button"
-                                    key={m.itemId || m.id}
-                                    onClick={() => {
-                                      setCurrentMedication(prev => ({ ...prev, name: m.itemName }));
-                                      setMedicineDropdownOpen(false);
-                                    }}
-                                    className="w-full text-left px-4 py-3 hover:bg-purple-50 transition border-b border-purple-50 last:border-b-0 focus:outline-none focus:bg-purple-100"
-                                  >
-                                    <div className="font-semibold text-stone-800">{m.itemName}{m.itemCode ? ` (${m.itemCode})` : ""}</div>
-                                    <div className="text-xs text-stone-500 flex gap-3 flex-wrap">
-                                      {m.category && <span>Category: {m.category}</span>}
-                                      {m.unit && <span>Unit: {m.unit}</span>}
-                                    </div>
-                                  </button>
-                                ))}
-                                {/* Add New Medicine Button at Bottom */}
-                                <div className="sticky bottom-0 bg-gradient-to-r from-slate-100 to-purple-100 p-3 border-t border-purple-200">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      handleOpenAddMedicineModal(currentMedication.name);
-                                      setMedicineDropdownOpen(false);
-                                    }}
-                                    className="w-full px-4 py-2 bg-white border-2 border-purple-300 text-purple-700 rounded-lg font-semibold hover:bg-purple-50 transition-all flex items-center justify-center gap-2"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                    </svg>
-                                    Add New Medicine
-                                  </button>
-                                </div>
-                              </>
-                            )}
-                          </div>
+                        </div>
+
+                        <div className="dpv-rx-field dpv-rx-instructions">
+                          <label className="text-stone-700"><span className="dpv-step bg-purple-600 text-white">7</span>Instructions</label>
+                          <input type="text" className="border-2 border-purple-300 bg-white focus:border-purple-500" value={currentMedication.instructions || ""} onChange={(e) => setCurrentMedication(prev => ({ ...prev, instructions: e.target.value }))} placeholder="Take with food" autoComplete="off" />
+                        </div>
+
+                        <button type="button" className="dpv-add-btn bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:brightness-105" onClick={handleAddMedication}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+                          {editingMedicationIndex !== null ? 'Update' : 'Add'}
+                        </button>
+                        {editingMedicationIndex !== null && (
+                          <button type="button" className="dpv-cancel-btn bg-gray-500 text-white border-gray-500" onClick={handleCancelEdit}>Cancel</button>
                         )}
                       </div>
-                    </div>
 
-                    {/* Medication Type */}
-                    <div className="min-w-0">
-                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Type <span className="text-red-500">*</span></label>
-                      <select
-                        value={currentMedication.medicationType || "Tablet"}
-                        onChange={(e) => setCurrentMedication(prev => ({ ...prev, medicationType: e.target.value }))}
-                        className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition bg-white"
-                      >
-                        <option value="Tablet">Tablet</option>
-                        <option value="Syrup">Syrup</option>
-                        <option value="Capsule">Capsule</option>
-                        <option value="Injection">Injection</option>
-                        <option value="Cream">Cream</option>
-                        <option value="Gel">Gel</option>
-                        <option value="Powder">Powder</option>
-                        <option value="Liquid">Liquid</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-
-                    {/* Dosage - optional */}
-                    <div className="min-w-0">
-                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Dosage</label>
-                      <input
-                        type="text"
-                        value={currentMedication.dosage || ""}
-                        onChange={(e) => setCurrentMedication(prev => ({ ...prev, dosage: e.target.value }))}
-                        placeholder="500mg"
-                        className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                        autoComplete="off"
-                      />
-                    </div>
-
-                    {/* Frequency */}
-                    <div className="min-w-0">
-                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Frequency <span className="text-red-500">*</span></label>
-                      <select
-                        value={currentMedication.frequency || ""}
-                        onChange={(e) => setCurrentMedication(prev => ({ ...prev, frequency: e.target.value }))}
-                        className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                      >
-                        <option value="">Select...</option>
-                        <option value="Once daily">Once daily</option>
-                        <option value="Twice daily">Twice daily</option>
-                        <option value="Three times daily">Three times daily</option>
-                        <option value="As needed">As needed</option>
-                      </select>
-                    </div>
-
-                    {/* Duration */}
-                    <div className="min-w-0">
-                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Duration <span className="text-red-500">*</span></label>
-                      <input
-                        type="text"
-                        value={currentMedication.duration || ""}
-                        onChange={(e) => setCurrentMedication(prev => ({ ...prev, duration: e.target.value }))}
-                        placeholder="7 days"
-                        className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                        autoComplete="off"
-                      />
-                    </div>
-
-                    {/* Meal Timing */}
-                    <div className="min-w-0">
-                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Meal Timing</label>
-                      <div className="flex items-center gap-3 h-[38px]">
-                        <label className="flex items-center gap-1 cursor-pointer">
-                          <input
-                            type="radio"
-                            checked={currentMedication.mealTiming === 'Before Food'}
-                            onChange={() => setCurrentMedication(prev => ({ ...prev, mealTiming: 'Before Food' }))}
-                            className="w-4 h-4 text-purple-600 shrink-0"
-                          />
-                          <span className="text-xs text-stone-700 whitespace-nowrap">Before</span>
-                        </label>
-                        <label className="flex items-center gap-1 cursor-pointer">
-                          <input
-                            type="radio"
-                            checked={currentMedication.mealTiming === 'After Food'}
-                            onChange={() => setCurrentMedication(prev => ({ ...prev, mealTiming: 'After Food' }))}
-                            className="w-4 h-4 text-purple-600 shrink-0"
-                          />
-                          <span className="text-xs text-stone-700 whitespace-nowrap">After</span>
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Instructions */}
-                    <div className="min-w-0">
-                      <label className="block text-xs font-bold text-stone-700 mb-2 truncate">Instructions</label>
-                      <input
-                        type="text"
-                        value={currentMedication.instructions || ""}
-                        onChange={(e) => setCurrentMedication(prev => ({ ...prev, instructions: e.target.value }))}
-                        placeholder="Take with food"
-                        className="w-full px-2 py-2 text-sm border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                        autoComplete="off"
-                      />
-                    </div>
-
-                    {/* Add / Cancel Buttons */}
-                    <div className="flex flex-col gap-2 min-w-0">
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={handleAddMedication}
-                        className="px-4 py-2 h-[38px] bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-bold shadow-lg hover:shadow-xl transition flex items-center justify-center gap-1 whitespace-nowrap text-sm"
-                      >
-                        <span>{editingMedicationIndex !== null ? '✏️' : '➕'}</span>
-                        <span>{editingMedicationIndex !== null ? 'Update' : 'Add'}</span>
-                      </motion.button>
-                      {editingMedicationIndex !== null && (
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={handleCancelEdit}
-                          className="px-4 py-1.5 bg-gray-500 text-white rounded-lg font-bold whitespace-nowrap text-xs"
-                        >
-                          Cancel
-                        </motion.button>
+                      {inlineMedications.length > 0 && (
+                        <div className="dpv-rx-list">
+                          {inlineMedications.map((med, index) => (
+                            <div key={index} className="dpv-rx-item bg-white border border-purple-200">
+                              <span className="dpv-pill bg-purple-100 text-purple-700">{index + 1}</span>
+                              <span className="dpv-med-name text-stone-800">{med.name}</span>
+                              <span className="dpv-med-sub text-stone-600">
+                                {med.medicationType || 'Tablet'} · {med.dosage || 'no dosage'} · {med.frequency} · {med.duration} · {med.mealTiming || 'Before Food'}
+                                {med.instructions ? ` · ${med.instructions}` : ''}
+                              </span>
+                              <span className="dpv-rx-actions">
+                                <button type="button" className="dpv-edit-med text-blue-600" onClick={() => handleEditMedication(index)} title="Edit">✏️</button>
+                                <button type="button" className="dpv-remove text-red-500" onClick={() => handleDeleteMedication(index)} title="Remove">✕</button>
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
-                  </div>
-                </div>
 
-                {/* Medications List */}
-                {inlineMedications.length > 0 && (
-                  <div className="space-y-3 mb-5">
-                    <h4 className="font-bold text-purple-900 flex items-center gap-2">
-                      <span>📋</span> Added Medications ({inlineMedications.length})
-                    </h4>
-                    <div className="grid grid-cols-1 gap-3">
-                      {inlineMedications.map((med, index) => (
-                        <motion.div
-                          key={index}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="bg-white rounded-xl p-4 border-2 border-purple-200 shadow-md"
-                        >
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                              <h5 className="font-bold text-stone-800 text-lg mb-2">{med.name} <span className="text-sm font-medium text-purple-700">({med.medicationType || 'Tablet'})</span></h5>
-                              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
-                                <div>
-                                  <span className="font-semibold text-stone-600">Dosage:</span>
-                                  <p className="text-stone-800">{med.dosage || 'N/A'}</p>
-                                </div>
-                                <div>
-                                  <span className="font-semibold text-stone-600">Frequency:</span>
-                                  <p className="text-stone-800">{med.frequency}</p>
-                                </div>
-                                <div>
-                                  <span className="font-semibold text-stone-600">Duration:</span>
-                                  <p className="text-stone-800">{med.duration}</p>
-                                </div>
-                                <div>
-                                  <span className="font-semibold text-stone-600">Meal Timing:</span>
-                                  <p className="text-stone-800">{med.mealTiming || 'Before Food'}</p>
-                                </div>
-                                {med.instructions && (
-                                  <div>
-                                    <span className="font-semibold text-stone-600">Instructions:</span>
-                                    <p className="text-stone-800">{med.instructions}</p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex gap-2 ml-4">
-                              <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => handleEditMedication(index)}
-                                className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
-                              >
-                                ✏️
-                              </motion.button>
-                              <motion.button
-                                whileHover={{ scale: 1.1 }}
-                                whileTap={{ scale: 0.9 }}
-                                onClick={() => handleDeleteMedication(index)}
-                                className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                              >
-                                🗑️
-                              </motion.button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-
-                    {/* Prescription Action Buttons - ALWAYS VISIBLE WHEN MEDICATIONS EXIST */}
-                    <div className="mt-6 bg-gradient-to-r from-blue-50 to-cyan-50 p-6 rounded-2xl border-2 border-blue-300 shadow-lg">
-                      <h3 className="text-sm font-bold text-slate-800 mb-4 text-center">💊 Prescription Actions</h3>
-                      <div className="grid grid-cols-3 gap-4">
-                        <motion.button
-                          whileHover={{ scale: 1.08 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={handlePrintPrescription}
-                          className="flex flex-col items-center justify-center gap-2 px-4 py-5 bg-white border-2 border-blue-400 text-blue-700 rounded-xl font-bold hover:bg-blue-50 hover:border-blue-600 hover:shadow-md transition text-sm"
-                        >
-                          <span className="text-3xl">🖨️</span>
-                          <span>Print</span>
-                        </motion.button>
-
-                        <motion.button
-                          whileHover={{ scale: 1.08 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => setShowEmailModal(true)}
-                          className="flex flex-col items-center justify-center gap-2 px-4 py-5 bg-white border-2 border-green-400 text-green-700 rounded-xl font-bold hover:bg-green-50 hover:border-green-600 hover:shadow-md transition text-sm"
-                        >
-                          <span className="text-3xl">📧</span>
-                          <span>Email</span>
-                        </motion.button>
-
-                        <motion.button
-                          whileHover={{ scale: 1.08 }}
-                          whileTap={{ scale: 0.95 }}
+                    {inlineMedications.length > 0 && (
+                      <div className="dpv-prescription-actions">
+                        <button type="button" className="dpv-btn bg-white border-2 border-blue-400 text-blue-700 hover:bg-blue-50" onClick={handlePrintPrescription}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+                          Print
+                        </button>
+                        <button type="button" className="dpv-btn bg-white border-2 border-green-400 text-green-700 hover:bg-green-50" onClick={() => setShowEmailModal(true)}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg>
+                          Email to patient
+                        </button>
+                        <button
+                          type="button"
+                          className="dpv-btn bg-white border-2 border-green-500 text-green-700 hover:bg-green-50"
                           onClick={() => {
                             const patientPhone = selectedAppointment.phone || selectedAppointment.patientPhone || '';
-                            if (!patientPhone) {
-                              alert('Patient phone number not available');
-                              return;
-                            }
+                            if (!patientPhone) { alert('Patient phone number not available'); return; }
                             const medicationsText = inlineMedications.map(m => `${m.name} (${m.medicationType || 'Tablet'})${m.dosage ? ' - ' + m.dosage : ''} - ${m.frequency} - ${m.duration} - ${m.mealTiming || 'Before Food'}`).join('\n');
                             const prescriptionText = `🏥 *Prescription from Dr. ${selectedAppointment.doctorName || 'Doctor'}*\n\n📋 *Medications:*\n${medicationsText}\n\n📝 *Diagnosis:* ${visitForm.diagnosis}\n\n*For queries, please contact the clinic.* ☺️`;
                             const encodedText = encodeURIComponent(prescriptionText);
-                            const whatsappURL = `https://api.whatsapp.com/send?phone=${patientPhone}&text=${encodedText}`;
-                            window.open(whatsappURL, '_blank');
+                            window.open(`https://api.whatsapp.com/send?phone=${patientPhone}&text=${encodedText}`, '_blank');
                           }}
-                          className="flex flex-col items-center justify-center gap-2 px-4 py-5 bg-white border-2 border-green-500 text-green-700 rounded-xl font-bold hover:bg-green-50 hover:border-green-700 hover:shadow-md transition text-sm"
                         >
-                          <span className="text-3xl">💬</span>
-                          <span>WhatsApp</span>
-                        </motion.button>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 20l1-5.4A8.5 8.5 0 1 1 21 11.5z" /></svg>
+                          WhatsApp
+                        </button>
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-          {/* Additional Notes - full width */}
-          <div className="mt-5 bg-gradient-to-br from-gray-50 to-slate-50 rounded-2xl p-7 border-2 border-gray-300 shadow-md">
-            <h3 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-3">
-              <span className="text-2xl">📝</span> Additional Notes
-            </h3>
-            <textarea
-              value={visitForm.notes}
-              onChange={(e) => handleVisitFormChange('notes', e.target.value)}
-              placeholder="Document any additional observations..."
-              rows={5}
-              className="w-full px-4 py-3 border-2 border-gray-400 rounded-xl focus:ring-2 focus:ring-gray-500 focus:border-gray-500 transition resize-none text-sm font-medium text-stone-800 bg-white"
-            />
+                  <div className="dpv-card bg-gradient-to-br from-gray-50 to-slate-50 border-2 border-gray-300">
+                    <h3 className="dpv-card-title dpv-serif text-gray-900">
+                      <span className="dpv-icon-badge bg-gray-200"><svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" className="stroke-gray-700"><path d="M4 21l4-1 11-11a2 2 0 0 0-3-3L5 17l-1 4z" /></svg></span>
+                      Additional Notes
+                    </h3>
+                    <textarea
+                      className="border-2 border-gray-400 bg-white focus:border-gray-500 text-sm font-medium text-stone-800"
+                      value={visitForm.notes}
+                      onChange={(e) => handleVisitFormChange('notes', e.target.value)}
+                      placeholder="Document any additional observations..."
+                      rows={5}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* VISIT HISTORY PANEL */}
+              {activeSectionTab === 'history' && (
+                <div className="dpv-panel">
+                  {historyVisits.length === 0 ? (
+                    <p className="dpv-empty-note text-stone-500">No previous visits recorded for this appointment yet.</p>
+                  ) : (
+                    historyVisits.map((v, idx) => {
+                      const vId = getVisitId(v);
+                      const isActive = vId !== null && vId === activeVisitId;
+                      const rxCount = Array.isArray(v.prescriptions) ? v.prescriptions.length : 0;
+                      return (
+                        <details key={vId ?? idx} className="dpv-accordion bg-white border border-slate-200" open={idx === 0}>
+                          <summary className="text-stone-800">
+                            {v.visitDate ? new Date(v.visitDate).toLocaleDateString() : 'Unknown date'}
+                            <span className="dpv-badge-type bg-purple-600 text-white">{isActive ? 'Currently loaded' : `${rxCount} Rx`}</span>
+                          </summary>
+                          <div className="dpv-acc-body border-t border-dashed border-slate-200 text-stone-600">
+                            <p><b className="text-stone-800">Complaint:</b> {v.chiefComplaint || v.reasonForVisit || '—'}</p>
+                            <p><b className="text-stone-800">Diagnosis:</b> {v.diagnosis || v.diagnoses || '—'}</p>
+                            <p><b className="text-stone-800">Treatment:</b> {v.treatmentProvided || v.treatments || '—'}</p>
+                            <p><b className="text-stone-800">Prescribed:</b> {rxCount > 0
+                              ? v.prescriptions.map(p => `${p.medicineName || p.name}${p.dosage ? ' ' + p.dosage : ''}`).join(', ')
+                              : 'None'}</p>
+                            {!isActive && (
+                              <button type="button" className="dpv-acc-edit bg-indigo-100 text-indigo-700 hover:bg-indigo-200" onClick={() => editVisitFromHistory(v)}>✏️ Edit this visit</button>
+                            )}
+                          </div>
+                        </details>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </main>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 px-8 py-5 rounded-b-3xl border-t-2 border-purple-200 flex justify-between items-center gap-4 flex-wrap flex-shrink-0">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={onClose}
-            className="px-6 py-2.5 bg-white border-2 border-stone-300 text-stone-700 hover:border-stone-500 hover:bg-stone-50 font-semibold transition-all rounded-lg"
-          >
-            ✕ Close
-          </motion.button>
-          <div className="flex gap-3">
-            <motion.button
-              whileHover={{ scale: 1.05, y: -2 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleSaveVisit}
-              disabled={savingVisit || !visitForm.chiefComplaint || !visitForm.diagnosis || !visitForm.treatmentProvided}
-              className={`px-8 py-2.5 rounded-lg font-bold text-white transition shadow-lg flex items-center gap-2 ${
-                savingVisit || !visitForm.chiefComplaint || !visitForm.diagnosis || !visitForm.treatmentProvided
-                  ? 'bg-gray-300 cursor-not-allowed'
-                  : isExistingVisit
-                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
-                  : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
-              }`}
-            >
-              <span>{isExistingVisit ? '🔄' : '💾'}</span>
-              <span>{savingVisit ? 'Processing...' : isExistingVisit ? 'Update Visit' : 'Save Visit'}</span>
-            </motion.button>
+          {/* Footer */}
+          <div className="dpv-footer bg-gradient-to-r from-indigo-50 to-purple-50 border-t-2 border-purple-200">
+            <div className="dpv-footer-left">
+              <button type="button" className="dpv-btn bg-white border-2 border-stone-300 text-stone-700 hover:border-stone-500 hover:bg-stone-50" onClick={onClose}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                Close
+              </button>
+            </div>
+            <div className="dpv-footer-right">
+              <button
+                type="button"
+                className={`dpv-btn text-white shadow-lg ${
+                  savingVisit || requiredFieldsMissing
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : isExistingVisit
+                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
+                    : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+                }`}
+                onClick={handleSaveVisit}
+                disabled={savingVisit || requiredFieldsMissing}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                {savingVisit ? 'Processing...' : isExistingVisit ? 'Update Visit' : 'Save Visit'}
+              </button>
+            </div>
           </div>
         </div>
       </motion.div>
