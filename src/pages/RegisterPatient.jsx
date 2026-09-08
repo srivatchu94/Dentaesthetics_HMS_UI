@@ -5,6 +5,9 @@ import { createPatient } from "../services/patientService";
 import { getClinicsByEnterpriseId } from "../services/doctorService";
 import { getSelectedAccess } from "../services/tokenManager";
 
+// Insurance isn't needed for now — flip this back to true to bring the tab back.
+const SHOW_INSURANCE_TAB = false;
+
 // Reusable InputField component with validation
 const InputField = ({ label, name, value, onChange, onKeyDown = null, type = "text", required = false, placeholder = "", options = null, disabled = false, error = "", onBlur = null }) => (
     <div className="mb-2">
@@ -122,14 +125,18 @@ const ChronicConditionsDropdown = ({ value, onChange }) => {
         const updated = current.includes(condition)
             ? current.filter(c => c !== condition)
             : [...current, condition];
-        const other = hasOther && otherValue ? `Other:${otherValue}` : '';
+        // Preserve the Other marker even while its text is still empty —
+        // otherwise toggling any other checkbox silently unchecks "Other".
+        const other = hasOther ? `Other:${otherValue}` : '';
         onChange([...updated, other].filter(Boolean).join(','));
     };
 
     const handleOtherChange = (text) => {
         const current = selected.filter(c => !c.startsWith('Other:'));
-        const other = text ? `Other:${text}` : '';
-        onChange([...current, other].filter(Boolean).join(','));
+        // Always keep the "Other:" marker (even with empty text) so checking
+        // the box — or clearing the textbox while typing — doesn't make it
+        // disappear again.
+        onChange([...current, `Other:${text}`].join(','));
     };
 
     return (
@@ -670,7 +677,7 @@ export default function RegisterPatient() {
                             { key: "contact", label: "Contact", icon: "📞" },
                             { key: "medical", label: "Medical Info", icon: "🏥" },
                             { key: "vitals", label: "Patient Vitals", icon: "💉" },
-                            { key: "insurance", label: "Insurance", icon: "💳" }
+                            ...(SHOW_INSURANCE_TAB ? [{ key: "insurance", label: "Insurance", icon: "💳" }] : [])
                         ].map((tab) => (
                             <motion.button
                                 key={tab.key}
@@ -1135,7 +1142,7 @@ export default function RegisterPatient() {
                                 )}
 
                                 {/* Insurance Tab */}
-                                {registerActiveTab === "insurance" && (
+                                {SHOW_INSURANCE_TAB && registerActiveTab === "insurance" && (
                                     <motion.div
                                         key="insurance-tab"
                                         initial={{ opacity: 0, x: 20 }}
@@ -1278,7 +1285,7 @@ export default function RegisterPatient() {
                                     whileTap={{ scale: 0.95 }}
                                     type="button"
                                     onClick={() => {
-                                        const tabs = ["patient", "contact", "medical", "vitals", "insurance"];
+                                        const tabs = ["patient", "contact", "medical", "vitals", ...(SHOW_INSURANCE_TAB ? ["insurance"] : [])];
                                         const currentIndex = tabs.indexOf(registerActiveTab);
                                         if (currentIndex > 0) setRegisterActiveTab(tabs[currentIndex - 1]);
                                     }}
@@ -1287,13 +1294,13 @@ export default function RegisterPatient() {
                                     ← Previous
                                 </motion.button>
                             )}
-                            {registerActiveTab !== "insurance" && (
+                            {registerActiveTab !== (SHOW_INSURANCE_TAB ? "insurance" : "vitals") && (
                                 <motion.button
                                     whileHover={{ scale: 1.05 }}
                                     whileTap={{ scale: 0.95 }}
                                     type="button"
                                     onClick={() => {
-                                        const tabs = ["patient", "contact", "medical", "vitals", "insurance"];
+                                        const tabs = ["patient", "contact", "medical", "vitals", ...(SHOW_INSURANCE_TAB ? ["insurance"] : [])];
                                         const currentIndex = tabs.indexOf(registerActiveTab);
                                         if (currentIndex < tabs.length - 1) setRegisterActiveTab(tabs[currentIndex + 1]);
                                     }}
