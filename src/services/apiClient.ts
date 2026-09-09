@@ -185,7 +185,13 @@ export async function refreshTokenInterceptor(): Promise<boolean> {
   }
 }
 
-export async function request<T>(path: string, options: RequestInit = {}, retryCount = 0): Promise<T> {
+// Extra, non-fetch option: status codes a caller expects and doesn't want
+// logged as an error (e.g. a 404 that just means "nothing here yet"). The
+// request still rejects as usual — this only quiets the console/diagnostic
+// noise for that specific, known-benign status.
+type RequestOptions = RequestInit & { silentStatuses?: number[] };
+
+export async function request<T>(path: string, options: RequestOptions = {}, retryCount = 0): Promise<T> {
   // Get token from localStorage
   let token = getAuthToken();
   const selectedAccess = getSelectedAccess();
@@ -362,21 +368,23 @@ export async function request<T>(path: string, options: RequestInit = {}, retryC
       }
     }
     
-    console.error(`❌ API ERROR: ${options.method || 'GET'} ${path} -> ${res.status} ${res.statusText} | ct=${contentType} | body: ${snippet}`);
-    recordBrowserApiLog("error", `HTTP ${res.status} ${res.statusText} for ${path}`, {
-      method: options.method || "GET",
-      url: fullUrl,
-      status: res.status,
-      statusText: res.statusText,
-      contentType,
-      bodySnippet: snippet,
-      requestHeaders: {
-        "Content-Type": headers["Content-Type"],
-        "X-Enterprise-Id": headers["X-Enterprise-Id"] || "[missing]",
-        "X-Clinic-Id": headers["X-Clinic-Id"] || "[missing]"
-      }
-    });
-    
+    if (!options.silentStatuses?.includes(res.status)) {
+      console.error(`❌ API ERROR: ${options.method || 'GET'} ${path} -> ${res.status} ${res.statusText} | ct=${contentType} | body: ${snippet}`);
+      recordBrowserApiLog("error", `HTTP ${res.status} ${res.statusText} for ${path}`, {
+        method: options.method || "GET",
+        url: fullUrl,
+        status: res.status,
+        statusText: res.statusText,
+        contentType,
+        bodySnippet: snippet,
+        requestHeaders: {
+          "Content-Type": headers["Content-Type"],
+          "X-Enterprise-Id": headers["X-Enterprise-Id"] || "[missing]",
+          "X-Clinic-Id": headers["X-Clinic-Id"] || "[missing]"
+        }
+      });
+    }
+
     const error: any = new Error(`HTTP ${res.status} ${res.statusText} - ct=${contentType} body=${snippet}`);
     error.status = res.status;
     error.response = { status: res.status, statusText: res.statusText, data: text };

@@ -95,9 +95,15 @@ export function listClinicInventories(enterpriseId?: number, clinicId?: number):
     return Promise.resolve([]);
   }
 
-  return request<any>(url)
+  // A 404 here just means "nothing recorded yet" for that clinic/enterprise —
+  // a normal empty state, not a failure worth breaking the page load over.
+  return request<any>(url, { silentStatuses: [404] })
     .then(data => unwrapCollection<ClinicInventory>(data))
-    .then(items => (items || []).map(normalizeClinicInventoryFromApi));
+    .then(items => (items || []).map(normalizeClinicInventoryFromApi))
+    .catch(error => {
+      if (error?.status === 404) return [];
+      throw error;
+    });
 }
 
 export function getClinicInventory(inventoryId: number): Promise<ClinicInventory> {
@@ -179,13 +185,18 @@ export function saveClinicInventoryBatch(enterpriseId: number, clinicId: number,
 
 export function getClinicInventoryByClinicId(clinicId: number): Promise<ClinicInventory[]> {
   console.log('📞 API CALL: GetClinicInventoryByClinicId', { clinicId });
-  return request<any>(`/Inventory/GetByClinic/${clinicId}`)
+  // The backend returns 404 for a clinic with no inventory yet — that's a
+  // normal empty state, not a failure, so it's silenced and resolved to [].
+  return request<any>(`/Inventory/GetByClinic/${clinicId}`, { silentStatuses: [404] })
     .then(data => {
       const normalized = unwrapCollection<ClinicInventory>(data).map(normalizeClinicInventoryFromApi);
       console.log('✅ Clinic inventory fetched:', normalized);
       return normalized;
     })
     .catch(error => {
+      if (error?.status === 404) {
+        return [];
+      }
       console.error('❌ Failed to fetch clinic inventory:', error);
       throw error;
     });
