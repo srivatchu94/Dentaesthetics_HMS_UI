@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { NavLink, useNavigate, Link } from "react-router-dom";
+import { NavLink, useNavigate, useLocation, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { registerUser, loginUser, getUserByUsername, logoutUser, getUserData, getUserAccess, setSelectedAccess, getSelectedAccess, getAuthToken, checkTokenExpired, manualRefreshToken } from "../services/authService";
 import { listDoctorProfiles } from "../services/doctorService";
@@ -285,6 +285,12 @@ const SEARCH_DATA = [
 ];
 
 export default function Header(){
+  const location = useLocation();
+  // While the patient registration form is on screen, don't let the background
+  // notification poll (appointments + inventory) fire alongside it — keeps the
+  // network tab to exactly the register call so it's obvious if that's the one
+  // that fails.
+  const isOnRegisterPatientPage = location.pathname === "/patients/register";
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try { const t = getAuthToken(); return !!(t && !checkTokenExpired()); } catch { return false; }
   });
@@ -424,7 +430,7 @@ export default function Header(){
   useEffect(() => {
     const selectedNotificationScope = buildNotificationScopeKey(selectedAccess);
 
-    if (!isLoggedIn || !selectedAccess?.clinicId) {
+    if (!isLoggedIn || !selectedAccess?.clinicId || isOnRegisterPatientPage) {
       setNotifications([]);
       return undefined;
     }
@@ -493,7 +499,7 @@ export default function Header(){
       window.removeEventListener("focus", handleFocusRefresh);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isLoggedIn, selectedAccess?.enterpriseId, selectedAccess?.clinicId]);
+  }, [isLoggedIn, selectedAccess?.enterpriseId, selectedAccess?.clinicId, isOnRegisterPatientPage]);
 
   const filteredSearch = SEARCH_DATA.filter(item =>
     item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
