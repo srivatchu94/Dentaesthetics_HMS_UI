@@ -182,7 +182,9 @@ export default function Clinics(){
   const [enterpriseSuccessMessage, setEnterpriseSuccessMessage] = useState("");
   const [showClinicSuccessModal, setShowClinicSuccessModal] = useState(false);
   const [clinicSuccessMessage, setClinicSuccessMessage] = useState("");
-  
+  // Centered success modal shown after a clinic is updated/deleted (replaces browser alert())
+  const [clinicActionSuccess, setClinicActionSuccess] = useState(null); // { title, message, icon } | null
+
   // View Clinics Modal states
   const [showListClinicsModal, setShowListClinicsModal] = useState(false);
   const [listClinicsSearchResults, setListClinicsSearchResults] = useState([]);
@@ -4758,6 +4760,52 @@ export default function Clinics(){
         )}
       </AnimatePresence>
 
+      {/* Clinic Update / Delete Success Modal (centered, replaces browser alert) */}
+      <AnimatePresence>
+        {clinicActionSuccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4"
+            onClick={() => setClinicActionSuccess(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.6, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.6, opacity: 0, y: 20 }}
+              transition={{ type: "spring", damping: 14 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 p-8 text-white text-center">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.15, type: "spring", damping: 10 }}
+                  className="text-7xl mb-4"
+                >
+                  {clinicActionSuccess.icon}
+                </motion.div>
+                <h2 className="text-3xl font-bold mb-2">{clinicActionSuccess.title}</h2>
+                <p className="text-lg text-white/95">{clinicActionSuccess.message}</p>
+              </div>
+              <div className="p-6 bg-white">
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  autoFocus
+                  onClick={() => setClinicActionSuccess(null)}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold text-lg shadow-lg transition-all"
+                >
+                  OK
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* View Clinics Modal */}
       <AnimatePresence>
         {showListClinicsModal && (
@@ -4973,7 +5021,12 @@ export default function Clinics(){
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => {
-                    setEditClinicForm({ ...selectedClinicView });
+                    // The API stores the phone as "+91XXXXXXXXXX", but the edit box only
+                    // accepts 10 digits — load just the 10 digits so it can be edited.
+                    setEditClinicForm({
+                      ...selectedClinicView,
+                      contactPhone: normalizeClinicPhoneDigits(selectedClinicView.contactPhone)
+                    });
                     setEditingClinicId(selectedClinicView.clinicId);
                     setShowClinicDetailsModal(false);
                     setShowEditClinicModal(true);
@@ -5225,9 +5278,40 @@ export default function Clinics(){
                       return;
                     }
 
+                    if (!isValidClinicPhone(editClinicForm.contactPhone)) {
+                      setEditClinicError("Phone must be exactly 10 digits");
+                      return;
+                    }
+
                     try {
                       setEditClinicLoading(true);
                       setEditClinicError("");
+
+                      // Send ONLY the real ClinicInfo columns. The GET response also carries the
+                      // backend's convenience aliases (clinicAddress, clinicPhone, clinicCity,
+                      // clinicEmail, operatingHours). Their setters write straight into
+                      // AddressLine1 / ContactPhone / City / ContactEmail / OpeningHours, so
+                      // echoing the stale alias values back overwrote the edited fields.
+                      const clinicPayload = {
+                        clinicId: editingClinicId,
+                        enterpriseId: editClinicForm.enterpriseId,
+                        clinicName: editClinicForm.clinicName?.trim(),
+                        clinicCode: editClinicForm.clinicCode?.trim(),
+                        contactEmail: editClinicForm.contactEmail?.trim(),
+                        contactPhone: addClinicCountryCode(editClinicForm.contactPhone),
+                        addressLine1: editClinicForm.addressLine1?.trim(),
+                        addressLine2: editClinicForm.addressLine2?.trim() || "",
+                        city: editClinicForm.city?.trim(),
+                        state: editClinicForm.state?.trim(),
+                        country: editClinicForm.country?.trim() || "",
+                        postalCode: editClinicForm.postalCode || "",
+                        openingHours: editClinicForm.openingHours || "",
+                        isActive: editClinicForm.isActive,
+                        createdAt: editClinicForm.createdAt,
+                        updatedAt: new Date().toISOString(),
+                        createdBy: editClinicForm.createdBy,
+                        updatedBy: editClinicForm.updatedBy
+                      };
 
                       const response = await fetch(`${API_BASE_URL}/Clinic/${editingClinicId}`, {
                         method: "PUT",
@@ -5235,15 +5319,40 @@ export default function Clinics(){
                           "Content-Type": "application/json",
                           "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
                         },
-                        body: JSON.stringify(editClinicForm)
+                        body: JSON.stringify(clinicPayload)
                       });
 
                       if (response.ok) {
                         setShowEditClinicModal(false);
-                        // Refresh the clinics list
-                        setListClinicsSearchResults([]);
-                        setListClinicsFilters({ ...listClinicsFilters, clinicId: 0 });
-                        alert("✅ Clinic updated successfully!");
+                        setClinicActionSuccess({
+                          icon: "🏥",
+                          title: "Clinic Updated!",
+                          message: `${clinicPayload.clinicName} has been updated successfully.`
+                        });
+
+                        // Reload the list from the server so the updated tile shows up
+                        // (previously the list was cleared and never refilled).
+                        const enterpriseIdForReload = clinicPayload.enterpriseId || getSelectedAccess()?.enterpriseId;
+                        if (enterpriseIdForReload) {
+                          try {
+                            const reloadResponse = await fetch(`${API_BASE_URL}/Clinic/GetClinicByID?id=${enterpriseIdForReload}`, {
+                              method: "GET",
+                              headers: {
+                                "Content-Type": "application/json",
+                                "Authorization": `Bearer ${localStorage.getItem('accessToken')}`
+                              }
+                            });
+                            if (reloadResponse.ok) {
+                              const reloaded = await reloadResponse.json();
+                              const reloadedList = Array.isArray(reloaded) ? reloaded : [reloaded];
+                              setListClinicsSearchResults(reloadedList);
+                              const fresh = reloadedList.find(c => c.clinicId === editingClinicId);
+                              if (fresh) setSelectedClinicView(fresh);
+                            }
+                          } catch (reloadError) {
+                            console.error("Error reloading clinics after update:", reloadError);
+                          }
+                        }
                       } else {
                         const errorData = await response.text();
                         setEditClinicError(`Failed to update clinic: ${errorData || response.statusText}`);
@@ -5334,7 +5443,11 @@ export default function Clinics(){
 
                       if (response.ok) {
                         setShowDeleteClinicConfirm(false);
-                        alert("✅ Clinic deleted successfully!");
+                        setClinicActionSuccess({
+                          icon: "🗑️",
+                          title: "Clinic Deleted",
+                          message: `${clinicToDelete.clinicName} has been deleted.`
+                        });
                         
                         // Reload clinics list from login enterprise
                         const selectedAccess = getSelectedAccess();
