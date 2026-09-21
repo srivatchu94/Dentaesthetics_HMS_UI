@@ -1,4 +1,5 @@
 import React from "react";
+import { getDoctorSignature } from "../config/doctorSignatures";
 
 const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clinicInfo }) => {
   const formatDateTime = (dateString) => {
@@ -52,6 +53,8 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
     doctorInfo?.RegistrationNumber ||
     "27909";
   
+  const signature = getDoctorSignature(doctorInfo, regNo);
+
   const clinicName = clinicInfo?.clinicName || "Dental Clinic";
   const clinicAddress = [clinicInfo?.clinicAddress || clinicInfo?.address, clinicInfo?.clinicCity].filter(Boolean).join(", ");
   const clinicPhone = clinicInfo?.clinicPhone || clinicInfo?.phone || "";
@@ -164,9 +167,10 @@ const PrescriptionEmailTemplate = ({ prescription, patientInfo, doctorInfo, clin
       </table>` : `<p style="font-size:12px;color:#9ca3af;font-style:italic;">No medications prescribed.</p>`}
     </div>
 
-    <!-- SIGNATURE SECTION (ONLY doctor name here) -->
+    <!-- SIGNATURE SECTION -->
     <div style="padding:20px 24px;border-top:1px solid #e5e7eb;text-align:right;">
-      <div style="font-size:10px;color:#6b7280;margin-bottom:4px;">Electronically signed by:</div>
+      <div style="font-size:10px;color:#6b7280;margin-bottom:2px;">Electronically signed by:</div>
+      ${signature ? `<div style="text-align:right;line-height:0;margin-bottom:8px;"><img src="${signature}" alt="Signature of Dr. ${doctorName}" height="56" style="height:56px;width:auto;" /></div>` : ""}
       <div style="display:inline-block;border-top:2px solid #9ca3af;padding-top:8px;text-align:right;">
         <div style="font-size:12px;font-weight:700;color:#1f2937;">Dr. ${doctorName}</div>
         <div style="font-size:10px;color:#6b7280;">ID: ${regNo}</div>

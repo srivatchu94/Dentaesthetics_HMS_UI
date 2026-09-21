@@ -1,5 +1,6 @@
 import React from "react";
 import dantaLogo from "../assets/danta-logo.jpg";
+import { getDoctorSignature } from "../config/doctorSignatures";
 
 const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorInfo, clinicInfo }, ref) => {
   React.useEffect(() => {
@@ -19,7 +20,8 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
           padding: 0;
           background: white;
         }
-        .prescription-print-container img.logo-color {
+        .prescription-print-container img.logo-color,
+        .prescription-print-container img.signature-img {
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
           color-adjust: exact;
@@ -91,6 +93,8 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
     doctorInfo?.RegistrationNumber ||
     "27909";
   
+  const signature = getDoctorSignature(doctorInfo, regNo);
+
   const clinicName = clinicInfo?.clinicName || "Dental Clinic";
   const clinicAddress = [clinicInfo?.clinicAddress || clinicInfo?.address, clinicInfo?.clinicCity].filter(Boolean).join(", ");
   const clinicPhone = clinicInfo?.clinicPhone || clinicInfo?.phone || "";
@@ -212,12 +216,23 @@ const PrescriptionPrint = React.forwardRef(({ prescription, patientInfo, doctorI
         )}
       </div>
 
-      {/* ── SIGNATURE SECTION (ONLY doctor name here) ── */}
+      {/* ── SIGNATURE SECTION ── */}
       <div className="px-6 py-6 border-t border-slate-200 text-right">
-        <p className="text-xs text-slate-600 print:text-black mb-2">Electronically signed by:</p>
-        <div className="border-t-2 border-slate-400 pt-3 inline-block min-w-64 print:border-black">
-          <p className="text-sm font-bold text-slate-800 print:text-black">Dr. {doctorName}</p>
-          <p className="text-xs text-slate-600 print:text-black">ID: {regNo}</p>
+        <p className="text-xs text-slate-600 print:text-black mb-1">Electronically signed by:</p>
+        <div className="inline-block min-w-64 text-right">
+          {signature && (
+            // Sits fully ABOVE the rule (with a small gap), sized so it doesn't
+            // dominate the block.
+            <img
+              src={signature}
+              alt={`Signature of Dr. ${doctorName}`}
+              className="signature-img block ml-auto h-14 w-auto mb-2"
+            />
+          )}
+          <div className="border-t-2 border-slate-400 pt-3 print:border-black">
+            <p className="text-sm font-bold text-slate-800 print:text-black">Dr. {doctorName}</p>
+            <p className="text-xs text-slate-600 print:text-black">ID: {regNo}</p>
+          </div>
         </div>
       </div>
 

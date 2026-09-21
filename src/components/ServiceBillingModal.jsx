@@ -24,6 +24,7 @@ import clinicLogo from "../assets/dhantha-logo-new.svg";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { request } from "../services/apiClient";
+import { getDoctorSignature } from "../config/doctorSignatures";
 import { useNavigate } from "react-router-dom";
 
 export function ServiceBillingModal({ show, onClose, appointmentId, appointmentDetails, invoiceNumber: passedInvoiceNumber, onSuccess, initialMode = "edit" }) {
@@ -104,6 +105,9 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
 
   // Fetch doctor details from SearchDoctors endpoint
   const loadDoctorData = async (doctorId, enterpriseId) => {
+    // Drop the previous appointment's doctor first so their name/signature can
+    // never show on this appointment's invoice while the lookup is in flight.
+    setDoctorInfo(null);
     try {
       const params = {};
       if (doctorId) params.doctorId = doctorId;
@@ -321,6 +325,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
     const { doctorName: fbName, registrationNumber: fbReg } = getClinicIdAndDoctorInfo();
     const doctorName = doctorInfo ? `${doctorInfo.firstName || ""} ${doctorInfo.lastName || ""}`.trim() : fbName;
     const registrationNumber = doctorInfo?.licenseNumber || fbReg;
+    const signature = getDoctorSignature(doctorInfo, registrationNumber);
     const chargesHTML = [
       ...(consultationFee !== null ? [{ name: "Consultation Fee", amount: consultationFee }] : []),
       ...otherCharges.filter(c => c.name && c.amount)
@@ -412,12 +417,16 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
 
     <div class="content">
       <div class="doctor-sig">
-        <p style="margin: 0; color: #1e40af; font-weight: 700; font-size: 14px;">
-          Dr. ${doctorName}
-        </p>
-        <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 12px;">
-          ${registrationNumber}
-        </p>
+        <p style="margin: 0 0 4px 0; color: #6b7280; font-size: 11px;">Electronically signed by</p>
+        ${signature ? `<img src="${signature}" alt="Signature of Dr. ${doctorName}" height="52" style="height:52px;width:auto;display:block;margin:0 0 8px 0;" />` : ""}
+        <div style="border-top: 2px dashed #94a3b8; padding-top: 8px;">
+          <p style="margin: 0; color: #1e40af; font-weight: 700; font-size: 14px;">
+            Dr. ${doctorName}
+          </p>
+          <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 12px;">
+            ${registrationNumber}
+          </p>
+        </div>
       </div>
     </div>
 
@@ -721,6 +730,7 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
     ? `${doctorInfo.firstName || ""} ${doctorInfo.lastName || ""}`.trim()
     : fbDoctorName;
   const registrationNumber = doctorInfo?.licenseNumber || fbReg;
+  const doctorSignature = getDoctorSignature(doctorInfo, registrationNumber);
   const statusColor = status === "Paid" ? "text-green-600" : status === "Partial" ? "text-amber-600" : "text-red-600";
   const statusBg = status === "Paid" ? "bg-green-50" : status === "Partial" ? "bg-amber-50" : "bg-red-50";
   const statusBorder = status === "Paid" ? "border-green-300" : status === "Partial" ? "border-amber-300" : "border-red-300";
@@ -1078,10 +1088,20 @@ export function ServiceBillingModal({ show, onClose, appointmentId, appointmentD
                       {numberToWords(Math.round(totalAmount))}
                     </p>
                     <div className="flex justify-end">
-                      <div className="text-right border-t-2 border-dashed border-slate-300 pt-3 min-w-48 print:border-black">
-                        <p className="text-xs text-slate-400 mb-0.5 print:text-black">Electronically signed by</p>
-                        <p className="text-sm font-black text-slate-800 print:text-black">Dr. {doctorName}</p>
-                        {registrationNumber && <p className="text-xs text-slate-500 print:text-black">{registrationNumber}</p>}
+                      <div className="text-right min-w-48">
+                        <p className="text-xs text-slate-400 mb-1 print:text-black">Electronically signed by</p>
+                        {doctorSignature && (
+                          // Sits fully ABOVE the dashed rule; kept small so it doesn't dominate
+                          <img
+                            src={doctorSignature}
+                            alt={`Signature of Dr. ${doctorName}`}
+                            className="block ml-auto h-12 w-auto mb-2 print:[print-color-adjust:exact]"
+                          />
+                        )}
+                        <div className="border-t-2 border-dashed border-slate-300 pt-2 print:border-black">
+                          <p className="text-sm font-black text-slate-800 print:text-black">Dr. {doctorName}</p>
+                          {registrationNumber && <p className="text-xs text-slate-500 print:text-black">{registrationNumber}</p>}
+                        </div>
                       </div>
                     </div>
                   </div>
