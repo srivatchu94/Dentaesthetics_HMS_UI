@@ -6602,7 +6602,6 @@ Reg. No: ${CURRENT_DOCTOR.registrationNumber}
                         type="date"
                         required
                         disabled={!searchedPatient && !bookingWithoutRegistration}
-                        min={new Date().toISOString().split('T')[0]}
                         value={appointmentForm.date}
                         onChange={(e) => {
                           const appointmentDate = e.target.value;

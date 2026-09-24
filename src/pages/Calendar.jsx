@@ -979,7 +979,7 @@ export default function Calendar() {
                       </div>
                       <div className="p-5 grid grid-cols-3 gap-4">
                         <div>
-                          <FancyDatePicker label="Date" required value={bookingForm.date} onChange={(date) => setBookingForm({ ...bookingForm, date })} minDate={new Date().toISOString().split('T')[0]} />
+                          <FancyDatePicker label="Date" required value={bookingForm.date} onChange={(date) => setBookingForm({ ...bookingForm, date })} />
                         </div>
                         <div>
                           <label className="block text-sm font-semibold text-slate-700 mb-2">Start Time *</label>
