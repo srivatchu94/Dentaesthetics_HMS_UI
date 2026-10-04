@@ -307,7 +307,26 @@ export async function request<T>(path: string, options: RequestOptions = {}, ret
   } else {
     console.error('❌ NO SELECTED ACCESS - Enterprise/Clinic/Role headers will NOT be sent - User cannot access API');
   }
-  
+
+  // Every endpoint except the auth ones is protected by the backend's
+  // [ValidateAccess] filter, which requires X-Enterprise-Id / X-Clinic-Id /
+  // X-Role-Ids. Without a selectedAccess with roleIds, the backend rejects
+  // with a generic "header not found" error that gives the user no idea what
+  // to do. Fail fast on the client with an actionable message instead of
+  // wasting a round trip on a request that was always going to be rejected.
+  const isAuthEndpoint = path.startsWith('/Authentication');
+  if (!isAuthEndpoint && (!selectedAccess || !selectedAccess.roleIds || selectedAccess.roleIds.length === 0)) {
+    const err: any = new Error(
+      !selectedAccess
+        ? 'Your session is missing clinic/role access info. Please log out and log back in. If this keeps happening, contact your administrator to confirm your account has a role assigned for this clinic.'
+        : 'Your account has no role assigned for this clinic, so the server will reject this request. Please contact your administrator to assign a role, then log out and log back in.'
+    );
+    err.code = 'MISSING_ACCESS_HEADERS';
+    console.error('❌ Blocking request before it reaches the backend — missing role/access headers:', { path, selectedAccess });
+    recordBrowserApiLog("error", `Blocked ${options.method || 'GET'} ${path} — no role/access headers`, { url: `${BASE_URL}${path}`, selectedAccess });
+    throw err;
+  }
+
   const fullUrl = `${BASE_URL}${path}`;
   console.log(`📞 API CALL: ${options.method || 'GET'} ${fullUrl}`);
   console.log(`📋 REQUEST HEADERS:`, {
