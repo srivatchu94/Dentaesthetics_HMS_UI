@@ -251,15 +251,6 @@ const FullEditAppointmentModal = ({
       if (value && !emailRegex.test(value)) {
         error = 'Please enter a valid email address';
       }
-    } else if (field === 'appointmentDate') {
-      if (value) {
-        const selected = new Date(value);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (selected < today) {
-          error = 'Appointment date cannot be in the past';
-        }
-      }
     } else if (field === 'billableAmount') {
       if (value !== '' && parseFloat(value) < 0) {
         error = 'Billable amount cannot be negative';
@@ -571,10 +562,9 @@ const FullEditAppointmentModal = ({
                           className="w-full px-4 py-3 border-2 border-green-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 transition"
                         >
                           <option value="Scheduled">Scheduled</option>
-                          <option value="Confirmed">Confirmed</option>
-                          <option value="Cancelled">Cancelled</option>
-                          <option value="Completed">Completed</option>
-                          <option value="No-Show">No-Show</option>
+                          <option value="Waiting">Waiting</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Done">Done</option>
                         </select>
                       </div>
                       <div>
@@ -7063,7 +7053,7 @@ export default function Doctors() {
                               : 'bg-white text-stone-700 border-2 border-violet-200 hover:border-violet-400 shadow-sm'
                           }`}
                         >
-                          <span>{status === 'Scheduled' ? '📅' : status === 'Confirmed' ? '✅' : status === 'Cancelled' ? '❌' : status === 'Pending' ? '⏳' : '📌'}</span>
+                          <span>{status === 'Scheduled' ? '📅' : status === 'Waiting' ? '⏳' : status === 'In Progress' ? '🩺' : status === 'Done' ? '✅' : status === 'Confirmed' ? '✅' : status === 'Cancelled' ? '❌' : status === 'Pending' ? '⏳' : '📌'}</span>
                           <span>{status}</span>
                           {status !== 'All' && (
                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
@@ -7115,7 +7105,7 @@ export default function Doctors() {
                             {/* Status Badge - Enhanced */}
                             <div className="absolute top-0 right-0">
                               <div className="bg-gradient-to-br from-violet-600 to-purple-600 text-white px-4 py-2 rounded-bl-xl font-bold text-sm shadow-lg flex items-center gap-2">
-                                <span>{(appt.status || 'Scheduled') === 'Confirmed' ? '✅' : (appt.status || 'Scheduled') === 'Cancelled' ? '❌' : (appt.status || 'Scheduled') === 'Pending' ? '⏳' : '📅'}</span>
+                                <span>{(appt.status || 'Scheduled') === 'Waiting' ? '⏳' : (appt.status || 'Scheduled') === 'In Progress' ? '🩺' : (appt.status || 'Scheduled') === 'Done' ? '✅' : (appt.status || 'Scheduled') === 'Confirmed' ? '✅' : (appt.status || 'Scheduled') === 'Cancelled' ? '❌' : (appt.status || 'Scheduled') === 'Pending' ? '⏳' : '📅'}</span>
                                 <span>{appt.status || 'Scheduled'}</span>
                               </div>
                             </div>

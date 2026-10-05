@@ -562,10 +562,7 @@ const VisitInfoModal = ({
       return;
     }
 
-    if (inlineMedications.length === 0) {
-      alert('❌ Please add at least one medication in the Write Prescription section before saving.');
-      return;
-    }
+    // Medication is optional — a consultation may not result in a prescription.
 
     setSavingVisit(true);
     try {
@@ -858,7 +855,7 @@ const VisitInfoModal = ({
                     <h3 className="dpv-card-title dpv-serif text-purple-900">
                       <span className="dpv-icon-badge bg-purple-100"><svg viewBox="0 0 24 24" fill="none" strokeWidth="1.8" className="stroke-purple-700"><rect x="5" y="9" width="14" height="10" rx="2" /><path d="M8 9V6a4 4 0 0 1 8 0v3" /></svg></span>
                       Write Prescription
-                      <span className="dpv-hint text-red-500 font-semibold" style={{ fontFamily: 'inherit' }}>— at least 1 medication required</span>
+                      <span className="dpv-hint text-stone-500 font-medium" style={{ fontFamily: 'inherit' }}>— optional, leave blank if none prescribed</span>
                     </h3>
 
                     <div className="dpv-rx-pad bg-white border-2 border-purple-200">
