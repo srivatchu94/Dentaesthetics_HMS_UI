@@ -15,22 +15,35 @@ const TIME_SLOTS = [
   "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00", "23:30"
 ];
 
-// Booking hours: 10:00 AM to 8:30 PM
-const BOOKING_START_HOUR = 10;
-const BOOKING_END_HOUR = 20;
-const BOOKING_END_MINUTES = 30;
-
-const isTimeBookable = (timeStr) => {
-  if (!timeStr) return false;
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  const totalMinutes = hours * 60 + minutes;
-  const startMinutes = BOOKING_START_HOUR * 60;
-  const endMinutes = BOOKING_END_HOUR * 60 + BOOKING_END_MINUTES;
-  return totalMinutes >= startMinutes && totalMinutes < endMinutes;
-};
-
 const TREATMENT_TYPES = ["Cleaning", "Checkup", "Filling", "Root Canal", "Extraction", "Crown", "Braces Adjustment", "Whitening", "X-Ray", "Consultation"];
-const APPOINTMENT_COLORS = ["emerald", "blue", "violet", "rose", "amber", "indigo"];
+
+const DEFAULT_DOCTOR_NAME = "Dr. Swetha";
+
+// Color swatches assigned per-doctor (stable, distinct Tailwind classes so they're picked up at build time)
+const DOCTOR_COLOR_PALETTE = [
+  { grad: "from-blue-400 to-blue-500", border: "border-blue-300", chipBg: "bg-blue-100", chipText: "text-blue-700", dot: "bg-blue-500" },
+  { grad: "from-violet-400 to-violet-500", border: "border-violet-300", chipBg: "bg-violet-100", chipText: "text-violet-700", dot: "bg-violet-500" },
+  { grad: "from-rose-400 to-rose-500", border: "border-rose-300", chipBg: "bg-rose-100", chipText: "text-rose-700", dot: "bg-rose-500" },
+  { grad: "from-amber-400 to-amber-500", border: "border-amber-300", chipBg: "bg-amber-100", chipText: "text-amber-700", dot: "bg-amber-500" },
+  { grad: "from-emerald-400 to-emerald-500", border: "border-emerald-300", chipBg: "bg-emerald-100", chipText: "text-emerald-700", dot: "bg-emerald-500" },
+  { grad: "from-indigo-400 to-indigo-500", border: "border-indigo-300", chipBg: "bg-indigo-100", chipText: "text-indigo-700", dot: "bg-indigo-500" },
+  { grad: "from-cyan-400 to-cyan-500", border: "border-cyan-300", chipBg: "bg-cyan-100", chipText: "text-cyan-700", dot: "bg-cyan-500" },
+  { grad: "from-fuchsia-400 to-fuchsia-500", border: "border-fuchsia-300", chipBg: "bg-fuchsia-100", chipText: "text-fuchsia-700", dot: "bg-fuchsia-500" },
+];
+
+// Icon + color assigned per appointment status, shown on the card and in the legend
+const STATUS_META = {
+  "Scheduled": { icon: "📅", dot: "bg-blue-500" },
+  "Waiting": { icon: "⏳", dot: "bg-amber-500" },
+  "In Progress": { icon: "🩺", dot: "bg-fuchsia-500" },
+  "Done": { icon: "✅", dot: "bg-emerald-600" },
+  "Confirmed": { icon: "✅", dot: "bg-emerald-600" },
+  "Cancelled": { icon: "❌", dot: "bg-red-500" },
+  "No-Show": { icon: "🚫", dot: "bg-gray-500" },
+  "Pending": { icon: "⏳", dot: "bg-amber-500" },
+};
+const DEFAULT_STATUS_META = { icon: "📌", dot: "bg-gray-400" };
+const getStatusMeta = (status) => STATUS_META[status] || DEFAULT_STATUS_META;
 
 export default function Calendar() {
   const navigate = useNavigate();
@@ -93,7 +106,7 @@ export default function Calendar() {
     startTime: apt.startTime || '',
     endTime: apt.endTime || '',
     type: apt.appointmentType || '',
-    doctor: apt.attendingPhysician || 'Dr. Smith',
+    doctor: apt.attendingPhysician || DEFAULT_DOCTOR_NAME,
     status: apt.status || 'Confirmed',
     notes: apt.notes || '',
     billableAmount: apt.billableAmount || 0,
@@ -105,8 +118,7 @@ export default function Calendar() {
     doctorId: apt.doctorId,
     enterpriseId: apt.enterpriseId,
     reasonForVisit: apt.reasonForVisit || '',
-    invoiceNumber: apt.invoiceNumber || null,
-    color: 'emerald'
+    invoiceNumber: apt.invoiceNumber || null
   });
 
   const loadAppointments = async () => {
@@ -136,7 +148,7 @@ export default function Calendar() {
     endTime: "",
     durationMinutes: 30,
     type: "",
-    doctor: "Dr. Smith",
+    doctor: DEFAULT_DOCTOR_NAME,
     reasonForVisit: "",
     notes: patientFromNav ? `Patient ID: ${patientFromNav.patientId} | DOB: ${patientFromNav.patientDOB ? new Date(patientFromNav.patientDOB).toLocaleDateString() : 'N/A'} | Gender: ${patientFromNav.patientGender || 'N/A'}` : "",
     billableAmount: 0,
@@ -192,8 +204,7 @@ export default function Calendar() {
     return '08:00';
   };
 
-  // Process appointments with normalized times
-  // For same date + same start time slots, assign different colors to distinguish cards.
+  // Process appointments with normalized times, a per-doctor color swatch, and per-status icon/color
   const processedAppointments = React.useMemo(() => {
     const normalizedAppointments = appointments.map((apt) => ({
       ...apt,
@@ -201,28 +212,32 @@ export default function Calendar() {
       endTime: normalizeTime(apt.endTime) || normalizeTime(apt.startTime)
     }));
 
-    const slotTotals = new Map();
-    const slotUsage = new Map();
-
-    normalizedAppointments.forEach((apt) => {
-      const key = `${apt.date}-${apt.startTime}`;
-      slotTotals.set(key, (slotTotals.get(key) || 0) + 1);
-    });
+    const distinctDoctors = Array.from(
+      new Set(normalizedAppointments.map((apt) => apt.doctor || DEFAULT_DOCTOR_NAME))
+    ).sort();
 
     return normalizedAppointments.map((apt) => {
-      const key = `${apt.date}-${apt.startTime}`;
-      const slotIndex = slotUsage.get(key) || 0;
-      slotUsage.set(key, slotIndex + 1);
-
-      const hasCollisionsInSlot = (slotTotals.get(key) || 0) > 1;
+      const doctorName = apt.doctor || DEFAULT_DOCTOR_NAME;
+      const doctorIndex = distinctDoctors.indexOf(doctorName);
       return {
         ...apt,
-        color: hasCollisionsInSlot
-          ? APPOINTMENT_COLORS[slotIndex % APPOINTMENT_COLORS.length]
-          : (apt.color || "emerald")
+        doctor: doctorName,
+        doctorColor: DOCTOR_COLOR_PALETTE[doctorIndex % DOCTOR_COLOR_PALETTE.length],
+        statusMeta: getStatusMeta(apt.status)
       };
     });
   }, [appointments]);
+
+  // Distinct doctor + color pairs actually present on the calendar, for the legend
+  const legendDoctors = React.useMemo(() => {
+    const seen = new Map();
+    processedAppointments.forEach((apt) => {
+      if (!seen.has(apt.doctor)) seen.set(apt.doctor, apt.doctorColor);
+    });
+    return Array.from(seen.entries())
+      .map(([name, color]) => ({ name, color }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [processedAppointments]);
 
   // Handle updating appointment details
   const handleUpdateAppointment = async () => {
@@ -492,7 +507,7 @@ export default function Calendar() {
           endTime: "",
           durationMinutes: 30,
           type: "",
-          doctor: "Dr. Smith",
+          doctor: DEFAULT_DOCTOR_NAME,
           reasonForVisit: "",
           notes: "",
           billableAmount: 0,
@@ -528,7 +543,7 @@ export default function Calendar() {
       endTime: "",
       durationMinutes: 30,
       type: "",
-      doctor: "Dr. Smith",
+      doctor: DEFAULT_DOCTOR_NAME,
       reasonForVisit: "",
       notes: "",
       billableAmount: 0,
@@ -613,6 +628,44 @@ export default function Calendar() {
               <span>←</span>
               <span>Back to Appointments</span>
             </motion.button>
+          </div>
+        </motion.div>
+
+        {/* Legend - explains the color (doctor) and icon (status) coding used on every appointment card */}
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl shadow-lg p-4 mb-6 flex flex-wrap items-center gap-x-6 gap-y-3"
+        >
+          {legendDoctors.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">👨‍⚕️ Doctor</span>
+              {legendDoctors.map(({ name, color }) => (
+                <span
+                  key={name}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200"
+                >
+                  <span className={`w-2.5 h-2.5 rounded-full ${color.dot}`}></span>
+                  {name}
+                </span>
+              ))}
+            </div>
+          )}
+          {legendDoctors.length > 0 && <div className="w-px h-6 bg-gray-200 hidden sm:block"></div>}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Status</span>
+            {["Scheduled", "Waiting", "In Progress", "Done"].map((status) => {
+              const meta = getStatusMeta(status);
+              return (
+                <span
+                  key={status}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200"
+                >
+                  <span>{meta.icon}</span>
+                  {status}
+                </span>
+              );
+            })}
           </div>
         </motion.div>
 
@@ -726,9 +779,11 @@ export default function Calendar() {
                     {day.isCurrentMonth && dayAppointments.slice(0, 2).map((apt) => (
                       <div
                         key={apt.id}
-                        className={`text-xs px-2 py-1 rounded-md mb-1 bg-${apt.color}-100 text-${apt.color}-700 font-medium truncate`}
+                        className={`text-xs px-2 py-1 rounded-md mb-1 ${apt.doctorColor.chipBg} ${apt.doctorColor.chipText} font-medium truncate flex items-center gap-1`}
+                        title={`${apt.doctor} • ${apt.status || "Scheduled"}`}
                       >
-                        {apt.startTime} - {apt.patient}
+                        <span>{apt.statusMeta.icon}</span>
+                        <span className="truncate">{apt.startTime} - {apt.patient}</span>
                       </div>
                     ))}
 
@@ -815,7 +870,6 @@ export default function Calendar() {
                 const startingAppointments = getAppointmentsStartingAtSlot(selectedDate, time);
                 const isBlocked = isSlotBlocked(selectedDate, time);
                 const isStartOfAppointment = startingAppointments.length > 0;
-                const isBookable = isTimeBookable(time);
 
                 return (
                   <div key={time} className="relative">
@@ -873,14 +927,20 @@ export default function Calendar() {
                                 zIndex: 10 + index
                               }}
                             >
-                              <div className={`h-full bg-gradient-to-br from-${currentAppointment.color}-400 to-${currentAppointment.color}-500 rounded-lg p-2.5 shadow-md hover:shadow-xl border border-${currentAppointment.color}-300 transition-all flex items-center justify-center`}>
+                              <div className={`relative h-full bg-gradient-to-br ${currentAppointment.doctorColor.grad} rounded-lg p-2.5 shadow-md hover:shadow-xl border ${currentAppointment.doctorColor.border} transition-all flex items-center justify-center`}>
+                                <span
+                                  className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full ${currentAppointment.statusMeta.dot} border-2 border-white flex items-center justify-center text-[10px] shadow`}
+                                  title={currentAppointment.status || "Scheduled"}
+                                >
+                                  {currentAppointment.statusMeta.icon}
+                                </span>
                                 <p className="font-bold text-white text-sm text-center truncate px-1">{currentAppointment.patient}</p>
                               </div>
                             </motion.div>
                           );
                         })}
                       </>
-                    ) : !isBlocked && isBookable ? (
+                    ) : !isBlocked ? (
                       <motion.button
                         whileHover={{ backgroundColor: "#f3e8ff", scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
@@ -890,11 +950,6 @@ export default function Calendar() {
                         <span className="text-sm font-semibold text-gray-600 group-hover:text-purple-600">{time}</span>
                         <span className="ml-auto text-xs text-gray-400 group-hover:text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity">Click to book</span>
                       </motion.button>
-                    ) : !isBookable ? (
-                      <div className="w-full h-[60px] border-2 border-gray-100 rounded-lg flex items-center px-4 bg-gray-100 cursor-not-allowed opacity-50">
-                        <span className="text-sm font-semibold text-gray-400">{time}</span>
-                        <span className="ml-auto text-xs text-gray-400">Not available</span>
-                      </div>
                     ) : (
                       <div className="w-full h-[60px] border-2 border-transparent rounded-lg"></div>
                     )}
@@ -986,9 +1041,7 @@ export default function Calendar() {
                           <select required value={bookingForm.startTime} onChange={(e) => setBookingForm({ ...bookingForm, startTime: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white">
                             <option value="">Select time</option>
                             {TIME_SLOTS.map(t => (
-                              <option key={t} value={t} disabled={!isTimeBookable(t)}>
-                                {t} {!isTimeBookable(t) ? '(Not available)' : ''}
-                              </option>
+                              <option key={t} value={t}>{t}</option>
                             ))}
                           </select>
                         </div>
@@ -997,9 +1050,7 @@ export default function Calendar() {
                           <select required value={bookingForm.endTime} onChange={(e) => setBookingForm({ ...bookingForm, endTime: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition bg-white">
                             <option value="">Select time</option>
                             {TIME_SLOTS.map(t => (
-                              <option key={t} value={t} disabled={!isTimeBookable(t)}>
-                                {t} {!isTimeBookable(t) ? '(Not available)' : ''}
-                              </option>
+                              <option key={t} value={t}>{t}</option>
                             ))}
                           </select>
                         </div>
@@ -1027,7 +1078,7 @@ export default function Calendar() {
                         </div>
                         <div>
                           <label className="block text-sm font-semibold text-slate-700 mb-2">Doctor</label>
-                          <input type="text" value={bookingForm.doctor} onChange={(e) => setBookingForm({ ...bookingForm, doctor: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder="Dr. Smith" />
+                          <input type="text" value={bookingForm.doctor} onChange={(e) => setBookingForm({ ...bookingForm, doctor: e.target.value })} className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition" placeholder={DEFAULT_DOCTOR_NAME} />
                         </div>
                         <div>
                           <label className="block text-sm font-semibold text-slate-700 mb-2">Reason for Visit</label>
