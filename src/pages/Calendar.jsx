@@ -894,8 +894,12 @@ export default function Calendar() {
                                 zIndex: 10 + index
                               }}
                             >
-                              <div className={`h-full bg-gradient-to-br ${currentAppointment.doctorColor.grad} rounded-lg p-2.5 shadow-md hover:shadow-xl border ${currentAppointment.doctorColor.border} transition-all flex items-center justify-center`} title={currentAppointment.doctor}>
-                                <p className="font-bold text-white text-sm text-center truncate px-1">{currentAppointment.patient}</p>
+                              <div
+                                className={`h-full bg-gradient-to-br ${currentAppointment.doctorColor.grad} rounded-lg p-2 shadow-md hover:shadow-xl border ${currentAppointment.doctorColor.border} transition-all flex flex-col items-center justify-center gap-0.5 overflow-hidden`}
+                                title={`${currentAppointment.patient} • ${currentAppointment.doctor}`}
+                              >
+                                <p className="font-bold text-white text-sm text-center truncate px-1 leading-tight w-full">{currentAppointment.patient}</p>
+                                <p className="text-white/90 text-[10px] text-center truncate px-1 leading-tight w-full">👨‍⚕️ {currentAppointment.doctor}</p>
                               </div>
                             </motion.div>
                           );
