@@ -1571,8 +1571,22 @@ export default function Doctors() {
 
     visitFetchRef.current = { appointmentId, inFlight: true };
     (async () => {
+      // Retry transient failures (slow cold start, brief network blip, token refresh race)
+      // instead of silently giving up and showing "no history" for a patient who has one.
+      const fetchVisitWithRetry = async (retriesLeft) => {
+        try {
+          return await getPatientVisit(appointmentId);
+        } catch (error) {
+          if (retriesLeft > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 700));
+            return fetchVisitWithRetry(retriesLeft - 1);
+          }
+          throw error;
+        }
+      };
+
       try {
-        const rawVisitData = await getPatientVisit(appointmentId);
+        const rawVisitData = await fetchVisitWithRetry(2);
         console.log('═══════════════════════════════════════════════════════');
         console.log('📝 VISIT DATA RECEIVED FROM FIRST API CALL:');
         console.log('═══════════════════════════════════════════════════════');
@@ -1636,8 +1650,14 @@ export default function Doctors() {
           setSelectedAppointmentForVisit({ ...selectedAppointmentDetails, visitHistory: [] });
         }
       } catch (error) {
-        console.error('❌ Failed to fetch patient visit:', error);
-        setSelectedAppointmentForVisit(selectedAppointmentDetails);
+        console.error('❌ Failed to fetch patient visit after retries:', error);
+        // Don't wipe out visit history that's already on screen for this appointment -
+        // only fall back to the bare appointment details if we never had any history.
+        setSelectedAppointmentForVisit(prev =>
+          prev?.appointmentId === selectedAppointmentDetails.appointmentId && prev?.visitHistory
+            ? prev
+            : selectedAppointmentDetails
+        );
       } finally {
         visitFetchRef.current = { appointmentId, inFlight: false };
       }
