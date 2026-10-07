@@ -499,13 +499,7 @@ const DiagnosisContent = React.memo(({ loading, formData, onInputChange, onSave,
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                if (medicationList.length === 0) {
-                  alert('Please add at least one medication before saving.');
-                  return;
-                }
-                onSave();
-              }}
+              onClick={onSave}
               disabled={isSaving}
               className="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-bold hover:shadow-lg transition disabled:opacity-50 text-sm"
             >

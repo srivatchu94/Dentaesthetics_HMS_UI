@@ -31,19 +31,6 @@ const DOCTOR_COLOR_PALETTE = [
   { grad: "from-fuchsia-400 to-fuchsia-500", border: "border-fuchsia-300", chipBg: "bg-fuchsia-100", chipText: "text-fuchsia-700", dot: "bg-fuchsia-500" },
 ];
 
-// Icon + color assigned per appointment status, shown on the card and in the legend
-const STATUS_META = {
-  "Scheduled": { icon: "📅", dot: "bg-blue-500" },
-  "Waiting": { icon: "⏳", dot: "bg-amber-500" },
-  "In Progress": { icon: "🩺", dot: "bg-fuchsia-500" },
-  "Done": { icon: "✅", dot: "bg-emerald-600" },
-  "Confirmed": { icon: "✅", dot: "bg-emerald-600" },
-  "Cancelled": { icon: "❌", dot: "bg-red-500" },
-  "No-Show": { icon: "🚫", dot: "bg-gray-500" },
-  "Pending": { icon: "⏳", dot: "bg-amber-500" },
-};
-const DEFAULT_STATUS_META = { icon: "📌", dot: "bg-gray-400" };
-const getStatusMeta = (status) => STATUS_META[status] || DEFAULT_STATUS_META;
 
 export default function Calendar() {
   const navigate = useNavigate();
@@ -222,8 +209,7 @@ export default function Calendar() {
       return {
         ...apt,
         doctor: doctorName,
-        doctorColor: DOCTOR_COLOR_PALETTE[doctorIndex % DOCTOR_COLOR_PALETTE.length],
-        statusMeta: getStatusMeta(apt.status)
+        doctorColor: DOCTOR_COLOR_PALETTE[doctorIndex % DOCTOR_COLOR_PALETTE.length]
       };
     });
   }, [appointments]);
@@ -631,43 +617,25 @@ export default function Calendar() {
           </div>
         </motion.div>
 
-        {/* Legend - explains the color (doctor) and icon (status) coding used on every appointment card */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl shadow-lg p-4 mb-6 flex flex-wrap items-center gap-x-6 gap-y-3"
-        >
-          {legendDoctors.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">👨‍⚕️ Doctor</span>
-              {legendDoctors.map(({ name, color }) => (
-                <span
-                  key={name}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200"
-                >
-                  <span className={`w-2.5 h-2.5 rounded-full ${color.dot}`}></span>
-                  {name}
-                </span>
-              ))}
-            </div>
-          )}
-          {legendDoctors.length > 0 && <div className="w-px h-6 bg-gray-200 hidden sm:block"></div>}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Status</span>
-            {["Scheduled", "Waiting", "In Progress", "Done"].map((status) => {
-              const meta = getStatusMeta(status);
-              return (
-                <span
-                  key={status}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200"
-                >
-                  <span>{meta.icon}</span>
-                  {status}
-                </span>
-              );
-            })}
-          </div>
-        </motion.div>
+        {/* Legend - explains the per-doctor color coding used on every appointment card */}
+        {legendDoctors.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white rounded-2xl shadow-lg p-4 mb-6 flex items-center gap-2 flex-wrap"
+          >
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">👨‍⚕️ Doctor</span>
+            {legendDoctors.map(({ name, color }) => (
+              <span
+                key={name}
+                className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 bg-gray-50 px-2.5 py-1 rounded-full border border-gray-200"
+              >
+                <span className={`w-2.5 h-2.5 rounded-full ${color.dot}`}></span>
+                {name}
+              </span>
+            ))}
+          </motion.div>
+        )}
 
         {/* Calendar Controls - Only show in Month View */}
         {viewMode === "month" && (
@@ -779,11 +747,10 @@ export default function Calendar() {
                     {day.isCurrentMonth && dayAppointments.slice(0, 2).map((apt) => (
                       <div
                         key={apt.id}
-                        className={`text-xs px-2 py-1 rounded-md mb-1 ${apt.doctorColor.chipBg} ${apt.doctorColor.chipText} font-medium truncate flex items-center gap-1`}
-                        title={`${apt.doctor} • ${apt.status || "Scheduled"}`}
+                        className={`text-xs px-2 py-1 rounded-md mb-1 ${apt.doctorColor.chipBg} ${apt.doctorColor.chipText} font-medium truncate`}
+                        title={apt.doctor}
                       >
-                        <span>{apt.statusMeta.icon}</span>
-                        <span className="truncate">{apt.startTime} - {apt.patient}</span>
+                        {apt.startTime} - {apt.patient}
                       </div>
                     ))}
 
@@ -927,13 +894,7 @@ export default function Calendar() {
                                 zIndex: 10 + index
                               }}
                             >
-                              <div className={`relative h-full bg-gradient-to-br ${currentAppointment.doctorColor.grad} rounded-lg p-2.5 shadow-md hover:shadow-xl border ${currentAppointment.doctorColor.border} transition-all flex items-center justify-center`}>
-                                <span
-                                  className={`absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full ${currentAppointment.statusMeta.dot} border-2 border-white flex items-center justify-center text-[10px] shadow`}
-                                  title={currentAppointment.status || "Scheduled"}
-                                >
-                                  {currentAppointment.statusMeta.icon}
-                                </span>
+                              <div className={`h-full bg-gradient-to-br ${currentAppointment.doctorColor.grad} rounded-lg p-2.5 shadow-md hover:shadow-xl border ${currentAppointment.doctorColor.border} transition-all flex items-center justify-center`} title={currentAppointment.doctor}>
                                 <p className="font-bold text-white text-sm text-center truncate px-1">{currentAppointment.patient}</p>
                               </div>
                             </motion.div>

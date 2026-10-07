@@ -440,8 +440,15 @@ export default function Patients() {
         phoneNumber: normalizeIndianPhoneDigits(appointmentFromRegistration.phoneNumber),
         dateOfBirth: appointmentFromRegistration.dateOfBirth
       }));
-      // Enable form editing when prepopulated from registration
-      setBookingWithoutRegistration(true);
+      // Link to the patient record that was just created instead of booking as an
+      // unregistered walk-in - a walk-in sends patientId: null, which the backend rejects.
+      setSearchedPatient({
+        patientId: appointmentFromRegistration.patientId,
+        patientFirstName: appointmentFromRegistration.firstName,
+        patientLastName: appointmentFromRegistration.lastName,
+        patientPhone: appointmentFromRegistration.phoneNumber,
+        patientEmail: appointmentFromRegistration.email
+      });
       setAppointmentFromRegistration(null); // Clear after using
     }
   }, [appointmentFromRegistration, showNewAppointmentModal]);
@@ -3069,6 +3076,7 @@ export default function Patients() {
                       const lastName = names.length > 1 ? names.slice(1).join(' ') : '';
                       
                       setAppointmentFromRegistration({
+                        patientId: registeredPatient.patientId,
                         firstName: firstName,
                         lastName: lastName,
                         email: registeredPatient.email || '',
